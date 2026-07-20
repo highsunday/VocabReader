@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/server"
+    },
+    {
+      "path": "./apps/desktop"
+    }
+  ]
+}
+

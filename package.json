@@ -1,0 +1,21 @@
+{
+  "name": "ai-assisted-epub-reader",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,desktop -c cyan,magenta \"npm run dev -w @reader/server\" \"npm run dev -w @reader/desktop\"",
+    "dev:desktop": "npm run dev -w @reader/desktop",
+    "dev:server": "npm run dev -w @reader/server",
+    "build": "npm run build -w @reader/server && npm run build -w @reader/desktop",
+    "test": "npm run test -w @reader/server && npm run test -w @reader/desktop",
+    "test:e2e": "npm run test:e2e -w @reader/desktop",
+    "typecheck": "npm run typecheck -w @reader/server && npm run typecheck -w @reader/desktop"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
+
