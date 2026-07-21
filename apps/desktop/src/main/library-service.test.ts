@@ -23,7 +23,11 @@ afterEach(async () => {
   );
 });
 
-async function createEpub3(path: string, chapterText = "Chapter one") {
+async function createEpub3(
+  path: string,
+  chapterText = "Chapter one",
+  includeDuplicateNavigationEntry = false
+) {
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
   zip.file(
@@ -56,6 +60,9 @@ async function createEpub3(path: string, chapterText = "Chapter one") {
     `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
       <body><nav epub:type="toc"><ol>
         <li><a href="chapter1.xhtml">Getting Started</a></li>
+        ${includeDuplicateNavigationEntry
+          ? '<li><a href="chapter1.xhtml#exercise">Getting Started Exercise</a></li>'
+          : ""}
         <li><a href="chapter2.xhtml">Useful Patterns</a></li>
       </ol></nav></body></html>`
   );
@@ -124,6 +131,23 @@ describe("LocalBookLibrary", () => {
 
     const reloaded = await new LocalBookLibrary(libraryPath).listBooks();
     expect(reloaded).toEqual([result.book]);
+  });
+
+  it("collapses navigation entries that point to the same chapter file", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "duplicate-navigation.epub");
+    await createEpub3(epubPath, "Chapter one", true);
+
+    const result = await new LocalBookLibrary(join(root, "library"))
+      .importFromPath(epubPath);
+
+    if (result.status === "cancelled") throw new Error("unexpected cancellation");
+    expect(result.book.chapters).toEqual([
+      expect.objectContaining({ title: "Getting Started", order: 0 }),
+      expect.objectContaining({ title: "Useful Patterns", order: 1 })
+    ]);
+    expect(new Set(result.book.chapters.map((chapter) => chapter.id)).size)
+      .toBe(result.book.chapters.length);
   });
 
   it("imports EPUB 2 metadata, legacy cover and NCX navigation", async () => {

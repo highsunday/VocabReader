@@ -55,6 +55,23 @@ export function App() {
   const activeChapterIndex = selectedBook?.chapters.findIndex(
     (chapter) => chapter.id === activeChapterId
   ) ?? -1;
+  const previousChapter = adjacentChapter(-1);
+  const nextChapter = adjacentChapter(1);
+
+  function adjacentChapter(direction: -1 | 1) {
+    if (!selectedBook || !activeChapterId || activeChapterIndex < 0) {
+      return undefined;
+    }
+    for (
+      let index = activeChapterIndex + direction;
+      index >= 0 && index < selectedBook.chapters.length;
+      index += direction
+    ) {
+      const chapter = selectedBook.chapters[index];
+      if (chapter.id !== activeChapterId) return chapter;
+    }
+    return undefined;
+  }
 
   function restoreBook(book: LibraryBook) {
     const state = book.readingState;
@@ -253,8 +270,11 @@ export function App() {
   }
 
   function openPreviousChapter() {
-    if (!selectedBook || activeChapterIndex <= 0) return;
-    openChapter(selectedBook.chapters[activeChapterIndex - 1].id);
+    if (previousChapter) openChapter(previousChapter.id);
+  }
+
+  function openNextChapter() {
+    if (nextChapter) openChapter(nextChapter.id);
   }
 
   function startOrContinueReading() {
@@ -333,13 +353,6 @@ export function App() {
 
           <nav>
             <button
-              className={mode !== "review" ? "nav-item active" : "nav-item"}
-              onClick={returnToOverview}
-            >
-              <span>▤</span>
-              書籍總覽
-            </button>
-            <button
               className={mode === "review" ? "nav-item active" : "nav-item"}
               onClick={() => {
                 saveCurrentReaderPosition();
@@ -351,20 +364,53 @@ export function App() {
               <em>10</em>
             </button>
           </nav>
-
-          <div className="learning-map">
-            <span className="eyebrow">章節機制</span>
-            <ol>
-              <li>閱讀與劃線</li>
-              <li>AI 集中解析</li>
-              <li>加入生詞庫</li>
-              <li>章末選擇題</li>
-            </ol>
-            <p>Anki 複習是另一套獨立排程。</p>
-          </div>
         </aside>
 
-        <main className="content" ref={contentRef} onScroll={handleContentScroll}>
+        <main
+          className={mode === "reader" ? "content reader-content" : "content"}
+          ref={contentRef}
+          onScroll={handleContentScroll}
+        >
+          {mode === "reader" ? (
+            <div className="reader-toolbar">
+              <div className="reader-toolbar-inner">
+                <button
+                  className="reader-back-button"
+                  type="button"
+                  aria-label="返回總覽"
+                  onClick={returnToOverview}
+                >
+                  <span aria-hidden="true">←</span>
+                  返回總覽
+                </button>
+
+                <div className="reader-toolbar-context" aria-hidden="true">
+                  <span>閱讀中</span>
+                  <strong>{activeChapter?.title ?? selectedBook?.title}</strong>
+                </div>
+
+                <div className="chapter-navigation" role="group" aria-label="章節導覽">
+                  <button
+                    type="button"
+                    onClick={openPreviousChapter}
+                    disabled={!previousChapter}
+                  >
+                    <span aria-hidden="true">‹</span>
+                    上一章
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openNextChapter}
+                    disabled={!nextChapter}
+                  >
+                    下一章
+                    <span aria-hidden="true">›</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {libraryError ? <div className="library-error" role="alert">{libraryError}</div> : null}
 
           {mode === "overview" ? (
@@ -407,7 +453,7 @@ export function App() {
                   </div>
                   <ol>
                     {selectedBook.chapters.map((chapter) => (
-                      <li key={chapter.id}>
+                      <li key={`${chapter.id}-${chapter.order}`}>
                         <button type="button" onClick={() => openChapter(chapter.id)}>
                           <span>{String(chapter.order + 1).padStart(2, "0")}</span>
                           <strong>{chapter.title}</strong>
@@ -441,18 +487,6 @@ export function App() {
             )
           ) : mode === "reader" ? (
             <section className="reader-panel" aria-labelledby="reader-title">
-              <div className="reader-toolbar">
-                <button type="button" aria-label="返回總覽" onClick={returnToOverview}>
-                  ← 返回總覽
-                </button>
-                <button
-                  type="button"
-                  onClick={openPreviousChapter}
-                  disabled={activeChapterIndex <= 0}
-                >
-                  上一章
-                </button>
-              </div>
               <div className="section-heading reader-heading">
                 <div>
                   <span className="eyebrow">Chapter workspace</span>
@@ -460,9 +494,6 @@ export function App() {
                     {activeChapter?.title ?? selectedBook?.title ?? "導入 EPUB 開始閱讀"}
                   </h1>
                 </div>
-                <button className="quiet-button" disabled={!activeChapter}>
-                  完成本章
-                </button>
               </div>
 
               {isLoadingChapter ? (

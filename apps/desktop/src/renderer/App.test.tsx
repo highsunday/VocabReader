@@ -95,6 +95,21 @@ describe("App", () => {
       .toBeInTheDocument();
   });
 
+  it("uses book selection as the only overview entry and omits the learning mechanism copy", () => {
+    render(<App />);
+
+    expect(screen.queryByRole("button", { name: /書籍總覽/ }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Anki 複習/ }))
+      .toBeInTheDocument();
+    expect(screen.queryByText("章節機制")).not.toBeInTheDocument();
+    expect(screen.queryByText("閱讀與劃線")).not.toBeInTheDocument();
+    expect(screen.queryByText("AI 集中解析")).not.toBeInTheDocument();
+    expect(screen.queryByText("加入生詞庫")).not.toBeInTheDocument();
+    expect(screen.queryByText("Anki 複習是另一套獨立排程。"))
+      .not.toBeInTheDocument();
+  });
+
   it("adds a user message to the assistant panel", () => {
     render(<App />);
 
@@ -157,7 +172,7 @@ describe("App", () => {
       .toBeInTheDocument();
   });
 
-  it("shows chapter content and moves to the previous chapter", async () => {
+  it("moves between chapters and replaces the completion action with next chapter", async () => {
     const { getChapterContent } = installLibraryApi();
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
@@ -166,9 +181,42 @@ describe("App", () => {
 
     expect(await screen.findByText("Content for one-2")).toBeInTheDocument();
     expect(getChapterContent).toHaveBeenCalledWith("book-one", "one-2");
+    expect(screen.queryByRole("button", { name: "完成本章" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下一章" })).toBeDisabled();
+    const toolbar = screen.getByRole("group", { name: "章節導覽" })
+      .closest(".reader-toolbar");
+    expect(toolbar?.parentElement).toHaveClass("content", "reader-content");
+
     fireEvent.click(screen.getByRole("button", { name: "上一章" }));
     expect(await screen.findByText("Content for one-1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "上一章" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+    expect(await screen.findByText("Content for one-2")).toBeInTheDocument();
+    expect(getChapterContent).toHaveBeenLastCalledWith("book-one", "one-2");
+  });
+
+  it("moves to the next distinct chapter when EPUB navigation entries share an id", async () => {
+    const bookWithDuplicateNavigationEntries: LibraryBook = {
+      ...books[0],
+      lastChapterId: null,
+      readingState: { view: "overview", chapterId: null, scrollProgress: 0 },
+      chapters: [
+        { id: "shared", title: "Introduction", order: 0, href: "intro.xhtml" },
+        { id: "shared", title: "Introduction exercise", order: 1, href: "intro.xhtml" },
+        { id: "chapter-one", title: "Chapter One", order: 2, href: "one.xhtml" }
+      ]
+    };
+    const { getChapterContent } = installLibraryApi([bookWithDuplicateNavigationEntries]);
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+
+    fireEvent.click(screen.getByRole("button", { name: /01Introduction/ }));
+    expect(await screen.findByText("Content for shared")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+
+    expect(await screen.findByText("Content for chapter-one")).toBeInTheDocument();
+    expect(getChapterContent).toHaveBeenLastCalledWith("book-one", "chapter-one");
   });
 
   it("returns to overview and persists that view for the selected book", async () => {

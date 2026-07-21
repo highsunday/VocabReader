@@ -291,6 +291,18 @@ function defaultReadingState(book: Partial<LibraryBook>): BookReadingState {
   };
 }
 
+function distinctChapters(chapters: BookChapter[]): BookChapter[] {
+  const seen = new Set<string>();
+  return [...chapters]
+    .sort((left, right) => left.order - right.order)
+    .filter((chapter) => {
+      if (seen.has(chapter.id)) return false;
+      seen.add(chapter.id);
+      return true;
+    })
+    .map((chapter, order) => ({ ...chapter, order }));
+}
+
 async function requiredTextFile(zip: JSZip, path: string, label: string) {
   const file = zip.file(path);
   if (!file) throw new Error(`缺少 ${label}`);
@@ -385,12 +397,12 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
     }));
   }
 
-  const chapters = links.map<BookChapter>((link, order) => ({
+  const chapters = distinctChapters(links.map<BookChapter>((link, order) => ({
     id: chapterId(resolveArchivePath(packageDirectory, link.href)),
     title: link.title,
     order,
     href: resolveArchivePath(packageDirectory, link.href)
-  }));
+  })));
   if (!chapters.length) throw new Error("EPUB 沒有可閱讀的章節");
 
   return { title, author, coverDataUrl, chapters };
@@ -421,7 +433,7 @@ export class LocalBookLibrary {
     const contents = await readFile(this.#indexPath, "utf8");
     const books = JSON.parse(contents) as LibraryBook[];
     return books.map((book) => {
-      const chapters = [...book.chapters].sort((left, right) => left.order - right.order);
+      const chapters = distinctChapters(book.chapters);
       return {
         ...book,
         chapters,

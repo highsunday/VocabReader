@@ -6,6 +6,7 @@ last_updated: 2026-07-21
 related_implements:
   - F01-epub-book-library
   - F02-chapter-reading-resume
+  - F03-simplify-sidebar-navigation
 ---
 
 # 書籍與本機書庫模組
@@ -33,7 +34,7 @@ related_implements:
 - 將 EPUB 原始檔與書庫索引保存於 Electron user data 目錄。
 - 重新開啟應用程式後載入既有書庫。
 - 以 EPUB 完整內容 SHA-256 去重；相同內容不重複導入，同名不同內容可並存。
-- 在左側書庫切換書籍，並於中央顯示書籍總覽。
+- 在左側書庫直接選取與切換書籍，並於中央顯示書籍總覽；側欄不另設重複的「書籍總覽」按鈕。
 - 從總覽的開始／繼續閱讀按鈕或章節清單進入章節閱讀介面。
 - 從本機 EPUB 讀取指定章節，安全呈現常見文字結構、表格、清單與書內點陣圖片。
 - 在閱讀介面返回書籍總覽或切換上一章。
@@ -69,6 +70,7 @@ related_implements:
 
 - 載入並保存目前 session 的書籍清單、選取狀態與閱讀位置。
 - 顯示書籍縮圖、書籍總覽、章節清單、安全章節內容、載入與錯誤訊息。
+- 側欄以書籍項目作為書籍總覽入口，保留獨立的 Anki 複習入口，不顯示章節機制說明卡片。
 - 不解析 EPUB，也不直接讀寫書庫檔案。
 
 ## 4. Key Files
@@ -212,12 +214,12 @@ related_implements:
 |---|---|
 | apps/desktop/src/main/library-service.test.ts | EPUB 導入、章節安全內容與圖片、閱讀狀態持久化、不存在章節與錯誤回滾 |
 | apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、章節與閱讀狀態 handler，以及取消導入 |
-| apps/desktop/src/renderer/App.test.tsx | 書籍總覽、章節本文、上一章、返回總覽、每本書畫面與閱讀位置恢復 |
+| apps/desktop/src/renderer/App.test.tsx | 側欄書籍直接切換與內容精簡、書籍總覽、章節本文、章節切換、返回總覽、每本書畫面與閱讀位置恢復 |
 | apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge、章節／狀態 API、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
 
 最近驗證（2026-07-21）：
 
-- Desktop Vitest：16/16 passed。
+- Desktop Vitest：17/17 passed。
 - Electron Playwright：2/2 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
@@ -240,5 +242,6 @@ related_implements:
 - CONTEXT.md
 - documents/implements/F01-epub-book-library.md
 - documents/implements/F02-chapter-reading-resume.md
+- documents/implements/F03-simplify-sidebar-navigation.md
 
 更新本模組行為、資料格式、IPC、儲存路徑或 EPUB 解析規則時，必須同步更新本文件與相關 FXX／RXX／BXX 實作紀錄。
