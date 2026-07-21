@@ -217,6 +217,197 @@ describe("App", () => {
     }));
   });
 
+  it("resends reading content only after the reading range changes", async () => {
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: 7 } }
+    };
+    const snapshot: ChatSnapshot = {
+      connection: "ready",
+      connectionDetail: "Codex 已連線。",
+      account: { type: "plus" },
+      allowance: {
+        phase: "unavailable",
+        fiveHour: null,
+        weekly: null,
+        detail: "無法取得"
+      },
+      messages: [],
+      threadId: "thread-1",
+      activeTurnId: null
+    };
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByText("Content for one-1");
+    await waitFor(() => expect(screen.getByLabelText("詢問目前內容"))
+      .not.toBeDisabled());
+
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "First question" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+    expect(sendMessage).toHaveBeenNthCalledWith(1, {
+      text: "First question",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: "Content"
+      }
+    });
+
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "Follow-up" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, { text: "Follow-up" });
+
+    fireEvent.click(screen.getByRole("button", { name: "完成這段，前往下一段" }));
+    await waitFor(() => expect(screen.getByRole("button", {
+      name: "閱讀區段起點"
+    })).not.toHaveAttribute("data-text-offset", "0"));
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "New range" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(3));
+    expect(sendMessage).toHaveBeenNthCalledWith(3, {
+      text: "New range",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: "for"
+      }
+    });
+
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "New range follow-up" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(4));
+    expect(sendMessage).toHaveBeenNthCalledWith(4, {
+      text: "New range follow-up"
+    });
+  });
+
+  it("resends reading content after switching chapters with equal offsets", async () => {
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: {
+        "one-1": { start: 0, end: 7 },
+        "one-2": { start: 0, end: 7 }
+      }
+    };
+    const snapshot: ChatSnapshot = {
+      connection: "ready",
+      connectionDetail: "Codex 已連線。",
+      account: { type: "plus" },
+      allowance: {
+        phase: "unavailable",
+        fiveHour: null,
+        weekly: null,
+        detail: "無法取得"
+      },
+      messages: [],
+      threadId: "thread-1",
+      activeTurnId: null
+    };
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByText("Content for one-1");
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "Opening question" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+    await screen.findByText("Content for one-2");
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "New chapter question" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, {
+      text: "New chapter question",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "A New Road",
+        readingSegment: "Content"
+      }
+    });
+  });
+
+  it("retries unsent reading content after the bridge rejects a message", async () => {
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: 7 } }
+    };
+    const snapshot: ChatSnapshot = {
+      connection: "ready",
+      connectionDetail: "Codex 已連線。",
+      account: { type: "plus" },
+      allowance: {
+        phase: "unavailable",
+        fiveHour: null,
+        weekly: null,
+        detail: "無法取得"
+      },
+      messages: [],
+      threadId: "thread-1",
+      activeTurnId: null
+    };
+    const sendMessage = vi.fn()
+      .mockRejectedValueOnce(new Error("bridge unavailable"))
+      .mockResolvedValue(snapshot);
+    installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByText("Content for one-1");
+
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "Failed question" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    expect(await screen.findByText("bridge unavailable")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "Retry question" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    expect(sendMessage.mock.calls[0]?.[0].context?.readingSegment)
+      .toBe("Content");
+    expect(sendMessage.mock.calls[1]?.[0].context?.readingSegment)
+      .toBe("Content");
+  });
+
   it("keeps chapter practice separate from spaced review", () => {
     render(<App />);
 

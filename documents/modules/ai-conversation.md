@@ -7,6 +7,7 @@ related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
   - F08-compact-markdown-chat-messages
+  - F09-send-reading-segment-on-range-change
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -29,6 +30,7 @@ related_implements:
 - 依 300 與 10,080 分鐘視窗辨識五小時與每週額度；缺值、載入中與確實 0% 保持不同語意。
 - 合併 `account/rateLimits/updated` 的 partial live update，不建立 AI turn。
 - 第一次提問建立一個 thread，後續追問在相同 thread 建立新 turn。
+- 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
 - assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy。
 - 同一 thread 不允許並行 turn，包含第一次 thread 尚在建立的時間窗。
 - 右側 AI 對話面板顯示 session 內訊息；關閉應用程式後不保存對話。
@@ -74,6 +76,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 
 - 訂閱並呈現 `ChatSnapshot`，不自行模擬已連線、帳戶或額度資料。
 - 從目前模式、選取書籍、章節與 `extractReadingSegment()` 組裝 `SendChatMessageInput`。
+- 以 `bookId + chapterId + start + end` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
 - 空閱讀區段只送出一般問題，不使用整章 fallback。
 - 顯示處理中、需要登入、連線失敗與額度不可用狀態。
 - 以安全的 Markdown 元件呈現 user／assistant 訊息，並在串流尚無文字時保留「…」占位。
@@ -121,12 +124,13 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 ## 6. Conversation Flow
 
 1. Renderer 驗證 Codex ready、輸入非空且沒有 active turn。
-2. 閱讀模式以 `extractReadingSegment()` 取得目前非空區段；其他模式或空區段不附 EPUB 原文。
-3. Controller 在任何 await 前先進入 starting，封鎖第二個並行 send。
-4. 尚無 thread 時以固定的唯讀、無工具設定建立 thread。
-5. Controller 保存畫面用的純使用者問題，另把有限閱讀 context 組成 Codex input。
-6. `turn/start` 回傳 turn id；後續 delta／completed notification 更新同一 assistant 訊息。
-7. turn completed 後解除 busy，使用者才能追問；thread id 保持不變。
+2. 閱讀模式以 `extractReadingSegment()` 取得目前非空區段，並以書籍、章節及 START／END 組成區段識別。
+3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時只送使用者問題。其他模式或空區段不附 EPUB 原文。
+4. Controller 在任何 await 前先進入 starting，封鎖第二個並行 send。
+5. 尚無 thread 時以固定的唯讀、無工具設定建立 thread。
+6. Controller 保存畫面用的純使用者問題，另把本次實際收到的有限閱讀 context 組成 Codex input。
+7. `turn/start` 成功後 Renderer 才把本次區段識別記為已提供；bridge 拒絕時保留待提供狀態。
+8. 後續 delta／completed notification 更新同一 assistant 訊息；turn completed 後解除 busy，thread id 保持不變。
 
 ## 7. Runtime and Safety Constraints
 
@@ -158,13 +162,13 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 |---|---|
 | `apps/desktop/src/main/chat-controller.test.ts` | initialize 順序、帳戶、額度、loading、partial update、0%／缺值、多輪串流、thread 重用、錯誤、登入、並行保護與 process close |
 | `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 白名單、結構化 context 與惡意格式拒絕 |
-| `apps/desktop/src/renderer/App.test.tsx` | 真實 snapshot 狀態卡、窄欄帳戶呈現、空設定按鈕、bridge send、閱讀區段裁切、一般對話 fallback、精簡角色排版、安全 Markdown／GFM 與串流占位 |
+| `apps/desktop/src/renderer/App.test.tsx` | 真實 snapshot 狀態卡、窄欄帳戶呈現、空設定按鈕、bridge send、閱讀區段裁切與去重、範圍／來源變更重傳、失敗重試、一般對話 fallback、精簡角色排版、安全 Markdown／GFM 與串流占位 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、狀態卡、設定按鈕、四項 chat bridge 白名單與 Node 隔離 |
 
 最近驗證（2026-07-21）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：67/67 passed。
+- Desktop Vitest：70/70 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -186,5 +190,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/F05-ai-reading-range-markers.md`
 - `documents/implements/F07-codex-ai-conversation.md`
 - `documents/implements/F08-compact-markdown-chat-messages.md`
+- `documents/implements/F09-send-reading-segment-on-range-change.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

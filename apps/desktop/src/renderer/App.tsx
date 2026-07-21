@@ -154,6 +154,7 @@ export function App() {
   const articleRef = useRef<HTMLElement>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
   const initializedRangeRef = useRef<string | undefined>(undefined);
+  const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const chapterStartRef = useRef<{
     bookId: string;
@@ -674,13 +675,32 @@ export function App() {
     const segment = mode === "reader" && readingRange && articleRef.current
       ? extractReadingSegment(articleRef.current.textContent ?? "", readingRange)
       : "";
-    const context = {
-      ...(selectedBook?.title ? { bookTitle: selectedBook.title } : {}),
-      ...(mode === "reader" && activeChapter?.title
-        ? { chapterTitle: activeChapter.title }
-        : {}),
-      ...(segment ? { readingSegment: segment } : {})
-    };
+    const readingSegmentKey = segment && selectedBook && activeChapter && readingRange
+      ? JSON.stringify([
+          selectedBook.id,
+          activeChapter.id,
+          readingRange.start,
+          readingRange.end
+        ])
+      : undefined;
+    const shouldProvideReadingSegment = Boolean(
+      readingSegmentKey &&
+      readingSegmentKey !== lastProvidedReadingSegmentRef.current
+    );
+    const context = segment
+      ? (shouldProvideReadingSegment
+          ? {
+              bookTitle: selectedBook?.title,
+              chapterTitle: activeChapter?.title,
+              readingSegment: segment
+            }
+          : {})
+      : {
+          ...(selectedBook?.title ? { bookTitle: selectedBook.title } : {}),
+          ...(mode === "reader" && activeChapter?.title
+            ? { chapterTitle: activeChapter.title }
+            : {})
+        };
     const input: SendChatMessageInput = {
       text,
       ...(Object.keys(context).length ? { context } : {})
@@ -688,7 +708,11 @@ export function App() {
     setDraft("");
     setChatError("");
     try {
-      setChatSnapshot(await chat.sendMessage(input));
+      const snapshot = await chat.sendMessage(input);
+      if (shouldProvideReadingSegment && readingSegmentKey) {
+        lastProvidedReadingSegmentRef.current = readingSegmentKey;
+      }
+      setChatSnapshot(snapshot);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "無法送出訊息。");
     }

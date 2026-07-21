@@ -7,6 +7,7 @@ related_implements:
   - F05-ai-reading-range-markers
   - F06-reading-range-boundary-lines
   - F07-codex-ai-conversation
+  - F09-send-reading-segment-on-range-change
   - B02-persist-range-marker-on-drag-release
 ---
 
@@ -39,6 +40,7 @@ related_implements:
 - 每個書籤向內文延伸具名分隔線；位置過近時會上下錯開，避免重疊。
 - 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍，章末停止且不跨章。
 - 已提供只擷取 START／END 之間原文的共用函式；AI 對話面板已使用此入口，完整區段解析與區段練習尚未實作。
+- AI 對話面板只在目前書籍、章節或 START／END 相對於最近成功提供的區段發生改變時，重新附帶一次閱讀區段原文。
 
 ## 3. Module Boundary
 
@@ -158,7 +160,7 @@ related_implements:
 - 只回傳 `text.slice(start, end).trim()`。
 - START 之前與 END 之後的同章內容不會出現在結果中。
 
-F07 的 AI 對話面板已透過這個函式組裝 Codex context：非空閱讀區段會連同書籍與章節名稱傳入，空區段則只進行一般對話，絕不以整章作為 fallback。未來區段解析、根據標記產生說明及區段練習仍必須沿用同一邊界。
+F07 的 AI 對話面板已透過這個函式組裝 Codex context：非空閱讀區段第一次提問時會連同書籍與章節名稱傳入；F09 以 `bookId + chapterId + start + end` 辨識來源與邊界，相同區段的後續追問只送新問題，來源或任一邊界改變後才重新提供一次。空區段只進行一般對話，絕不以整章作為 fallback。未來區段解析、根據標記產生說明及區段練習仍必須沿用同一邊界。
 
 ## 10. Key Files
 
@@ -178,7 +180,7 @@ F07 的 AI 對話面板已透過這個函式組裝 Codex context：非空閱讀�
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/renderer/reading-range.test.ts` | START／END 第一行初始化、嚴格裁切、等長推進、章末停止、點位轉 offset、START 在線前／END 在線後、標記資料不受推進影響 |
-| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、明確推進及 AI 對話嚴格裁切 |
+| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、明確推進、AI 對話嚴格裁切、相同區段去重與邊界／來源變更重傳 |
 | `apps/desktop/src/main/library-service.test.ts` | 每章範圍保存、快速連續寫入、無效範圍與不存在章節拒絕 |
 | `apps/desktop/src/main/library-ipc.test.ts` | 保存 IPC 路由及輸入格式驗證 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron preload 確實暴露 `saveReadingRange()`，安全設定與應用程式啟動回歸 |
@@ -186,7 +188,7 @@ F07 的 AI 對話面板已透過這個函式組裝 Codex context：非空閱讀�
 最近驗證（2026-07-21）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：65/65 passed。
+- Desktop Vitest：70/70 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -217,6 +219,7 @@ F07 的 AI 對話面板已透過這個函式組裝 Codex context：非空閱讀�
 - `documents/implements/F05-ai-reading-range-markers.md`
 - `documents/implements/F06-reading-range-boundary-lines.md`
 - `documents/implements/F07-codex-ai-conversation.md`
+- `documents/implements/F09-send-reading-segment-on-range-change.md`
 - `documents/implements/B02-persist-range-marker-on-drag-release.md`
 
 更新範圍資料格式、定位語意、拖曳生命週期、保存流程、自動推進或 AI 裁切邊界時，必須同步更新本文件及相關 FXX／BXX 實作紀錄。
