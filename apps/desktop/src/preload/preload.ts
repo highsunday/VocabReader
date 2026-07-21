@@ -62,7 +62,9 @@ const desktopApi = Object.freeze({
     archiveItem: (itemId: string): Promise<LearningItem> =>
       ipcRenderer.invoke("learning:archive", itemId),
     generateProposals: (input: import("../shared/learning-contracts").GenerateLearningCardsInput) =>
-      ipcRenderer.invoke("learning:generate-proposals", input)
+      ipcRenderer.invoke("learning:generate-proposals", input),
+    applyProposalBatch: (input: import("../shared/learning-contracts").ApplyLearningProposalBatchInput) =>
+      ipcRenderer.invoke("learning:apply-proposal-batch", input)
   } satisfies LearningDesktopApi),
   settings: Object.freeze({
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),

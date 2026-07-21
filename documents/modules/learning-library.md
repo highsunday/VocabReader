@@ -5,6 +5,7 @@ status: active
 last_updated: 2026-07-22
 related_implements:
   - F19-local-learning-library
+  - F21-safe-learning-proposal-apply
 ---
 
 # 本機生詞庫模組
@@ -16,13 +17,14 @@ related_implements:
 材料及其建立當下的來源資訊。
 
 目前的 fallback 讓使用者從單一**標記**建立 `pending_ai`（畫面文案「待 AI 整理」）項目。
-本階段不產生 AI 提案、不合併語義、不計算到期項目，也不建立**複習回合**。
+確認過的 AI 提案可經 Main 的單一 batch API 安全套用；pending 提案本身不會保存。
 
 ## Boundaries and data flow
 
 1. Renderer 在章節標記的右鍵選單選擇「加入生詞庫」，收集目前書籍／章節名稱、標記、
    offset 與原句。
-2. Preload 只暴露 `listItems`、`getItem`、`createDraft`、`updateItem`、`archiveItem` 五個
+2. Preload 只暴露 `listItems`、`getItem`、`createDraft`、`updateItem`、`archiveItem` 與
+   `applyProposalBatch` 六個
    型別化方法；它不提供 SQLite 路徑、SQL、Node API 或通用 IPC。
 3. Main 的 `registerLearningLibraryIpc` 驗證每個 payload，再交給 `LocalLearningLibrary`。
 4. `LocalLearningLibrary` 在 `userData/learning-library/learning.sqlite` 執行 migration，保存
@@ -30,13 +32,17 @@ related_implements:
    約束，因此重複 fallback 操作返回既有項目。
 5. 讀取 source 時 repository 透過 `LocalBookLibrary.hasBook()` 動態判斷 availability。刪除
    書籍不改寫或刪除 SQLite snapshot；Renderer 顯示「原書已刪除」。
+6. migration 2 為 item 加入 version，並保存 completed batch 摘要與 audit。Main 在一個 transaction
+   內重驗 candidate/target/version/field/source；只有明確確認欄位可覆寫，sources 只會追加。
+7. `update` 若所有 confirmed fields 已等於 candidate，per-result 與 batch summary 均計為
+   unchanged；新 source 仍只追加一次，item content、version 與 `updatedAt` 保持不變。
 
 ## Key files
 
 | File | Responsibility |
 |---|---|
 | `apps/desktop/src/shared/learning-contracts.ts` | Main、preload 與 renderer 共用契約 |
-| `apps/desktop/src/main/learning-library-service.ts` | `node:sqlite` repository、migration、source idempotency、edit/archive |
+| `apps/desktop/src/main/learning-library-service.ts` | `node:sqlite` repository、migration、version/audit、transactional proposal apply |
 | `apps/desktop/src/main/learning-library-ipc.ts` | 窄化 IPC 與跨程序輸入驗證 |
 | `apps/desktop/src/main/main.ts` | 建立 userData database 並注入書籍 availability 查詢 |
 | `apps/desktop/src/preload/preload.ts` | 受限 learning bridge |
@@ -47,6 +53,8 @@ related_implements:
 
 - `pending_ai` 和 `archived` 是本階段唯一狀態；沒有 hard delete。
 - 不以 canonical form 建資料庫唯一鍵，保留 Q01-04 的不同語義設計空間。
+- exact completed batch replay returns its stored result; stale/invalid batches roll back completely.
+- no-op update returns and counts unchanged consistently without weakening idempotent source append.
 - source snapshot 中的書名、章節名、標記文字與原句不可因刪書遺失。
 - `learning-library-service.test.ts` 覆蓋 migration、重開持久化、idempotency、edit/archive 和
   unavailable source；`learning-library-ipc.test.ts` 覆蓋 IPC validation；`App.test.tsx` 覆蓋

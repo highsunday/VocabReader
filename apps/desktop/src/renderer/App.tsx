@@ -29,6 +29,8 @@ import type {
   LearningDesktopApi,
   LearningItem,
   LearningListStatus,
+  LearningProposalAction,
+  LearningProposalField,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
 import type {
@@ -205,7 +207,13 @@ export function App() {
   const [learningError, setLearningError] = useState("");
   const [learningNotice, setLearningNotice] = useState("");
   const [learningProposals, setLearningProposals] = useState<Awaited<ReturnType<LearningDesktopApi["generateProposals"]>>["proposals"]>([]);
+  const [learningProposalReviews, setLearningProposalReviews] = useState<Record<string, {
+    selected: boolean;
+    action: LearningProposalAction;
+    confirmedFields: LearningProposalField[];
+  }>>({});
   const [isGeneratingLearningCards, setIsGeneratingLearningCards] = useState(false);
+  const [isApplyingLearningProposals, setIsApplyingLearningProposals] = useState(false);
   const [rangeMenu, setRangeMenu] = useState<{
     x: number;
     y: number;
@@ -237,6 +245,8 @@ export function App() {
   const initializedRangeRef = useRef<string | undefined>(undefined);
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const annotationCounterRef = useRef(0);
+  const learningProposalBatchIdRef = useRef<string | undefined>(undefined);
+  const learningProposalContextKeyRef = useRef<string | undefined>(undefined);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const chapterStartRef = useRef<{
     bookId: string;
@@ -257,6 +267,21 @@ export function App() {
   const activeChapterIndex = selectedBook?.chapters.findIndex(
     (chapter) => chapter.id === activeChapterId
   ) ?? -1;
+  const learningProposalContextKey = mode === "reader" && selectedBook && activeChapter &&
+    chapterContent && readingRange
+    ? JSON.stringify([
+        selectedBook.id,
+        selectedBook.title,
+        activeChapter.id,
+        activeChapter.title,
+        chapterContent.contentHtml,
+        readingRange.start,
+        readingRange.end,
+        annotationRevision(annotations),
+        settings.explanationLanguage
+      ])
+    : undefined;
+  learningProposalContextKeyRef.current = learningProposalContextKey;
   const previousChapter = adjacentChapter(-1);
   const nextChapter = adjacentChapter(1);
 
@@ -276,6 +301,7 @@ export function App() {
   }
 
   function restoreBook(book: LibraryBook) {
+    discardLearningProposals();
     const state = book.readingState;
     const canResumeReader =
       state?.view === "reader" &&
@@ -636,6 +662,9 @@ export function App() {
     const book = selectedBook;
     const chapterId = chapterContent?.chapterId ?? activeChapterId;
     if (!book || !chapterId) return;
+    if (readingRange && (readingRange.start !== range.start || readingRange.end !== range.end)) {
+      discardLearningProposals();
+    }
     setReadingRange(range);
     setBooks((current) => current.map((candidate) =>
       candidate.id === book.id
@@ -670,6 +699,9 @@ export function App() {
     const book = selectedBook;
     const chapterId = chapterContent?.chapterId ?? activeChapterId;
     if (!book || !chapterId) return;
+    if (annotationRevision(annotations) !== annotationRevision(next)) {
+      discardLearningProposals();
+    }
     setAnnotations(next);
     setBooks((current) => current.map((candidate) =>
       candidate.id === book.id
@@ -808,6 +840,7 @@ export function App() {
 
   async function saveExplanationLanguage(value: ExplanationLanguage) {
     const api = desktopSettings();
+    if (value !== settings.explanationLanguage) discardLearningProposals();
     setIsSettingsSaving(true);
     setSettingsError("");
     try {
@@ -864,7 +897,9 @@ export function App() {
       const next = rangeWithOffset(marker, offset, initialRange);
       if (!next) return;
       lastValidRange = next;
-      hasMoved = next.start !== initialRange.start || next.end !== initialRange.end;
+      const moved = next.start !== initialRange.start || next.end !== initialRange.end;
+      if (moved && !hasMoved) discardLearningProposals();
+      hasMoved = moved;
       setReadingRange(next);
     };
     const stopListening = () => {
@@ -996,6 +1031,7 @@ export function App() {
 
   function openChapter(chapterId: string, useFragment = true) {
     if (!selectedBook) return;
+    if (chapterId !== activeChapterId) discardLearningProposals();
     chapterStartRef.current = {
       bookId: selectedBook.id,
       chapterId,
@@ -1010,6 +1046,7 @@ export function App() {
   }
 
   function returnToOverview() {
+    discardLearningProposals();
     if (selectedBook) {
       persistReadingState(
         selectedBook,
@@ -1134,12 +1171,91 @@ export function App() {
       !/[.!?]$/u.test(annotation.text.trim()) && annotation.text.trim().split(/\s+/u).length <= 6
     ).map((annotation) => ({ annotationId: annotation.id, annotationText: annotation.text, startOffset: annotation.start, endOffset: annotation.end, sourceSentence: readingSegment }));
     if (!readingSegment || !sources.length) return;
-    setIsGeneratingLearningCards(true); setLearningError("");
+    const requestContextKey = learningProposalContextKey;
+    setIsGeneratingLearningCards(true); setLearningError(""); setLearningNotice("");
     try {
       const result = await learning.generateProposals({ bookId: selectedBook.id, bookTitle: selectedBook.title, chapterId: activeChapter.id, chapterTitle: activeChapter.title, readingSegment, explanationLanguage: settings.explanationLanguage, sources });
+      if (learningProposalContextKeyRef.current !== requestContextKey) return;
       setLearningProposals(result.proposals);
+      setLearningProposalReviews(Object.fromEntries(result.proposals.map((proposal) => [
+        proposal.source.annotationId,
+        { selected: true, action: proposal.action, confirmedFields: [] }
+      ])));
+      learningProposalBatchIdRef.current = undefined;
     } catch (error) { setLearningError(error instanceof Error ? error.message : "無法產生學習卡提案。"); }
     finally { setIsGeneratingLearningCards(false); }
+  }
+
+  function discardLearningProposals() {
+    if (!learningProposals.length && !Object.keys(learningProposalReviews).length &&
+      !learningProposalBatchIdRef.current) return;
+    setLearningProposals([]);
+    setLearningProposalReviews({});
+    learningProposalBatchIdRef.current = undefined;
+  }
+
+  function proposalActions(proposal: typeof learningProposals[number]): LearningProposalAction[] {
+    const allowed: LearningProposalAction[] = proposal.existingItem
+      ? ["update", "unchanged", "create-distinct-sense"]
+      : ["create", "create-distinct-sense"];
+    return allowed.includes(proposal.action) ? allowed : [proposal.action, ...allowed];
+  }
+
+  function updateLearningProposalReview(
+    proposalId: string,
+    update: Partial<{ selected: boolean; action: LearningProposalAction; confirmedFields: LearningProposalField[] }>
+  ) {
+    setLearningProposalReviews((reviews) => ({
+      ...reviews,
+      [proposalId]: { ...reviews[proposalId], ...update }
+    }));
+    learningProposalBatchIdRef.current = undefined;
+  }
+
+  async function applyLearningProposals() {
+    const learning = desktopLearning();
+    if (!learning || !selectedBook || !activeChapter || !learningProposals.length) return;
+    const batchId = learningProposalBatchIdRef.current ??
+      (globalThis.crypto?.randomUUID?.() ?? `learning-proposal-${Date.now()}`);
+    learningProposalBatchIdRef.current = batchId;
+    setIsApplyingLearningProposals(true);
+    setLearningError("");
+    try {
+      const result = await learning.applyProposalBatch({
+        batchId,
+        proposals: learningProposals.map((proposal) => {
+          const review = learningProposalReviews[proposal.source.annotationId] ?? {
+            selected: true, action: proposal.action, confirmedFields: []
+          };
+          const targetsExistingItem = review.action === "update" || review.action === "unchanged";
+          return {
+            proposalId: proposal.source.annotationId,
+            selected: review.selected,
+            action: review.action,
+            source: {
+              bookId: selectedBook.id,
+              bookTitle: selectedBook.title,
+              chapterId: activeChapter.id,
+              chapterTitle: activeChapter.title,
+              ...proposal.source
+            },
+            candidate: proposal.candidate,
+            existingItemId: targetsExistingItem ? proposal.existingItem?.id ?? null : null,
+            expectedVersion: targetsExistingItem ? proposal.existingItem?.version ?? null : null,
+            confirmedFields: review.action === "update" ? review.confirmedFields : []
+          };
+        })
+      });
+      setLearningNotice(`已套用：新增 ${result.created}、更新 ${result.updated}、維持不變 ${result.unchanged}、取消 ${result.cancelled}。`);
+      setLearningProposals([]);
+      setLearningProposalReviews({});
+      learningProposalBatchIdRef.current = undefined;
+      await loadLearningItems(learningStatus);
+    } catch (error) {
+      setLearningError(error instanceof Error ? error.message : "無法套用學習卡提案；請重新產生後再試。");
+    } finally {
+      setIsApplyingLearningProposals(false);
+    }
   }
 
   async function startNewConversation() {
@@ -1312,6 +1428,7 @@ export function App() {
                     className={mode === "learning" ? "nav-item active" : "nav-item"}
                     onClick={() => {
                       saveCurrentReaderPosition();
+                      discardLearningProposals();
                       setMode("learning");
                       setLearningNotice("");
                       void loadLearningItems(learningStatus);
@@ -1876,7 +1993,84 @@ export function App() {
                       </button>
                     </div>
                   ) : null}
-                  {learningProposals.length ? <section className="learning-library-panel" aria-label="學習卡提案"><h3>學習卡提案（尚未儲存）</h3>{learningProposals.map((proposal) => <article className="learning-source-card" key={proposal.source.annotationId}><strong>{proposal.candidate.displayForm} · {proposal.action}</strong><p>{proposal.source.annotationText} — {proposal.candidate.conciseExplanation}</p><p>{proposal.fieldDiffs.map((diff) => `${diff.field}: ${diff.from ?? "—"} → ${diff.to ?? "—"}`).join("；") || "無欄位差異"}</p></article>)}</section> : null}
+                  {learningNotice ? <p role="status" className="learning-notice">{learningNotice}</p> : null}
+                  {learningError ? <p role="alert" className="learning-error">{learningError}</p> : null}
+                  {learningProposals.length ? <section className="learning-library-panel" aria-label="學習卡提案">
+                    <h3>學習卡提案（尚未儲存）</h3>
+                    {learningProposals.map((proposal) => {
+                      const proposalId = proposal.source.annotationId;
+                      const review = learningProposalReviews[proposalId] ?? {
+                        selected: true, action: proposal.action, confirmedFields: []
+                      };
+                      return <article className="learning-source-card" key={proposalId}>
+                        <strong>{proposal.candidate.displayForm} · {review.action}</strong>
+                        <p>{proposal.source.annotationText} — {proposal.candidate.conciseExplanation}</p>
+                        <p>{proposal.fieldDiffs.map((diff) => `${diff.field}: ${diff.from ?? "—"} → ${diff.to ?? "—"}`).join("；") || "無欄位差異"}</p>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={review.selected}
+                            onChange={(event) => updateLearningProposalReview(
+                              proposalId, { selected: event.target.checked }
+                            )}
+                          />
+                          套用 {proposal.candidate.displayForm}
+                        </label>
+                        <label>
+                          動作
+                          <select
+                            aria-label={`${proposal.candidate.displayForm} 的提案動作`}
+                            value={review.action}
+                            onChange={(event) => updateLearningProposalReview(proposalId, {
+                              action: event.target.value as LearningProposalAction,
+                              confirmedFields: []
+                            })}
+                          >
+                            {proposalActions(proposal).map((action) =>
+                              <option key={action} value={action}>{action}</option>
+                            )}
+                          </select>
+                        </label>
+                        {review.action === "update" && proposal.fieldDiffs.length ? <fieldset>
+                          <legend>確認允許覆寫的欄位</legend>
+                          {proposal.fieldDiffs.map((diff) => <label key={diff.field}>
+                            <input
+                              type="checkbox"
+                              checked={review.confirmedFields.includes(diff.field)}
+                              onChange={(event) => updateLearningProposalReview(proposalId, {
+                                confirmedFields: event.target.checked
+                                  ? [...review.confirmedFields, diff.field]
+                                  : review.confirmedFields.filter((field) => field !== diff.field)
+                              })}
+                            />
+                            覆寫 {diff.field}
+                          </label>)}
+                        </fieldset> : null}
+                      </article>;
+                    })}
+                    <div className="learning-item-actions">
+                      <button
+                        type="button"
+                        onClick={() => void applyLearningProposals()}
+                        disabled={isApplyingLearningProposals || !learningProposals.some((proposal) =>
+                          learningProposalReviews[proposal.source.annotationId]?.selected ?? true
+                        )}
+                      >
+                        {isApplyingLearningProposals ? "套用中…" : "套用已選提案"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLearningProposals([]);
+                          setLearningProposalReviews({});
+                          learningProposalBatchIdRef.current = undefined;
+                        }}
+                        disabled={isApplyingLearningProposals}
+                      >
+                        取消提案
+                      </button>
+                    </div>
+                  </section> : null}
 
                   <form className="chat-form" onSubmit={sendMessage}>
                     <label className="visually-hidden" htmlFor="chat-input">

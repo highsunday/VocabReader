@@ -31,6 +31,7 @@ export interface LearningItem {
   pronunciation: string | null;
   collocationNotes: string | null;
   status: LearningItemStatus;
+  version: number;
   createdAt: string;
   updatedAt: string;
   sources: LearningItemSource[];
@@ -68,7 +69,32 @@ export interface LearningDesktopApi {
   updateItem(input: UpdateLearningItemInput): Promise<LearningItem>;
   archiveItem(itemId: string): Promise<LearningItem>;
   generateProposals(input: GenerateLearningCardsInput): Promise<LearningProposalResult>;
+  applyProposalBatch(input: ApplyLearningProposalBatchInput): Promise<ApplyLearningProposalBatchResult>;
 }
 
 export interface GenerateLearningCardsInput { bookId: string; bookTitle: string; chapterId: string; chapterTitle: string; readingSegment: string; explanationLanguage: "source" | "zh-TW" | "en" | "ja"; sources: Array<{ annotationId: string; annotationText: string; startOffset: number; endOffset: number; sourceSentence: string }>; }
-export interface LearningProposalResult { proposals: Array<{ action: "create" | "update" | "unchanged" | "create-distinct-sense"; source: GenerateLearningCardsInput["sources"][number]; candidate: { displayForm: string; canonicalForm: string; itemType: LearningItemType; contextualMeaning: string; conciseExplanation: string }; existingItem: LearningItem | null; fieldDiffs: Array<{ field: string; from: string | null; to: string | null }> }>; }
+export type LearningProposalAction = "create" | "update" | "unchanged" | "create-distinct-sense";
+export type LearningProposalField = "displayForm" | "canonicalForm" | "itemType" | "partOfSpeech" | "contextualMeaning" | "conciseExplanation" | "cefr" | "pronunciation" | "collocationNotes";
+export interface LearningProposalCandidate {
+  displayForm: string; canonicalForm: string; itemType: LearningItemType; aliases: string[];
+  partOfSpeech: string | null; contextualMeaning: string; conciseExplanation: string;
+  cefr: string | null; pronunciation: string | null; collocationNotes: string | null;
+}
+export type LearningProposalSource = GenerateLearningCardsInput["sources"][number] & {
+  bookId: string; bookTitle: string; chapterId: string; chapterTitle: string;
+};
+export interface LearningProposalResult { proposals: Array<{ action: LearningProposalAction; source: GenerateLearningCardsInput["sources"][number]; candidate: LearningProposalCandidate; existingItem: LearningItem | null; fieldDiffs: Array<{ field: LearningProposalField; from: string | null; to: string | null }> }>; }
+export interface ApplyLearningProposalBatchInput {
+  batchId: string;
+  proposals: Array<{
+    proposalId: string; selected: boolean; action: LearningProposalAction;
+    source: LearningProposalSource; candidate: LearningProposalCandidate;
+    existingItemId: string | null; expectedVersion: number | null;
+    confirmedFields: LearningProposalField[];
+  }>;
+}
+export interface ApplyLearningProposalBatchResult {
+  batchId: string; created: number; updated: number; unchanged: number; cancelled: number;
+  sourceAppended: number;
+  results: Array<{ proposalId: string; action: LearningProposalAction; itemId: string | null; sourceAppended: boolean; contentUpdated: boolean; outcome: "created" | "updated" | "unchanged" | "cancelled" }>;
+}

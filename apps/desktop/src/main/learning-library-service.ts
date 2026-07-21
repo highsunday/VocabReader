@@ -1,13 +1,19 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type {
+  ApplyLearningProposalBatchInput,
+  ApplyLearningProposalBatchResult,
   CreateLearningDraftInput,
   LearningItem,
   LearningItemSource,
   LearningListStatus,
   LearningItemType,
+  LearningProposalAction,
+  LearningProposalCandidate,
+  LearningProposalField,
+  LearningProposalSource,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
 
@@ -27,6 +33,7 @@ interface ItemRow {
   pronunciation: string | null;
   collocation_notes: string | null;
   status: "pending_ai" | "archived";
+  version: number;
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +69,85 @@ function optionalText(value: unknown, label: string): string | null {
   return text || null;
 }
 
+const proposalFields: LearningProposalField[] = [
+  "displayForm", "canonicalForm", "itemType", "partOfSpeech", "contextualMeaning",
+  "conciseExplanation", "cefr", "pronunciation", "collocationNotes"
+];
+const fieldColumns: Record<LearningProposalField, string> = {
+  displayForm: "display_form",
+  canonicalForm: "canonical_form",
+  itemType: "item_type",
+  partOfSpeech: "part_of_speech",
+  contextualMeaning: "contextual_meaning",
+  conciseExplanation: "concise_explanation",
+  cefr: "cefr",
+  pronunciation: "pronunciation",
+  collocationNotes: "collocation_notes"
+};
+const rowFields: Record<LearningProposalField, keyof ItemRow> = {
+  displayForm: "display_form",
+  canonicalForm: "canonical_form",
+  itemType: "item_type",
+  partOfSpeech: "part_of_speech",
+  contextualMeaning: "contextual_meaning",
+  conciseExplanation: "concise_explanation",
+  cefr: "cefr",
+  pronunciation: "pronunciation",
+  collocationNotes: "collocation_notes"
+};
+
+function proposalAction(value: unknown): LearningProposalAction {
+  if (value === "create" || value === "update" || value === "unchanged" ||
+    value === "create-distinct-sense") return value;
+  throw new Error("學習卡套用 action 無效");
+}
+
+function proposalCandidate(value: unknown): LearningProposalCandidate {
+  if (!value || typeof value !== "object") throw new Error("學習卡候選格式錯誤");
+  const candidate = value as Partial<LearningProposalCandidate>;
+  if (candidate.itemType !== "word" && candidate.itemType !== "phrase") {
+    throw new Error("學習卡候選類型格式錯誤");
+  }
+  if (!Array.isArray(candidate.aliases) || candidate.aliases.some((alias) =>
+    typeof alias !== "string" || !alias.trim())) {
+    throw new Error("學習卡候選 aliases 格式錯誤");
+  }
+  return {
+    displayForm: requiredText(candidate.displayForm, "顯示詞形"),
+    canonicalForm: normalized(requiredText(candidate.canonicalForm, "Canonical form")),
+    itemType: candidate.itemType,
+    aliases: [...new Set(candidate.aliases.map((alias) => normalized(alias)).filter(Boolean))],
+    partOfSpeech: optionalText(candidate.partOfSpeech, "詞性"),
+    contextualMeaning: requiredText(candidate.contextualMeaning, "本文語義"),
+    conciseExplanation: requiredText(candidate.conciseExplanation, "簡明解釋"),
+    cefr: optionalText(candidate.cefr, "CEFR"),
+    pronunciation: optionalText(candidate.pronunciation, "發音"),
+    collocationNotes: optionalText(candidate.collocationNotes, "搭配筆記")
+  };
+}
+
+function proposalSource(value: unknown): LearningProposalSource {
+  if (!value || typeof value !== "object") throw new Error("學習卡來源格式錯誤");
+  const source = value as Partial<LearningProposalSource>;
+  const startOffset = source.startOffset;
+  const endOffset = source.endOffset;
+  if (!Number.isInteger(startOffset) || !Number.isInteger(endOffset) ||
+    (startOffset as number) < 0 || (endOffset as number) <= (startOffset as number)) {
+    throw new Error("學習卡來源位置格式錯誤");
+  }
+  return {
+    bookId: requiredText(source.bookId, "來源書籍"),
+    bookTitle: requiredText(source.bookTitle, "來源書名"),
+    chapterId: requiredText(source.chapterId, "來源章節"),
+    chapterTitle: requiredText(source.chapterTitle, "來源章節名"),
+    annotationId: requiredText(source.annotationId, "來源標記"),
+    annotationText: requiredText(source.annotationText, "來源標記文字"),
+    startOffset: startOffset as number,
+    endOffset: endOffset as number,
+    sourceSentence: requiredText(source.sourceSentence, "來源原句")
+  };
+}
+
 export class LocalLearningLibrary {
   #database: DatabaseSync | undefined;
 
@@ -94,6 +180,7 @@ export class LocalLearningLibrary {
           pronunciation TEXT,
           collocation_notes TEXT,
           status TEXT NOT NULL CHECK (status IN ('pending_ai', 'archived')),
+          version INTEGER NOT NULL DEFAULT 1,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
@@ -118,6 +205,42 @@ export class LocalLearningLibrary {
       database.prepare(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)"
       ).run(1, new Date().toISOString());
+      const migrationTwo = database.prepare(
+        "SELECT version FROM schema_migrations WHERE version = 2"
+      ).get() as { version: number } | undefined;
+      if (!migrationTwo) {
+        try {
+          database.exec(
+            "ALTER TABLE learning_items ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
+          );
+        } catch (error) {
+          if (!(error instanceof Error) || !/duplicate column name/i.test(error.message)) {
+            throw error;
+          }
+        }
+        database.exec(`
+          CREATE TABLE IF NOT EXISTS learning_proposal_batches (
+            batch_id TEXT PRIMARY KEY,
+            request_hash TEXT NOT NULL,
+            summary_json TEXT NOT NULL,
+            completed_at TEXT NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS learning_proposal_audit (
+            id TEXT PRIMARY KEY,
+            batch_id TEXT NOT NULL REFERENCES learning_proposal_batches(batch_id),
+            proposal_id TEXT NOT NULL,
+            action TEXT NOT NULL CHECK (action IN ('create', 'update', 'unchanged', 'create-distinct-sense')),
+            item_id TEXT,
+            source_annotation_id TEXT NOT NULL,
+            outcome TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(batch_id, proposal_id)
+          );
+        `);
+        database.prepare(
+          "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)"
+        ).run(2, new Date().toISOString());
+      }
       database.exec("COMMIT");
     } catch (error) {
       database.exec("ROLLBACK");
@@ -203,9 +326,9 @@ export class LocalLearningLibrary {
         INSERT INTO learning_items (
           id, display_form, canonical_form, item_type, part_of_speech,
           contextual_meaning, concise_explanation, cefr, pronunciation,
-          collocation_notes, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, NULL, '', '', NULL, NULL, NULL, 'pending_ai', ?, ?)
-      `).run(itemId, annotationText, normalized(annotationText), itemType, now, now);
+          collocation_notes, status, version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, NULL, '', '', NULL, NULL, NULL, 'pending_ai', ?, ?, ?)
+      `).run(itemId, annotationText, normalized(annotationText), itemType, 1, now, now);
       database.prepare(`
         INSERT INTO learning_item_sources (
           id, item_id, book_id, book_title, chapter_id, chapter_title, annotation_id,
@@ -237,7 +360,7 @@ export class LocalLearningLibrary {
       UPDATE learning_items SET
         display_form = ?, canonical_form = ?, item_type = ?, part_of_speech = ?,
         contextual_meaning = ?, concise_explanation = ?, cefr = ?, pronunciation = ?,
-        collocation_notes = ?, updated_at = ?
+        collocation_notes = ?, version = version + 1, updated_at = ?
       WHERE id = ?
     `).run(
       displayForm, normalized(canonicalForm), input.itemType,
@@ -253,11 +376,237 @@ export class LocalLearningLibrary {
   async archiveItem(itemId: string): Promise<LearningItem> {
     const id = requiredText(itemId, "學習項目");
     const result = this.#open().prepare(`
-      UPDATE learning_items SET status = 'archived', updated_at = ?
+      UPDATE learning_items SET status = 'archived', version = version + 1, updated_at = ?
       WHERE id = ?
     `).run(new Date().toISOString(), id);
     if (result.changes !== 1) throw new Error("找不到學習項目");
     return this.getItem(id);
+  }
+
+  async applyProposalBatch(input: ApplyLearningProposalBatchInput): Promise<ApplyLearningProposalBatchResult> {
+    const batchId = requiredText(input?.batchId, "學習卡 batch");
+    if (!Array.isArray(input?.proposals) || !input.proposals.length) {
+      throw new Error("學習卡套用 batch 格式錯誤");
+    }
+    const requestHash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+    const database = this.#open();
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      const prior = database.prepare(
+        "SELECT request_hash, summary_json FROM learning_proposal_batches WHERE batch_id = ?"
+      ).get(batchId) as { request_hash: string; summary_json: string } | undefined;
+      if (prior) {
+        if (prior.request_hash !== requestHash) throw new Error("學習卡 batch 重放內容不一致");
+        const summary = JSON.parse(prior.summary_json) as ApplyLearningProposalBatchResult;
+        database.exec("COMMIT");
+        return summary;
+      }
+
+      const proposalIds = new Set<string>();
+      const validated = input.proposals.map((proposal) => {
+        if (!proposal || typeof proposal !== "object") throw new Error("學習卡套用提案格式錯誤");
+        const proposalId = requiredText(proposal.proposalId, "學習卡提案");
+        if (proposalIds.has(proposalId)) throw new Error("學習卡提案重複");
+        proposalIds.add(proposalId);
+        if (typeof proposal.selected !== "boolean") throw new Error("學習卡選取格式錯誤");
+        const action = proposalAction(proposal.action);
+        const source = proposalSource(proposal.source);
+        const candidate = proposalCandidate(proposal.candidate);
+        if (!Array.isArray(proposal.confirmedFields) || proposal.confirmedFields.some((field) =>
+          !proposalFields.includes(field)) ||
+          new Set(proposal.confirmedFields).size !== proposal.confirmedFields.length) {
+          throw new Error("學習卡覆寫確認欄位無效");
+        }
+        const confirmedFields = proposal.confirmedFields;
+        const existingItemId = proposal.existingItemId;
+        if (existingItemId !== null && typeof existingItemId !== "string") {
+          throw new Error("學習卡目標項目格式錯誤");
+        }
+        const expectedVersion = proposal.expectedVersion;
+        const targetAction = action === "update" || action === "unchanged";
+        if (targetAction) {
+          if (!existingItemId || !Number.isInteger(expectedVersion) || Number(expectedVersion) < 1) {
+            throw new Error("學習卡目標版本格式錯誤");
+          }
+          if (!this.#candidateIds(database, source, candidate).has(existingItemId)) {
+            throw new Error("學習卡目標不在允許候選內");
+          }
+        } else if (existingItemId !== null || expectedVersion !== null || confirmedFields.length) {
+          throw new Error("新增提案不可指定目標或覆寫欄位");
+        }
+        if (action !== "update" && confirmedFields.length) {
+          throw new Error("只有更新提案可確認覆寫欄位");
+        }
+        const sourceOwner = this.#sourceOwner(database, source);
+        if (sourceOwner && sourceOwner !== existingItemId) {
+          throw new Error("來源已屬於另一個學習項目");
+        }
+        const target = existingItemId
+          ? database.prepare("SELECT * FROM learning_items WHERE id = ?").get(existingItemId) as ItemRow | undefined
+          : undefined;
+        if (targetAction && !target) throw new Error("找不到學習卡目標項目");
+        const safeExpectedVersion = targetAction ? expectedVersion as number : null;
+        if (proposal.selected && target && target.version !== safeExpectedVersion) {
+          throw new Error("學習卡已更新，請重新產生提案");
+        }
+        return { proposalId, selected: proposal.selected, action, source, candidate, existingItemId, target, confirmedFields };
+      });
+
+      const summary: ApplyLearningProposalBatchResult = {
+        batchId, created: 0, updated: 0, unchanged: 0, cancelled: 0, sourceAppended: 0,
+        results: []
+      };
+      const now = new Date().toISOString();
+      database.prepare(`
+        INSERT INTO learning_proposal_batches (batch_id, request_hash, summary_json, completed_at)
+        VALUES (?, ?, ?, ?)
+      `).run(batchId, requestHash, "{}", now);
+      for (const proposal of validated) {
+        let itemId: string | null = proposal.existingItemId;
+        let sourceAppended = false;
+        let contentUpdated = false;
+        let outcome: ApplyLearningProposalBatchResult["results"][number]["outcome"];
+        if (!proposal.selected) {
+          summary.cancelled += 1;
+          outcome = "cancelled";
+        } else if (proposal.action === "create" || proposal.action === "create-distinct-sense") {
+          itemId = randomUUID();
+          this.#insertItem(database, itemId, proposal.candidate, now);
+          this.#insertSource(database, itemId, proposal.source, now);
+          summary.created += 1;
+          summary.sourceAppended += 1;
+          sourceAppended = true;
+          outcome = "created";
+        } else {
+          if (!proposal.target || !itemId) throw new Error("找不到學習卡目標項目");
+          if (proposal.action === "update") {
+            contentUpdated = this.#updateConfirmedFields(
+              database, proposal.target, proposal.candidate, proposal.confirmedFields, now
+            );
+            if (contentUpdated) summary.updated += 1;
+            else summary.unchanged += 1;
+            outcome = contentUpdated ? "updated" : "unchanged";
+          } else {
+            summary.unchanged += 1;
+            outcome = "unchanged";
+          }
+          sourceAppended = this.#appendSource(database, itemId, proposal.source, now);
+          if (sourceAppended) summary.sourceAppended += 1;
+        }
+        summary.results.push({
+          proposalId: proposal.proposalId, action: proposal.action, itemId,
+          sourceAppended, contentUpdated, outcome
+        });
+        database.prepare(`
+          INSERT INTO learning_proposal_audit (
+            id, batch_id, proposal_id, action, item_id, source_annotation_id, outcome, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          randomUUID(), batchId, proposal.proposalId, proposal.action, itemId,
+          proposal.source.annotationId, outcome, now
+        );
+      }
+      database.prepare(`
+        UPDATE learning_proposal_batches SET summary_json = ? WHERE batch_id = ?
+      `).run(JSON.stringify(summary), batchId);
+      database.exec("COMMIT");
+      return summary;
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  #candidateIds(
+    database: DatabaseSync, source: LearningProposalSource, candidate: LearningProposalCandidate
+  ): Set<string> {
+    const forms = [...new Set([candidate.canonicalForm, ...candidate.aliases])];
+    const placeholders = forms.map(() => "?").join(", ");
+    const rows = database.prepare(`
+      SELECT DISTINCT learning_items.id FROM learning_items
+      LEFT JOIN learning_item_sources ON learning_item_sources.item_id = learning_items.id
+      WHERE (learning_item_sources.book_id = ? AND learning_item_sources.chapter_id = ?
+        AND learning_item_sources.annotation_id = ?)
+        OR (learning_items.item_type = ? AND learning_items.canonical_form IN (${placeholders}))
+    `).all(
+      source.bookId, source.chapterId, source.annotationId, candidate.itemType, ...forms
+    ) as unknown as Array<{ id: string }>;
+    return new Set(rows.map((row) => row.id));
+  }
+
+  #sourceOwner(database: DatabaseSync, source: LearningProposalSource): string | undefined {
+    return (database.prepare(`
+      SELECT item_id FROM learning_item_sources
+      WHERE book_id = ? AND chapter_id = ? AND annotation_id = ?
+    `).get(source.bookId, source.chapterId, source.annotationId) as { item_id: string } | undefined)
+      ?.item_id;
+  }
+
+  #insertItem(
+    database: DatabaseSync, itemId: string, candidate: LearningProposalCandidate, now: string
+  ): void {
+    database.prepare(`
+      INSERT INTO learning_items (
+        id, display_form, canonical_form, item_type, part_of_speech, contextual_meaning,
+        concise_explanation, cefr, pronunciation, collocation_notes, status, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_ai', 1, ?, ?)
+    `).run(
+      itemId, candidate.displayForm, candidate.canonicalForm, candidate.itemType,
+      candidate.partOfSpeech, candidate.contextualMeaning, candidate.conciseExplanation,
+      candidate.cefr, candidate.pronunciation, candidate.collocationNotes, now, now
+    );
+  }
+
+  #insertSource(
+    database: DatabaseSync, itemId: string, source: LearningProposalSource, now: string
+  ): void {
+    database.prepare(`
+      INSERT INTO learning_item_sources (
+        id, item_id, book_id, book_title, chapter_id, chapter_title, annotation_id,
+        annotation_text, start_offset, end_offset, source_sentence, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      randomUUID(), itemId, source.bookId, source.bookTitle, source.chapterId, source.chapterTitle,
+      source.annotationId, source.annotationText, source.startOffset, source.endOffset,
+      source.sourceSentence, now
+    );
+  }
+
+  #appendSource(
+    database: DatabaseSync, itemId: string, source: LearningProposalSource, now: string
+  ): boolean {
+    if (this.#sourceOwner(database, source)) return false;
+    this.#insertSource(database, itemId, source, now);
+    return true;
+  }
+
+  #updateConfirmedFields(
+    database: DatabaseSync,
+    target: ItemRow,
+    candidate: LearningProposalCandidate,
+    confirmedFields: LearningProposalField[],
+    now: string
+  ): boolean {
+    const values: Record<LearningProposalField, string | null> = {
+      displayForm: candidate.displayForm,
+      canonicalForm: candidate.canonicalForm,
+      itemType: candidate.itemType,
+      partOfSpeech: candidate.partOfSpeech,
+      contextualMeaning: candidate.contextualMeaning,
+      conciseExplanation: candidate.conciseExplanation,
+      cefr: candidate.cefr,
+      pronunciation: candidate.pronunciation,
+      collocationNotes: candidate.collocationNotes
+    };
+    const changed = confirmedFields.filter((field) => target[rowFields[field]] !== values[field]);
+    if (!changed.length) return false;
+    const assignments = changed.map((field) => `${fieldColumns[field]} = ?`).join(", ");
+    const result = database.prepare(`
+      UPDATE learning_items SET ${assignments}, version = version + 1, updated_at = ?
+      WHERE id = ? AND version = ?
+    `).run(...changed.map((field) => values[field]), now, target.id, target.version);
+    if (result.changes !== 1) throw new Error("學習卡已更新，請重新產生提案");
+    return true;
   }
 
   async #toItem(row: ItemRow): Promise<LearningItem> {
@@ -292,6 +641,7 @@ export class LocalLearningLibrary {
       pronunciation: row.pronunciation,
       collocationNotes: row.collocation_notes,
       status: row.status,
+      version: row.version,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       sources

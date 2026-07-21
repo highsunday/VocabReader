@@ -4,7 +4,7 @@ date: 2026-07-22
 title: 由 AI 產生可去重更新的學習項目並建立生詞庫卡片頁
 uuid: 14be58aca7b04c1aa76dd7197eba4017
 version: 1.0
-status: draft
+status: completed
 ---
 
 # Planning Document – AI 學習項目與生詞庫卡片
@@ -44,7 +44,7 @@ status: draft
 | P1 | 拆分可擴充的桌面工作區邊界 | RXX | R01-desktop-workspace-boundaries | [x] Completed |
 | P2 | 建立本機生詞庫與來源卡片基礎 | FXX | F19-local-learning-library | [x] Completed |
 | P3 | 產生結構化 AI 學習項目提案 | FXX | F20-structured-ai-learning-proposals | [x] Completed |
-| P4 | 確認並安全套用新增／更新提案 | FXX | — | [ ] Not started |
+| P4 | 確認並安全套用新增／更新提案 | FXX | F21-safe-learning-proposal-apply | [x] Completed |
 
 ---
 
@@ -88,7 +88,7 @@ desktop typecheck and production build all passed. Q01-02 remains the next pendi
 
 **Suggested doc type**: `FXX` (feature spec)
 
-**Related doc**: —
+**Related doc**: `F19-local-learning-library.md`
 
 **Status**: `[x] Completed`
 
@@ -119,7 +119,7 @@ build passed.
 
 **Suggested doc type**: `FXX` (feature spec)
 
-**Related doc**: —
+**Related doc**: `F20-structured-ai-learning-proposals.md`
 
 **Status**: `[x] Completed`
 
@@ -145,9 +145,16 @@ build passed.
 
 **Suggested doc type**: `FXX` (feature spec)
 
-**Related doc**: —
+**Related doc**: `F21-safe-learning-proposal-apply.md`
 
-**Status**: `[ ] Not started`
+**Status**: `[x] Completed`
+
+**Completion evidence**: F21 adds renderer review/confirmation, one typed Main apply API,
+SQLite migration 2 versions/audit/idempotency, atomic stale rejection and retained sources.
+The acceptance correction discards session-only proposals on reader/context changes, suppresses
+late stale generation responses, and keeps no-op update batch unchanged totals consistent with
+per-result outcomes while preserving source/content/version stability. Focused 64 tests, full
+server 3 + desktop 156 tests, typecheck, production build and Electron E2E 2/2 passed.
 
 ---
 

@@ -4,7 +4,7 @@ date: 2026-07-22
 title: 依 P01 建立 AI 學習項目與生詞庫
 uuid: ec8c9d89f8074d309825154d9bb108ef
 version: 1.0
-status: in_progress
+status: completed_pending_orchestrator_closeout
 source_plan: documents/planning/P01-ai-learning-items-and-learning-library.md
 batch_limit: 4
 mode: sequential
@@ -18,6 +18,7 @@ notify_email_from:
 notify_email_to:
 notify_on_queue_blocked: true
 notify_on_queue_completed: true
+orchestrator_closeout: ready
 ---
 
 # Queue - AI 學習項目與生詞庫
@@ -140,7 +141,7 @@ reviewed_at: 2026-07-22 00:41 CST
 | Q01-01 | 拆分可擴充的桌面工作區邊界 | RXX | codex | — | completed | documents/implements/R01-desktop-workspace-boundaries.md | 0701a3b |
 | Q01-02 | 建立本機生詞庫與來源卡片基礎 | FXX | codex | Q01-01 | completed | documents/implements/F19-local-learning-library.md | ab7b12e |
 | Q01-03 | 產生結構化 AI 學習項目提案 | FXX | codex | Q01-02 | completed | documents/implements/F20-structured-ai-learning-proposals.md | 5766ba8 |
-| Q01-04 | 確認並安全套用新增／更新提案 | FXX | codex | Q01-03 | in_progress | — | — |
+| Q01-04 | 確認並安全套用新增／更新提案 | FXX | codex | Q01-03 | completed | F21-safe-learning-proposal-apply | pending-orchestrator |
 
 ## 4. Queue Items
 
@@ -149,7 +150,7 @@ reviewed_at: 2026-07-22 00:41 CST
 id: Q01-01
 type: RXX
 agent: codex
-status: in_progress
+status: completed
 blocker_reason: — (resolved by user authorization and baseline commit 9885440)
 questions: []
 need_user_decision: []
@@ -162,9 +163,9 @@ implemented_doc: documents/implements/R01-desktop-workspace-boundaries.md
 commit: 0701a3b
 worker_session: codex 2026-07-22 01:02 CST
 worker_log: R01 auto-approved; TC1 RED due to missing modules, then GREEN. Focused 61 tests, full desktop 129 tests, typecheck and production build passed. No IPC, data, CSS, visual or Codex protocol changes.
-handoff_summary: Q01-01 completed; four named Renderer workspace boundaries are composed by App. R01 records RED/GREEN evidence. Commit field is pending-orchestrator by circular-hash protocol; do not begin Q01-02 in this worker session.
+handoff_summary: Q01-01 completed at 0701a3b; four named Renderer workspace boundaries are composed by App. R01 records RED/GREEN evidence. Q01-02 was subsequently unlocked and completed.
 communication_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012, L013, L014, L015, L016, L017, L018, L019, L020, L021, L022]
-archive_refs: []
+archive_refs: [documents/queue/logs/Q01-ai-learning-items-and-learning-library-L010-L048.md]
 
 ### Requirements
 
@@ -326,7 +327,7 @@ archive_refs: []
 
 ### Agent Handoff Summary
 
-- Current state: pending and clarified
+- Current state: completed at 5766ba8
 - Decisions: background structured workflow, programmatic lookup, proposal-only phase
 - Tests: schema validation, context boundary, action matching and zero persistence
 - Risks: installed App Server structured-output compatibility
@@ -336,18 +337,18 @@ archive_refs: []
 id: Q01-04
 type: FXX
 agent: codex
-status: in_progress
+status: completed
 clarification_status: clarified
 depends_on: [Q01-03]
 unlock_condition: Q01-03 completed with a commit, and valid create/update/unchanged/distinct-sense proposals can be previewed without persistence
 auto_approve: true
 commit_required: true
-implemented_doc: —
-commit: —
-worker_session: codex 2026-07-22 01:45 CST
-worker_log: Dispatched after corrected Q01-03 commit 5766ba8 and unlock verification: all four proposal actions preview without persistence; focused 59, full server 3 + desktop 147 tests, typecheck and build passed.
-handoff_summary: —
-communication_entries: [L004, L005, L006, L007, L049]
+implemented_doc: documents/implements/F21-safe-learning-proposal-apply.md
+commit: pending-orchestrator
+worker_session: codex acceptance correction 2026-07-22 02:05 CST
+worker_log: F21 correction RED: 3 expected failures for retained navigation proposals and unchanged count 0. GREEN: explicit Renderer context disposal/late guard and no-op update summary consistency. Focused 64; full server 3 + desktop 156; typecheck, build and E2E 2/2 passed. No boundary expansion.
+handoff_summary: Q01-04 acceptance correction complete, commit remains pending-orchestrator. Session-only review is discarded on reader/source-context changes and late responses are ignored. No-op updates count unchanged while source/content/version stability holds. All required verification is green; no scheduling or AI writes/delete/archive added.
+communication_entries: [L004, L005, L006, L007, L049, L051, L052, L053, L054, L055, L056, L057, L058, L059, L060, L061, L062, L063, L064, L065]
 archive_refs: []
 
 ### Requirements
@@ -389,10 +390,10 @@ archive_refs: []
 
 ### Agent Handoff Summary
 
-- Current state: pending and clarified
-- Decisions: explicit confirmation, manual-content protection, version conflict rejection, idempotent transaction
-- Tests: mixed apply, source append, duplicate replay, stale proposal and rollback
-- Risks: field-level merge and transaction/audit consistency
+- Current state: acceptance correction complete; `commit: pending-orchestrator`
+- Decisions: explicit confirmation and transaction guards retained; session-only review drops on source context changes
+- Tests: correction RED 3/61; focused GREEN 64/64; full 159, typecheck, build and E2E 2/2 green
+- Risks: no known regression; queue closeout and notification remain orchestrator-only
 
 ## 5. Agent Communication Ledger (Append-only)
 
@@ -449,395 +450,24 @@ archive_refs: []
 | L047 | 2026-07-22 01:43 | Q01-03 | codex -> queue | completed | Q01-03 corrected and completed pending orchestrator hash substitution; notification suppressed | — |
 | L048 | 2026-07-22 01:45 | Q01-03 | orchestrator -> queue | acceptance | Verified amended item commit 5766ba8 and Q01-04 unlock evidence | — |
 | L049 | 2026-07-22 01:45 | Q01-04 | orchestrator -> codex | dispatch | Dispatch Q01-04 through ddd-start, ddd-doc and ddd-tdd | — |
+| L050 | 2026-07-22 01:47 | ALL | codex -> queue | compaction | Archived resolved active L010–L048 bodies before Q01-04 | `documents/queue/logs/Q01-ai-learning-items-and-learning-library-L010-L048.md` |
+| L051 | 2026-07-22 01:48 | Q01-04 | codex -> queue | status | Pre-flight, dependency and Q01-03 unlock evidence reconfirmed; starting ddd-start | — |
+| L052 | 2026-07-22 01:48 | Q01-04 | codex -> queue | ddd-start | Classified as a clear FXX; centralized intake resolves apply/transaction/version/audit boundaries | — |
+| L053 | 2026-07-22 01:49 | Q01-04 | codex -> queue | ddd-doc | F21 created and auto-approved as explicit, low-risk and testable | — |
+| L054 | 2026-07-22 01:51 | Q01-04 | codex -> queue | tdd-red | Four repository tests failed because applyProposalBatch was absent | — |
+| L055 | 2026-07-22 01:58 | Q01-04 | codex -> queue | tdd-green | Transaction/version/audit/Renderer apply flow passed focused and full verification | — |
+| L056 | 2026-07-22 01:58 | Q01-04 | codex -> queue | handoff | F21/P01/module docs aligned; ready for scoped commit and orchestrator closeout | — |
+| L057 | 2026-07-22 01:58 | Q01-04 | codex -> queue | completed | Q01-04 completed with pending-orchestrator commit field; per-item notification suppressed | — |
+| L058 | 2026-07-22 02:05 | Q01-04 | orchestrator -> codex | correction | Acceptance rejected missing context cleanup and no-op update summary consistency; amend only fc4dbc9 | — |
+| L059 | 2026-07-22 02:05 | Q01-04 | codex -> queue | ddd-start | Classified as a known F21 acceptance correction with no scope or authority expansion | — |
+| L060 | 2026-07-22 02:05 | Q01-04 | codex -> queue | ddd-doc | F21 adds testable context-disposal and no-op update summary/source-stability scenarios | — |
+| L061 | 2026-07-22 02:06 | Q01-04 | codex -> queue | tdd-red | Three focused failures reproduced both rejected acceptance gaps for the expected reasons | — |
+| L062 | 2026-07-22 02:12 | Q01-04 | codex -> queue | tdd-green | Explicit context disposal/late guard and no-op summary consistency passed 64 focused tests | — |
+| L063 | 2026-07-22 02:12 | Q01-04 | codex -> queue | acceptance | Full server 3 + desktop 156, typecheck, build and Electron E2E 2/2 passed | — |
+| L064 | 2026-07-22 02:12 | Q01-04 | codex -> queue | handoff | Correction complete pending amended commit verification; notification suppressed | — |
+| L065 | 2026-07-22 02:17 | Q01-04 | codex -> queue | acceptance | Final snapshot rerun passed focused/full/typecheck/build/E2E after range-drag review | — |
 
 ### Active Entries
-
-#### L010 — 2026-07-22 00:52 — Q01-01 — user -> orchestrator — answer
-
-**Message**
-使用者要求：「幫我處理 git 問題後 自動開始」。此為處理既有文件變更、建立 baseline commit 並在 clean pre-flight 後自動恢復 Q01 的明確授權。
-
-**Follow-up**
-- Review all dirty paths, commit only verified project documents, then resume without another confirmation.
-
-#### L011 — 2026-07-22 00:52 — Q01-01 — orchestrator -> queue — decision
-
-**Message**
-Seven dirty paths were reviewed as coherent project documentation with no detected credentials. They were explicitly staged and committed as baseline `9885440` (`docs: add learning items queue baseline`). `git status --short` was empty afterward.
-
-**Artifacts**
-- Baseline commit: `9885440`
-- Tests: documentation diff check passed; no production tests required
-
-**Follow-up**
-- Clear the resolved pre-flight blocker and dispatch Q01-01.
-
-#### L012 — 2026-07-22 00:52 — Q01-01 — orchestrator -> codex — dispatch
-
-**Message**
-Handle only Q01-01. Execute `ddd-start → ddd-doc → ddd-tdd`, create one RXX document, record red／green evidence, update P01 and Q01, and commit only files related to Q01-01. Suppress per-item ddd-tdd completion notification.
-
-**Context**
-- Queue file: `documents/queue/Q01-ai-learning-items-and-learning-library.md`
-- Source plan: `documents/planning/P01-ai-learning-items-and-learning-library.md`
-- Depends on: []
-- Unlock condition: none
-- Intake: completed; Q01-01 clarified
-
-**Expected Response**
-- Completed item with RXX path, commit hash, test commands, ledger entries and handoff; or blocked state with a concrete question
-
-**Follow-up**
-- Do not start Q01-02.
-
-#### L013 — 2026-07-22 00:54 — Q01-01 — codex -> orchestrator — status
-
-**Message**
-Worker pre-flight passed at dispatch commit `220a704`: queue readiness and centralized intake are complete, Q01-01 is clarified and already in progress, `depends_on` is empty, and `git status --short` was empty before this ledger update.
-
-**Artifacts**
-- Queue: `documents/queue/Q01-ai-learning-items-and-learning-library.md`
-- Source plan: `documents/planning/P01-ai-learning-items-and-learning-library.md`
-
-**Follow-up**
-- Execute Q01-01 only through `ddd-start → ddd-doc → ddd-tdd`; suppress the per-item completion notification.
-
-#### L014 — 2026-07-22 00:56 — Q01-01 — codex -> queue — compaction
-
-**Message**
-Archived the resolved L001–L009 entry bodies after the queue master document exceeded the compact-context threshold. Their log-index rows remain authoritative; L010 onward remains active in the master document.
-
-**Artifacts**
-- `documents/queue/logs/Q01-ai-learning-items-and-learning-library-L001-L009.md`
-
-**Follow-up**
-- Read the archive only when a later worker needs those historical intake or blocker details.
-
-#### L015 — 2026-07-22 00:57 — Q01-01 — codex -> orchestrator — ddd-start
-
-**Message**
-ddd-start classified Q01-01 as an RXX because it improves Renderer structure without changing external behavior. `CONTEXT.md` is loaded. The zoom-out map found one application caller (`main.tsx → App`) and four presentational seams beneath App orchestration: primary navigation, book/reader content, the review placeholder, and the AI conversation panel. Existing reading-range helpers, Electron bridges, persistence, shared contracts, Codex protocol and CSS remain outside the refactor.
-
-**Context**
-- Domain terms retained: 書庫、書籍總覽、閱讀區段、範圍標籤、標記、AI 對話面板、生詞庫、複習回合。
-- Scope confirmation is already recorded in the centralized intake and L001/L006/L007; no interactive grill or duplicate confirmation is required.
-
-**Follow-up**
-- Create the next refactor specification as R01 and evaluate it for queue auto-approval.
-
-#### L016 — 2026-07-22 01:02 — Q01-01 — codex -> queue — status
-
-**Message**
-Fresh queue worker resumed only Q01-01 after the prior worker’s capacity interruption. The inherited dirty paths are authorized continuation artifacts: partial `R01`, Q01 updates, and its archive. No production code was present or changed. R01 is reviewed as approved under the completed intake; the worker will create and run the required workspace-boundary RED test before any Renderer implementation.
-
-**Follow-up**
-- Preserve the partial document and append-only ledger; do not start Q01-02.
-
-#### L017 — 2026-07-22 01:02 — Q01-01 — codex -> queue — ddd-doc
-
-**Message**
-The worker reviewed R01 against the completed intake, Renderer modules, contracts, tests, and package scripts. R01 is clear, low-risk, testable and auto-approved: `App` remains the owner of bridge calls, effects, persistence and cross-workspace state; the extracted components stay pure Renderer presentation boundaries. No unresolved requirement or scope contradiction was found.
-
-**Follow-up**
-- Begin strict RED with TC1 before any production change.
-
-#### L018 — 2026-07-22 01:02 — Q01-01 — codex -> queue — tdd-red
-
-**Message**
-Created `apps/desktop/src/renderer/workspace-boundaries.test.tsx` and ran `npm test -- workspace-boundaries.test.tsx` from `apps/desktop`. Vitest failed before executing tests because Vite could not resolve `./workspace/AiConversationPanel`; the other three requested workspace modules also did not exist. This is the expected unimplemented-boundary failure, not an environment or regression failure.
-
-**Follow-up**
-- Create the four Renderer workspace modules, then rerun TC1 and focused regressions.
-
-#### L019 — 2026-07-22 01:04 — Q01-01 — codex -> queue — tdd-green
-
-**Message**
-Implemented four named Renderer boundaries and composed them in `App`: `PrimaryNavigation`, `ReadingWorkspace`, `LearningLibraryWorkspace` and `AiConversationPanel`. TC1 passed after implementation. Focused `App.test.tsx` plus `reading-range.test.ts` passed 61 tests; the full desktop suite passed 12 files / 129 tests; `npm run typecheck` and `npm run build` passed. No data, IPC, persistence, CSS, visible text, ARIA or Codex protocol file changed.
-
-**Follow-up**
-- Update R01/P01/Q01 completion records and create the one scoped Q01-01 commit.
-
-#### L020 — 2026-07-22 01:04 — Q01-01 — codex -> queue — handoff
-
-**Message**
-Q01-01 is ready for closeout. The implementation document is `documents/implements/R01-desktop-workspace-boundaries.md`; the queue item uses `commit: pending-orchestrator` to avoid the circular commit-hash update. Q01-02 remains pending and must be handled by a later fresh worker only after its dependency is independently verified.
-
-**Follow-up**
-- Stage only Q01-01 files and commit once with the required message.
-
-#### L021 — 2026-07-22 01:04 — Q01-01 — codex -> queue — completed
-
-**Message**
-R01 implementation record and P01 Phase 1 are updated. Q01-01 is marked completed with its approved handoff and `pending-orchestrator` commit field. Per-item ddd-tdd completion notification is suppressed by Q01; no email was sent and Q01-02 was not started.
-
-#### L022 — 2026-07-22 01:07 — Q01-01 — orchestrator -> queue — acceptance
-
-**Message**
-Orchestrator verified the scoped item commit `0701a3b` (`refactor: complete Q01-01 workspace boundaries`) and replaced the circular placeholder. The worktree was clean. Unlock evidence for Q01-02 is satisfied: Q01-01 is completed with R01, the full desktop suite passed 12 files / 129 tests, desktop typecheck passed, and the production build passed.
-
-**Follow-up**
-- Dispatch Q01-02 to a fresh worker session; do not reuse the Q01-01 worker.
-
-#### L023 — 2026-07-22 01:07 — Q01-02 — orchestrator -> codex — dispatch
-
-**Message**
-Handle only Q01-02. Execute `ddd-start → ddd-doc → ddd-tdd`, create one FXX document, record strict red／green evidence, implement the authorized local SQLite learning library and source-linked fallback workflow, update P01 and Q01, and create one scoped item commit. Suppress per-item completion notification.
-
-**Context**
-- Q01-01 dependency commit: `0701a3b`
-- Unlock condition: verified by 129 desktop tests, typecheck and production build
-- Intake: completed; Q01-02 clarified
-- Persistence: Electron `node:sqlite` under `userData`, narrow IPC only
-- Product boundary: 生詞庫 list/detail/edit/archive, source snapshot, same-source idempotency; no hard delete or spaced-review flow
-
-**Expected Response**
-- Completed item with FXX path, actual commit hash, migration/schema and test evidence, ledger entries and handoff; or blocked state with a concrete question
-
-**Follow-up**
-- Do not start Q01-03.
-
-#### L024 — 2026-07-22 01:09 — Q01-02 — codex -> queue — status
-
-**Message**
-Worker start preflight passed. `git status --short` was empty before this worker's
-first document update. Q01 has `intake_grill_status: completed` and
-`ready_for_execution: true`; Q01-02 is `in_progress` and `clarified`. Dependency
-Q01-01 is completed at `0701a3b`; L022 records its 129 desktop tests, desktop
-typecheck and production build, satisfying the declared unlock condition.
-
-**Follow-up**
-- Execute only Q01-02 through ddd-start, ddd-doc and strict RED/GREEN.
-
-#### L025 — 2026-07-22 01:09 — Q01-02 — codex -> queue — ddd-start
-
-**Message**
-ddd-start classifies Q01-02 as FXX: it adds a new persisted Learning Library while
-integrating existing Electron, book-library and annotation boundaries. `CONTEXT.md`,
-the completed centralized intake, relevant module documents, contracts, IPC, service,
-Renderer code and tests were reviewed. The intake already resolves the required
-architecture decisions (local `node:sqlite`, explicit migration, narrow IPC, snapshot
-retention after book deletion, edit/archive only), so no further grill-with-docs is
-needed. The next document is F19.
-
-**Follow-up**
-- Review F19 for low-risk, testable auto-approval before adding production code.
-
-#### L026 — 2026-07-22 01:09 — Q01-02 — codex -> queue — ddd-doc
-
-**Message**
-Created `documents/implements/F19-local-learning-library.md`. It specifies the
-authorized `node:sqlite` migration, typed Main/Preload/Renderer contract, separated
-item/source snapshot model, annotation fallback, list/detail/edit/archive behavior,
-idempotency and deleted-book availability. All six acceptance rules map to TC1–TC6.
-The completed intake explicitly authorizes the data model and migration; F19 has no
-open product decision, is low-risk within the desktop boundary and can be tested
-without AI or external services. It is therefore auto-approved under Q01-02.
-
-**Follow-up**
-- Add the TC1–TC6 RED tests before any production implementation.
-
-#### L027 — 2026-07-22 01:12 — Q01-02 — codex -> queue — tdd-red
-
-**Message**
-Added F19 tests before production implementation and ran:
-`npm test -- learning-library-service.test.ts learning-library-workspace.test.tsx`.
-The repository suite failed because `./learning-library-service` did not exist; the
-workspace test failed because the page still exposed 「Anki 式間隔複習」 and hard-coded
-「今日待複習 10」 instead of 生詞庫 zero state. Both failures directly evidenced missing
-authorized behavior, not an environment error.
-
-**Follow-up**
-- Implement F19 repository, bridge and Renderer behavior, then run the focused suite.
-
-#### L028 — 2026-07-22 01:20 — Q01-02 — codex -> queue — tdd-green
-
-**Message**
-F19 GREEN verification passed. `node:sqlite` migration 1 provides separated items and
-sources with unique annotation provenance; Main/Preload/Renderer expose only the five
-typed learning operations. The renderer has real 生詞庫 zero/list/detail/edit/archive
-behavior and annotation fallback. Source snapshots survive book deletion and read as
-unavailable. Focused verification passed 6 files / 75 tests; desktop passed 15 files /
-138 tests; the full project passed server 3 + desktop 138 tests, typecheck and production
-build. No native dependency, remote API, AI proposal, merge or scheduling work was added.
-
-**Follow-up**
-- Update F19/P01/module docs and close Q01-02 with the scoped commit.
-
-#### L029 — 2026-07-22 01:20 — Q01-02 — codex -> queue — handoff
-
-**Message**
-F19 implementation record, P01 Phase 2 and learning-library/book-library module documents
-are aligned. Q01-02 is completed with `commit: pending-orchestrator` to avoid the circular
-hash update. The next item remains Q01-03 and requires a new worker after this commit is
-verified.
-
-**Follow-up**
-- Stage only Q01-02 artifacts and create its one required commit.
-
-#### L030 — 2026-07-22 01:20 — Q01-02 — codex -> queue — completed
-
-**Message**
-Q01-02 is complete and ready for scoped commit verification. Per-item ddd-tdd completion
-notification is suppressed by Q01; no email was sent because the queue has no configured
-sender or recipient. Q01-03 was not started.
-
-#### L031 — 2026-07-22 01:22 — Q01-02 — orchestrator -> queue — acceptance
-
-**Message**
-Verified scoped item commit `ab7b12e` (`feat: complete Q01-02 local learning library`)
-with a clean worktree. The recorded GREEN evidence is 6 focused files / 75 tests,
-15 desktop files / 138 tests, 141 full-project tests, typecheck and production build.
-The implementation can create, persist and list a source-linked learning item, so the
-declared Q01-03 unlock condition is satisfied.
-
-**Follow-up**
-- Start Q01-03 in a fresh worker session.
-
-#### L032 — 2026-07-22 01:22 — Q01-03 — orchestrator -> codex — dispatch
-
-**Message**
-Handle only Q01-03. Execute `ddd-start → ddd-doc → ddd-tdd`, create one FXX document,
-record strict RED/GREEN evidence, update P01 and Q01, and commit only Q01-03 artifacts.
-Build an independent background 「產生學習卡」 workflow that accepts only word/phrase
-annotations from a non-empty reading segment, uses the current explanation language,
-performs programmatic candidate lookup, validates structured AI output, and returns
-reviewable create/update/unchanged/create-distinct-sense proposals without writing the
-learning library. Suppress the per-item completion notification and do not start Q01-04.
-
-**Context**
-- Queue file: `documents/queue/Q01-ai-learning-items-and-learning-library.md`
-- Source plan: `documents/planning/P01-ai-learning-items-and-learning-library.md`
-- Depends on: Q01-02 at `ab7b12e`
-- Unlock evidence: persisted source-linked learning item plus full project verification
-
-**Expected Response**
-- Completed Q01-03 with FXX path, commit hash, tests, ledger entries and handoff; or a
-  blocked state with a concrete question.
-
-#### L033 — 2026-07-22 01:31 — Q01-03 — codex -> queue — status
-
-**Message**
-Worker pre-flight passed: the worktree was clean; Q01 has `ready_for_execution: true` and completed intake; Q01-03 is clarified. Dependency Q01-02 is completed at `ab7b12e`; L031 records source-linked persistence/listing, 141 full-project tests, typecheck and production build, satisfying this item's unlock condition.
-
-**Follow-up**
-- Handle Q01-03 only through ddd-start, ddd-doc and strict RED/GREEN.
-
-#### L034 — 2026-07-22 01:31 — Q01-03 — codex -> queue — ddd-start
-
-**Message**
-ddd-start classifies Q01-03 as FXX: it adds a bounded proposal workflow across the existing AI runtime, annotation and Learning Library boundaries. `CONTEXT.md`, the completed intake, P01, F19, active Q01-02 entries, relevant modules and source/tests were read. The intake resolves the architecture choice: an independent background workflow, word/phrase only, current explanation language, programmatic bounded lookup and proposal-only output. No additional grill-with-docs is needed.
-
-**Follow-up**
-- Create F20 and assess low-risk, testable queue auto-approval before production code.
-
-#### L035 — 2026-07-22 01:32 — Q01-03 — codex -> queue — ddd-doc
-
-**Message**
-Created `documents/implements/F20-structured-ai-learning-proposals.md`. F20 defines the two `turn/start.outputSchema` passes, independent ephemeral App Server thread, empty environments and disabled plugin/app/memory/web facilities, bounded source/canonical/type/alias lookup, strict proposal validation and zero-persistence boundary. TC1–TC6 cover context, actions/diffs, rejection, UI disablement and protocol isolation. The local codex-cli 0.144.4 generated schema confirms `outputSchema` exists. The clarified intake makes F20 explicit, low-risk and testable, so it is auto-approved.
-
-**Follow-up**
-- Add TC1–TC6 RED tests before any production implementation.
-
-#### L036 — 2026-07-22 01:33 — Q01-03 — codex -> queue — tdd-red
-
-**Message**
-Added the F20 controller test before production code and ran `npm test -- learning-proposal-controller.test.ts`. It failed because `./learning-proposal-controller` did not exist, directly demonstrating the absent independent proposal workflow.
-
-#### L037 — 2026-07-22 01:34 — Q01-03 — codex -> queue — tdd-green
-
-**Message**
-F20 GREEN passed: focused 5 tests validate two outputSchema turns, bounded programmatic lookup, actions/diffs, malformed result rejection and unchanged SQLite state. Full regression passed server 3 plus desktop 143 tests; root typecheck and production build passed.
-
-#### L038 — 2026-07-22 01:34 — Q01-03 — codex -> queue — handoff
-
-**Message**
-F20, P01 Phase 3 and the learning-card-proposals module document are aligned. The implementation is proposal-only: no apply, transaction, audit, pending persistence, review scheduling or direct AI write. Q01-04 must be handled by a fresh worker after commit verification.
-
-#### L039 — 2026-07-22 01:34 — Q01-03 — codex -> queue — completed
-
-**Message**
-Q01-03 completed pending the required scoped commit-hash substitution. ddd-tdd completion notification is suppressed by Q01; no email is configured or sent.
-
-#### L040 — 2026-07-22 01:39 — Q01-03 — orchestrator -> queue — correction
-
-**Message**
-The initial Q01-03 commit `b44be08` is not accepted yet. Code review found that
-`LearningProposalController.#runTurn` polls only 200 times at 5 ms, so a real App Server
-turn that takes longer than about one second fails even though the immediate fake server
-passes. The new Renderer preset and preview also lack direct regression coverage for
-empty/no-eligible-source disablement and visible review proposals. Q01-04 remains locked.
-
-**Follow-up**
-- In a fresh Q01-03 worker, add failing tests for delayed completion and Renderer behavior,
-  implement a reliable bounded wait, rerun full verification, and amend only the latest
-  Q01-03 commit so this queue item still has one scoped commit.
-
-#### L041 — 2026-07-22 01:39 — Q01-03 — orchestrator -> codex — dispatch
-
-**Message**
-Resume only Q01-03 as an acceptance correction through F20 and ddd-tdd. Preserve the
-approved proposal-only scope and all existing zero-write/security boundaries. Add direct
-RED tests proving a valid delayed App Server completion does not time out at one second,
-the Generate Learning Cards preset is disabled for empty/no eligible input without IPC,
-and valid proposals render as unsaved review content. Implement the minimum reliable fix,
-update F20 and the queue ledger, run focused/full tests, typecheck and build, then amend
-the current Q01-03 commit `b44be08` with the same commit message. Do not start Q01-04.
-
-#### L042 — 2026-07-22 01:43 — Q01-03 — codex -> queue — status
-
-**Message**
-Correction preflight passed: the worktree was clean, Q01 has completed centralized intake and
-is ready for execution, Q01-03 remains clarified, Q01-02 is completed at `ab7b12e`, and L040–L041
-authorize only this F20 acceptance correction. Q01-04 was not started.
-
-#### L043 — 2026-07-22 01:43 — Q01-03 — codex -> queue — tdd-red
-
-**Message**
-Added the correction test before changing production code, using valid structured responses delayed
-1.5 seconds per App Server turn. `npm run test -w @reader/desktop -- src/main/learning-proposal-controller.test.ts`
-failed with `等待 Codex 結構化提案逾時。`, proving the prior 200 × 5 ms polling cap rejected real-latency work.
-
-#### L044 — 2026-07-22 01:43 — Q01-03 — codex -> queue — tdd-green
-
-**Message**
-Replaced polling with notification-driven per-turn waiting, a two-minute deadline, best-effort
-`turn/interrupt`, and enclosing unsubscribe/client-close cleanup. Direct Renderer tests now prove
-empty ranges and sentence-only annotations disable the preset without IPC, while a valid in-range
-word source passes the current explanation language and renders an unsaved source/action/diff review.
-Focused `learning-proposal-controller` plus `App` tests passed: 59 tests.
-
-#### L045 — 2026-07-22 01:43 — Q01-03 — codex -> queue — acceptance
-
-**Message**
-Acceptance recheck passed. The workflow retains two `outputSchema` turns, bounded program lookup,
-isolated read-only App Server settings, no AI database/file/tool access, no whole-chapter fallback,
-sentence exclusion, current explanation language, Renderer-session-only proposals and zero writes.
-`npm test` passed server 3 and desktop 147 tests; root typecheck and production build passed.
-
-#### L046 — 2026-07-22 01:43 — Q01-03 — codex -> queue — handoff
-
-**Message**
-F20 and the learning-card-proposals module record the correction. Q01-03 is proposal-only; apply,
-transactions, audit/versioning, scheduling and proposal persistence remain Q01-04/future scope.
-
-#### L047 — 2026-07-22 01:43 — Q01-03 — codex -> queue — completed
-
-**Message**
-Q01-03 is completed with `commit: pending-orchestrator` pending the explicitly authorized amendment
-of the current latest Q01-03 commit. ddd-tdd completion notification is suppressed by the queue;
-no per-item email was sent. Q01-04 remains pending and untouched.
-
-#### L048 — 2026-07-22 01:45 — Q01-03 — orchestrator -> queue — acceptance
-
-**Message**
-Verified the single amended Q01-03 commit `5766ba8`. Acceptance evidence includes the
-1.5-second RED regression, event-driven two-minute bounded completion, direct Renderer
-disablement/preview tests, focused 59 tests, full server 3 plus desktop 147 tests,
-typecheck and production build. Valid create/update/unchanged/create-distinct-sense
-proposals are reviewable without persistence, satisfying the Q01-04 unlock condition.
-
-**Follow-up**
-- Start Q01-04 in a fresh worker session.
 
 #### L049 — 2026-07-22 01:45 — Q01-04 — orchestrator -> codex — dispatch
 
@@ -858,6 +488,159 @@ suppress the per-item completion notification, and do not implement review sched
 **Expected Response**
 - Completed Q01-04 with FXX path, commit hash, tests, ledger entries and final queue handoff;
   or a blocked state with one concrete user decision.
+
+#### L050 — 2026-07-22 01:47 — ALL — codex -> queue — compaction
+
+**Message**
+Archived resolved active-ledger bodies L010–L048 before Q01-04 implementation. The main
+queue retains the complete Log Index, all item requirements/decisions/handoffs, and only
+the current Q01-04 dispatch as active context.
+
+**Artifacts**
+- `documents/queue/logs/Q01-ai-learning-items-and-learning-library-L010-L048.md`
+
+**Follow-up**
+- Q01-04 workers read L049; open the archive only if a historical contradiction requires it.
+
+#### L051 — 2026-07-22 01:48 — Q01-04 — codex -> queue — status
+
+**Message**
+Pre-flight evidence is valid: the worktree was clean at dispatch, Q01 has completed
+centralized intake and is ready, Q01-04 is clarified/in progress, and Q01-01–03 have
+accepted commits. Q01-03 at `5766ba8` proves all four proposal actions preview without
+persistence, with server 3 + desktop 147 tests, typecheck and build green.
+
+**Follow-up**
+- Run ddd-start, create one FXX only, then begin strict RED before production edits.
+
+#### L052 — 2026-07-22 01:48 — Q01-04 — codex -> queue — ddd-start
+
+**Message**
+ddd-start classifies Q01-04 as an FXX: it adds a user-confirmed apply workflow across
+the existing proposal, Learning Library, narrow IPC and Renderer boundaries. `CONTEXT.md`,
+the clarified intake, P01, F19, F20, learning-library and proposal module documents,
+contracts, services and direct tests were reviewed. The intake explicitly authorizes
+transactions, versioning, audit records and migrations; it also resolves manual-content
+protection, distinct senses, session-only pending proposals and out-of-scope scheduling.
+No additional grill-with-docs is required.
+
+**Follow-up**
+- Draft the next FXX and confirm it is explicit, low-risk and testable before code.
+
+#### L053 — 2026-07-22 01:49 — Q01-04 — codex -> queue — ddd-doc
+
+**Message**
+Created `documents/implements/F21-safe-learning-proposal-apply.md`. F21 maps mixed
+review, field protection, source append, distinct sense, unchanged stability, idempotent
+restart, stale conflict, rollback and direct Renderer review to TC1–TC9. The intake grants
+all required migration/transaction/version/audit authority, so F21 is explicit, low-risk
+and testable under Q01 auto-approval.
+
+#### L054 — 2026-07-22 01:51 — Q01-04 — codex -> queue — tdd-red
+
+**Message**
+Added `learning-proposal-apply.test.ts` before Main implementation and ran its four
+tests. Each failed for the correct missing-feature reason: `applyProposalBatch is not a
+function`. No environment or pre-existing regression was involved.
+
+#### L055 — 2026-07-22 01:58 — Q01-04 — codex -> queue — tdd-green
+
+**Message**
+Migration 2 adds versions plus completed batch/audit records. Main validates/rechecks the
+batch in one transaction, protects unconfirmed fields, preserves/appends sources, supports
+distinct senses, rejects stale/invalid requests atomically and returns stored retry results.
+Renderer review/apply controls and direct test are green. Focused 60 tests and root server
+3 + desktop 152 tests, typecheck and build passed.
+
+#### L056 — 2026-07-22 01:58 — Q01-04 — codex -> queue — handoff
+
+**Message**
+F21, P01 Phase 4 and learning-library/proposal module documents are synchronized. The
+scope intentionally excludes review scheduling, AI writes/delete/archive, hard delete,
+implicit merge and old-card auto-translation. Queue is ready for orchestrator final closeout.
+
+#### L057 — 2026-07-22 01:58 — Q01-04 — codex -> queue — completed
+
+**Message**
+Q01-04 is completed with `commit: pending-orchestrator` for the circular hash protocol.
+ddd-tdd completion notification is suppressed by Q01; no email was sent. The orchestrator
+alone owns final queue notification/closeout.
+
+#### L058 — 2026-07-22 02:05 — Q01-04 — orchestrator -> codex — correction
+
+**Message**
+Final acceptance rejected two concrete gaps in Q01-04: session-only proposals survive reader
+navigation/context changes, and a selected update with no actual confirmed-field change returns an
+unchanged result without incrementing the batch unchanged count. Add direct Renderer/repository RED
+tests, implement minimal fixes, update F21/P01/Q01/module evidence, run all required verification,
+then amend only `fc4dbc9` with its existing message. Keep the queue commit pending-orchestrator and
+do not close the queue or send notifications.
+
+#### L059 — 2026-07-22 02:05 — Q01-04 — codex -> queue — ddd-start
+
+**Message**
+The correction belongs to the existing clear F21 rather than a new queue item or BXX: both root
+causes and expected behaviors are specified, the existing transaction/migration/typed-API authority
+is sufficient, and no new product decision is required. `CONTEXT.md` terminology and Q01-04 safety
+boundaries remain unchanged.
+
+#### L060 — 2026-07-22 02:05 — Q01-04 — codex -> queue — ddd-doc
+
+**Message**
+F21 now explicitly requires discarding proposals when leaving the reader or changing their source
+book/chapter/range/annotations/explanation language, including suppression of late stale generation
+responses. It also requires no-op updates to increment the batch unchanged count while appending a
+new source once and preserving content/version/`updatedAt`. These map to TC10 and TC11.
+
+**Follow-up**
+- Add the focused tests and record strict RED before production changes.
+
+#### L061 — 2026-07-22 02:06 — Q01-04 — codex -> queue — tdd-red
+
+**Message**
+The focused Renderer/repository run produced exactly three expected failures before production
+changes. Both direct Renderer tests still found the proposal review after returning to overview or
+switching chapters. The repository test received per-result `outcome: unchanged`, stable content,
+and one appended source, but the batch summary reported `unchanged: 0` instead of `1`.
+
+**Evidence**
+- `npm run test -w @reader/desktop -- src/renderer/App.test.tsx src/main/learning-proposal-apply.test.ts`
+- RED: 3 failed, 58 passed (61 total).
+
+#### L062 — 2026-07-22 02:12 — Q01-04 — codex -> queue — tdd-green
+
+**Message**
+Renderer now discards session-only proposal/review/batch state at the actual book, chapter, range,
+annotation, explanation-language and leave-reader mutation boundaries. A generation context key
+also ignores a response completed after navigation without perturbing normal generation. Main's
+existing transaction increments unchanged when an update has no effective confirmed-field change;
+the source still appends once and content/version/`updatedAt` remain stable.
+
+**Evidence**
+- Focused Renderer/repository/IPC: 64 passed.
+
+#### L063 — 2026-07-22 02:12 — Q01-04 — codex -> queue — acceptance
+
+**Message**
+All required verification passed: `npm test` (server 3 + desktop 156), `npm run typecheck`,
+`npm run build`, and `npm run test:e2e` (2/2). Safety review confirms one typed Main transaction,
+manual-field protection, version/candidate/source validation, audit/idempotency and AI no-write/
+delete/archive boundaries remain intact. Review scheduling remains out of scope.
+
+#### L064 — 2026-07-22 02:12 — Q01-04 — codex -> queue — handoff
+
+**Message**
+F21, P01, Q01 and both relevant module documents contain correction RED/GREEN evidence. Amend only
+the latest Q01-04 commit with its existing message, keep `commit: pending-orchestrator`, do not close
+the queue and do not send notifications. ddd-tdd completion notification remains suppressed by Q01.
+
+#### L065 — 2026-07-22 02:17 — Q01-04 — codex -> queue — acceptance
+
+**Message**
+After final behavior review added disposal on the first actual range-marker drag and made the source
+assertion independent of same-millisecond row ordering, the complete final snapshot was rerun:
+focused 64/64, `npm test` server 3 + desktop 156, typecheck, production build and Electron E2E 2/2
+all passed. No queue closeout or notification was performed.
 
 ## 6. Queue execution rules
 
