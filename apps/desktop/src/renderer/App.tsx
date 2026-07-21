@@ -33,6 +33,8 @@ function desktopLibrary(): LibraryDesktopApi | undefined {
 
 export function App() {
   const [mode, setMode] = useState<WorkspaceMode>("overview");
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
   const [books, setBooks] = useState<LibraryBook[]>([]);
   const [selectedBookId, setSelectedBookId] = useState<string>();
   const [activeChapterId, setActiveChapterId] = useState<string>();
@@ -393,46 +395,75 @@ export function App() {
         </button>
       </header>
 
-      <div className="workspace">
-        <aside className="sidebar" aria-label="主要導覽">
-          <div className="book-summary">
-            <span className="eyebrow">我的書庫</span>
-            <strong>{books.length ? `${books.length} 本書籍` : "尚未導入書籍"}</strong>
-            <span>{books.length ? "選擇書籍即可查看總覽" : "從 EPUB 建立你的閱讀書庫"}</span>
-          </div>
-
-          <div className="book-list" aria-label="已導入書籍">
-            {books.map((book) => (
-              <button
-                className={book.id === selectedBook?.id ? "book-item active" : "book-item"}
-                key={book.id}
-                type="button"
-                onClick={() => selectBook(book.id)}
-              >
-                <span className="book-item-cover" aria-hidden="true">
-                  {book.coverDataUrl ? <img src={book.coverDataUrl} alt="" /> : "Aa"}
-                </span>
-                <span>
-                  <strong>{book.title}</strong>
-                  <small>{book.author}</small>
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <nav>
+      <div
+        className={[
+          "workspace",
+          isLeftSidebarCollapsed ? "left-collapsed" : "",
+          isRightSidebarCollapsed ? "right-collapsed" : ""
+        ].filter(Boolean).join(" ")}
+      >
+        <aside
+          className={isLeftSidebarCollapsed ? "sidebar collapsed" : "sidebar"}
+          aria-label="主要導覽"
+        >
+          <div className="sidebar-heading">
+            {!isLeftSidebarCollapsed ? (
+              <div className="book-summary">
+                <span className="eyebrow">我的書庫</span>
+                <strong>{books.length ? `${books.length} 本書籍` : "尚未導入書籍"}</strong>
+              </div>
+            ) : null}
             <button
-              className={mode === "review" ? "nav-item active" : "nav-item"}
-              onClick={() => {
-                saveCurrentReaderPosition();
-                setMode("review");
-              }}
+              className="panel-toggle left-toggle"
+              type="button"
+              aria-label={isLeftSidebarCollapsed ? "展開左側欄" : "摺疊左側欄"}
+              aria-controls="left-sidebar-content"
+              aria-expanded={!isLeftSidebarCollapsed}
+              onClick={() => setIsLeftSidebarCollapsed((collapsed) => !collapsed)}
             >
-              <span>↻</span>
-              Anki 複習
-              <em>10</em>
+              <svg aria-hidden="true" viewBox="0 0 18 18">
+                <rect x="1.75" y="2.25" width="14.5" height="13.5" rx="3" />
+                <path d="M6 2.75v12.5" />
+              </svg>
             </button>
-          </nav>
+          </div>
+
+          {!isLeftSidebarCollapsed ? (
+            <div className="sidebar-content" id="left-sidebar-content">
+              <div className="book-list" aria-label="已導入書籍">
+                {books.map((book) => (
+                  <button
+                    className={book.id === selectedBook?.id ? "book-item active" : "book-item"}
+                    key={book.id}
+                    type="button"
+                    onClick={() => selectBook(book.id)}
+                  >
+                    <span className="book-item-cover" aria-hidden="true">
+                      {book.coverDataUrl ? <img src={book.coverDataUrl} alt="" /> : "Aa"}
+                    </span>
+                    <span>
+                      <strong>{book.title}</strong>
+                      <small>{book.author}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <nav>
+                <button
+                  className={mode === "review" ? "nav-item active" : "nav-item"}
+                  onClick={() => {
+                    saveCurrentReaderPosition();
+                    setMode("review");
+                  }}
+                >
+                  <span>↻</span>
+                  Anki 複習
+                  <em>10</em>
+                </button>
+              </nav>
+            </div>
+          ) : null}
         </aside>
 
         <main
@@ -607,38 +638,62 @@ export function App() {
           )}
         </main>
 
-        <aside className="assistant-panel" aria-label="AI 助教">
+        <aside
+          className={isRightSidebarCollapsed ? "assistant-panel collapsed" : "assistant-panel"}
+          aria-label="AI 助教"
+        >
           <div className="assistant-heading">
-            <div>
-              <span className="status-dot" />
-              <strong>AI 助教</strong>
-            </div>
-            <span>{mode === "review" ? "複習上下文" : "書籍上下文"}</span>
+            {!isRightSidebarCollapsed ? (
+              <>
+                <div>
+                  <span className="status-dot" />
+                  <strong>AI 助教</strong>
+                </div>
+                <span>{mode === "review" ? "複習上下文" : "書籍上下文"}</span>
+              </>
+            ) : null}
+            <button
+              className="panel-toggle right-toggle"
+              type="button"
+              aria-label={isRightSidebarCollapsed ? "展開右側欄" : "摺疊右側欄"}
+              aria-controls="right-sidebar-content"
+              aria-expanded={!isRightSidebarCollapsed}
+              onClick={() => setIsRightSidebarCollapsed((collapsed) => !collapsed)}
+            >
+              <svg aria-hidden="true" viewBox="0 0 18 18">
+                <rect x="1.75" y="2.25" width="14.5" height="13.5" rx="3" />
+                <path d="M12 2.75v12.5" />
+              </svg>
+            </button>
           </div>
 
-          <div className="messages" aria-live="polite">
-            {messages.map((message) => (
-              <div className={"message " + message.role} key={message.id}>
-                <span>{message.role === "assistant" ? "AI" : "你"}</span>
-                <p>{message.content}</p>
+          {!isRightSidebarCollapsed ? (
+            <div className="assistant-content" id="right-sidebar-content">
+              <div className="messages" aria-live="polite">
+                {messages.map((message) => (
+                  <div className={"message " + message.role} key={message.id}>
+                    <span>{message.role === "assistant" ? "AI" : "你"}</span>
+                    <p>{message.content}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          <form className="chat-form" onSubmit={sendMessage}>
-            <label htmlFor="chat-input">詢問目前內容</label>
-            <textarea
-              id="chat-input"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="例如：這句為什麼使用過去完成式？"
-              rows={3}
-            />
-            <div>
-              <small>AI gateway 尚未連線</small>
-              <button type="submit">送出</button>
+              <form className="chat-form" onSubmit={sendMessage}>
+                <label htmlFor="chat-input">詢問目前內容</label>
+                <textarea
+                  id="chat-input"
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder="例如：這句為什麼使用過去完成式？"
+                  rows={3}
+                />
+                <div>
+                  <small>AI gateway 尚未連線</small>
+                  <button type="submit">送出</button>
+                </div>
+              </form>
             </div>
-          </form>
+          ) : null}
         </aside>
       </div>
 

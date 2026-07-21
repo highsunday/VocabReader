@@ -127,6 +127,35 @@ describe("App", () => {
     expect(screen.getByText("這句話的文法是什麼？")).toBeInTheDocument();
   });
 
+  it("collapses and expands the left and right sidebars independently", () => {
+    render(<App />);
+
+    const workspace = document.querySelector(".workspace");
+    const leftToggle = screen.getByRole("button", { name: "摺疊左側欄" });
+    const rightToggle = screen.getByRole("button", { name: "摺疊右側欄" });
+    expect(leftToggle.closest(".sidebar-heading")).toBeInTheDocument();
+    expect(rightToggle.closest(".assistant-heading")).toBeInTheDocument();
+    expect(leftToggle.querySelector("svg")).toBeInTheDocument();
+    expect(rightToggle.querySelector("svg")).toBeInTheDocument();
+
+    fireEvent.click(leftToggle);
+    expect(workspace).toHaveClass("left-collapsed");
+    expect(screen.getByRole("button", { name: "展開左側欄" }))
+      .toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByLabelText("主要導覽")).toHaveClass("collapsed");
+    expect(screen.getByLabelText("AI 助教")).not.toHaveClass("collapsed");
+
+    fireEvent.click(rightToggle);
+    expect(workspace).toHaveClass("left-collapsed", "right-collapsed");
+    expect(screen.getByRole("button", { name: "展開右側欄" }))
+      .toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "展開左側欄" }));
+    fireEvent.click(screen.getByRole("button", { name: "展開右側欄" }));
+    expect(workspace).not.toHaveClass("left-collapsed");
+    expect(workspace).not.toHaveClass("right-collapsed");
+  });
+
   it("lists persisted books and switches to the selected book overview", async () => {
     installLibraryApi();
     render(<App />);
