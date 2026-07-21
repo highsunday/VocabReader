@@ -16,6 +16,8 @@ import type {
   ChapterContent,
   ImportBookResult,
   LibraryBook,
+  ReadingRange,
+  SaveReadingRangeInput,
   SaveReadingStateInput
 } from "../shared/library-contracts";
 
@@ -316,6 +318,27 @@ function defaultReadingState(book: Partial<LibraryBook>): BookReadingState {
   };
 }
 
+function validReadingRange(value: unknown): value is ReadingRange {
+  if (!value || typeof value !== "object") return false;
+  const range = value as Partial<ReadingRange>;
+  return Number.isInteger(range.start) &&
+    Number.isInteger(range.end) &&
+    (range.start ?? -1) >= 0 &&
+    (range.end ?? -1) >= (range.start ?? 0);
+}
+
+function chapterRanges(
+  book: Partial<LibraryBook>,
+  chapters: BookChapter[]
+): Record<string, ReadingRange> {
+  const chapterIds = new Set(chapters.map((chapter) => chapter.id));
+  return Object.fromEntries(
+    Object.entries(book.chapterRanges ?? {}).filter(
+      ([chapterId, range]) => chapterIds.has(chapterId) && validReadingRange(range)
+    )
+  );
+}
+
 function distinctChapters(chapters: BookChapter[]): BookChapter[] {
   const seen = new Set<string>();
   return [...chapters]
@@ -494,7 +517,8 @@ export class LocalBookLibrary {
       return {
         ...book,
         chapters,
-        readingState: defaultReadingState({ ...book, chapters })
+        readingState: defaultReadingState({ ...book, chapters }),
+        chapterRanges: chapterRanges(book, chapters)
       };
     });
   }
@@ -526,7 +550,8 @@ export class LocalBookLibrary {
       ...parsed,
       progressPercent: 0,
       lastChapterId: null,
-      readingState: { view: "overview", chapterId: null, scrollProgress: 0 }
+      readingState: { view: "overview", chapterId: null, scrollProgress: 0 },
+      chapterRanges: {}
     };
     const bookPath = join(this.#booksPath, id);
     try {
@@ -615,6 +640,33 @@ export class LocalBookLibrary {
           view: input.view,
           chapterId: chapter?.id ?? book.readingState.chapterId,
           scrollProgress
+        }
+      };
+      books[index] = updated;
+      await this.#saveBooks(books);
+      return updated;
+    });
+    this.#stateWriteQueue = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  async saveReadingRange(input: SaveReadingRangeInput): Promise<LibraryBook> {
+    const operation = this.#stateWriteQueue.then(async () => {
+      const books = await this.listBooks();
+      const index = books.findIndex((book) => book.id === input.bookId);
+      if (index < 0) throw new Error("找不到書籍");
+      const book = books[index];
+      if (!book.chapters.some((chapter) => chapter.id === input.chapterId)) {
+        throw new Error("找不到章節");
+      }
+      if (!validReadingRange(input.range)) {
+        throw new Error("閱讀區段格式錯誤");
+      }
+      const updated: LibraryBook = {
+        ...book,
+        chapterRanges: {
+          ...book.chapterRanges,
+          [input.chapterId]: input.range
         }
       };
       books[index] = updated;

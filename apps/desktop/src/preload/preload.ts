@@ -3,6 +3,7 @@ import type {
   ChapterContent,
   ImportBookResult,
   LibraryBook,
+  SaveReadingRangeInput,
   SaveReadingStateInput
 } from "../shared/library-contracts";
 
@@ -25,7 +26,9 @@ const desktopApi = Object.freeze({
     ): Promise<ChapterContent> =>
       ipcRenderer.invoke("library:chapter", bookId, chapterId),
     saveReadingState: (input: SaveReadingStateInput): Promise<LibraryBook> =>
-      ipcRenderer.invoke("library:save-reading-state", input)
+      ipcRenderer.invoke("library:save-reading-state", input),
+    saveReadingRange: (input: SaveReadingRangeInput): Promise<LibraryBook> =>
+      ipcRenderer.invoke("library:save-reading-range", input)
   })
 });
 

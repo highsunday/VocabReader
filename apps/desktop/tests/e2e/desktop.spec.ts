@@ -30,6 +30,7 @@ test("launches the secure Electron reading shell", async () => {
               deleteBook: unknown;
               getChapterContent: unknown;
               saveReadingState: unknown;
+              saveReadingRange: unknown;
             };
           };
         }
@@ -41,6 +42,7 @@ test("launches the secure Electron reading shell", async () => {
         hasLibraryDelete: typeof desktop?.library.deleteBook,
         hasChapterReader: typeof desktop?.library.getChapterContent,
         hasReadingStateSave: typeof desktop?.library.saveReadingState,
+        hasReadingRangeSave: typeof desktop?.library.saveReadingRange,
         hasNodeRequire: typeof (window as Window & { require?: unknown }).require
       };
     });
@@ -51,6 +53,7 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasLibraryDelete).toBe("function");
     expect(security.hasChapterReader).toBe("function");
     expect(security.hasReadingStateSave).toBe("function");
+    expect(security.hasReadingRangeSave).toBe("function");
     expect(security.hasNodeRequire).toBe("undefined");
 
     const dataImageLoads = await page.evaluate(async () => {

@@ -8,7 +8,10 @@ related_implements:
   - F02-chapter-reading-resume
   - F03-simplify-sidebar-navigation
   - F04-delete-library-book
+  - F05-ai-reading-range-markers
+  - F06-reading-range-boundary-lines
   - B01-preserve-epub-chapter-hierarchy
+  - B02-persist-range-marker-on-drag-release
 ---
 
 # 書籍與本機書庫模組
@@ -43,6 +46,8 @@ related_implements:
 - 從本機 EPUB 讀取指定章節，安全呈現常見文字結構、表格、清單與書內點陣圖片。
 - 在閱讀介面返回書籍總覽或切換上一章。
 - 每本書保存最後所在畫面、章節與相對捲動位置，切換書籍或重新啟動後可恢復。
+- 每章保存唯一一對範圍標籤；閱讀頁可拖曳或從目前行功能選單調整，並以「完成這段，前往下一段」明確推進。
+- 閱讀區段使用章內文字 offset 定位，不依賴頁碼、像素或捲動比例；版面重新換行後仍對應相同原文。
 - 封面以 Data URL 經安全 preload bridge 傳給 renderer。
 - 長章節清單只捲動中央內容，左右欄保持在視窗內。
 - 書籍總覽以縮排、字級、標記及操作文字區分子章節；開啟子章節時定位到書內 fragment。
@@ -56,7 +61,7 @@ related_implements:
 
 1. React renderer 顯示書庫與書籍總覽。
 2. Electron preload 提供受限 library API。
-3. Main process IPC 接收 library:list、library:import、library:delete、library:chapter 與 library:save-reading-state。
+3. Main process IPC 接收 library:list、library:import、library:delete、library:chapter、library:save-reading-state 與 library:save-reading-range。
 4. LocalBookLibrary 負責 EPUB 解析、去重、刪除、章節內容安全處理與狀態持久化。
 5. 書籍資料保存到 Electron user data，再沿原路回傳 renderer。
 
@@ -69,12 +74,13 @@ related_implements:
 ### Preload bridge
 
 - 使用 contextBridge 暴露唯讀的 readerDesktop.library API。
-- 僅提供 listBooks()、importBook()、deleteBook()、getChapterContent() 與 saveReadingState()。
+- 僅提供 listBooks()、importBook()、deleteBook()、getChapterContent()、saveReadingState() 與 saveReadingRange()。
 - 不暴露 Node.js require、fs、ipcRenderer 或通用 IPC 呼叫。
 
 ### Renderer
 
 - 載入並保存目前 session 的書籍清單、選取狀態與閱讀位置。
+- 依章節初始化、顯示、調整及推進範圍標籤，並提供只擷取目前閱讀區段的共用邏輯。
 - 顯示書籍縮圖、書籍總覽、章節清單、安全章節內容、載入與錯誤訊息。
 - 在書籍總覽提供刪除入口與確認對話框；刪除成功後依原清單位置選取下一本、前一本或顯示空書庫。
 - 側欄以書籍項目作為書籍總覽入口，保留獨立的 Anki 複習入口，不顯示章節機制說明卡片。
@@ -90,6 +96,7 @@ related_implements:
 | apps/desktop/src/preload/preload.ts | 將受限書庫 API 暴露給 renderer |
 | apps/desktop/src/shared/library-contracts.ts | main、preload、renderer 共用的書籍、章節內容、閱讀狀態與導入結果型別 |
 | apps/desktop/src/renderer/App.tsx | 載入書庫、選取書籍、總覽、章節閱讀、導覽與閱讀位置恢復 |
+| apps/desktop/src/renderer/reading-range.ts | 閱讀區段初始化、裁切、自動推進、DOM 文字 offset 與範圍標籤定位 |
 | apps/desktop/src/renderer/styles.css | 書庫／總覽／章節排版與中央獨立捲動的三欄版面 |
 | apps/desktop/src/renderer/index.html | renderer CSP；允許本機與 Data URL 封面圖片 |
 
@@ -106,6 +113,7 @@ related_implements:
 | progressPercent | 閱讀進度百分比；依讀到最遠的章節與章內相對位置單調增加 |
 | lastChapterId | 上次閱讀章節；同時供舊索引相容與開始／繼續閱讀使用 |
 | readingState | 每本書的最後畫面（overview／reader）、章節識別碼與 0–1 相對捲動位置 |
+| chapterRanges | 以 chapterId 為鍵、保存該章唯一一對起點／終點文字 offset 的集合 |
 | chapters | 依 order 排列的章節集合 |
 
 正式恢復狀態以 `readingState` 為準；載入沒有此欄位的舊索引時，會從既有欄位建立相容預設。
@@ -167,6 +175,17 @@ related_implements:
 8. 捲動採 300ms 防抖保存；切換書籍、章節或返回總覽前立即保存。
 9. LocalBookLibrary 串行寫入狀態並原子替換 index.json，避免快速操作互相覆蓋。
 
+### Reading range markers
+
+START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `documents/modules/reading-range.md`；本節只保留它與書庫持久化的整合摘要。
+
+1. 章節原文載入後，renderer 讀取該章 `chapterRanges`；沒有保存位置時以第一個可讀位置至約 800 個英文單字初始化，短章則使用章末。
+2. 起點與終點標籤顯示在原文左側並向內文延伸具名分隔線；`START` 位於起始行之前、`END` 位於終止行之後，畫面位置過近時會上下錯開。Pointer 拖曳途中即時預覽，放開時保存最後一個有效位置，即使放開點位於左側標籤區也不需額外點擊；目前行功能選單同樣可把位置轉成章內文字 offset，兩種操作都拒絕起終點交叉。
+3. Renderer 透過 `library:save-reading-range` 保存該章範圍；main process 驗證書籍、章節、非負整數及起終點順序後串行寫入索引。
+4. 範圍標籤調整不重建安全章節 DOM，避免中斷文字選取或拖曳；視窗重排時再由文字 offset 計算標籤畫面位置。
+5. 「完成這段，前往下一段」以目前區段約略字數建立下一個相鄰範圍，章末停止且不跨章；一般 AI 訊息操作不會推進。
+6. `extractReadingSegment` 是未來區段解析、標記說明與區段練習共用的裁切入口；完整 AI 串接不屬於 F05。
+
 ### Book deletion
 
 1. 使用者在書籍總覽點擊「刪除書籍」。
@@ -200,6 +219,7 @@ related_implements:
 - index.json 保存完整 LibraryBook[]，包含 Base64 封面與章節 metadata。
 - 索引更新先寫入 index.json.next，再以 rename 替換正式索引。
 - 閱讀狀態寫入在單一 LocalBookLibrary instance 內串行執行，以最後一筆操作為準。
+- 章內範圍標籤與閱讀狀態共用同一寫入佇列，並分別保存在 `chapterRanges` 與 `readingState`。
 - 書籍刪除與閱讀狀態寫入共用同一佇列，避免刪除後又被較晚完成的狀態保存寫回索引。
 - 刪除先原子更新索引，再移除 books/<book-sha256>；目錄移除失敗時嘗試恢復原索引並回報失敗。
 - 新書導入時先建立內容雜湊目錄並複製 EPUB；後續步驟失敗時移除該書目錄。
@@ -229,6 +249,8 @@ related_implements:
 - EPUB 原始 XHTML 不可直接注入 renderer；章節輸出必須維持 allowlist 與外部資源封鎖。
 - 子章節定位只允許在安全閱讀元素上保留經驗證及 escaping 的 `id`，不得因此放寬其他 EPUB 屬性。
 - 閱讀位置使用 0–1 相對值並限制於有效範圍；不存在的書籍或章節不得改寫狀態。
+- 範圍標籤使用章內文字 offset；起終點必須是非負整數且起點不得大於終點，不存在的章節不得保存範圍。
+- 範圍標籤只能裁切目前章節，任何操作與自動推進都不得跨章。
 - 快速連續的閱讀狀態寫入必須串行，最後一筆操作為最終狀態。
 - 刪除請求只接受索引中存在的 bookId；renderer 不得提供檔案路徑，刪除失敗時不得先從畫面移除書籍。
 
@@ -236,15 +258,16 @@ related_implements:
 
 | Test file | Coverage |
 |---|---|
-| apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、章節階層與舊索引遷移、fragment 定位、安全內容與圖片、閱讀狀態持久化、不存在書籍／章節與錯誤回滾 |
-| apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、刪除、章節與閱讀狀態 handler，以及取消導入與刪除輸入驗證 |
-| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除、空書庫、主／子章節階層呈現、章節閱讀及閱讀位置恢復 |
-| apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge（含刪除 API）、章節／狀態 API、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
+| apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、章節階層與舊索引遷移、fragment 定位、安全內容與圖片、閱讀狀態及每章範圍持久化、不存在書籍／章節與錯誤回滾 |
+| apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、刪除、章節、閱讀狀態與閱讀區段 handler，以及輸入驗證 |
+| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除、章節閱讀、閱讀位置恢復、範圍標籤拖曳／功能選單／防交叉／推進 |
+| apps/desktop/src/renderer/reading-range.test.ts | 約 800 字初始化、短章、嚴格裁切、等長推進、章末停止、DOM 文字位置與標記資料獨立性 |
+| apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge（含刪除與閱讀區段 API）、章節／狀態 API、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
 
 最近驗證（2026-07-21）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：30/30 passed。
+- Desktop Vitest：52/52 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -269,6 +292,10 @@ related_implements:
 - documents/implements/F02-chapter-reading-resume.md
 - documents/implements/F03-simplify-sidebar-navigation.md
 - documents/implements/F04-delete-library-book.md
+- documents/implements/F05-ai-reading-range-markers.md
+- documents/implements/F06-reading-range-boundary-lines.md
 - documents/implements/B01-preserve-epub-chapter-hierarchy.md
+- documents/implements/B02-persist-range-marker-on-drag-release.md
+- documents/modules/reading-range.md
 
 更新本模組行為、資料格式、IPC、儲存路徑或 EPUB 解析規則時，必須同步更新本文件與相關 FXX／RXX／BXX 實作紀錄。

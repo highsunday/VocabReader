@@ -27,6 +27,11 @@ interface ReaderDesktopApi {
       chapterId: string | null;
       scrollProgress: number;
     }): Promise<DesktopLibraryBook>;
+    saveReadingRange(input: {
+      bookId: string;
+      chapterId: string;
+      range: { start: number; end: number };
+    }): Promise<DesktopLibraryBook>;
   };
 }
 
@@ -42,6 +47,7 @@ interface DesktopLibraryBook {
     chapterId: string | null;
     scrollProgress: number;
   };
+  chapterRanges?: Record<string, { start: number; end: number }>;
   chapters: Array<{
     id: string;
     title: string;

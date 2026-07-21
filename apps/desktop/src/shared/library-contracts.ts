@@ -15,6 +15,11 @@ export interface BookReadingState {
   scrollProgress: number;
 }
 
+export interface ReadingRange {
+  start: number;
+  end: number;
+}
+
 export interface LibraryBook {
   id: string;
   title: string;
@@ -23,6 +28,7 @@ export interface LibraryBook {
   progressPercent: number;
   lastChapterId: string | null;
   readingState: BookReadingState;
+  chapterRanges?: Record<string, ReadingRange>;
   chapters: BookChapter[];
 }
 
@@ -38,6 +44,12 @@ export interface SaveReadingStateInput extends BookReadingState {
   bookId: string;
 }
 
+export interface SaveReadingRangeInput {
+  bookId: string;
+  chapterId: string;
+  range: ReadingRange;
+}
+
 export type ImportBookResult =
   | { status: "cancelled" }
   | { status: "imported" | "existing"; book: LibraryBook };
@@ -48,4 +60,5 @@ export interface LibraryDesktopApi {
   deleteBook(bookId: string): Promise<void>;
   getChapterContent(bookId: string, chapterId: string): Promise<ChapterContent>;
   saveReadingState(input: SaveReadingStateInput): Promise<LibraryBook>;
+  saveReadingRange(input: SaveReadingRangeInput): Promise<LibraryBook>;
 }

@@ -1,11 +1,26 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  forwardRef,
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import type { CSSProperties } from "react";
 import type {
   BookView,
   ChapterContent,
   LibraryBook,
-  LibraryDesktopApi
+  LibraryDesktopApi,
+  ReadingRange
 } from "../shared/library-contracts";
+import {
+  advanceReadingRange,
+  initialReadingRange,
+  markerTopForTextOffset,
+  textOffsetAtPoint
+} from "./reading-range";
 
 type WorkspaceMode = "overview" | "reader" | "review";
 
@@ -31,6 +46,19 @@ function desktopLibrary(): LibraryDesktopApi | undefined {
   ).readerDesktop?.library;
 }
 
+const ChapterArticle = memo(forwardRef<HTMLElement, {
+  content: ChapterContent;
+}>(function ChapterArticle({ content }, ref) {
+  return (
+    <article
+      ref={ref}
+      className="chapter-content"
+      aria-label={`${content.title} 章節內容`}
+      dangerouslySetInnerHTML={{ __html: content.contentHtml }}
+    />
+  );
+}));
+
 export function App() {
   const [mode, setMode] = useState<WorkspaceMode>("overview");
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
@@ -45,9 +73,18 @@ export function App() {
   const [chapterContent, setChapterContent] = useState<ChapterContent>();
   const [isLoadingChapter, setIsLoadingChapter] = useState(false);
   const [chapterError, setChapterError] = useState("");
+  const [readingRange, setReadingRange] = useState<ReadingRange>();
+  const [rangeMenu, setRangeMenu] = useState<{
+    x: number;
+    y: number;
+    offset: number;
+  }>();
+  const [markerTops, setMarkerTops] = useState({ start: 0, end: 0 });
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState(initialMessages);
   const contentRef = useRef<HTMLElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
+  const initializedRangeRef = useRef<string | undefined>(undefined);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const chapterStartRef = useRef<{
     bookId: string;
@@ -59,6 +96,9 @@ export function App() {
     () => books.find((book) => book.id === selectedBookId) ?? books[0],
     [books, selectedBookId]
   );
+  const rangeBoundariesOverlap = readingRange
+    ? Math.abs(markerTops.start - markerTops.end) < 28
+    : false;
   const activeChapter = selectedBook?.chapters.find(
     (chapter) => chapter.id === activeChapterId
   );
@@ -126,6 +166,8 @@ export function App() {
 
     let cancelled = false;
     setChapterContent(undefined);
+    setReadingRange(undefined);
+    setRangeMenu(undefined);
     setChapterError("");
     setIsLoadingChapter(true);
     void library
@@ -145,6 +187,51 @@ export function App() {
       cancelled = true;
     };
   }, [mode, selectedBookId, activeChapterId]);
+
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!chapterContent || !selectedBook || !article) return;
+    const key = `${chapterContent.bookId}:${chapterContent.chapterId}`;
+    if (initializedRangeRef.current === key && readingRange) return;
+    initializedRangeRef.current = key;
+    const text = article.textContent ?? "";
+    const saved = selectedBook.chapterRanges?.[chapterContent.chapterId];
+    const range = saved && saved.start <= saved.end && saved.end <= text.length
+      ? saved
+      : initialReadingRange(text);
+    setReadingRange(range);
+    if (!saved) persistReadingRange(range);
+  }, [chapterContent, selectedBook]);
+
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article || !readingRange) return;
+    const updateMarkerTops = () => setMarkerTops({
+      start: markerTopForTextOffset(article, readingRange.start),
+      end: markerTopForTextOffset(article, readingRange.end, "after")
+    });
+    updateMarkerTops();
+    window.addEventListener("resize", updateMarkerTops);
+    return () => window.removeEventListener("resize", updateMarkerTops);
+  }, [chapterContent, readingRange]);
+
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article || !chapterContent) return;
+    const handleContextMenu = (event: MouseEvent) => {
+      const offset = textOffsetAtPoint(
+        article,
+        event.clientX,
+        event.clientY,
+        event.target
+      );
+      if (offset === null) return;
+      event.preventDefault();
+      setRangeMenu({ x: event.clientX, y: event.clientY, offset });
+    };
+    article.addEventListener("contextmenu", handleContextMenu);
+    return () => article.removeEventListener("contextmenu", handleContextMenu);
+  }, [chapterContent]);
 
   useEffect(() => {
     if (!chapterContent || !selectedBook || !contentRef.current) return;
@@ -210,11 +297,126 @@ export function App() {
     ));
     void desktopLibrary()?.saveReadingState(state).then((savedBook) => {
       setBooks((current) => current.map((candidate) =>
-        candidate.id === savedBook.id ? savedBook : candidate
+        candidate.id === savedBook.id
+          ? {
+              ...savedBook,
+              chapterRanges: savedBook.chapterRanges ?? candidate.chapterRanges
+            }
+          : candidate
       ));
     }).catch(() => {
       setLibraryError("無法保存閱讀位置；本次切換仍可繼續使用。");
     });
+  }
+
+  function persistReadingRange(range: ReadingRange) {
+    const book = selectedBook;
+    const chapterId = chapterContent?.chapterId ?? activeChapterId;
+    if (!book || !chapterId) return;
+    setReadingRange(range);
+    setBooks((current) => current.map((candidate) =>
+      candidate.id === book.id
+        ? {
+            ...candidate,
+            chapterRanges: {
+              ...candidate.chapterRanges,
+              [chapterId]: range
+            }
+          }
+        : candidate
+    ));
+    void desktopLibrary()?.saveReadingRange({
+      bookId: book.id,
+      chapterId,
+      range
+    }).then((savedBook) => {
+      setBooks((current) => current.map((candidate) =>
+        candidate.id === savedBook.id
+          ? {
+              ...candidate,
+              chapterRanges: savedBook.chapterRanges ?? candidate.chapterRanges
+            }
+          : candidate
+      ));
+    }).catch(() => {
+      setLibraryError("無法保存閱讀區段；本次調整仍可暫時使用。");
+    });
+  }
+
+  function rangeWithOffset(
+    marker: "start" | "end",
+    offset: number,
+    sourceRange = readingRange
+  ): ReadingRange | undefined {
+    if (!sourceRange) return undefined;
+    const textLength = articleRef.current?.textContent?.length ?? 0;
+    const bounded = Math.min(textLength, Math.max(0, Math.trunc(offset)));
+    if (marker === "start") {
+      return bounded <= sourceRange.end
+        ? { ...sourceRange, start: bounded }
+        : undefined;
+    }
+    return bounded >= sourceRange.start
+      ? { ...sourceRange, end: bounded }
+      : undefined;
+  }
+
+  function moveRangeMarker(marker: "start" | "end", offset: number) {
+    const next = rangeWithOffset(marker, offset);
+    if (next) persistReadingRange(next);
+    setRangeMenu(undefined);
+  }
+
+  function startDraggingRangeMarker(
+    marker: "start" | "end",
+    event: React.PointerEvent<HTMLButtonElement>
+  ) {
+    if (!readingRange) return;
+    event.preventDefault();
+    const initialRange = readingRange;
+    let lastValidRange = initialRange;
+    let hasMoved = false;
+
+    const updateFromPoint = (event: PointerEvent) => {
+      const article = articleRef.current;
+      if (!article) return;
+      const offset = textOffsetAtPoint(article, event.clientX, event.clientY);
+      if (offset === null) return;
+      const next = rangeWithOffset(marker, offset, initialRange);
+      if (!next) return;
+      lastValidRange = next;
+      hasMoved = next.start !== initialRange.start || next.end !== initialRange.end;
+      setReadingRange(next);
+    };
+    const stopListening = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+    };
+    const handlePointerMove = (event: PointerEvent) => {
+      updateFromPoint(event);
+    };
+    const handlePointerUp = (event: PointerEvent) => {
+      stopListening();
+      updateFromPoint(event);
+      if (hasMoved) persistReadingRange(lastValidRange);
+      setRangeMenu(undefined);
+    };
+    const handlePointerCancel = () => {
+      stopListening();
+      setReadingRange(initialRange);
+    };
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+  }
+
+  function advanceToNextReadingRange() {
+    const article = articleRef.current;
+    if (!article || !readingRange) return;
+    const text = article.textContent ?? "";
+    if (readingRange.end >= text.length) return;
+    persistReadingRange(advanceReadingRange(text, readingRange));
   }
 
   function saveCurrentReaderPosition() {
@@ -615,11 +817,87 @@ export function App() {
                   <button type="button" onClick={returnToOverview}>返回總覽</button>
                 </div>
               ) : chapterContent ? (
-                <article
-                  className="chapter-content"
-                  aria-label={`${chapterContent.title} 章節內容`}
-                  dangerouslySetInnerHTML={{ __html: chapterContent.contentHtml }}
-                />
+                <div className="reading-range-workspace">
+                  <div className="reading-range-shell">
+                    {readingRange ? (
+                      <div className="reading-range-markers" aria-label="AI 可讀範圍">
+                        <div
+                          className={`reading-range-boundary start${rangeBoundariesOverlap ? " is-overlapping" : ""}`}
+                          data-range-boundary="start"
+                          data-text-offset={readingRange.start}
+                          style={{ top: markerTops.start }}
+                        >
+                          <button
+                            aria-label="閱讀區段起點"
+                            className="reading-range-marker start"
+                            data-text-offset={readingRange.start}
+                            onPointerDown={(event) => startDraggingRangeMarker("start", event)}
+                            type="button"
+                          >
+                            <span aria-hidden="true">▶</span>
+                          </button>
+                          <span className="reading-range-divider start" aria-hidden="true">
+                            <span className="reading-range-divider-label">START</span>
+                          </span>
+                        </div>
+                        <div
+                          className={`reading-range-boundary end${rangeBoundariesOverlap ? " is-overlapping" : ""}`}
+                          data-range-boundary="end"
+                          data-text-offset={readingRange.end}
+                          style={{ top: markerTops.end }}
+                        >
+                          <button
+                            aria-label="閱讀區段終點"
+                            className="reading-range-marker end"
+                            data-text-offset={readingRange.end}
+                            onPointerDown={(event) => startDraggingRangeMarker("end", event)}
+                            type="button"
+                          >
+                            <span aria-hidden="true">▶</span>
+                          </button>
+                          <span className="reading-range-divider end" aria-hidden="true">
+                            <span className="reading-range-divider-label">END</span>
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+                    <ChapterArticle ref={articleRef} content={chapterContent} />
+                  </div>
+                  <div className="reading-range-actions">
+                    <span>AI 只會讀取兩個書籤之間的內容</span>
+                    <button
+                      type="button"
+                      onClick={advanceToNextReadingRange}
+                      disabled={!readingRange || readingRange.end >= (articleRef.current?.textContent?.length ?? 0)}
+                    >
+                      完成這段，前往下一段
+                    </button>
+                  </div>
+                  {rangeMenu ? (
+                    <div
+                      className="reading-range-menu"
+                      role="menu"
+                      style={{ left: rangeMenu.x, top: rangeMenu.y }}
+                    >
+                      <button
+                        role="menuitem"
+                        type="button"
+                        disabled={Boolean(readingRange && rangeMenu.offset > readingRange.end)}
+                        onClick={() => moveRangeMarker("start", rangeMenu.offset)}
+                      >
+                        將起點移到這裡
+                      </button>
+                      <button
+                        role="menuitem"
+                        type="button"
+                        disabled={Boolean(readingRange && rangeMenu.offset < readingRange.start)}
+                        onClick={() => moveRangeMarker("end", rangeMenu.offset)}
+                      >
+                        將終點移到這裡
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
             </section>
           ) : (

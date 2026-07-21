@@ -2,6 +2,7 @@ import type {
   ChapterContent,
   ImportBookResult,
   LibraryBook,
+  SaveReadingRangeInput,
   SaveReadingStateInput
 } from "../shared/library-contracts";
 
@@ -26,6 +27,7 @@ interface BookLibrary {
   deleteBook(bookId: string): Promise<void>;
   getChapterContent(bookId: string, chapterId: string): Promise<ChapterContent>;
   saveReadingState(input: SaveReadingStateInput): Promise<LibraryBook>;
+  saveReadingRange(input: SaveReadingRangeInput): Promise<LibraryBook>;
 }
 
 export function registerLibraryIpc(
@@ -60,6 +62,25 @@ export function registerLibraryIpc(
       throw new Error("閱讀狀態格式錯誤");
     }
     return library.saveReadingState(input as SaveReadingStateInput);
+  });
+  ipc.handle("library:save-reading-range", (_event, rawInput) => {
+    if (!rawInput || typeof rawInput !== "object") {
+      throw new Error("閱讀區段格式錯誤");
+    }
+    const input = rawInput as Partial<SaveReadingRangeInput>;
+    const range = input.range;
+    if (
+      typeof input.bookId !== "string" ||
+      typeof input.chapterId !== "string" ||
+      !range ||
+      !Number.isInteger(range.start) ||
+      !Number.isInteger(range.end) ||
+      range.start < 0 ||
+      range.end < range.start
+    ) {
+      throw new Error("閱讀區段格式錯誤");
+    }
+    return library.saveReadingRange(input as SaveReadingRangeInput);
   });
   ipc.handle("library:import", async () => {
     const selection = await dialog.showOpenDialog({

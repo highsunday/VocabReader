@@ -10,7 +10,14 @@ const book: LibraryBook = {
   progressPercent: 0,
   lastChapterId: null,
   readingState: { view: "overview", chapterId: null, scrollProgress: 0 },
-  chapters: [{ id: "chapter-id", title: "Chapter", order: 0, href: "chapter.xhtml" }]
+  chapters: [{
+    id: "chapter-id",
+    title: "Chapter",
+    order: 0,
+    href: "chapter.xhtml",
+    depth: 0,
+    fragment: null
+  }]
 };
 
 describe("library IPC", () => {
@@ -37,6 +44,7 @@ describe("library IPC", () => {
         contentHtml: "<p>Readable</p>"
       }),
       saveReadingState: vi.fn().mockResolvedValue(book),
+      saveReadingRange: vi.fn().mockResolvedValue(book),
       deleteBook: vi.fn().mockResolvedValue(undefined)
     };
 
@@ -70,6 +78,18 @@ describe("library IPC", () => {
       scrollProgress: 0.4
     });
     await expect(
+      handlers.get("library:save-reading-range")?.({}, {
+        bookId: book.id,
+        chapterId: "chapter-id",
+        range: { start: 10, end: 80 }
+      })
+    ).resolves.toEqual(book);
+    expect(library.saveReadingRange).toHaveBeenCalledWith({
+      bookId: book.id,
+      chapterId: "chapter-id",
+      range: { start: 10, end: 80 }
+    });
+    await expect(
       handlers.get("library:delete")?.({}, book.id)
     ).resolves.toBeUndefined();
     expect(library.deleteBook).toHaveBeenCalledWith(book.id);
@@ -90,6 +110,7 @@ describe("library IPC", () => {
       importFromPath: vi.fn(),
       getChapterContent: vi.fn(),
       saveReadingState: vi.fn(),
+      saveReadingRange: vi.fn(),
       deleteBook: vi.fn()
     };
 
@@ -113,6 +134,7 @@ describe("library IPC", () => {
       importFromPath: vi.fn(),
       getChapterContent: vi.fn(),
       saveReadingState: vi.fn(),
+      saveReadingRange: vi.fn(),
       deleteBook: vi.fn()
     };
     const dialog = { showOpenDialog: vi.fn() };
@@ -125,5 +147,30 @@ describe("library IPC", () => {
       /書籍刪除請求格式錯誤/
     );
     expect(library.deleteBook).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed reading ranges before touching the library", () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const ipc = {
+      handle(channel: string, handler: (...args: unknown[]) => unknown) {
+        handlers.set(channel, handler);
+      }
+    };
+    const library = {
+      listBooks: vi.fn(),
+      importFromPath: vi.fn(),
+      getChapterContent: vi.fn(),
+      saveReadingState: vi.fn(),
+      saveReadingRange: vi.fn(),
+      deleteBook: vi.fn()
+    };
+    registerLibraryIpc(ipc, { showOpenDialog: vi.fn() }, library);
+
+    expect(() => handlers.get("library:save-reading-range")?.({}, {
+      bookId: book.id,
+      chapterId: "chapter-id",
+      range: { start: 90, end: 10 }
+    })).toThrow(/閱讀區段格式錯誤/);
+    expect(library.saveReadingRange).not.toHaveBeenCalled();
   });
 });

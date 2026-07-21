@@ -375,6 +375,55 @@ describe("LocalBookLibrary", () => {
     expect(reloaded.lastChapterId).toBe(imported.book.chapters[1].id);
   });
 
+  it("persists one independent reading range for each chapter", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "ranges.epub");
+    const libraryPath = join(root, "library");
+    await createEpub3(epubPath);
+    const library = new LocalBookLibrary(libraryPath);
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    const [first, second] = imported.book.chapters;
+
+    await library.saveReadingRange({
+      bookId: imported.book.id,
+      chapterId: first.id,
+      range: { start: 4, end: 80 }
+    });
+    await library.saveReadingRange({
+      bookId: imported.book.id,
+      chapterId: second.id,
+      range: { start: 12, end: 120 }
+    });
+
+    const [reloaded] = await new LocalBookLibrary(libraryPath).listBooks();
+    expect(reloaded.chapterRanges).toEqual({
+      [first.id]: { start: 4, end: 80 },
+      [second.id]: { start: 12, end: 120 }
+    });
+  });
+
+  it("rejects invalid or unknown chapter reading ranges without changing the book", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "invalid-range.epub");
+    const library = new LocalBookLibrary(join(root, "library"));
+    await createEpub3(epubPath);
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+
+    await expect(library.saveReadingRange({
+      bookId: imported.book.id,
+      chapterId: "missing-chapter",
+      range: { start: 0, end: 10 }
+    })).rejects.toThrow(/找不到章節/);
+    await expect(library.saveReadingRange({
+      bookId: imported.book.id,
+      chapterId: imported.book.chapters[0].id,
+      range: { start: 20, end: 10 }
+    })).rejects.toThrow(/閱讀區段格式錯誤/);
+    expect((await library.listBooks())[0].chapterRanges).toEqual({});
+  });
+
   it("permanently deletes a book, its EPUB and saved reading state", async () => {
     const root = await createTemporaryDirectory();
     const epubPath = join(root, "delete-me.epub");
