@@ -4,7 +4,7 @@ date: 2026-07-22
 title: 依 P01 建立 AI 學習項目與生詞庫
 uuid: ec8c9d89f8074d309825154d9bb108ef
 version: 1.0
-status: blocked
+status: in_progress
 source_plan: documents/planning/P01-ai-learning-items-and-learning-library.md
 batch_limit: 4
 mode: sequential
@@ -130,14 +130,14 @@ reviewed_at: 2026-07-22 00:41 CST
 - [x] 本機資料庫、migration 與資料刪除語意已獲明確授權
 - [x] 所有依賴與 unlock condition 已確認
 - [x] batch limit、auto-approve 與通知方式已確認
-- [ ] 執行前 `git status --short` 為空
+- [x] 執行前 `git status --short` 為空（baseline commit `9885440` 後確認）
 - [x] `ready_for_execution` 已改為 `true`
 
 ## 3. Overview
 
 | Item | Name | Type | Agent | Depends On | Status | Related doc | Commit |
 |---|---|---|---|---|---|---|---|
-| Q01-01 | 拆分可擴充的桌面工作區邊界 | RXX | auto | — | blocked | — | — |
+| Q01-01 | 拆分可擴充的桌面工作區邊界 | RXX | codex | — | in_progress | — | — |
 | Q01-02 | 建立本機生詞庫與來源卡片基礎 | FXX | auto | Q01-01 | pending | — | — |
 | Q01-03 | 產生結構化 AI 學習項目提案 | FXX | auto | Q01-02 | pending | — | — |
 | Q01-04 | 確認並安全套用新增／更新提案 | FXX | auto | Q01-03 | pending | — | — |
@@ -148,13 +148,11 @@ reviewed_at: 2026-07-22 00:41 CST
 
 id: Q01-01
 type: RXX
-agent: auto
-status: blocked
-blocker_reason: Pre-flight failed because git status is not clean; no worker was started.
-questions:
-  - 請先在 queue 外處理既有修改與未追蹤文件，讓 git status 為空，再要求恢復 Q01。
-need_user_decision:
-  - 由使用者決定提交、暫存或以其他安全方式處理既有變更；orchestrator 不會自動處理。
+agent: codex
+status: in_progress
+blocker_reason: — (resolved by user authorization and baseline commit 9885440)
+questions: []
+need_user_decision: []
 clarification_status: clarified
 depends_on: []
 unlock_condition: none
@@ -162,10 +160,10 @@ auto_approve: true
 commit_required: true
 implemented_doc: —
 commit: —
-worker_session: —
-worker_log: Pre-flight only; queue ready and CLIs available, but seven dirty paths blocked dispatch. No worker or production-code change.
+worker_session: codex 2026-07-22 00:52 CST
+worker_log: Dispatched after user-authorized baseline commit 9885440 and successful clean-worktree pre-flight.
 handoff_summary: —
-communication_entries: [L001, L005, L006, L007, L008, L009]
+communication_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012]
 archive_refs: []
 
 ### Requirements
@@ -198,12 +196,12 @@ archive_refs: []
 
 questions: []
 need_user_decision: []
-ledger_entries: [L001, L005, L006, L007, L008, L009]
+ledger_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012]
 archive_refs: []
 
 ### Agent Handoff Summary
 
-- Current state: blocked at clean-worktree pre-flight; clarification remains complete
+- Current state: in progress; dispatched to a fresh Codex worker
 - Decisions: pure renderer refactor; no product or visual changes
 - Tests: preserve overview, reader, annotations, ranges, chat and both presets
 - Risks: accidental state ownership or rendering regressions
@@ -409,6 +407,9 @@ archive_refs: []
 | L007 | 2026-07-22 00:41 | ALL | orchestrator -> workers | decision | Intake 完成；四項 clarified，batch 4，auto-approve，conversation-only notifications | — |
 | L008 | 2026-07-22 00:47 | Q01-01 | orchestrator -> queue | blocked | Clean-worktree pre-flight failed; worker not started | — |
 | L009 | 2026-07-22 00:47 | Q01-01 | orchestrator -> user | notification | Blocked reported in Codex conversation; email not configured | — |
+| L010 | 2026-07-22 00:52 | Q01-01 | user -> orchestrator | answer | Authorized handling Git changes and automatic queue start | — |
+| L011 | 2026-07-22 00:52 | Q01-01 | orchestrator -> queue | decision | Reviewed and committed seven documentation paths as baseline 9885440 | — |
+| L012 | 2026-07-22 00:52 | Q01-01 | orchestrator -> codex | dispatch | Dispatch Q01-01 through ddd-start, ddd-doc and ddd-tdd | — |
 
 ### Active Entries
 
@@ -503,6 +504,44 @@ Q01 is blocked before dispatch because the working tree is not clean. The blocke
 
 **Follow-up**
 - Resume only after a clean-worktree pre-flight succeeds.
+
+#### L010 — 2026-07-22 00:52 — Q01-01 — user -> orchestrator — answer
+
+**Message**
+使用者要求：「幫我處理 git 問題後 自動開始」。此為處理既有文件變更、建立 baseline commit 並在 clean pre-flight 後自動恢復 Q01 的明確授權。
+
+**Follow-up**
+- Review all dirty paths, commit only verified project documents, then resume without another confirmation.
+
+#### L011 — 2026-07-22 00:52 — Q01-01 — orchestrator -> queue — decision
+
+**Message**
+Seven dirty paths were reviewed as coherent project documentation with no detected credentials. They were explicitly staged and committed as baseline `9885440` (`docs: add learning items queue baseline`). `git status --short` was empty afterward.
+
+**Artifacts**
+- Baseline commit: `9885440`
+- Tests: documentation diff check passed; no production tests required
+
+**Follow-up**
+- Clear the resolved pre-flight blocker and dispatch Q01-01.
+
+#### L012 — 2026-07-22 00:52 — Q01-01 — orchestrator -> codex — dispatch
+
+**Message**
+Handle only Q01-01. Execute `ddd-start → ddd-doc → ddd-tdd`, create one RXX document, record red／green evidence, update P01 and Q01, and commit only files related to Q01-01. Suppress per-item ddd-tdd completion notification.
+
+**Context**
+- Queue file: `documents/queue/Q01-ai-learning-items-and-learning-library.md`
+- Source plan: `documents/planning/P01-ai-learning-items-and-learning-library.md`
+- Depends on: []
+- Unlock condition: none
+- Intake: completed; Q01-01 clarified
+
+**Expected Response**
+- Completed item with RXX path, commit hash, test commands, ledger entries and handoff; or blocked state with a concrete question
+
+**Follow-up**
+- Do not start Q01-02.
 
 ## 6. Queue execution rules
 
