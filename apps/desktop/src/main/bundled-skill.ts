@@ -14,7 +14,7 @@ export interface BundledSkillInstallResult {
 
 function installBundledSkill(
   runtimePath: string,
-  skillName: "explain-reader-annotations" | "practice-reading-comprehension",
+  skillName: "explain-reader-annotations" | "practice-reading-comprehension" | "generate-learning-cards",
   markdown: string
 ): BundledSkillInstallResult {
   const path = join(
@@ -53,4 +53,8 @@ export function installBundledReadingComprehensionSkill(
     "practice-reading-comprehension",
     markdown
   );
+}
+
+export function installBundledLearningCardSkill(runtimePath: string, markdown: string) {
+  return installBundledSkill(runtimePath, "generate-learning-cards", markdown);
 }

@@ -43,7 +43,7 @@ status: draft
 |---|---|---|---|---|
 | P1 | 拆分可擴充的桌面工作區邊界 | RXX | R01-desktop-workspace-boundaries | [x] Completed |
 | P2 | 建立本機生詞庫與來源卡片基礎 | FXX | F19-local-learning-library | [x] Completed |
-| P3 | 產生結構化 AI 學習項目提案 | FXX | — | [ ] Not started |
+| P3 | 產生結構化 AI 學習項目提案 | FXX | F20-structured-ai-learning-proposals | [x] Completed |
 | P4 | 確認並安全套用新增／更新提案 | FXX | — | [ ] Not started |
 
 ---
@@ -121,7 +121,9 @@ build passed.
 
 **Related doc**: —
 
-**Status**: `[ ] Not started`
+**Status**: `[x] Completed`
+
+**Completion evidence**: F20 provides the isolated two-turn App Server outputSchema workflow, bounded local candidate lookup, validated review-only proposals and no data writes. Focused 5 tests, full project 146 tests, typecheck and production build passed.
 
 ---
 

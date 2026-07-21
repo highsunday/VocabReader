@@ -8,7 +8,8 @@ interface IpcRegistrar {
   handle(channel: string, listener: (...args: unknown[]) => unknown): unknown;
 }
 
-type LearningLibrary = LearningDesktopApi;
+type LearningLibrary = Pick<LearningDesktopApi,
+  "listItems" | "getItem" | "createDraft" | "updateItem" | "archiveItem">;
 
 function nonEmptyString(value: unknown): value is string {
   return typeof value === "string" && Boolean(value.trim());

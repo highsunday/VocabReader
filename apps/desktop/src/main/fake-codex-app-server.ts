@@ -16,6 +16,7 @@ interface FakeCodexOptions {
   turnDelayMs?: number;
   resumeError?: string;
   archiveError?: string;
+  turnResponses?: string[];
 }
 
 export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
@@ -124,7 +125,7 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
           typeof input.text === "string"
           ? input.text
           : "";
-        const answer = `Fake Codex answer to: ${prompt}`;
+        const answer = options.turnResponses?.[turnCount - 1] ?? `Fake Codex answer to: ${prompt}`;
         const itemId = `assistant-${turnCount}`;
         respond(message.id, { turn: { id: turnId } });
         setTimeout(() => {

@@ -2156,4 +2156,113 @@ describe("App", () => {
     }))
       .toHaveAttribute("aria-pressed", "false");
   });
+
+  it("disables Generate Learning Cards for an empty reading segment without proposal IPC", async () => {
+    const generateProposals = vi.fn();
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: 0 } }
+    };
+    const { getChapterContent } = installLibraryApi([rangedBook], undefined, {
+      listItems: vi.fn().mockResolvedValue([]), generateProposals
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one", chapterId: "one-1", title: "Opening", fragment: null,
+      contentHtml: "<p>A readable chapter.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+
+    const preset = screen.getByRole("button", { name: "產生學習卡" });
+    expect(preset).toBeDisabled();
+    fireEvent.click(preset);
+    expect(generateProposals).not.toHaveBeenCalled();
+  });
+
+  it("disables Generate Learning Cards for sentence-only annotations without proposal IPC", async () => {
+    const chapterText = "This entire sentence is an annotation.";
+    const generateProposals = vi.fn();
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: chapterText.length } },
+      chapterAnnotations: {
+        "one-1": [{ id: "sentence", start: 0, end: chapterText.length, text: chapterText }]
+      }
+    };
+    const { getChapterContent } = installLibraryApi([rangedBook], undefined, {
+      listItems: vi.fn().mockResolvedValue([]), generateProposals
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one", chapterId: "one-1", title: "Opening", fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+
+    const preset = screen.getByRole("button", { name: "產生學習卡" });
+    expect(preset).toBeDisabled();
+    fireEvent.click(preset);
+    expect(generateProposals).not.toHaveBeenCalled();
+  });
+
+  it("sends only eligible in-range sources and visibly renders unsaved learning-card proposals", async () => {
+    const chapterText = "A reluctant student paused. Outside annotation remains here.";
+    const inRangeStart = chapterText.indexOf("reluctant");
+    const rangeEnd = chapterText.indexOf(". Outside") + 1;
+    const generateProposals = vi.fn().mockResolvedValue({
+      proposals: [{
+        action: "update", source: {
+          annotationId: "word", annotationText: "reluctant", startOffset: inRangeStart,
+          endOffset: inRangeStart + "reluctant".length, sourceSentence: chapterText.slice(0, rangeEnd)
+        },
+        candidate: {
+          displayForm: "reluctant", canonicalForm: "reluctant", itemType: "word",
+          contextualMeaning: "不情願的", conciseExplanation: "不願意做某事"
+        },
+        existingItem: null,
+        fieldDiffs: [{ field: "conciseExplanation", from: "舊解釋", to: "不願意做某事" }]
+      }]
+    });
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: rangeEnd } },
+      chapterAnnotations: {
+        "one-1": [
+          { id: "word", start: inRangeStart, end: inRangeStart + "reluctant".length, text: "reluctant" },
+          { id: "sentence", start: 0, end: rangeEnd, text: chapterText.slice(0, rangeEnd) },
+          { id: "outside", start: chapterText.indexOf("Outside"), end: chapterText.indexOf("Outside") + "Outside".length, text: "Outside" }
+        ]
+      }
+    };
+    const { getChapterContent, getSettings } = installLibraryApi([rangedBook], undefined, {
+      listItems: vi.fn().mockResolvedValue([]), generateProposals
+    });
+    getSettings.mockResolvedValue({ explanationLanguage: "zh-TW" });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one", chapterId: "one-1", title: "Opening", fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+
+    fireEvent.click(screen.getByRole("button", { name: "產生學習卡" }));
+    await waitFor(() => expect(generateProposals).toHaveBeenCalledWith(expect.objectContaining({
+      readingSegment: chapterText.slice(0, rangeEnd), explanationLanguage: "zh-TW",
+      sources: [{
+        annotationId: "word", annotationText: "reluctant", startOffset: inRangeStart,
+        endOffset: inRangeStart + "reluctant".length, sourceSentence: chapterText.slice(0, rangeEnd)
+      }]
+    })));
+    expect(await screen.findByRole("region", { name: "學習卡提案" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "學習卡提案（尚未儲存）" })).toBeInTheDocument();
+    expect(screen.getByText("reluctant · update")).toBeInTheDocument();
+    expect(screen.getByText("reluctant — 不願意做某事")).toBeInTheDocument();
+    expect(screen.getByText("conciseExplanation: 舊解釋 → 不願意做某事")).toBeInTheDocument();
+  });
 });

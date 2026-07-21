@@ -1,0 +1,3 @@
+interface:
+  display_name: Generate Learning Cards
+  short_description: Produce bounded structured learning-card proposals

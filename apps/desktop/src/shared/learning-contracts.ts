@@ -67,4 +67,8 @@ export interface LearningDesktopApi {
   }>;
   updateItem(input: UpdateLearningItemInput): Promise<LearningItem>;
   archiveItem(itemId: string): Promise<LearningItem>;
+  generateProposals(input: GenerateLearningCardsInput): Promise<LearningProposalResult>;
 }
+
+export interface GenerateLearningCardsInput { bookId: string; bookTitle: string; chapterId: string; chapterTitle: string; readingSegment: string; explanationLanguage: "source" | "zh-TW" | "en" | "ja"; sources: Array<{ annotationId: string; annotationText: string; startOffset: number; endOffset: number; sourceSentence: string }>; }
+export interface LearningProposalResult { proposals: Array<{ action: "create" | "update" | "unchanged" | "create-distinct-sense"; source: GenerateLearningCardsInput["sources"][number]; candidate: { displayForm: string; canonicalForm: string; itemType: LearningItemType; contextualMeaning: string; conciseExplanation: string }; existingItem: LearningItem | null; fieldDiffs: Array<{ field: string; from: string | null; to: string | null }> }>; }

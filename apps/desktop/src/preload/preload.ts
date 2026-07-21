@@ -60,7 +60,9 @@ const desktopApi = Object.freeze({
     updateItem: (input: UpdateLearningItemInput): Promise<LearningItem> =>
       ipcRenderer.invoke("learning:update", input),
     archiveItem: (itemId: string): Promise<LearningItem> =>
-      ipcRenderer.invoke("learning:archive", itemId)
+      ipcRenderer.invoke("learning:archive", itemId),
+    generateProposals: (input: import("../shared/learning-contracts").GenerateLearningCardsInput) =>
+      ipcRenderer.invoke("learning:generate-proposals", input)
   } satisfies LearningDesktopApi),
   settings: Object.freeze({
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),

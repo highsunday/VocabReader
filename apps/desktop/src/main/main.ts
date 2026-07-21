@@ -3,9 +3,11 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import annotationExplanationSkillMarkdown from "../../../../.agents/skills/explain-reader-annotations/SKILL.md";
 import readingComprehensionSkillMarkdown from "../../../../.agents/skills/practice-reading-comprehension/SKILL.md";
+import learningCardSkillMarkdown from "../../../../.agents/skills/generate-learning-cards/SKILL.md";
 import {
   installBundledAnnotationSkill,
-  installBundledReadingComprehensionSkill
+  installBundledReadingComprehensionSkill,
+  installBundledLearningCardSkill
 } from "./bundled-skill";
 import { ChatController } from "./chat-controller";
 import { LocalChatConversationStore } from "./chat-conversation-store";
@@ -15,6 +17,8 @@ import { registerLibraryIpc } from "./library-ipc";
 import { LocalBookLibrary } from "./library-service";
 import { registerLearningLibraryIpc } from "./learning-library-ipc";
 import { LocalLearningLibrary } from "./learning-library-service";
+import { LearningProposalController } from "./learning-proposal-controller";
+import { registerLearningProposalIpc } from "./learning-proposal-ipc";
 import { registerSettingsIpc } from "./settings-ipc";
 import { LocalSettingsStore } from "./settings-store";
 
@@ -65,9 +69,10 @@ app.whenReady().then(() => {
   const learningPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-learning-test-${process.pid}`, "learning.sqlite")
     : join(app.getPath("userData"), "learning-library", "learning.sqlite");
-  registerLearningLibraryIpc(ipcMain, new LocalLearningLibrary(learningPath, {
+  const learningLibrary = new LocalLearningLibrary(learningPath, {
     isBookAvailable: (bookId) => bookLibrary.hasBook(bookId)
-  }));
+  });
+  registerLearningLibraryIpc(ipcMain, learningLibrary);
   const settingsPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-settings-test-${process.pid}`)
     : join(app.getPath("userData"), "settings");
@@ -85,6 +90,12 @@ app.whenReady().then(() => {
     runtimePath,
     readingComprehensionSkillMarkdown
   );
+  const learningCardSkill = installBundledLearningCardSkill(runtimePath, learningCardSkillMarkdown);
+  registerLearningProposalIpc(ipcMain, new LearningProposalController({
+    createClient: () => new SpawnedCodexAppServerClient(), library: learningLibrary,
+    workingDirectory: runtimePath, skillPath: learningCardSkill.path,
+    skillInstructions: learningCardSkillMarkdown
+  }));
   chatController = new ChatController({
     createClient: () => new SpawnedCodexAppServerClient(),
     workingDirectory: runtimePath,

@@ -147,6 +147,36 @@ export class LocalLearningLibrary {
     return this.#toItem(row);
   }
 
+  async findProposalCandidates(input: {
+    bookId: string;
+    chapterId: string;
+    annotationId: string;
+    canonicalForm: string;
+    itemType: LearningItemType;
+    aliases: string[];
+    limit: number;
+  }): Promise<LearningItem[]> {
+    const limit = Math.max(1, Math.min(6, Math.trunc(input.limit)));
+    const canonicalForms = [...new Set([
+      normalized(requiredText(input.canonicalForm, "Canonical form")),
+      ...input.aliases.map((alias) => normalized(alias)).filter(Boolean)
+    ])];
+    const placeholders = canonicalForms.map(() => "?").join(", ");
+    const rows = this.#open().prepare(`
+      SELECT DISTINCT learning_items.* FROM learning_items
+      LEFT JOIN learning_item_sources ON learning_item_sources.item_id = learning_items.id
+      WHERE (learning_item_sources.book_id = ? AND learning_item_sources.chapter_id = ?
+        AND learning_item_sources.annotation_id = ?)
+        OR (learning_items.item_type = ? AND learning_items.canonical_form IN (${placeholders}))
+      ORDER BY learning_items.updated_at DESC, learning_items.id DESC
+      LIMIT ?
+    `).all(
+      requiredText(input.bookId, "來源書籍"), requiredText(input.chapterId, "來源章節"),
+      requiredText(input.annotationId, "來源標記"), input.itemType, ...canonicalForms, limit
+    ) as unknown as ItemRow[];
+    return Promise.all(rows.map((row) => this.#toItem(row)));
+  }
+
   async createDraft(input: CreateLearningDraftInput): Promise<{ item: LearningItem; created: boolean }> {
     const bookId = requiredText(input.bookId, "來源書籍");
     const chapterId = requiredText(input.chapterId, "來源章節");

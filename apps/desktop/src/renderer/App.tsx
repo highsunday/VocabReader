@@ -204,6 +204,8 @@ export function App() {
   const [isLearningLoading, setIsLearningLoading] = useState(false);
   const [learningError, setLearningError] = useState("");
   const [learningNotice, setLearningNotice] = useState("");
+  const [learningProposals, setLearningProposals] = useState<Awaited<ReturnType<LearningDesktopApi["generateProposals"]>>["proposals"]>([]);
+  const [isGeneratingLearningCards, setIsGeneratingLearningCards] = useState(false);
   const [rangeMenu, setRangeMenu] = useState<{
     x: number;
     y: number;
@@ -1122,6 +1124,24 @@ export function App() {
     });
   }
 
+  async function generateLearningCards() {
+    const learning = desktopLearning();
+    const chapterText = articleRef.current?.textContent ?? "";
+    if (!learning || !selectedBook || !activeChapter || !readingRange) return;
+    const readingSegment = extractReadingSegment(chapterText, readingRange);
+    const sources = annotations.filter((annotation) =>
+      annotation.start >= readingRange.start && annotation.end <= readingRange.end &&
+      !/[.!?]$/u.test(annotation.text.trim()) && annotation.text.trim().split(/\s+/u).length <= 6
+    ).map((annotation) => ({ annotationId: annotation.id, annotationText: annotation.text, startOffset: annotation.start, endOffset: annotation.end, sourceSentence: readingSegment }));
+    if (!readingSegment || !sources.length) return;
+    setIsGeneratingLearningCards(true); setLearningError("");
+    try {
+      const result = await learning.generateProposals({ bookId: selectedBook.id, bookTitle: selectedBook.title, chapterId: activeChapter.id, chapterTitle: activeChapter.title, readingSegment, explanationLanguage: settings.explanationLanguage, sources });
+      setLearningProposals(result.proposals);
+    } catch (error) { setLearningError(error instanceof Error ? error.message : "無法產生學習卡提案。"); }
+    finally { setIsGeneratingLearningCards(false); }
+  }
+
   async function startNewConversation() {
     const chat = desktopChat();
     if (!chat || chatSnapshot.activeTurnId || chatSnapshot.managementBusy ||
@@ -1846,8 +1866,17 @@ export function App() {
                         </svg>
                         <span>閱讀測驗</span>
                       </button>
+                      <button
+                        className="annotation-analysis-preset"
+                        type="button"
+                        onClick={() => void generateLearningCards()}
+                        disabled={isGeneratingLearningCards || !readingRange || !extractReadingSegment(articleRef.current?.textContent ?? "", readingRange) || !annotations.some((annotation) => annotation.start >= readingRange.start && annotation.end <= readingRange.end && !/[.!?]$/u.test(annotation.text.trim()) && annotation.text.trim().split(/\s+/u).length <= 6)}
+                      >
+                        <span>{isGeneratingLearningCards ? "產生中…" : "產生學習卡"}</span>
+                      </button>
                     </div>
                   ) : null}
+                  {learningProposals.length ? <section className="learning-library-panel" aria-label="學習卡提案"><h3>學習卡提案（尚未儲存）</h3>{learningProposals.map((proposal) => <article className="learning-source-card" key={proposal.source.annotationId}><strong>{proposal.candidate.displayForm} · {proposal.action}</strong><p>{proposal.source.annotationText} — {proposal.candidate.conciseExplanation}</p><p>{proposal.fieldDiffs.map((diff) => `${diff.field}: ${diff.from ?? "—"} → ${diff.to ?? "—"}`).join("；") || "無欄位差異"}</p></article>)}</section> : null}
 
                   <form className="chat-form" onSubmit={sendMessage}>
                     <label className="visually-hidden" htmlFor="chat-input">
