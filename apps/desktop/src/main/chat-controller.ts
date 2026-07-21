@@ -22,6 +22,8 @@ import type {
 interface ChatControllerOptions {
   createClient(): CodexAppServerClient;
   workingDirectory: string;
+  annotationExplanationSkillPath: string;
+  annotationExplanationSkillInstructions: string;
   conversationStore?: ChatConversationStore;
   createConversationId?(): string;
   now?(): number;
@@ -36,13 +38,27 @@ const isolationConfig = Object.freeze({
   web_search: "disabled"
 });
 
-const developerInstructions = [
-  "You are the AI Conversation Panel in an English-learning EPUB reader.",
-  "Answer in the language used by the user unless they ask otherwise.",
-  "Use only the explicitly provided reading segment and prior conversation.",
-  "Never claim knowledge of text outside the provided reading segment.",
-  "Do not run tools, read files, write files, or use the network."
-].join(" ");
+export function composeDeveloperInstructions(
+  annotationExplanationSkillInstructions: string
+): string {
+  const skill = annotationExplanationSkillInstructions.trim();
+  if (!skill) {
+    throw new Error("App 內建的標記解析 skill 內容不可為空。");
+  }
+  return [
+    "You are the AI Conversation Panel in an English-learning EPUB reader.",
+    "Answer in the language used by the user unless they ask otherwise.",
+    "Use only the explicitly provided reading segment and prior conversation.",
+    "Never claim knowledge of text outside the provided reading segment.",
+    "Do not run tools, read arbitrary files, write files, or use the network.",
+    "The only app-provided skill available is explain-reader-annotations.",
+    "Its complete instructions are already loaded below; do not discover, load, or use any other skill.",
+    "Apply this skill only when the user input contains $explain-reader-annotations. Otherwise answer normally without applying its workflow.",
+    "<app-provided-skill name=\"explain-reader-annotations\">",
+    skill,
+    "</app-provided-skill>"
+  ].join("\n");
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -190,31 +206,47 @@ export function composeCodexInput(input: SendChatMessageInput): string {
   ];
   if (input.intent !== "explainAnnotations") return base.join("\n");
   const language = {
-    source: "請使用與目前閱讀區段原文相同的語言講解。",
-    "zh-TW": "請使用繁體中文講解。",
-    en: "Please explain in English.",
-    ja: "日本語で説明してください。"
+    source: "Use the same language as the current reading segment",
+    "zh-TW": "Traditional Chinese",
+    en: "English",
+    ja: "Japanese"
   }[input.explanationLanguage ?? "source"];
   const hasAnnotations = Boolean(
     context?.readingSegment?.includes("<reader-annotation ")
   );
   return [
+    "$explain-reader-annotations",
     ...base,
     "",
-    "區段解析規則：",
-    "- 只有 <reader-annotation> 包住的內容是使用者標記；其他文字只作為上下文。",
-    "- 自動判斷每個標記屬於單字、片語或句子，依單字、片語、句子的順序分組講解。",
-    "- 同一組內依原文出現順序排列。句子可說明句法、文法與上下文語意。",
-    "- 不要翻譯或主動講解整個閱讀區段，也不要自行選擇未標記文字。",
-    `- ${language}`,
+    `Explanation language: ${language}.`,
     ...(!hasAnnotations
-      ? ["- 目前區段沒有任何 <reader-annotation>；請回覆目前沒有標記內容。"]
+      ? ["The current reading segment contains no reader annotations."]
       : [])
   ].join("\n");
 }
 
+function composeTurnInput(
+  input: SendChatMessageInput,
+  skillPath: string
+): Array<Record<string, unknown>> {
+  const items: Array<Record<string, unknown>> = [{
+    type: "text",
+    text: composeCodexInput(input),
+    text_elements: []
+  }];
+  if (input.intent === "explainAnnotations") {
+    items.push({
+      type: "skill",
+      name: "explain-reader-annotations",
+      path: skillPath
+    });
+  }
+  return items;
+}
+
 export class ChatController {
   readonly #options: ChatControllerOptions;
+  readonly #developerInstructions: string;
   readonly #events = new EventEmitter();
   #conversations: StoredChatConversation[] = [];
   #activeConversationId: string | null = null;
@@ -242,6 +274,9 @@ export class ChatController {
 
   constructor(options: ChatControllerOptions) {
     this.#options = options;
+    this.#developerInstructions = composeDeveloperInstructions(
+      options.annotationExplanationSkillInstructions
+    );
     try {
       const stored = options.conversationStore?.load();
       if (stored) {
@@ -510,7 +545,7 @@ export class ChatController {
           approvalPolicy: "never",
           sandbox: "read-only",
           config: isolationConfig,
-          developerInstructions
+          developerInstructions: this.#developerInstructions
         });
         const resumedThreadId = threadIdFrom(resumed);
         if (resumedThreadId !== this.#threadId) {
@@ -529,7 +564,7 @@ export class ChatController {
           ...(this.#selectedModelId
             ? { model: this.#selectedModelId }
             : {}),
-          developerInstructions
+          developerInstructions: this.#developerInstructions
         });
         const threadId = threadIdFrom(threadResponse);
         if (!threadId) throw new Error("Codex 未回傳對話識別碼。");
@@ -563,11 +598,10 @@ export class ChatController {
       const response = await client.request("turn/start", {
         threadId: this.#threadId,
         ...this.#selectedModelSettings(),
-        input: [{
-          type: "text",
-          text: composeCodexInput({ ...input, text }),
-          text_elements: []
-        }]
+        input: composeTurnInput(
+          { ...input, text },
+          this.#options.annotationExplanationSkillPath
+        )
       });
       const turnId = turnIdFrom(response);
       if (!turnId) throw new Error("Codex 未回傳回答識別碼。");

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ChatController, composeCodexInput } from "./chat-controller";
 import { SpawnedCodexAppServerClient } from "./codex-app-server-client";
@@ -6,6 +8,13 @@ import type {
   StoredChatState
 } from "./chat-conversation-store";
 import { createFakeCodexAppServer } from "./fake-codex-app-server";
+
+const annotationExplanationSkillPath =
+  "/tmp/lingoshelf-codex-test/.agents/skills/explain-reader-annotations/SKILL.md";
+const annotationExplanationSkillInstructions = readFileSync(resolve(
+  process.cwd(),
+  "../../.agents/skills/explain-reader-annotations/SKILL.md"
+), "utf8");
 
 class MemoryChatConversationStore implements ChatConversationStore {
   state: StoredChatState;
@@ -42,7 +51,9 @@ function fixture(options: Parameters<typeof createFakeCodexAppServer>[0] = {}) {
     createClient: () => new SpawnedCodexAppServerClient({
       spawnProcess: () => fake.child
     }),
-    workingDirectory: "/tmp/lingoshelf-codex-test"
+    workingDirectory: "/tmp/lingoshelf-codex-test",
+    annotationExplanationSkillPath,
+    annotationExplanationSkillInstructions
   });
   return { fake, controller };
 }
@@ -56,6 +67,8 @@ function managedFixture(store = new MemoryChatConversationStore()) {
       spawnProcess: () => fake.child
     }),
     workingDirectory: "/tmp/lingoshelf-codex-test",
+    annotationExplanationSkillPath,
+    annotationExplanationSkillInstructions,
     conversationStore: store,
     createConversationId: () => `conversation-${++conversationId}`,
     now: () => ++now
@@ -235,6 +248,67 @@ describe("ChatController", () => {
     controller.close();
   });
 
+  it("injects the repo annotation explanation skill only for the preset action", async () => {
+    const { fake, controller } = fixture();
+    await controller.connect();
+
+    await controller.sendMessage({ text: "What does this mean?" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+    await controller.sendMessage({
+      text: "講解標記內容",
+      intent: "explainAnnotations",
+      explanationLanguage: "zh-TW",
+      context: {
+        readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation>.</reading-segment>'
+      }
+    });
+
+    const turnStarts = fake.requests.filter(
+      (request) => request.method === "turn/start"
+    );
+    const threadStart = fake.requests.find(
+      (request) => request.method === "thread/start"
+    );
+    const loadedInstructions = String(
+      threadStart?.params?.developerInstructions ?? ""
+    );
+    expect(loadedInstructions).toContain(
+      "The only app-provided skill available is explain-reader-annotations"
+    );
+    expect(loadedInstructions).toContain(
+      "Judge the item as used in this passage, not in isolation"
+    );
+    expect(loadedInstructions).toContain(
+      "Marked item | Simple meaning | CEFR level | Useful note"
+    );
+    expect(loadedInstructions.match(/<app-provided-skill /g)).toHaveLength(1);
+    expect(loadedInstructions).not.toContain("Available skills:");
+    expect(threadStart?.params?.config).toMatchObject({
+      "skills.include_instructions": false,
+      "skills.bundled.enabled": false,
+      "features.plugins": false,
+      "features.apps": false
+    });
+    const ordinaryInput = turnStarts[0]?.params?.input;
+    const explanationInput = turnStarts[1]?.params?.input;
+    expect(ordinaryInput).toEqual([
+      expect.objectContaining({ type: "text" })
+    ]);
+    expect(JSON.stringify(ordinaryInput)).not.toContain("explain-reader-annotations");
+    expect(explanationInput).toEqual([
+      expect.objectContaining({
+        type: "text",
+        text: expect.stringContaining("$explain-reader-annotations")
+      }),
+      {
+        type: "skill",
+        name: "explain-reader-annotations",
+        path: "/tmp/lingoshelf-codex-test/.agents/skills/explain-reader-annotations/SKILL.md"
+      }
+    ]);
+    controller.close();
+  });
+
   it("merges a partial live allowance update without starting a turn", async () => {
     const { fake, controller } = fixture();
     await controller.connect();
@@ -355,14 +429,40 @@ describe("ChatController", () => {
     expect(controller.getSnapshot().messages[0]?.text)
       .toBe("Explain\nthis sentence in detail");
 
-    await controller.sendMessage({ text: "Continue" });
+    await controller.sendMessage({
+      text: "講解標記內容",
+      intent: "explainAnnotations",
+      explanationLanguage: "en",
+      context: {
+        readingSegment: '<reading-segment><reader-annotation id="A1">Continue</reader-annotation></reading-segment>'
+      }
+    });
     await waitUntil(() => controller.getSnapshot().activeTurnId === null);
-    expect(fake.requests.filter((request) => request.method === "thread/resume"))
-      .toEqual([expect.objectContaining({
-        params: expect.objectContaining({ threadId: "thread-1" })
-      })]);
-    expect(fake.requests.filter((request) => request.method === "turn/start")
-      .at(-1)?.params?.threadId).toBe("thread-1");
+    const resumedRequests = fake.requests.filter(
+      (request) => request.method === "thread/resume"
+    );
+    expect(resumedRequests).toEqual([expect.objectContaining({
+      params: expect.objectContaining({ threadId: "thread-1" })
+    })]);
+    const startedInstructions = fake.requests.find(
+      (request) => request.method === "thread/start"
+    )?.params?.developerInstructions;
+    expect(resumedRequests[0]?.params?.developerInstructions)
+      .toBe(startedInstructions);
+    expect(String(startedInstructions)).toContain(
+      "The only app-provided skill available is explain-reader-annotations"
+    );
+    const resumedTurn = fake.requests.filter(
+      (request) => request.method === "turn/start"
+    ).at(-1);
+    expect(resumedTurn?.params?.threadId).toBe("thread-1");
+    expect(resumedTurn?.params?.input).toEqual([
+      expect.objectContaining({ type: "text" }),
+      expect.objectContaining({
+        type: "skill",
+        name: "explain-reader-annotations"
+      })
+    ]);
     controller.close();
   });
 
@@ -437,6 +537,8 @@ describe("ChatController", () => {
         spawnProcess: () => fake.child
       }),
       workingDirectory: "/tmp/lingoshelf-codex-test",
+      annotationExplanationSkillPath,
+      annotationExplanationSkillInstructions,
       conversationStore: store
     });
     await controller.connect();
@@ -499,6 +601,8 @@ describe("ChatController", () => {
         spawnProcess: () => fake.child
       }),
       workingDirectory: "/tmp/lingoshelf-codex-test",
+      annotationExplanationSkillPath,
+      annotationExplanationSkillInstructions,
       conversationStore: store
     });
     await controller.connect();
@@ -520,6 +624,8 @@ describe("ChatController", () => {
         spawnProcess: () => fake.child
       }),
       workingDirectory: "/tmp/lingoshelf-codex-test",
+      annotationExplanationSkillPath,
+      annotationExplanationSkillInstructions,
       conversationStore: store,
       createConversationId: () => "conversation-a"
     });
@@ -544,6 +650,8 @@ describe("ChatController", () => {
         spawnProcess: () => fake.child
       }),
       workingDirectory: "/tmp/lingoshelf-codex-test",
+      annotationExplanationSkillPath,
+      annotationExplanationSkillInstructions,
       conversationStore: store,
       createConversationId: () => "conversation-a"
     });
@@ -593,11 +701,19 @@ describe("composeCodexInput", () => {
     expect(result).not.toContain("講解標記內容");
   });
 
-  it("composes the trusted annotation analysis prompt in the selected language", () => {
+  it.each([
+    ["source", "Use the same language as the current reading segment"],
+    ["zh-TW", "Traditional Chinese"],
+    ["en", "English"],
+    ["ja", "Japanese"]
+  ] as const)("passes the %s explanation language to the annotation skill", (
+    explanationLanguage,
+    expectedLanguage
+  ) => {
     const result = composeCodexInput({
       text: "講解標記內容",
       intent: "explainAnnotations",
-      explanationLanguage: "zh-TW",
+      explanationLanguage,
       context: {
         bookTitle: "Book",
         chapterTitle: "Chapter",
@@ -605,11 +721,9 @@ describe("composeCodexInput", () => {
       }
     });
 
-    expect(result).toContain("只有 <reader-annotation> 包住的內容是使用者標記");
-    expect(result).toContain("單字、片語、句子");
-    expect(result).toContain("同一組內依原文出現順序");
-    expect(result).toContain("繁體中文");
-    expect(result).toContain("不要翻譯或主動講解整個閱讀區段");
+    expect(result).toContain("$explain-reader-annotations");
+    expect(result).toContain(`Explanation language: ${expectedLanguage}`);
+    expect(result).not.toContain("區段解析規則");
   });
 
   it("asks for a no-annotation response and supports source language", () => {
@@ -620,8 +734,19 @@ describe("composeCodexInput", () => {
       context: { readingSegment: "<reading-segment>No marks.</reading-segment>" }
     });
 
-    expect(result).toContain("沒有任何 <reader-annotation>");
-    expect(result).toContain("回覆目前沒有標記內容");
-    expect(result).toContain("與目前閱讀區段原文相同的語言");
+    expect(result).toContain("The current reading segment contains no reader annotations");
+    expect(result).toContain("Use the same language as the current reading segment");
+  });
+});
+
+describe("explain-reader-annotations skill", () => {
+  it("defines selective learner sections, contextual CEFR levels and a localized review table", () => {
+    const skill = annotationExplanationSkillInstructions;
+
+    expect(skill).toContain("Select only the sections that improve understanding");
+    expect(skill).toContain("Judge the item as used in this passage, not in isolation");
+    expect(skill).toContain("Marked item | Simple meaning | CEFR level | Useful note");
+    expect(skill).toContain("Use the requested explanation language for headings");
+    expect(skill).toContain("Do not include every section mechanically");
   });
 });

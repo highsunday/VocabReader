@@ -1,6 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import annotationExplanationSkillMarkdown from "../../../../.agents/skills/explain-reader-annotations/SKILL.md";
+import { installBundledAnnotationSkill } from "./bundled-skill";
 import { ChatController } from "./chat-controller";
 import { LocalChatConversationStore } from "./chat-conversation-store";
 import { registerChatIpc } from "./chat-ipc";
@@ -62,9 +64,15 @@ app.whenReady().then(() => {
     ? join(app.getPath("temp"), `lingoshelf-chat-test-${process.pid}`)
     : join(app.getPath("userData"), "chat");
   mkdirSync(runtimePath, { recursive: true });
+  const annotationExplanationSkill = installBundledAnnotationSkill(
+    runtimePath,
+    annotationExplanationSkillMarkdown
+  );
   chatController = new ChatController({
     createClient: () => new SpawnedCodexAppServerClient(),
     workingDirectory: runtimePath,
+    annotationExplanationSkillPath: annotationExplanationSkill.path,
+    annotationExplanationSkillInstructions: annotationExplanationSkillMarkdown,
     conversationStore: new LocalChatConversationStore(conversationPath)
   });
   unsubscribeChatState = registerChatIpc(

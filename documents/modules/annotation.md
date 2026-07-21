@@ -7,6 +7,8 @@ related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - F14-sticky-annotation-tool
   - F15-polish-annotation-tool-ui
+  - F16-invoke-annotation-explanation-skill
+  - B03-load-only-bundled-annotation-skill
 ---
 
 # 持久標記與 AI 標記解析模組
@@ -32,7 +34,7 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 - 以 `<reading-segment>` 包住閱讀區段，並以 `<reader-annotation id="A1">…</reader-annotation>` 依原語序標出區段內標記。
 - START／END 或標記新增、移除後，下一則 AI 訊息會取得最新版本；一般未變追問不重傳相同上下文。
 - 「講解標記內容」每次都附上當下區段，避免先前一般問答的上下文去重使解析意圖看不到標記。
-- AI 解析固定依單字、片語、句子分組，同組依原文位置排列；分類只存在於 AI 回覆，不回寫標記。
+- AI 解析明確呼叫 App 內建並安裝到 user data 的 `explain-reader-annotations` skill，固定依單字、片語、句子分組，同組依原文位置排列，並依標記本文用法提供 CEFR 與複習表；分類只存在於 AI 回覆，不回寫標記。
 - 全域講解語言可選原文語言、繁體中文、English 或日本語，預設為原文語言並持久保存。
 
 ## 3. Domain Data and Invariants
@@ -86,11 +88,13 @@ Renderer 以書籍、章節、START、END、標記 revision 與序列化區段�
 
 ## 6. Trusted Analysis Intent
 
-Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解語言，不能提供任意系統 prompt。Main process 組成固定解析規則：
+Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解語言，不能提供任意系統 prompt 或 skill 路徑。Main process 以 `$explain-reader-annotations` 文字標記及型別化 skill input 明確注入 App 安裝在 user data 的固定 skill。該 skill 的解析規則為：
 
 - 只把 `<reader-annotation>` 內文字視為標記。
 - 自動判斷單字、片語、句子，固定依此順序分組，同組依原文順序排列。
 - 句子可說明句型、文法與上下文語意。
+- 每個標記依本文用法提供約略 CEFR；Meaning、Context、Grammar、Vocabulary、Examples、Synonyms、Common collocations、Pronunciation、Common mistakes、Easy paraphrase 等小節只在有助理解時使用。
+- 回覆最後提供本次講解語言的精簡複習表。
 - 不翻譯整段、不自行選取未標記文字。
 - 沒有標籤時明確回覆目前沒有標記內容。
 - 依 `source | zh-TW | en | ja` 決定本次講解語言。
@@ -115,7 +119,9 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 | `apps/desktop/src/shared/settings-contracts.ts` | 講解語言及設定 API 型別 |
 | `apps/desktop/src/main/settings-store.ts` | 全域偏好載入、降級與原子保存 |
 | `apps/desktop/src/main/settings-ipc.ts` | 設定值 IPC 驗證 |
-| `apps/desktop/src/main/chat-controller.ts` | 可信任的標記解析 prompt 組成 |
+| `apps/desktop/src/main/chat-controller.ts` | 唯一 App skill instructions、marker gate 與可信任標記解析 input 組成 |
+| `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析 workflow、動態講解語言、CEFR 與複習表規則 |
+| `apps/desktop/src/main/bundled-skill.ts` | 將 build 內嵌的 skill 安裝／更新到其他電腦的 user data runtime |
 | `apps/desktop/src/renderer/styles.css` | 標記模式、原文標示與設定視窗樣式 |
 
 ## 9. Testing Notes
@@ -128,7 +134,8 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 | `apps/desktop/src/main/library-ipc.test.ts` | 標記 IPC 路由與輸入驗證 |
 | `apps/desktop/src/main/settings-store.test.ts` | 預設、保存、損壞／未知值降級 |
 | `apps/desktop/src/main/settings-ipc.test.ts` | 設定 IPC 路由與 enum 驗證 |
-| `apps/desktop/src/main/chat-controller.test.ts` | 一般 context、標記解析規則、分類順序、空標記與講解語言 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 一般 context、唯一 App skill 載入與其他 skills 隔離、既有 thread 恢復、空標記、四種講解語言與 skill 教學契約 |
+| `apps/desktop/src/main/bundled-skill.test.ts` | App 內建 skill 的首次安裝、無變更略過與升級替換 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | 可信任 intent 與講解語言白名單 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | preload 白名單、設定選項與 Electron 啟動回歸 |
 
@@ -149,5 +156,7 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 - `documents/implements/F13-persistent-annotations-and-ai-analysis.md`
 - `documents/implements/F14-sticky-annotation-tool.md`
 - `documents/implements/F15-polish-annotation-tool-ui.md`
+- `documents/implements/F16-invoke-annotation-explanation-skill.md`
+- `documents/implements/B03-load-only-bundled-annotation-skill.md`
 
 變更標記資料、不重疊規則、Selection offset、AI 序列化、解析 intent 或講解語言時，必須同步更新本文件與 F13 實作紀錄。

@@ -8,7 +8,7 @@
     "dev": "concurrently -k -n renderer,electron -c blue,green \"vite --host 127.0.0.1\" \"npm run dev:electron\"",
     "dev:electron": "wait-on tcp:5173 && npm run build:main && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
     "build": "npm run build:main && vite build",
-    "build:main": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --format=cjs --outdir=dist-electron --entry-names=[name] --out-extension:.js=.cjs --external:electron",
+    "build:main": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --format=cjs --outdir=dist-electron --entry-names=[name] --out-extension:.js=.cjs --external:electron --loader:.md=text",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",

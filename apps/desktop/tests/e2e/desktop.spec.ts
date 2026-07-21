@@ -1,4 +1,6 @@
 import { _electron as electron, expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const desktopApp = fileURLToPath(new URL("../..", import.meta.url));
@@ -14,6 +16,15 @@ test("launches the secure Electron reading shell", async () => {
 
   try {
     const page = await electronApp.firstWindow();
+    const userDataPath = await electronApp.evaluate(({ app }) =>
+      app.getPath("userData")
+    );
+    const installedSkill = readFileSync(join(
+      userDataPath,
+      "codex-runtime/.agents/skills/explain-reader-annotations/SKILL.md"
+    ), "utf8");
+    expect(installedSkill).toContain("name: explain-reader-annotations");
+    expect(installedSkill).toContain("Use the requested explanation language");
     await expect(page).toHaveTitle("LingoShelf");
     await expect(
       page.getByRole("heading", { name: "導入 EPUB 開始閱讀" })
