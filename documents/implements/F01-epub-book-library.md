@@ -105,7 +105,7 @@ Implemented
 - `App.test.tsx`：TC4、TC5，涵蓋持久書籍載入、側欄切換、總覽、匯入後選取與章節入口 UI。
 - `library-service.test.ts`：TC1、TC2、TC3、TC6、TC7、TC8，涵蓋 EPUB 2／3 解析、磁碟重載、封面、章節、內容去重、進度保留、同名版本與錯誤原子性。
 - `library-ipc.test.ts`：TC1、TC3，涵蓋安全 IPC 列表、原生檔案選擇、導入與取消。
-- `desktop.spec.ts`：確認 Electron 能啟動、書庫 preload API 存在且 renderer 沒有 Node `require`。
+- `desktop.spec.ts`：確認 Electron 能啟動、書庫 preload API 存在、renderer 沒有 Node `require`、Data URL 封面可顯示，以及長書籍總覽只捲動中央欄。
 
 ### Changed Files
 
@@ -118,6 +118,7 @@ Implemented
 - `apps/desktop/src/shared/library-contracts.ts`
 - `apps/desktop/src/renderer/App.tsx`
 - `apps/desktop/src/renderer/styles.css`
+- `apps/desktop/src/renderer/index.html`
 - `apps/desktop/src/renderer/env.d.ts`
 - `apps/desktop/package.json`
 - `apps/desktop/vite.config.ts`
@@ -166,7 +167,7 @@ npm run build
 npm run test:e2e
 ```
 
-Final results: server 3/3 tests passed; desktop 10/10 tests passed; Electron E2E 1/1 passed; typecheck and production build passed.
+Final results: server 3/3 tests passed; desktop 10/10 tests passed; Electron E2E 2/2 passed; typecheck and production build passed.
 
 ### Hypotheses and Decisions
 
@@ -174,6 +175,8 @@ Final results: server 3/3 tests passed; desktop 10/10 tests passed; Electron E2E
 - main-process tests 起初未被收集，確認 `vite.config.ts` 的 test include 只涵蓋 renderer；加入 `../main/**/*.test.{ts,tsx}` 作為 main test seam。
 - TypeScript 7 未合併 renderer ambient `Window` 宣告；產品碼改由共享合約做顯式且受限的 `window` bridge narrowing，避免依賴脆弱的隱式全域型別。
 - Electron E2E 首次在沙箱內因 GUI 權限無法啟動；取得桌面啟動權限後相同測試通過。
+- 封面資料已正確解析與傳遞，但 renderer CSP 的 `default-src 'self'` 阻擋 `data:image/...`；以真實 Electron Data URL 載入測試重現後，僅在 `img-src` 加入 `data:`，未放寬 script 或 Node 權限。
+- 書籍總覽內容過長時，外層只設定 `min-height` 使整份 document 被撐高；改為固定 viewport grid、對 grid 子項設定 `min-height: 0`，並將捲動限制於中央內容與各自的內部清單。
 
 ### Deferred Items
 
@@ -183,7 +186,7 @@ Final results: server 3/3 tests passed; desktop 10/10 tests passed; Electron E2E
 ### Notes
 
 - 新增 `jszip` 與 `fast-xml-parser` 作為 EPUB ZIP/XML 解析依賴。
-- 建議後續建立 `documents/modules/book-library.md`，記錄本機書庫、IPC 與 renderer 的責任邊界。
+- 相關模組文件：`documents/modules/book-library.md`。
 
 ## Appendix: TDD Implementation Checklist
 

@@ -1,0 +1,221 @@
+---
+title: 書籍與本機書庫模組
+module: book-library
+status: active
+last_updated: 2026-07-21
+related_implements:
+  - F01-epub-book-library
+---
+
+# 書籍與本機書庫模組
+
+## 1. Purpose
+
+本模組負責把使用者選取的 EPUB 導入 Electron 應用程式的本機書庫，解析書籍基本資訊與章節目錄，跨次啟動保存書籍，並向 renderer 提供書籍清單與書籍總覽所需資料。
+
+模組使用 CONTEXT.md 定義的領域詞彙：
+
+- **書籍（Book）**：一本已導入的 EPUB，是章節、閱讀進度與後續標記的上層容器。
+- **書庫（Book Library）**：跨次開啟持續存在的書籍集合；不同內容的同名書可並存。
+- **書籍總覽（Book Overview）**：選取書籍後顯示封面、書名、作者、進度及章節入口的畫面。
+
+本模組不等同於生詞庫，也不負責 Anki 式複習。
+
+## 2. Current Implementation Status
+
+狀態：**已實作，可在本機使用**
+
+目前支援：
+
+- 透過 Electron 原生檔案選擇器導入 .epub。
+- 解析標準 EPUB 2 與 EPUB 3 的書名、作者、封面及章節順序。
+- 將 EPUB 原始檔與書庫索引保存於 Electron user data 目錄。
+- 重新開啟應用程式後載入既有書庫。
+- 以 EPUB 完整內容 SHA-256 去重；相同內容不重複導入，同名不同內容可並存。
+- 在左側書庫切換書籍，並於中央顯示書籍總覽。
+- 從總覽的開始／繼續閱讀按鈕或章節清單進入章節閱讀介面。
+- 封面以 Data URL 經安全 preload bridge 傳給 renderer。
+- 長章節清單只捲動中央內容，左右欄保持在視窗內。
+
+目前的章節閱讀介面仍是入口與預留畫面，尚未載入 EPUB 章節 XHTML。
+
+## 3. Module Boundary
+
+資料與控制流：
+
+1. React renderer 顯示書庫與書籍總覽。
+2. Electron preload 提供受限 library API。
+3. Main process IPC 接收 library:list 與 library:import。
+4. LocalBookLibrary 負責 EPUB 解析、去重與持久化。
+5. 書籍資料保存到 Electron user data，再沿原路回傳 renderer。
+
+### Electron main process
+
+- 擁有原生檔案選擇器、檔案系統與 EPUB 解析能力。
+- 決定書庫路徑並註冊 IPC handler。
+- renderer 不可直接提供任意檔案路徑，也不可直接操作檔案系統。
+
+### Preload bridge
+
+- 使用 contextBridge 暴露唯讀的 readerDesktop.library API。
+- 僅提供 listBooks() 與 importBook()。
+- 不暴露 Node.js require、fs、ipcRenderer 或通用 IPC 呼叫。
+
+### Renderer
+
+- 載入並保存目前 session 的書籍清單與選取狀態。
+- 顯示書籍縮圖、書籍總覽、章節清單與錯誤訊息。
+- 不解析 EPUB，也不直接讀寫書庫檔案。
+
+## 4. Key Files
+
+| File | Responsibility |
+|---|---|
+| apps/desktop/src/main/library-service.ts | EPUB 解析、內容雜湊、書庫索引、原始檔複製與錯誤回滾 |
+| apps/desktop/src/main/library-ipc.ts | 註冊 library:list／library:import，開啟原生 EPUB 選擇器 |
+| apps/desktop/src/main/main.ts | 決定正式與測試書庫路徑，建立 LocalBookLibrary 並註冊 IPC |
+| apps/desktop/src/preload/preload.ts | 將受限書庫 API 暴露給 renderer |
+| apps/desktop/src/shared/library-contracts.ts | main、preload、renderer 共用的書籍、章節與導入結果型別 |
+| apps/desktop/src/renderer/App.tsx | 載入書庫、導入、選取書籍、書籍總覽與章節入口 |
+| apps/desktop/src/renderer/styles.css | 書庫／總覽樣式與中央獨立捲動的三欄版面 |
+| apps/desktop/src/renderer/index.html | renderer CSP；允許本機與 Data URL 封面圖片 |
+
+## 5. Domain Data
+
+### LibraryBook
+
+| Field | Meaning |
+|---|---|
+| id | EPUB 完整位元組內容的 SHA-256；同時作為書籍目錄名稱與去重鍵 |
+| title | package metadata 的第一個 title；缺少時拒絕導入 |
+| author | package metadata 的第一個 creator；缺少時使用「未知作者」 |
+| coverDataUrl | 封面圖片的 MIME type 與 Base64 Data URL；沒有可辨識封面時為 null |
+| progressPercent | 閱讀進度百分比；目前新書固定為 0，尚無正式寫回流程 |
+| lastChapterId | 上次閱讀章節；目前新書為 null，尚無正式寫回流程 |
+| chapters | 依 order 排列的章節集合 |
+
+### BookChapter
+
+| Field | Meaning |
+|---|---|
+| id | 解析後 archive href 的 SHA-256 前 16 字元 |
+| title | EPUB 3 navigation、EPUB 2 NCX 或 spine fallback 取得的章節名稱 |
+| order | 章節在書籍總覽中的穩定顯示順序 |
+| href | EPUB archive 內已正規化的章節路徑，供後續章節載入使用 |
+
+### ImportBookResult
+
+- cancelled：使用者取消原生檔案選擇器。
+- imported：新內容已解析並寫入書庫。
+- existing：相同內容的 EPUB 已存在，回傳既有書籍且不重設進度。
+
+## 6. Data and State Flow
+
+### Application startup
+
+1. Main process 在正式環境使用 app.getPath("userData")/library 建立 LocalBookLibrary。
+2. Renderer mount 後透過 preload 呼叫 listBooks()。
+3. Main process 讀取 index.json，依 order 排序每本書的章節後回傳。
+4. Renderer 顯示書籍清單，並預設選取第一本書。
+
+### EPUB import
+
+1. 使用者在 renderer 點擊「導入 EPUB」。
+2. Preload 呼叫 library:import；main process 開啟只接受 .epub 的原生選擇器。
+3. LocalBookLibrary 讀取完整檔案並計算 SHA-256。
+4. 若 SHA-256 已存在，直接回傳 existing。
+5. 新內容經 JSZip 與 XML parser 解析 metadata、封面和章節。
+6. 原始 EPUB 複製至書籍目錄，書籍資料追加至索引。
+7. Renderer 將回傳書籍新增或替換於目前清單、選取該書並顯示書籍總覽。
+
+### Book selection and reading entry
+
+1. 使用者在左側書庫選取書籍。
+2. Renderer 清除目前章節選取並切換至書籍總覽。
+3. 「開始／繼續閱讀」優先使用 lastChapterId，否則使用第一章。
+4. 點擊章節則直接選取該 chapter.id。
+5. 目前只切換到章節閱讀預留畫面，尚未透過 href 讀取章節內容。
+
+## 7. EPUB Parsing Rules
+
+- mimetype 必須是 application/epub+zip。
+- 從 META-INF/container.xml 取得 package document 路徑。
+- EPUB 3 優先使用帶有 nav property 的 navigation document。
+- EPUB 2 使用 spine toc 指向的 NCX，或第一個 NCX media type 項目。
+- 如果沒有 navigation／NCX 連結，依 spine manifest 順序建立 fallback 章節。
+- EPUB 3 封面使用 manifest cover-image property；EPUB 2 使用 metadata cover id。
+- archive href 會移除 fragment、嘗試 percent decoding、正規化，並拒絕絕對路徑與 ../ traversal。
+- 發現 META-INF/rights.xml 或 META-INF/encryption.xml 時，目前一律視為不支援的 DRM EPUB。
+
+## 8. Persistence
+
+正式書庫位於 Electron user data 目錄：
+
+    library/
+    ├── index.json
+    └── books/
+        └── <book-sha256>/
+            └── book.epub
+
+- index.json 保存完整 LibraryBook[]，包含 Base64 封面與章節 metadata。
+- 索引更新先寫入 index.json.next，再以 rename 替換正式索引。
+- 新書導入時先建立內容雜湊目錄並複製 EPUB；後續步驟失敗時移除該書目錄。
+- 測試環境使用系統暫存目錄下、包含 process id 的隔離書庫。
+
+## 9. External Dependencies
+
+| Dependency | Current range | Use |
+|---|---:|---|
+| Electron | ^43.1.1 | 桌面生命週期、原生檔案選擇器、IPC、user data 路徑 |
+| React / React DOM | ^19.2.7 | 書庫與書籍總覽 UI 狀態 |
+| JSZip | ^3.10.1 | 讀取 EPUB ZIP archive |
+| fast-xml-parser | ^5.10.1 | 解析 container、package、navigation 與 NCX XML |
+
+檔案雜湊、路徑處理與持久化使用 Node.js 內建模組。
+
+## 10. Important Constraints
+
+- Electron window 啟用 contextIsolation 與 sandbox，並停用 renderer Node integration。
+- IPC 面向必須維持窄介面；新增書庫功能時優先增加明確的方法，不可暴露任意 channel 或檔案路徑。
+- 書籍原始檔和使用者狀態必須與 renderer 分離。
+- 相同內容的 EPUB 必須回傳既有書籍，不可重設進度。
+- 書名不是識別碼；同名不同內容必須允許並存。
+- 封面 Data URL 需要 renderer CSP 的 img-src data:，不可因此放寬 script CSP。
+- 書籍總覽過長時只能捲動中央 .content；左側書庫和右側 AI 面板維持在 viewport 內。
+- 導入失敗不得在索引留下半完成書籍。
+
+## 11. Testing Notes
+
+| Test file | Coverage |
+|---|---|
+| apps/desktop/src/main/library-service.test.ts | EPUB 3、EPUB 2、navigation／NCX、封面、磁碟重載、內容去重、同名版本、無效檔案與回滾 |
+| apps/desktop/src/main/library-ipc.test.ts | list/import handler、原生檔案選擇、取消時不觸碰書庫 |
+| apps/desktop/src/renderer/App.test.tsx | 載入持久書籍、切換總覽、導入後選取、開始與指定章節入口 |
+| apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge、Data URL 封面、長總覽中央獨立捲動與固定左右欄 |
+
+最近驗證（2026-07-21）：
+
+- Desktop Vitest：10/10 passed。
+- Electron Playwright：2/2 passed。
+- Desktop TypeScript typecheck：passed。
+- Desktop production build：passed。
+
+## 12. Known Limitations and Technical Debt
+
+- 尚未實作 EPUB 章節 XHTML／CSS／圖片資產的讀取與安全呈現。
+- 尚未實作閱讀進度與 lastChapterId 的正式寫回 API。
+- 尚未提供刪除、重新命名、排序、重新導入或匯出書籍的操作。
+- index.json 沒有 schema version、資料 migration、結構驗證或損壞修復流程。
+- 書庫沒有跨 process 寫入鎖；目前假設只有單一 Electron main process 操作。
+- Base64 封面直接保存在 index.json 並經 IPC 傳遞；大量或高解析度封面可能使索引與 IPC payload 過大。
+- 封面解析只支援標準 cover-image／legacy cover metadata 指向的直接圖片，不支援以封面 XHTML 間接引用圖片的變體。
+- 目前只檢查 encryption／rights 文件是否存在，未區分完整 DRM 與可解密的字型混淆等情況。
+- E2E 測試驗證 bridge、圖片政策與版面，但未自動操作原生檔案選擇器完成真實 EPUB 導入。
+- renderer 的書庫、閱讀、複習與 AI 狀態目前集中在 App.tsx；功能成長後需要拆分狀態與畫面邊界。
+
+## 13. Related Documents
+
+- CONTEXT.md
+- documents/implements/F01-epub-book-library.md
+
+更新本模組行為、資料格式、IPC、儲存路徑或 EPUB 解析規則時，必須同步更新本文件與相關 FXX／RXX／BXX 實作紀錄。
