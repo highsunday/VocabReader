@@ -20,6 +20,13 @@ export interface ReadingRange {
   end: number;
 }
 
+export interface Annotation {
+  id: string;
+  start: number;
+  end: number;
+  text: string;
+}
+
 export interface LibraryBook {
   id: string;
   title: string;
@@ -29,6 +36,7 @@ export interface LibraryBook {
   lastChapterId: string | null;
   readingState: BookReadingState;
   chapterRanges?: Record<string, ReadingRange>;
+  chapterAnnotations?: Record<string, Annotation[]>;
   chapters: BookChapter[];
 }
 
@@ -50,6 +58,12 @@ export interface SaveReadingRangeInput {
   range: ReadingRange;
 }
 
+export interface SaveAnnotationsInput {
+  bookId: string;
+  chapterId: string;
+  annotations: Annotation[];
+}
+
 export type ImportBookResult =
   | { status: "cancelled" }
   | { status: "imported" | "existing"; book: LibraryBook };
@@ -61,4 +75,5 @@ export interface LibraryDesktopApi {
   getChapterContent(bookId: string, chapterId: string): Promise<ChapterContent>;
   saveReadingState(input: SaveReadingStateInput): Promise<LibraryBook>;
   saveReadingRange(input: SaveReadingRangeInput): Promise<LibraryBook>;
+  saveAnnotations(input: SaveAnnotationsInput): Promise<LibraryBook>;
 }

@@ -8,6 +8,7 @@ related_implements:
   - F06-reading-range-boundary-lines
   - F07-codex-ai-conversation
   - F09-send-reading-segment-on-range-change
+  - F13-persistent-annotations-and-ai-analysis
   - B02-persist-range-marker-on-drag-release
 ---
 
@@ -160,14 +161,14 @@ related_implements:
 - 只回傳 `text.slice(start, end).trim()`。
 - START 之前與 END 之後的同章內容不會出現在結果中。
 
-F07 的 AI 對話面板已透過這個函式組裝 Codex context：非空閱讀區段第一次提問時會連同書籍與章節名稱傳入；F09 以 `bookId + chapterId + start + end` 辨識來源與邊界，相同區段的後續追問只送新問題，來源或任一邊界改變後才重新提供一次。空區段只進行一般對話，絕不以整章作為 fallback。未來區段解析、根據標記產生說明及區段練習仍必須沿用同一邊界。
+F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotatedReadingSegment()` 在相同 START／END 邊界上插入區段內標記，不建立第二套可繞過範圍的內容入口。Renderer 以 `bookId + chapterId + start + end + annotation revision` 辨識目前版本：普通追問在版本未變時只送新問題，來源、任一邊界或標記變更後重新提供一次；「講解標記內容」則每次明確附上當下區段。空區段只進行一般對話，絕不以整章作為 fallback。
 
 ## 10. Key Files
 
 | File | Responsibility |
 |---|---|
 | `apps/desktop/src/shared/library-contracts.ts` | `ReadingRange`、`chapterRanges` 與保存輸入／API 型別 |
-| `apps/desktop/src/renderer/reading-range.ts` | 初始化、裁切、自動推進、DOM 點位轉 offset、offset 轉 START／END 座標 |
+| `apps/desktop/src/renderer/reading-range.ts` | 初始化、裁切、自動推進、DOM 點位／Selection 轉 offset、offset 轉 START／END 座標、標記呈現與安全序列化 |
 | `apps/desktop/src/renderer/App.tsx` | 範圍狀態、拖曳、右鍵選單、分隔線、重疊避讓、樂觀更新與推進操作 |
 | `apps/desktop/src/shared/chat-contracts.ts` | AI 對話輸入中的閱讀上下文契約 |
 | `apps/desktop/src/renderer/styles.css` | START／END 書籤、分隔線、名稱與重疊避讓樣式 |
@@ -216,10 +217,12 @@ F07 的 AI 對話面板已透過這個函式組裝 Codex context：非空閱讀�
 
 - `CONTEXT.md`
 - `documents/modules/book-library.md`
+- `documents/modules/annotation.md`
 - `documents/implements/F05-ai-reading-range-markers.md`
 - `documents/implements/F06-reading-range-boundary-lines.md`
 - `documents/implements/F07-codex-ai-conversation.md`
 - `documents/implements/F09-send-reading-segment-on-range-change.md`
+- `documents/implements/F13-persistent-annotations-and-ai-analysis.md`
 - `documents/implements/B02-persist-range-marker-on-drag-release.md`
 
 更新範圍資料格式、定位語意、拖曳生命週期、保存流程、自動推進或 AI 裁切邊界時，必須同步更新本文件及相關 FXX／BXX 實作紀錄。

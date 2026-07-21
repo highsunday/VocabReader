@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   advanceReadingRange,
+  annotatedReadingSegment,
+  annotationRangeFromSelection,
+  annotationRevision,
   extractReadingSegment,
+  hasAnnotationOverlap,
   initialReadingRange,
   markerTopForTextOffset,
   textOffsetAtPoint
@@ -89,5 +93,83 @@ describe("reading range", () => {
     advanceReadingRange(words(20), { start: 0, end: words(10).length });
 
     expect(JSON.stringify(annotations)).toBe(snapshot);
+  });
+
+  it("serializes escaped reading text with inline annotations in source order", () => {
+    const chapter = "Before He was reluctant & afraid to admit that <it> failed. After";
+    const start = chapter.indexOf("He was");
+    const end = chapter.indexOf(" After");
+
+    expect(annotatedReadingSegment(chapter, { start, end }, [
+      {
+        id: "word-1",
+        start: chapter.indexOf("reluctant"),
+        end: chapter.indexOf("reluctant") + "reluctant".length,
+        text: "reluctant"
+      },
+      {
+        id: "sentence-1",
+        start: chapter.indexOf("that <it> failed."),
+        end: chapter.indexOf("that <it> failed.") + "that <it> failed.".length,
+        text: "that <it> failed."
+      }
+    ])).toBe(
+      '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation> &amp; afraid to admit <reader-annotation id="A2">that &lt;it&gt; failed.</reader-annotation></reading-segment>'
+    );
+  });
+
+  it("clips annotations at START and END while excluding all outside text", () => {
+    const chapter = "outside marked phrase continues outside";
+
+    expect(annotatedReadingSegment(chapter, { start: 8, end: 21 }, [{
+      id: "crossing",
+      start: 0,
+      end: chapter.length,
+      text: chapter
+    }])).toBe(
+      '<reading-segment><reader-annotation id="A1">marked phrase</reader-annotation></reading-segment>'
+    );
+  });
+
+  it("silently identifies exact, containing, contained and partial overlaps", () => {
+    const existing = [{ id: "a1", start: 10, end: 20, text: "annotation" }];
+
+    expect(hasAnnotationOverlap(existing, { start: 10, end: 20 })).toBe(true);
+    expect(hasAnnotationOverlap(existing, { start: 5, end: 25 })).toBe(true);
+    expect(hasAnnotationOverlap(existing, { start: 12, end: 18 })).toBe(true);
+    expect(hasAnnotationOverlap(existing, { start: 18, end: 24 })).toBe(true);
+    expect(hasAnnotationOverlap(existing, { start: 20, end: 24 })).toBe(false);
+  });
+
+  it("normalizes a reversed DOM selection and trims boundary whitespace", () => {
+    const root = document.createElement("article");
+    root.innerHTML = "<p>First line.</p><p>  reluctant phrase  </p>";
+    document.body.append(root);
+    const first = root.querySelectorAll("p")[0].firstChild as Text;
+    const second = root.querySelectorAll("p")[1].firstChild as Text;
+    const selection = {
+      anchorNode: second,
+      anchorOffset: second.data.length,
+      focusNode: first,
+      focusOffset: first.data.length,
+      isCollapsed: false
+    } as unknown as Selection;
+
+    expect(annotationRangeFromSelection(root, selection)).toEqual({
+      start: "First line.".length + 2,
+      end: "First line.".length + 2 + "reluctant phrase".length,
+      text: "reluctant phrase"
+    });
+
+    root.remove();
+  });
+
+  it("changes the annotation revision when an annotation is added or removed", () => {
+    const first = [{ id: "a1", start: 2, end: 5, text: "one" }];
+    const second = [...first, { id: "a2", start: 8, end: 11, text: "two" }];
+
+    expect(annotationRevision(first)).not.toBe(annotationRevision(second));
+    expect(annotationRevision(first)).toBe(annotationRevision([...first]));
+    expect(annotationRevision([])).not.toBe(annotationRevision(first));
   });
 });

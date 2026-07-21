@@ -58,6 +58,8 @@ describe("chat IPC", () => {
     expect(handlers.has("chat:stop")).toBe(true);
     await handlers.get("chat:send")?.({}, {
       text: "Explain",
+      intent: "explainAnnotations",
+      explanationLanguage: "ja",
       context: {
         bookTitle: "Book",
         chapterTitle: "Chapter",
@@ -66,6 +68,8 @@ describe("chat IPC", () => {
     });
     expect(controller.sendMessage).toHaveBeenCalledWith({
       text: "Explain",
+      intent: "explainAnnotations",
+      explanationLanguage: "ja",
       context: {
         bookTitle: "Book",
         chapterTitle: "Chapter",
@@ -76,6 +80,11 @@ describe("chat IPC", () => {
       text: "bad",
       context: { readingSegment: 42 }
     })).toThrow(/上下文格式錯誤/);
+    expect(() => handlers.get("chat:send")?.({}, {
+      text: "bad",
+      intent: "arbitrary-system-prompt",
+      explanationLanguage: "klingon"
+    })).toThrow(/AI 訊息格式錯誤/);
     await handlers.get("chat:new")?.({});
     await handlers.get("chat:select")?.({}, "conversation-a");
     await handlers.get("chat:remove")?.({}, "conversation-a");

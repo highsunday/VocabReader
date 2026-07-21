@@ -179,12 +179,37 @@ export function composeCodexInput(input: SendChatMessageInput): string {
       ? `目前閱讀區段：\n${context.readingSegment.trim()}`
       : ""
   ].filter(Boolean);
-  if (contextLines.length === 0) return text;
-  return [
+  const base = contextLines.length === 0 ? [text] : [
     "以下是閱讀器明確提供的有限上下文。請勿假設區段之外的書籍內容：",
+    ...(context?.readingSegment
+      ? ["這是目前版本，取代這段 AI 對話先前的閱讀區段與標記上下文。"]
+      : []),
     ...contextLines,
     "",
     `使用者問題：${text}`
+  ];
+  if (input.intent !== "explainAnnotations") return base.join("\n");
+  const language = {
+    source: "請使用與目前閱讀區段原文相同的語言講解。",
+    "zh-TW": "請使用繁體中文講解。",
+    en: "Please explain in English.",
+    ja: "日本語で説明してください。"
+  }[input.explanationLanguage ?? "source"];
+  const hasAnnotations = Boolean(
+    context?.readingSegment?.includes("<reader-annotation ")
+  );
+  return [
+    ...base,
+    "",
+    "區段解析規則：",
+    "- 只有 <reader-annotation> 包住的內容是使用者標記；其他文字只作為上下文。",
+    "- 自動判斷每個標記屬於單字、片語或句子，依單字、片語、句子的順序分組講解。",
+    "- 同一組內依原文出現順序排列。句子可說明句法、文法與上下文語意。",
+    "- 不要翻譯或主動講解整個閱讀區段，也不要自行選擇未標記文字。",
+    `- ${language}`,
+    ...(!hasAnnotations
+      ? ["- 目前區段沒有任何 <reader-annotation>；請回覆目前沒有標記內容。"]
+      : [])
   ].join("\n");
 }
 

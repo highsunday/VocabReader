@@ -69,6 +69,19 @@ function installLibraryApi(
       }
     })
   );
+  const saveAnnotations = vi.fn((input) =>
+    Promise.resolve({
+      ...storedBooks.find((book) => book.id === input.bookId),
+      chapterAnnotations: {
+        ...storedBooks.find((book) => book.id === input.bookId)?.chapterAnnotations,
+        [input.chapterId]: input.annotations
+      }
+    })
+  );
+  const getSettings = vi.fn().mockResolvedValue({
+    explanationLanguage: "source"
+  });
+  const saveSettings = vi.fn((settings) => Promise.resolve(settings));
   Object.defineProperty(window, "readerDesktop", {
     configurable: true,
     value: {
@@ -80,8 +93,10 @@ function installLibraryApi(
         deleteBook,
         getChapterContent,
         saveReadingState,
-        saveReadingRange
+        saveReadingRange,
+        saveAnnotations
       },
+      settings: { get: getSettings, save: saveSettings },
       ...(chat ? { chat } : {})
     }
   });
@@ -90,8 +105,42 @@ function installLibraryApi(
     deleteBook,
     getChapterContent,
     saveReadingState,
-    saveReadingRange
+    saveReadingRange,
+    saveAnnotations,
+    getSettings,
+    saveSettings
   };
+}
+
+function selectText(element: HTMLElement, selectedText: string) {
+  const fullText = element.textContent ?? "";
+  const selectionStart = fullText.indexOf(selectedText);
+  if (selectionStart < 0) throw new Error(`Unable to select: ${selectedText}`);
+  const selectionEnd = selectionStart + selectedText.length;
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const nodes: Array<{ node: Text; start: number; end: number }> = [];
+  let offset = 0;
+  let node = walker.nextNode() as Text | null;
+  while (node) {
+    nodes.push({ node, start: offset, end: offset + node.data.length });
+    offset += node.data.length;
+    node = walker.nextNode() as Text | null;
+  }
+  const startTarget = nodes.find((candidate) =>
+    selectionStart >= candidate.start && selectionStart < candidate.end
+  );
+  const endTarget = nodes.find((candidate) =>
+    selectionEnd > candidate.start && selectionEnd <= candidate.end
+  );
+  if (!startTarget || !endTarget) {
+    throw new Error(`Unable to map selection: ${selectedText}`);
+  }
+  const range = document.createRange();
+  range.setStart(startTarget.node, selectionStart - startTarget.start);
+  range.setEnd(endTarget.node, selectionEnd - endTarget.start);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
 }
 
 afterEach(() => {
@@ -188,7 +237,8 @@ describe("App", () => {
     expect(document.querySelectorAll(".allowance-summary-row")).toHaveLength(2);
     expect(document.querySelector(".allowance-track")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "設定" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "設定" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "關閉設定" }));
 
     expect(screen.getByLabelText("AI 模型")).toHaveValue("gpt-default");
     fireEvent.change(screen.getByLabelText("AI 模型"), {
@@ -336,7 +386,7 @@ describe("App", () => {
       context: {
         bookTitle: "The First Book",
         chapterTitle: "Opening",
-        readingSegment: "Content"
+        readingSegment: "<reading-segment>Content</reading-segment>"
       }
     }));
   });
@@ -387,7 +437,7 @@ describe("App", () => {
       context: {
         bookTitle: "The First Book",
         chapterTitle: "Opening",
-        readingSegment: "Content"
+        readingSegment: "<reading-segment>Content</reading-segment>"
       }
     });
 
@@ -413,7 +463,7 @@ describe("App", () => {
       context: {
         bookTitle: "The First Book",
         chapterTitle: "Opening",
-        readingSegment: "for"
+        readingSegment: "<reading-segment>for</reading-segment>"
       }
     });
 
@@ -483,7 +533,7 @@ describe("App", () => {
       context: {
         bookTitle: "The First Book",
         chapterTitle: "A New Road",
-        readingSegment: "Content"
+        readingSegment: "<reading-segment>Content</reading-segment>"
       }
     });
   });
@@ -536,9 +586,9 @@ describe("App", () => {
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
     expect(sendMessage.mock.calls[0]?.[0].context?.readingSegment)
-      .toBe("Content");
+      .toBe("<reading-segment>Content</reading-segment>");
     expect(sendMessage.mock.calls[1]?.[0].context?.readingSegment)
-      .toBe("Content");
+      .toBe("<reading-segment>Content</reading-segment>");
   });
 
   it("keeps chapter practice separate from spaced review", () => {
@@ -696,12 +746,8 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "對話紀錄" }));
     fireEvent.click(screen.getByRole("button", { name: "移除 Older question" }));
-    expect(screen.getByRole("dialog", { name: "移除 AI 對話？" }))
-      .toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "取消移除" }));
-    expect(removeConversation).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "移除 Older question" }));
-    fireEvent.click(screen.getByRole("button", { name: "確認移除" }));
+    expect(screen.queryByRole("dialog", { name: "移除 AI 對話？" }))
+      .not.toBeInTheDocument();
     await waitFor(() => expect(removeConversation).toHaveBeenCalledWith("older"));
 
     fireEvent.click(screen.getByRole("button", { name: "新對話" }));
@@ -1587,5 +1633,385 @@ describe("App", () => {
     expect(savedRange.end).toBeLessThanOrEqual(
       document.querySelector(".chapter-content")?.textContent?.length ?? 0
     );
+  });
+
+  it("creates consecutive persistent annotations in annotation mode and silently ignores overlap", async () => {
+    const { getChapterContent, saveAnnotations } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>He was reluctant to admit that the plan had failed.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening 章節內容");
+
+    const modeButton = screen.getByRole("button", {
+      name: "開啟標記模式，目前章節 0 個標記"
+    });
+    fireEvent.click(modeButton);
+    expect(screen.getByRole("button", {
+      name: "關閉標記模式，目前章節 0 個標記"
+    }))
+      .toHaveAttribute("aria-pressed", "true");
+
+    selectText(article, "reluctant");
+    fireEvent.mouseUp(article);
+    await waitFor(() => expect(saveAnnotations).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookId: "book-one",
+        chapterId: "one-1",
+        annotations: [expect.objectContaining({ text: "reluctant" })]
+      })
+    ));
+    expect(article.querySelector("mark[data-annotation-id]")?.textContent)
+      .toBe("reluctant");
+    expect(screen.getByRole("button", {
+      name: "關閉標記模式，目前章節 1 個標記"
+    })).toBeInTheDocument();
+
+    selectText(article, "reluctant to admit");
+    fireEvent.mouseUp(article);
+    expect(saveAnnotations).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {
+      name: "關閉標記模式，目前章節 1 個標記"
+    }));
+    expect(screen.getByRole("button", {
+      name: "開啟標記模式，目前章節 1 個標記"
+    }))
+      .toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("shows a sticky annotation tool with the current chapter annotation count", async () => {
+    const chapterText = "He was reluctant to admit the truth.";
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: 6 } },
+      chapterAnnotations: {
+        "one-1": [{
+          id: "a1",
+          start: chapterText.indexOf("truth"),
+          end: chapterText.indexOf("truth") + "truth".length,
+          text: "truth"
+        }]
+      }
+    };
+    const { getChapterContent } = installLibraryApi([rangedBook]);
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+
+    const tool = await screen.findByRole("button", {
+      name: "開啟標記模式，目前章節 1 個標記"
+    });
+    expect(tool.closest(".annotation-tool-dock")).toBeInTheDocument();
+    expect(tool.querySelector(".annotation-tool-count")).toHaveTextContent("1");
+    expect(tool.querySelector(".annotation-tool-label")).toHaveTextContent("標記");
+    expect(tool).not.toHaveAttribute("aria-describedby");
+    expect(tool).not.toHaveAttribute("title");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(document.querySelector(
+      ".reading-range-actions .annotation-mode-button"
+    )).not.toBeInTheDocument();
+
+    fireEvent.click(tool);
+    expect(screen.getByRole("button", {
+      name: "關閉標記模式，目前章節 1 個標記"
+    })).toHaveAttribute("aria-pressed", "true");
+    expect(tool.querySelector(".annotation-tool-label"))
+      .toHaveTextContent("標記中");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("creates and removes an annotation from the existing right-click menu", async () => {
+    const { getChapterContent, saveAnnotations } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>He was reluctant to admit the truth.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening 章節內容");
+
+    selectText(article, "the truth");
+    fireEvent.contextMenu(article.querySelector("p")!, {
+      clientX: 120,
+      clientY: 180
+    });
+    expect(screen.getByRole("menuitem", { name: "將起點移到這裡" }))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "標記所選內容" }));
+    await waitFor(() => expect(saveAnnotations).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", {
+      name: "開啟標記模式，目前章節 1 個標記"
+    })).toBeInTheDocument();
+
+    const mark = article.querySelector("mark[data-annotation-id]") as HTMLElement;
+    expect(mark.textContent).toBe("the truth");
+    fireEvent.contextMenu(mark, { clientX: 140, clientY: 190 });
+    fireEvent.click(screen.getByRole("menuitem", { name: "移除標記" }));
+
+    await waitFor(() => expect(saveAnnotations).toHaveBeenLastCalledWith(
+      expect.objectContaining({ annotations: [] })
+    ));
+    expect(article.querySelector("mark[data-annotation-id]")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", {
+      name: "開啟標記模式，目前章節 0 個標記"
+    })).toBeInTheDocument();
+  });
+
+  it("refreshes AI context after annotation changes while ordinary follow-ups remain normal", async () => {
+    const chapterText = "He was reluctant to admit that the plan had failed.";
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: chapterText.length } },
+      chapterAnnotations: {
+        "one-1": [{
+          id: "a1",
+          start: chapterText.indexOf("reluctant"),
+          end: chapterText.indexOf("reluctant") + "reluctant".length,
+          text: "reluctant"
+        }]
+      }
+    };
+    const snapshot = initialReadySnapshot();
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    const { getChapterContent } = installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+
+    const ask = async (text: string) => {
+      fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+        target: { value: text }
+      });
+      fireEvent.click(screen.getByRole("button", { name: "送出" }));
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ text })
+      ));
+    };
+    await ask("First question");
+    expect(sendMessage).toHaveBeenNthCalledWith(1, {
+      text: "First question",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation> to admit that the plan had failed.</reading-segment>'
+      }
+    });
+    await ask("Follow-up");
+    expect(sendMessage).toHaveBeenNthCalledWith(2, { text: "Follow-up" });
+
+    fireEvent.click(screen.getByRole("button", { name: "講解標記內容" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(3));
+    expect(sendMessage).toHaveBeenNthCalledWith(3, {
+      text: "講解標記內容",
+      intent: "explainAnnotations",
+      explanationLanguage: "source",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation> to admit that the plan had failed.</reading-segment>'
+      }
+    });
+
+    const article = screen.getByLabelText("Opening 章節內容");
+    fireEvent.click(screen.getByRole("button", {
+      name: /^開啟標記模式/
+    }));
+    selectText(article, "that the plan had failed.");
+    fireEvent.mouseUp(article);
+    await ask("After marking");
+    expect(sendMessage).toHaveBeenNthCalledWith(4, expect.objectContaining({
+      text: "After marking",
+      context: expect.objectContaining({
+        readingSegment: expect.stringContaining(
+          '<reader-annotation id="A2">that the plan had failed.</reader-annotation>'
+        )
+      })
+    }));
+
+    let mark = article.querySelector("mark[data-annotation-id]") as HTMLElement;
+    fireEvent.contextMenu(mark, { clientX: 140, clientY: 190 });
+    fireEvent.click(screen.getByRole("menuitem", { name: "移除標記" }));
+    await waitFor(() => expect(article.querySelectorAll(
+      "mark[data-annotation-id]"
+    )).toHaveLength(1));
+    mark = article.querySelector("mark[data-annotation-id]") as HTMLElement;
+    fireEvent.contextMenu(mark, { clientX: 140, clientY: 190 });
+    fireEvent.click(screen.getByRole("menuitem", { name: "移除標記" }));
+    await waitFor(() => expect(article.querySelectorAll(
+      "mark[data-annotation-id]"
+    )).toHaveLength(0));
+    await ask("After removing all marks");
+    expect(sendMessage).toHaveBeenNthCalledWith(5, {
+      text: "After removing all marks",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: "<reading-segment>He was reluctant to admit that the plan had failed.</reading-segment>"
+      }
+    });
+  });
+
+  it("uses the selected explanation language for the annotation analysis preset", async () => {
+    const chapterText = "He was reluctant.";
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: chapterText.length } },
+      chapterAnnotations: {
+        "one-1": [{ id: "a1", start: 7, end: 16, text: "reluctant" }]
+      }
+    };
+    const snapshot = initialReadySnapshot();
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    const { getChapterContent, saveSettings } = installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    fireEvent.change(screen.getByLabelText("講解語言"), {
+      target: { value: "ja" }
+    });
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({
+      explanationLanguage: "ja"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "關閉設定" }));
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening 章節內容");
+    await waitFor(() => expect(article.querySelector(
+      'mark[data-annotation-id="a1"]'
+    )).toHaveTextContent("reluctant"));
+
+    fireEvent.click(screen.getByRole("button", { name: "講解標記內容" }));
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      text: "講解標記內容",
+      intent: "explainAnnotations",
+      explanationLanguage: "ja",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation>.</reading-segment>'
+      }
+    }));
+  });
+
+  it("keeps annotation analysis available without annotations", async () => {
+    const chapterText = "Nothing is marked.";
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: chapterText.length } }
+    };
+    const snapshot = initialReadySnapshot();
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    const { getChapterContent } = installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+    await waitFor(() => expect(screen.getByRole("button", {
+      name: "閱讀區段終點"
+    })).toHaveAttribute("data-text-offset", String(chapterText.length)));
+    const preset = await screen.findByRole("button", { name: "講解標記內容" });
+
+    expect(preset).toBeEnabled();
+    fireEvent.click(preset);
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      text: "講解標記內容",
+      intent: "explainAnnotations",
+      explanationLanguage: "source",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: "<reading-segment>Nothing is marked.</reading-segment>"
+      }
+    }));
+  });
+
+  it("turns annotation mode off when switching chapters", async () => {
+    const annotatedBook: LibraryBook = {
+      ...books[0],
+      chapterAnnotations: {
+        "one-1": [{ id: "a1", start: 0, end: 7, text: "Content" }],
+        "one-2": [
+          { id: "a2", start: 0, end: 7, text: "Content" },
+          { id: "a3", start: 12, end: 17, text: "one-2" }
+        ]
+      }
+    };
+    installLibraryApi([annotatedBook]);
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "開啟標記模式，目前章節 1 個標記"
+    }));
+    expect(screen.getByRole("button", {
+      name: "關閉標記模式，目前章節 1 個標記"
+    }))
+      .toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+
+    await screen.findByText("Content for one-2");
+    expect(await screen.findByRole("button", {
+      name: "開啟標記模式，目前章節 2 個標記"
+    }))
+      .toHaveAttribute("aria-pressed", "false");
   });
 });

@@ -1,5 +1,17 @@
 import type { ReadingRange } from "../shared/library-contracts";
 
+interface AnnotationRange {
+  id: string;
+  start: number;
+  end: number;
+  text: string;
+}
+
+interface TextRange {
+  start: number;
+  end: number;
+}
+
 const WORD_PATTERN = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
 
 function clampOffset(text: string, value: number) {
@@ -37,6 +49,70 @@ export function extractReadingSegment(text: string, range: ReadingRange) {
   const start = clampOffset(text, range.start);
   const end = Math.max(start, clampOffset(text, range.end));
   return text.slice(start, end).trim();
+}
+
+function escapeAnnotationText(text: string) {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function trimmedRange(text: string, range: ReadingRange): TextRange {
+  const boundedStart = clampOffset(text, range.start);
+  const boundedEnd = Math.max(boundedStart, clampOffset(text, range.end));
+  const selected = text.slice(boundedStart, boundedEnd);
+  const leading = selected.length - selected.trimStart().length;
+  const trailing = selected.length - selected.trimEnd().length;
+  return {
+    start: boundedStart + leading,
+    end: Math.max(boundedStart + leading, boundedEnd - trailing)
+  };
+}
+
+export function annotatedReadingSegment(
+  text: string,
+  range: ReadingRange,
+  annotations: readonly AnnotationRange[]
+) {
+  const bounds = trimmedRange(text, range);
+  if (bounds.start === bounds.end) return "";
+  const intersections = annotations
+    .map((annotation) => ({
+      start: Math.max(bounds.start, annotation.start),
+      end: Math.min(bounds.end, annotation.end)
+    }))
+    .filter((annotation) => annotation.start < annotation.end)
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+  let cursor = bounds.start;
+  let content = "";
+  intersections.forEach((annotation, index) => {
+    if (annotation.start < cursor) return;
+    content += escapeAnnotationText(text.slice(cursor, annotation.start));
+    content += `<reader-annotation id="A${index + 1}">`;
+    content += escapeAnnotationText(text.slice(annotation.start, annotation.end));
+    content += "</reader-annotation>";
+    cursor = annotation.end;
+  });
+  content += escapeAnnotationText(text.slice(cursor, bounds.end));
+  return `<reading-segment>${content}</reading-segment>`;
+}
+
+export function hasAnnotationOverlap(
+  annotations: readonly AnnotationRange[],
+  candidate: TextRange
+) {
+  return annotations.some(
+    (annotation) => candidate.start < annotation.end && candidate.end > annotation.start
+  );
+}
+
+export function annotationRevision(annotations: readonly AnnotationRange[]) {
+  return JSON.stringify(
+    [...annotations]
+      .sort((left, right) => left.start - right.start || left.end - right.end)
+      .map(({ id, start, end, text }) => [id, start, end, text])
+  );
 }
 
 export function advanceReadingRange(
@@ -80,6 +156,73 @@ export function textOffsetForDomPoint(
     offset += textNode.data.length;
   }
   return null;
+}
+
+export function annotationRangeFromSelection(
+  root: HTMLElement,
+  selection: Selection | null
+) {
+  if (!selection || selection.isCollapsed || !selection.anchorNode ||
+    !selection.focusNode || !root.contains(selection.anchorNode) ||
+    !root.contains(selection.focusNode)) return null;
+  const anchor = textOffsetForDomPoint(
+    root,
+    selection.anchorNode,
+    selection.anchorOffset
+  );
+  const focus = textOffsetForDomPoint(
+    root,
+    selection.focusNode,
+    selection.focusOffset
+  );
+  if (anchor === null || focus === null || anchor === focus) return null;
+  const text = root.textContent ?? "";
+  const bounds = trimmedRange(text, {
+    start: Math.min(anchor, focus),
+    end: Math.max(anchor, focus)
+  });
+  if (bounds.start === bounds.end) return null;
+  return {
+    ...bounds,
+    text: text.slice(bounds.start, bounds.end)
+  };
+}
+
+export function renderAnnotationHighlights(
+  root: HTMLElement,
+  annotations: readonly AnnotationRange[]
+) {
+  for (const highlight of Array.from(
+    root.querySelectorAll("mark[data-annotation-id]")
+  )) {
+    highlight.replaceWith(...Array.from(highlight.childNodes));
+  }
+  root.normalize();
+  const ordered = [...annotations].sort(
+    (left, right) => right.start - left.start || right.end - left.end
+  );
+  for (const annotation of ordered) {
+    let offset = 0;
+    const targets = textNodes(root).flatMap((node) => {
+      const nodeStart = offset;
+      const nodeEnd = nodeStart + node.data.length;
+      offset = nodeEnd;
+      const start = Math.max(annotation.start, nodeStart);
+      const end = Math.min(annotation.end, nodeEnd);
+      return start < end
+        ? [{ node, start: start - nodeStart, end: end - nodeStart }]
+        : [];
+    });
+    for (const target of targets.reverse()) {
+      const range = root.ownerDocument.createRange();
+      range.setStart(target.node, target.start);
+      range.setEnd(target.node, target.end);
+      const mark = root.ownerDocument.createElement("mark");
+      mark.className = "reader-annotation-highlight";
+      mark.dataset.annotationId = annotation.id;
+      range.surroundContents(mark);
+    }
+  }
 }
 
 export function textOffsetAtPoint(

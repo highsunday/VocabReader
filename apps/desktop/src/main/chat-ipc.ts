@@ -1,4 +1,5 @@
 import type { SendChatMessageInput } from "../shared/chat-contracts";
+import { isExplanationLanguage } from "../shared/settings-contracts";
 import type { ChatController } from "./chat-controller";
 
 interface IpcRegistrar {
@@ -16,7 +17,22 @@ function parseSendInput(value: unknown): SendChatMessageInput {
   if (!isObject(value) || typeof value.text !== "string") {
     throw new Error("AI 訊息格式錯誤。");
   }
-  if (value.context === undefined) return { text: value.text };
+  if (value.intent !== undefined && value.intent !== "explainAnnotations") {
+    throw new Error("AI 訊息格式錯誤。");
+  }
+  if (value.explanationLanguage !== undefined &&
+    !isExplanationLanguage(value.explanationLanguage)) {
+    throw new Error("AI 訊息格式錯誤。");
+  }
+  const extras = {
+    ...(value.intent === "explainAnnotations"
+      ? { intent: "explainAnnotations" as const }
+      : {}),
+    ...(isExplanationLanguage(value.explanationLanguage)
+      ? { explanationLanguage: value.explanationLanguage }
+      : {})
+  };
+  if (value.context === undefined) return { text: value.text, ...extras };
   if (!isObject(value.context)) throw new Error("AI 上下文格式錯誤。");
   const context: NonNullable<SendChatMessageInput["context"]> = {};
   for (const key of ["bookTitle", "chapterTitle", "readingSegment"] as const) {
@@ -26,7 +42,7 @@ function parseSendInput(value: unknown): SendChatMessageInput {
     }
     if (typeof field === "string") context[key] = field;
   }
-  return { text: value.text, context };
+  return { text: value.text, ...extras, context };
 }
 
 function parseConversationId(value: unknown): string {

@@ -45,6 +45,7 @@ describe("library IPC", () => {
       }),
       saveReadingState: vi.fn().mockResolvedValue(book),
       saveReadingRange: vi.fn().mockResolvedValue(book),
+      saveAnnotations: vi.fn().mockResolvedValue(book),
       deleteBook: vi.fn().mockResolvedValue(undefined)
     };
 
@@ -90,6 +91,18 @@ describe("library IPC", () => {
       range: { start: 10, end: 80 }
     });
     await expect(
+      handlers.get("library:save-annotations")?.({}, {
+        bookId: book.id,
+        chapterId: "chapter-id",
+        annotations: [{ id: "a1", start: 2, end: 8, text: "marked" }]
+      })
+    ).resolves.toEqual(book);
+    expect(library.saveAnnotations).toHaveBeenCalledWith({
+      bookId: book.id,
+      chapterId: "chapter-id",
+      annotations: [{ id: "a1", start: 2, end: 8, text: "marked" }]
+    });
+    await expect(
       handlers.get("library:delete")?.({}, book.id)
     ).resolves.toBeUndefined();
     expect(library.deleteBook).toHaveBeenCalledWith(book.id);
@@ -111,6 +124,7 @@ describe("library IPC", () => {
       getChapterContent: vi.fn(),
       saveReadingState: vi.fn(),
       saveReadingRange: vi.fn(),
+      saveAnnotations: vi.fn(),
       deleteBook: vi.fn()
     };
 
@@ -135,6 +149,7 @@ describe("library IPC", () => {
       getChapterContent: vi.fn(),
       saveReadingState: vi.fn(),
       saveReadingRange: vi.fn(),
+      saveAnnotations: vi.fn(),
       deleteBook: vi.fn()
     };
     const dialog = { showOpenDialog: vi.fn() };
@@ -162,6 +177,7 @@ describe("library IPC", () => {
       getChapterContent: vi.fn(),
       saveReadingState: vi.fn(),
       saveReadingRange: vi.fn(),
+      saveAnnotations: vi.fn(),
       deleteBook: vi.fn()
     };
     registerLibraryIpc(ipc, { showOpenDialog: vi.fn() }, library);
@@ -172,5 +188,31 @@ describe("library IPC", () => {
       range: { start: 90, end: 10 }
     })).toThrow(/閱讀區段格式錯誤/);
     expect(library.saveReadingRange).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed annotations before touching the library", () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const ipc = {
+      handle(channel: string, handler: (...args: unknown[]) => unknown) {
+        handlers.set(channel, handler);
+      }
+    };
+    const library = {
+      listBooks: vi.fn(),
+      importFromPath: vi.fn(),
+      getChapterContent: vi.fn(),
+      saveReadingState: vi.fn(),
+      saveReadingRange: vi.fn(),
+      saveAnnotations: vi.fn(),
+      deleteBook: vi.fn()
+    };
+    registerLibraryIpc(ipc, { showOpenDialog: vi.fn() }, library);
+
+    expect(() => handlers.get("library:save-annotations")?.({}, {
+      bookId: book.id,
+      chapterId: "chapter-id",
+      annotations: [{ id: "", start: 8, end: 2, text: "" }]
+    })).toThrow(/標記格式錯誤/);
+    expect(library.saveAnnotations).not.toHaveBeenCalled();
   });
 });

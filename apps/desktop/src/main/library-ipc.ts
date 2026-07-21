@@ -2,6 +2,7 @@ import type {
   ChapterContent,
   ImportBookResult,
   LibraryBook,
+  SaveAnnotationsInput,
   SaveReadingRangeInput,
   SaveReadingStateInput
 } from "../shared/library-contracts";
@@ -28,6 +29,7 @@ interface BookLibrary {
   getChapterContent(bookId: string, chapterId: string): Promise<ChapterContent>;
   saveReadingState(input: SaveReadingStateInput): Promise<LibraryBook>;
   saveReadingRange(input: SaveReadingRangeInput): Promise<LibraryBook>;
+  saveAnnotations(input: SaveAnnotationsInput): Promise<LibraryBook>;
 }
 
 export function registerLibraryIpc(
@@ -81,6 +83,28 @@ export function registerLibraryIpc(
       throw new Error("閱讀區段格式錯誤");
     }
     return library.saveReadingRange(input as SaveReadingRangeInput);
+  });
+  ipc.handle("library:save-annotations", (_event, rawInput) => {
+    if (!rawInput || typeof rawInput !== "object") {
+      throw new Error("標記格式錯誤");
+    }
+    const input = rawInput as Partial<SaveAnnotationsInput>;
+    if (
+      typeof input.bookId !== "string" ||
+      typeof input.chapterId !== "string" ||
+      !Array.isArray(input.annotations) ||
+      input.annotations.some((annotation) =>
+        !annotation || typeof annotation !== "object" ||
+        typeof annotation.id !== "string" || !annotation.id.trim() ||
+        !Number.isInteger(annotation.start) ||
+        !Number.isInteger(annotation.end) ||
+        annotation.start < 0 || annotation.end <= annotation.start ||
+        typeof annotation.text !== "string" || !annotation.text
+      )
+    ) {
+      throw new Error("標記格式錯誤");
+    }
+    return library.saveAnnotations(input as SaveAnnotationsInput);
   });
   ipc.handle("library:import", async () => {
     const selection = await dialog.showOpenDialog({

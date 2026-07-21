@@ -1,0 +1,153 @@
+---
+title: 持久標記與 AI 標記解析模組
+module: annotation
+status: active
+last_updated: 2026-07-21
+related_implements:
+  - F13-persistent-annotations-and-ai-analysis
+  - F14-sticky-annotation-tool
+  - F15-polish-annotation-tool-ui
+---
+
+# 持久標記與 AI 標記解析模組
+
+## 1. Purpose
+
+本模組讓使用者在 EPUB 章節原文上建立持久的**標記（Annotation）**，並在右側目前選取的 AI 對話中，以預設動作「講解標記內容」要求 AI 解讀。標記代表使用者主動指出的困難文字；START／END **範圍標籤（Range Marker）**只界定 AI 可讀的上下文邊界，兩者是不同領域概念。
+
+AI 只取得 START／END 內的原文與標記交集。一般提問維持正常多輪問答；只有預設動作會要求 AI 自動判斷單字、片語或句子，並依該類型順序分組說明。
+
+## 2. Current Implementation Status
+
+狀態：**已實作，可在本機使用**
+
+目前支援：
+
+- 章節閱讀頁的持續標記模式；開啟後可連續選取文字直接建立標記，再次點擊、切章或離開閱讀頁時關閉。
+- 閱讀內容右上角提供捲動時保持可見的緊湊螢光筆膠囊工具；以「標記／標記中」文字、右上角數量徽章（包含 `0`）、淡暖白與淡黃色單色呈現，不使用漸層，也不顯示額外操作提示。
+- 選取原文後透過既有右鍵選單建立標記。
+- 在標記上開啟右鍵選單後直接移除，不顯示確認視窗，也不改寫既有 AI 對話。
+- 以章內純文字 `start`／`end` 保存標記，依書籍及章節持久化。
+- 空白、章節外或與既有標記重疊的選取會靜默忽略；相鄰且不重疊的標記可分開建立。
+- 以 `<reading-segment>` 包住閱讀區段，並以 `<reader-annotation id="A1">…</reader-annotation>` 依原語序標出區段內標記。
+- START／END 或標記新增、移除後，下一則 AI 訊息會取得最新版本；一般未變追問不重傳相同上下文。
+- 「講解標記內容」每次都附上當下區段，避免先前一般問答的上下文去重使解析意圖看不到標記。
+- AI 解析固定依單字、片語、句子分組，同組依原文位置排列；分類只存在於 AI 回覆，不回寫標記。
+- 全域講解語言可選原文語言、繁體中文、English 或日本語，預設為原文語言並持久保存。
+
+## 3. Domain Data and Invariants
+
+### Annotation
+
+| Field | Meaning |
+|---|---|
+| `id` | Renderer 建立的不可變章內識別碼；AI payload 會另依本次區段重新編為 A1、A2…… |
+| `start` | 標記在安全章節純文字中的起始 offset，包含此位置 |
+| `end` | 標記終止 offset，不包含此位置 |
+| `text` | 建立當下的原文，用於保存與驗證／診斷 |
+
+核心不變量：
+
+- `0 <= start < end`，offset 必須是整數。
+- `text` 不可為空。
+- 同章標記不得重疊；`candidate.start < existing.end && candidate.end > existing.start` 即視為重疊。
+- `end === next.start` 的相鄰標記合法。
+- AI 分類不是標記資料的一部分。
+
+`LibraryBook.chapterAnnotations` 以 `chapterId` 為鍵保存 `Annotation[]`。舊索引沒有此欄位時正規化為空集合；損壞項目與重疊項目在載入時安全排除。
+
+## 4. Selection and Rendering Flow
+
+1. 使用者開啟標記模式，或先選取原文再打開右鍵選單。
+2. Renderer 確認 Selection 的 anchor／focus 都位於目前章節 `article`。
+3. DOM 起終點轉為章內純文字 offset，反向選取會正規化，邊界空白會移除。
+4. Renderer 先檢查空範圍與重疊；無效時不改狀態、不保存、不顯示訊息。
+5. 有效選取建立標記並樂觀更新畫面，再呼叫窄化的 `library.saveAnnotations()`。
+6. Main process 再次驗證書籍、章節、資料格式及非重疊條件，與閱讀狀態、閱讀範圍共用書庫的串行原子寫入。
+7. Renderer 依 offset 將一或多個文字節點包成 `<mark data-annotation-id>`；重新渲染前先移除既有標示並還原文字節點，EPUB 安全內容本身不被持久修改。
+
+## 5. AI Context Serialization
+
+`annotatedReadingSegment(text, range, annotations)` 是標記版 AI 上下文的唯一序列化入口：
+
+1. 先把 START／END 限制在章節文字範圍並移除區段邊界空白。
+2. 只保留與區段相交的標記；跨界標記裁成區段內交集。
+3. 依原文位置排序標記，重新配置只供本次 payload 使用的 `A1`、`A2`。
+4. EPUB 原文中的 `&`、`<`、`>` 先轉成 entity，再插入閱讀器專屬標籤。
+5. 區段外文字永遠不進入 payload；空區段不回退為整章。
+
+範例：
+
+```text
+<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation> to admit <reader-annotation id="A2">that the plan had failed.</reader-annotation></reading-segment>
+```
+
+Renderer 以書籍、章節、START、END、標記 revision 與序列化區段建立上下文版本。普通訊息成功送出後，相同版本的普通追問可省略 context；保存或 bridge 送出失敗時不可把版本誤記為已提供。「講解標記內容」是顯式解析動作，因此即使版本未變也會重新附上當下區段。
+
+## 6. Trusted Analysis Intent
+
+Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解語言，不能提供任意系統 prompt。Main process 組成固定解析規則：
+
+- 只把 `<reader-annotation>` 內文字視為標記。
+- 自動判斷單字、片語、句子，固定依此順序分組，同組依原文順序排列。
+- 句子可說明句型、文法與上下文語意。
+- 不翻譯整段、不自行選取未標記文字。
+- 沒有標籤時明確回覆目前沒有標記內容。
+- 依 `source | zh-TW | en | ja` 決定本次講解語言。
+
+一般輸入沒有此 intent，即使上下文含標籤也只是正常 AI 問答。預設動作沿用目前右側 AI 對話及 Codex thread；空白對話仍在送出時才建立。
+
+## 7. Settings Boundary
+
+講解語言是全域應用程式偏好，不屬於單本書、單章或單一 AI 對話。Main process 的 `LocalSettingsStore` 把受限設定保存到 Electron user data 的 `settings/settings.json`，先寫 `.next` 再原子替換。缺少、損壞或未知值一律回退為 `source`。
+
+設定只影響之後的「講解標記內容」動作，不修改介面語言、EPUB 原文、一般自由問答或既有 AI 回覆。
+
+## 8. Key Files
+
+| File | Responsibility |
+|---|---|
+| `apps/desktop/src/shared/library-contracts.ts` | `Annotation`、`chapterAnnotations` 與保存 API |
+| `apps/desktop/src/main/library-service.ts` | 標記正規化、驗證、每章持久化與串行原子寫入 |
+| `apps/desktop/src/main/library-ipc.ts` | `library:save-annotations` 窄化 IPC |
+| `apps/desktop/src/renderer/reading-range.ts` | Selection offset、重疊判斷、原文標示與安全 AI 序列化 |
+| `apps/desktop/src/renderer/App.tsx` | 標記模式、右鍵操作、狀態、AI context revision 與預設動作 |
+| `apps/desktop/src/shared/settings-contracts.ts` | 講解語言及設定 API 型別 |
+| `apps/desktop/src/main/settings-store.ts` | 全域偏好載入、降級與原子保存 |
+| `apps/desktop/src/main/settings-ipc.ts` | 設定值 IPC 驗證 |
+| `apps/desktop/src/main/chat-controller.ts` | 可信任的標記解析 prompt 組成 |
+| `apps/desktop/src/renderer/styles.css` | 標記模式、原文標示與設定視窗樣式 |
+
+## 9. Testing Notes
+
+| Test file | Coverage |
+|---|---|
+| `apps/desktop/src/renderer/reading-range.test.ts` | 選取 offset、反向與空白正規化、重疊、revision、安全標籤與邊界裁切 |
+| `apps/desktop/src/renderer/App.test.tsx` | 固定小工具、章節標記總數、模式、連續建立、切章隔離、右鍵建立／移除、靜默重疊、上下文刷新／去重、預設解析及語言設定 |
+| `apps/desktop/src/main/library-service.test.ts` | 跨章保存、移除、舊索引相容、無效與重疊資料 |
+| `apps/desktop/src/main/library-ipc.test.ts` | 標記 IPC 路由與輸入驗證 |
+| `apps/desktop/src/main/settings-store.test.ts` | 預設、保存、損壞／未知值降級 |
+| `apps/desktop/src/main/settings-ipc.test.ts` | 設定 IPC 路由與 enum 驗證 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 一般 context、標記解析規則、分類順序、空標記與講解語言 |
+| `apps/desktop/src/main/chat-ipc.test.ts` | 可信任 intent 與講解語言白名單 |
+| `apps/desktop/tests/e2e/desktop.spec.ts` | preload 白名單、設定選項與 Electron 啟動回歸 |
+
+## 10. Constraints and Follow-up
+
+- 第一版不支援重疊、巢狀、顏色、手動分類、筆記或標記清單。
+- 標記依保存時原文 offset 定位；EPUB 內容本身變更時不做文字錨點遷移。
+- AI 分類及 Markdown 回覆不轉成結構化資料，也不建立生詞或 Anki 學習項目。
+- 不提供跨裝置同步、匯出、搜尋、復原／重做。
+- Renderer 的 `App.tsx` 目前同時協調閱讀範圍、標記、AI 對話與設定；功能繼續擴張前宜另開 RXX 拆分協調邊界。
+
+## 11. Related Documents
+
+- `CONTEXT.md`
+- `documents/modules/book-library.md`
+- `documents/modules/reading-range.md`
+- `documents/modules/ai-conversation.md`
+- `documents/implements/F13-persistent-annotations-and-ai-analysis.md`
+- `documents/implements/F14-sticky-annotation-tool.md`
+- `documents/implements/F15-polish-annotation-tool-ui.md`
+
+變更標記資料、不重疊規則、Selection offset、AI 序列化、解析 intent 或講解語言時，必須同步更新本文件與 F13 實作紀錄。

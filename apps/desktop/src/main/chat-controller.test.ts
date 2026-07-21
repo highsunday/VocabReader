@@ -572,7 +572,56 @@ describe("composeCodexInput", () => {
         readingSegment: "inside range"
       }
     })).toContain("inside range");
+    expect(composeCodexInput({
+      text: "Updated context",
+      context: { readingSegment: "<reading-segment>No marks.</reading-segment>" }
+    })).toContain("取代這段 AI 對話先前的閱讀區段與標記上下文");
     expect(composeCodexInput({ text: "General question" }))
       .toBe("General question");
+  });
+
+  it("keeps inline annotations as ordinary context without forcing analysis", () => {
+    const result = composeCodexInput({
+      text: "What happened next?",
+      context: {
+        readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation>.</reading-segment>'
+      }
+    });
+
+    expect(result).toContain('<reader-annotation id="A1">reluctant</reader-annotation>');
+    expect(result).not.toContain("單字、片語、句子");
+    expect(result).not.toContain("講解標記內容");
+  });
+
+  it("composes the trusted annotation analysis prompt in the selected language", () => {
+    const result = composeCodexInput({
+      text: "講解標記內容",
+      intent: "explainAnnotations",
+      explanationLanguage: "zh-TW",
+      context: {
+        bookTitle: "Book",
+        chapterTitle: "Chapter",
+        readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation>.</reading-segment>'
+      }
+    });
+
+    expect(result).toContain("只有 <reader-annotation> 包住的內容是使用者標記");
+    expect(result).toContain("單字、片語、句子");
+    expect(result).toContain("同一組內依原文出現順序");
+    expect(result).toContain("繁體中文");
+    expect(result).toContain("不要翻譯或主動講解整個閱讀區段");
+  });
+
+  it("asks for a no-annotation response and supports source language", () => {
+    const result = composeCodexInput({
+      text: "講解標記內容",
+      intent: "explainAnnotations",
+      explanationLanguage: "source",
+      context: { readingSegment: "<reading-segment>No marks.</reading-segment>" }
+    });
+
+    expect(result).toContain("沒有任何 <reader-annotation>");
+    expect(result).toContain("回覆目前沒有標記內容");
+    expect(result).toContain("與目前閱讀區段原文相同的語言");
   });
 });

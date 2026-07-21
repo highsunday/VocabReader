@@ -11,12 +11,14 @@ import { basename, join, posix } from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import JSZip from "jszip";
 import type {
+  Annotation,
   BookChapter,
   BookReadingState,
   ChapterContent,
   ImportBookResult,
   LibraryBook,
   ReadingRange,
+  SaveAnnotationsInput,
   SaveReadingRangeInput,
   SaveReadingStateInput
 } from "../shared/library-contracts";
@@ -339,6 +341,47 @@ function chapterRanges(
   );
 }
 
+function validAnnotation(value: unknown): value is Annotation {
+  if (!value || typeof value !== "object") return false;
+  const annotation = value as Partial<Annotation>;
+  return typeof annotation.id === "string" && Boolean(annotation.id.trim()) &&
+    Number.isInteger(annotation.start) && Number.isInteger(annotation.end) &&
+    (annotation.start ?? -1) >= 0 &&
+    (annotation.end ?? 0) > (annotation.start ?? -1) &&
+    typeof annotation.text === "string" && Boolean(annotation.text);
+}
+
+function annotationsOverlap(annotations: readonly Annotation[]) {
+  const sorted = [...annotations].sort(
+    (left, right) => left.start - right.start || left.end - right.end
+  );
+  return sorted.some((annotation, index) =>
+    index > 0 && annotation.start < sorted[index - 1].end
+  );
+}
+
+function chapterAnnotations(
+  book: Partial<LibraryBook>,
+  chapters: BookChapter[]
+): Record<string, Annotation[]> {
+  const chapterIds = new Set(chapters.map((chapter) => chapter.id));
+  const entries = Object.entries(book.chapterAnnotations ?? {}).flatMap(
+    ([chapterId, annotations]) => {
+      if (!chapterIds.has(chapterId) || !Array.isArray(annotations)) return [];
+      const valid = annotations.filter(validAnnotation).sort(
+        (left, right) => left.start - right.start || left.end - right.end
+      );
+      const independent = valid.reduce<Annotation[]>((accepted, annotation) => {
+        const previous = accepted.at(-1);
+        if (!previous || annotation.start >= previous.end) accepted.push(annotation);
+        return accepted;
+      }, []);
+      return [[chapterId, independent] as const];
+    }
+  );
+  return Object.fromEntries(entries);
+}
+
 function distinctChapters(chapters: BookChapter[]): BookChapter[] {
   const seen = new Set<string>();
   return [...chapters]
@@ -518,7 +561,8 @@ export class LocalBookLibrary {
         ...book,
         chapters,
         readingState: defaultReadingState({ ...book, chapters }),
-        chapterRanges: chapterRanges(book, chapters)
+        chapterRanges: chapterRanges(book, chapters),
+        chapterAnnotations: chapterAnnotations(book, chapters)
       };
     });
   }
@@ -551,7 +595,8 @@ export class LocalBookLibrary {
       progressPercent: 0,
       lastChapterId: null,
       readingState: { view: "overview", chapterId: null, scrollProgress: 0 },
-      chapterRanges: {}
+      chapterRanges: {},
+      chapterAnnotations: {}
     };
     const bookPath = join(this.#booksPath, id);
     try {
@@ -667,6 +712,38 @@ export class LocalBookLibrary {
         chapterRanges: {
           ...book.chapterRanges,
           [input.chapterId]: input.range
+        }
+      };
+      books[index] = updated;
+      await this.#saveBooks(books);
+      return updated;
+    });
+    this.#stateWriteQueue = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  async saveAnnotations(input: SaveAnnotationsInput): Promise<LibraryBook> {
+    const operation = this.#stateWriteQueue.then(async () => {
+      const books = await this.listBooks();
+      const index = books.findIndex((book) => book.id === input.bookId);
+      if (index < 0) throw new Error("找不到書籍");
+      const book = books[index];
+      if (!book.chapters.some((chapter) => chapter.id === input.chapterId)) {
+        throw new Error("找不到章節");
+      }
+      if (!Array.isArray(input.annotations) ||
+        input.annotations.some((annotation) => !validAnnotation(annotation))) {
+        throw new Error("標記格式錯誤");
+      }
+      if (annotationsOverlap(input.annotations)) return book;
+      const annotations = [...input.annotations].sort(
+        (left, right) => left.start - right.start || left.end - right.end
+      );
+      const updated: LibraryBook = {
+        ...book,
+        chapterAnnotations: {
+          ...book.chapterAnnotations,
+          [input.chapterId]: annotations
         }
       };
       books[index] = updated;

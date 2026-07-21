@@ -18,17 +18,28 @@ import type {
   SendChatMessageInput
 } from "../shared/chat-contracts";
 import type {
+  Annotation,
   BookView,
   ChapterContent,
   LibraryBook,
   LibraryDesktopApi,
   ReadingRange
 } from "../shared/library-contracts";
+import type {
+  AppSettings,
+  ExplanationLanguage,
+  SettingsDesktopApi
+} from "../shared/settings-contracts";
 import {
   advanceReadingRange,
+  annotatedReadingSegment,
+  annotationRangeFromSelection,
+  annotationRevision,
   extractReadingSegment,
+  hasAnnotationOverlap,
   initialReadingRange,
   markerTopForTextOffset,
+  renderAnnotationHighlights,
   textOffsetAtPoint
 } from "./reading-range";
 
@@ -68,12 +79,14 @@ const initialChatSnapshot: ChatSnapshot = {
 
 function desktopBridge(): {
   library?: LibraryDesktopApi;
+  settings?: SettingsDesktopApi;
   chat?: ChatDesktopApi;
 } | undefined {
   return (
     window as unknown as {
       readerDesktop?: {
         library?: LibraryDesktopApi;
+        settings?: SettingsDesktopApi;
         chat?: ChatDesktopApi;
       };
     }
@@ -86,6 +99,10 @@ function desktopLibrary(): LibraryDesktopApi | undefined {
 
 function desktopChat(): ChatDesktopApi | undefined {
   return desktopBridge()?.chat;
+}
+
+function desktopSettings(): SettingsDesktopApi | undefined {
+  return desktopBridge()?.settings;
 }
 
 function connectionLabel(phase: ConnectionPhase) {
@@ -163,10 +180,14 @@ export function App() {
   const [isLoadingChapter, setIsLoadingChapter] = useState(false);
   const [chapterError, setChapterError] = useState("");
   const [readingRange, setReadingRange] = useState<ReadingRange>();
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [isAnnotationMode, setIsAnnotationMode] = useState(false);
   const [rangeMenu, setRangeMenu] = useState<{
     x: number;
     y: number;
     offset: number;
+    selection?: { start: number; end: number; text: string };
+    annotationId?: string;
   }>();
   const [markerTops, setMarkerTops] = useState({ start: 0, end: 0 });
   const [draft, setDraft] = useState("");
@@ -175,18 +196,23 @@ export function App() {
   const [chatView, setChatView] = useState<"conversation" | "history">(
     "conversation"
   );
-  const [conversationPendingRemoval, setConversationPendingRemoval] =
-    useState<ChatConversationSummary>();
   const [isConversationActionPending, setIsConversationActionPending] =
     useState(false);
   const [isModelActionPending, setIsModelActionPending] = useState(false);
   const [isStopPending, setIsStopPending] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>({
+    explanationLanguage: "source"
+  });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsSaving, setIsSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState("");
   const workspaceRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
   const initializedRangeRef = useRef<string | undefined>(undefined);
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
+  const annotationCounterRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const chapterStartRef = useRef<{
     bookId: string;
@@ -283,6 +309,22 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const api = desktopSettings();
+    if (!api) return;
+    let active = true;
+    void api.get()
+      .then((stored) => {
+        if (active) setSettings(stored);
+      })
+      .catch(() => {
+        if (active) setSettingsError("無法讀取設定，已使用原文語言。");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const library = desktopLibrary();
     if (mode !== "reader" || !selectedBookId || !activeChapterId || !library) {
       setChapterContent(undefined);
@@ -293,6 +335,8 @@ export function App() {
     let cancelled = false;
     setChapterContent(undefined);
     setReadingRange(undefined);
+    setAnnotations([]);
+    setIsAnnotationMode(false);
     setRangeMenu(undefined);
     setChapterError("");
     setIsLoadingChapter(true);
@@ -313,6 +357,13 @@ export function App() {
       cancelled = true;
     };
   }, [mode, selectedBookId, activeChapterId]);
+
+  useEffect(() => {
+    if (!chapterContent || !selectedBook) return;
+    setAnnotations(
+      selectedBook.chapterAnnotations?.[chapterContent.chapterId] ?? []
+    );
+  }, [chapterContent, selectedBook]);
 
   useEffect(() => {
     const article = articleRef.current;
@@ -344,6 +395,27 @@ export function App() {
   useEffect(() => {
     const article = articleRef.current;
     if (!article || !chapterContent) return;
+    renderAnnotationHighlights(article, annotations);
+  }, [chapterContent, annotations]);
+
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article || !chapterContent || !isAnnotationMode) return;
+    const handleMouseUp = () => {
+      const selected = annotationRangeFromSelection(
+        article,
+        article.ownerDocument.getSelection()
+      );
+      if (!selected || hasAnnotationOverlap(annotations, selected)) return;
+      createAnnotation(selected);
+    };
+    article.addEventListener("mouseup", handleMouseUp);
+    return () => article.removeEventListener("mouseup", handleMouseUp);
+  }, [chapterContent, isAnnotationMode, annotations]);
+
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article || !chapterContent) return;
     const handleContextMenu = (event: MouseEvent) => {
       const offset = textOffsetAtPoint(
         article,
@@ -353,11 +425,25 @@ export function App() {
       );
       if (offset === null) return;
       event.preventDefault();
-      setRangeMenu({ x: event.clientX, y: event.clientY, offset });
+      const target = event.target instanceof Element ? event.target : null;
+      const annotationId = target
+        ?.closest<HTMLElement>("[data-annotation-id]")
+        ?.dataset.annotationId;
+      const selection = annotationRangeFromSelection(
+        article,
+        article.ownerDocument.getSelection()
+      );
+      setRangeMenu({
+        x: event.clientX,
+        y: event.clientY,
+        offset,
+        ...(selection ? { selection } : {}),
+        ...(annotationId ? { annotationId } : {})
+      });
     };
     article.addEventListener("contextmenu", handleContextMenu);
     return () => article.removeEventListener("contextmenu", handleContextMenu);
-  }, [chapterContent]);
+  }, [chapterContent, annotations]);
 
   useEffect(() => {
     if (!rangeMenu) return;
@@ -550,6 +636,81 @@ export function App() {
     }).catch(() => {
       setLibraryError("無法保存閱讀區段；本次調整仍可暫時使用。");
     });
+  }
+
+  function persistAnnotations(next: Annotation[]) {
+    const book = selectedBook;
+    const chapterId = chapterContent?.chapterId ?? activeChapterId;
+    if (!book || !chapterId) return;
+    setAnnotations(next);
+    setBooks((current) => current.map((candidate) =>
+      candidate.id === book.id
+        ? {
+            ...candidate,
+            chapterAnnotations: {
+              ...candidate.chapterAnnotations,
+              [chapterId]: next
+            }
+          }
+        : candidate
+    ));
+    void desktopLibrary()?.saveAnnotations({
+      bookId: book.id,
+      chapterId,
+      annotations: next
+    }).then((savedBook) => {
+      setBooks((current) => current.map((candidate) =>
+        candidate.id === savedBook.id
+          ? {
+              ...candidate,
+              chapterAnnotations:
+                savedBook.chapterAnnotations ?? candidate.chapterAnnotations
+            }
+          : candidate
+      ));
+    }).catch(() => {
+      setLibraryError("無法保存標記；本次標記仍可暫時使用。");
+    });
+  }
+
+  function createAnnotation(selected: { start: number; end: number; text: string }) {
+    if (hasAnnotationOverlap(annotations, selected)) {
+      setRangeMenu(undefined);
+      return;
+    }
+    annotationCounterRef.current += 1;
+    persistAnnotations([
+      ...annotations,
+      {
+        id: `annotation-${Date.now()}-${annotationCounterRef.current}`,
+        ...selected
+      }
+    ].sort((left, right) => left.start - right.start || left.end - right.end));
+    articleRef.current?.ownerDocument.getSelection()?.removeAllRanges();
+    setRangeMenu(undefined);
+  }
+
+  function removeAnnotation(annotationId: string) {
+    persistAnnotations(annotations.filter(
+      (annotation) => annotation.id !== annotationId
+    ));
+    setRangeMenu(undefined);
+  }
+
+  async function saveExplanationLanguage(value: ExplanationLanguage) {
+    const api = desktopSettings();
+    setIsSettingsSaving(true);
+    setSettingsError("");
+    try {
+      const saved = api
+        ? await api.save({ explanationLanguage: value })
+        : { explanationLanguage: value };
+      setSettings(saved);
+    } catch {
+      setSettingsError("無法保存講解語言，請再試一次。");
+    } finally {
+      setIsSettingsSaving(false);
+    }
   }
 
   function rangeWithOffset(
@@ -770,27 +931,35 @@ export function App() {
     }
   }
 
-  async function sendMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const text = draft.trim();
+  async function sendChatMessage(
+    text: string,
+    extras: Pick<
+      SendChatMessageInput,
+      "intent" | "explanationLanguage"
+    > = {}
+  ) {
     const chat = desktopChat();
     if (!text || !chat || chatSnapshot.connection !== "ready" ||
       chatSnapshot.activeTurnId || chatSnapshot.managementBusy) return;
 
+    const chapterText = articleRef.current?.textContent ?? "";
     const segment = mode === "reader" && readingRange && articleRef.current
-      ? extractReadingSegment(articleRef.current.textContent ?? "", readingRange)
+      ? annotatedReadingSegment(chapterText, readingRange, annotations)
       : "";
     const readingSegmentKey = segment && selectedBook && activeChapter && readingRange
       ? JSON.stringify([
           selectedBook.id,
           activeChapter.id,
           readingRange.start,
-          readingRange.end
+          readingRange.end,
+          annotationRevision(annotations),
+          segment
         ])
       : undefined;
     const shouldProvideReadingSegment = Boolean(
       readingSegmentKey &&
-      readingSegmentKey !== lastProvidedReadingSegmentRef.current
+      (extras.intent === "explainAnnotations" ||
+        readingSegmentKey !== lastProvidedReadingSegmentRef.current)
     );
     const context = segment
       ? (shouldProvideReadingSegment
@@ -808,9 +977,9 @@ export function App() {
         };
     const input: SendChatMessageInput = {
       text,
+      ...extras,
       ...(Object.keys(context).length ? { context } : {})
     };
-    setDraft("");
     setChatError("");
     try {
       const snapshot = await chat.sendMessage(input);
@@ -821,6 +990,21 @@ export function App() {
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "無法送出訊息。");
     }
+  }
+
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = draft.trim();
+    if (!text) return;
+    setDraft("");
+    await sendChatMessage(text);
+  }
+
+  async function explainAnnotations() {
+    await sendChatMessage("講解標記內容", {
+      intent: "explainAnnotations",
+      explanationLanguage: settings.explanationLanguage
+    });
   }
 
   async function startNewConversation() {
@@ -859,16 +1043,14 @@ export function App() {
     }
   }
 
-  async function removeConversation() {
-    const target = conversationPendingRemoval;
+  async function removeConversation(target: ChatConversationSummary) {
     const chat = desktopChat();
-    if (!target || !chat || chatSnapshot.activeTurnId ||
+    if (!chat || chatSnapshot.activeTurnId ||
       chatSnapshot.managementBusy || isConversationActionPending) return;
     setIsConversationActionPending(true);
     setChatError("");
     try {
       setChatSnapshot(await chat.removeConversation(target.id));
-      setConversationPendingRemoval(undefined);
       if (target.id === chatSnapshot.activeConversationId) {
         setChatView("conversation");
         setDraft("");
@@ -1007,7 +1189,11 @@ export function App() {
                   </button>
                 </nav>
 
-                <button className="settings-button" type="button">
+                <button
+                  className="settings-button"
+                  type="button"
+                  onClick={() => setIsSettingsOpen(true)}
+                >
                   <span aria-hidden="true">⚙</span>
                   設定
                 </button>
@@ -1211,6 +1397,28 @@ export function App() {
                 </div>
               ) : chapterContent ? (
                 <div className="reading-range-workspace">
+                  <div className="annotation-tool-dock">
+                    <button
+                      className={`annotation-tool${isAnnotationMode ? " active" : ""}`}
+                      type="button"
+                      aria-label={`${isAnnotationMode
+                        ? "關閉標記模式"
+                        : "開啟標記模式"}，目前章節 ${annotations.length} 個標記`}
+                      aria-pressed={isAnnotationMode}
+                      onClick={() => setIsAnnotationMode((active) => !active)}
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="m14.5 4.5 5 5-8.75 8.75-5.75.75.75-5.75L14.5 4.5Z" />
+                        <path d="m12.75 6.25 5 5M5 19l-1.5 1.5H13" />
+                      </svg>
+                      <span className="annotation-tool-label" aria-hidden="true">
+                        {isAnnotationMode ? "標記中" : "標記"}
+                      </span>
+                      <span className="annotation-tool-count" aria-hidden="true">
+                        {annotations.length}
+                      </span>
+                    </button>
+                  </div>
                   <div className="reading-range-shell">
                     {readingRange ? (
                       <div className="reading-range-markers" aria-label="AI 可讀範圍">
@@ -1258,13 +1466,15 @@ export function App() {
                   </div>
                   <div className="reading-range-actions">
                     <span>AI 只會讀取兩個書籤之間的內容</span>
-                    <button
-                      type="button"
-                      onClick={advanceToNextReadingRange}
-                      disabled={!readingRange || readingRange.end >= (articleRef.current?.textContent?.length ?? 0)}
-                    >
-                      完成這段，前往下一段
-                    </button>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={advanceToNextReadingRange}
+                        disabled={!readingRange || readingRange.end >= (articleRef.current?.textContent?.length ?? 0)}
+                      >
+                        完成這段，前往下一段
+                      </button>
+                    </div>
                   </div>
                   {rangeMenu ? (
                     <div
@@ -1287,6 +1497,24 @@ export function App() {
                       >
                         將終點移到這裡
                       </button>
+                      {rangeMenu.selection ? (
+                        <button
+                          role="menuitem"
+                          type="button"
+                          onClick={() => createAnnotation(rangeMenu.selection!)}
+                        >
+                          標記所選內容
+                        </button>
+                      ) : null}
+                      {rangeMenu.annotationId ? (
+                        <button
+                          role="menuitem"
+                          type="button"
+                          onClick={() => removeAnnotation(rangeMenu.annotationId!)}
+                        >
+                          移除標記
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -1383,6 +1611,19 @@ export function App() {
                 </button>
               </div>
 
+              {mode === "reader" ? (
+                <button
+                  className="annotation-analysis-preset"
+                  type="button"
+                  onClick={() => void explainAnnotations()}
+                  disabled={chatSnapshot.connection !== "ready" ||
+                    Boolean(chatSnapshot.activeTurnId) ||
+                    chatSnapshot.managementBusy || isConversationActionPending}
+                >
+                  講解標記內容
+                </button>
+              ) : null}
+
               {chatView === "history" ? (
                 <section className="conversation-history" aria-labelledby="conversation-history-title">
                   <div className="conversation-history-heading">
@@ -1427,7 +1668,7 @@ export function App() {
                               type="button"
                               aria-label={`移除 ${conversation.title}`}
                               title="移除對話"
-                              onClick={() => setConversationPendingRemoval(conversation)}
+                              onClick={() => void removeConversation(conversation)}
                               disabled={isConversationActionPending}
                             >
                               ×
@@ -1591,42 +1832,48 @@ export function App() {
         </div>
       ) : null}
 
-      {conversationPendingRemoval ? (
+      {isSettingsOpen ? (
         <div className="dialog-backdrop">
           <section
-            className="delete-dialog"
+            className="settings-dialog"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="remove-conversation-dialog-title"
+            aria-label="設定"
           >
-            <span className="delete-dialog-icon" aria-hidden="true">!</span>
-            <h2 id="remove-conversation-dialog-title">移除 AI 對話？</h2>
-            <p>
-              「{conversationPendingRemoval.title}」將從全域對話清單移除。
-              第一版不提供復原功能。
-            </p>
-            <div className="delete-dialog-actions">
+            <div className="settings-dialog-heading">
+              <div>
+                <span className="eyebrow">Settings</span>
+                <h2>設定</h2>
+              </div>
               <button
                 type="button"
-                onClick={() => setConversationPendingRemoval(undefined)}
-                disabled={isConversationActionPending}
-                aria-label="取消移除"
+                aria-label="關閉設定"
+                onClick={() => setIsSettingsOpen(false)}
               >
-                取消
-              </button>
-              <button
-                className="danger-action"
-                type="button"
-                onClick={() => void removeConversation()}
-                disabled={isConversationActionPending}
-                aria-label="確認移除"
-              >
-                {isConversationActionPending ? "移除中…" : "移除"}
+                ×
               </button>
             </div>
+            <label htmlFor="explanation-language">講解語言</label>
+            <select
+              id="explanation-language"
+              aria-label="講解語言"
+              value={settings.explanationLanguage}
+              disabled={isSettingsSaving}
+              onChange={(event) => void saveExplanationLanguage(
+                event.target.value as ExplanationLanguage
+              )}
+            >
+              <option value="source">原文語言（預設）</option>
+              <option value="zh-TW">繁體中文</option>
+              <option value="en">English</option>
+              <option value="ja">日本語</option>
+            </select>
+            <p>只影響之後的「講解標記內容」，不改變一般問答或既有回覆。</p>
+            {settingsError ? <small role="alert">{settingsError}</small> : null}
           </section>
         </div>
       ) : null}
+
     </div>
   );
 }

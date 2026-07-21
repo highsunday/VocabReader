@@ -699,6 +699,65 @@ button {
   opacity: 0.55;
 }
 
+.settings-dialog {
+  width: min(430px, 100%);
+  padding: 26px;
+  border: 1px solid #cfc8ba;
+  border-radius: 18px;
+  color: #30372f;
+  background: #fffdf8;
+  box-shadow: 0 24px 70px rgb(31 28 24 / 28%);
+}
+
+.settings-dialog-heading {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.settings-dialog-heading h2 {
+  margin-top: 5px;
+  font-size: 26px;
+}
+
+.settings-dialog-heading button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d8d2c7;
+  border-radius: 50%;
+  background: #f7f4ed;
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.settings-dialog > label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 800;
+}
+
+.settings-dialog > select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #bfc6bc;
+  border-radius: 9px;
+  color: #2f3a31;
+  background: #fff;
+}
+
+.settings-dialog > p {
+  margin-top: 12px;
+  color: #6d746d;
+  line-height: 1.55;
+}
+
+.settings-dialog > small {
+  display: block;
+  margin-top: 12px;
+  color: #a04534;
+}
+
 .chapter-list {
   margin-top: 34px;
 }
@@ -929,6 +988,120 @@ button {
   position: relative;
 }
 
+.annotation-tool-dock {
+  position: sticky;
+  z-index: 4;
+  top: 72px;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.annotation-tool {
+  position: relative;
+  min-width: 84px;
+  height: 40px;
+  margin: 10px 10px 0 0;
+  padding: 6px 13px 6px 10px;
+  border: 1px solid #d8ddd5;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #526158;
+  background: #faf9f5;
+  box-shadow: 0 4px 14px rgb(58 51 40 / 8%);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: border-color 160ms ease, color 160ms ease,
+    background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.annotation-tool:hover {
+  border-color: #c8d0c8;
+  color: #46554b;
+  box-shadow: 0 6px 18px rgb(58 51 40 / 10%);
+  transform: translateY(-2px);
+}
+
+.annotation-tool:active {
+  box-shadow: 0 3px 10px rgb(58 51 40 / 10%);
+  transform: translateY(0) scale(0.97);
+}
+
+.annotation-tool:focus-visible {
+  outline: 3px solid rgb(99 122 106 / 20%);
+  outline-offset: 3px;
+}
+
+.annotation-tool.active {
+  border-color: #ded1a4;
+  color: #6e5b28;
+  background: #f6edcf;
+  box-shadow:
+    0 0 0 2px rgb(216 197 129 / 10%),
+    0 5px 15px rgb(117 83 24 / 8%);
+}
+
+.annotation-tool svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.annotation-tool-label {
+  min-width: 32px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 780;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.annotation-tool-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 2px solid #fffdf8;
+  border-radius: 9px;
+  display: inline-grid;
+  place-items: center;
+  color: #526158;
+  background: #e2e8e1;
+  box-shadow: 0 2px 5px rgb(42 53 44 / 12%);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.annotation-tool.active .annotation-tool-count {
+  color: #6e5b28;
+  background: #eadca9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .annotation-tool {
+    transition: none;
+  }
+
+  .annotation-tool:hover,
+  .annotation-tool:active {
+    transform: none;
+  }
+}
+
 .reading-range-shell {
   position: relative;
   padding-left: 38px;
@@ -1119,6 +1292,12 @@ button {
   cursor: default;
 }
 
+.reading-range-actions > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .reading-range-menu {
   position: fixed;
   z-index: 20;
@@ -1163,6 +1342,15 @@ button {
   line-height: 1.9;
   overflow-wrap: anywhere;
   box-shadow: 0 18px 50px rgb(72 60 42 / 8%);
+}
+
+.chapter-content .reader-annotation-highlight {
+  padding: 0 1px;
+  border-radius: 3px;
+  color: inherit;
+  background: linear-gradient(transparent 52%, #f4d777 52%);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .chapter-content h1,
@@ -1436,6 +1624,27 @@ h1 {
 .chat-management-bar button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.annotation-analysis-preset {
+  margin: 10px 14px 0;
+  padding: 10px 12px;
+  border: 1px solid #b9c8bb;
+  border-radius: 10px;
+  color: #294633;
+  background: #edf4eb;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.annotation-analysis-preset:hover:not(:disabled) {
+  border-color: #819b85;
+  background: #e3eee1;
+}
+
+.annotation-analysis-preset:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .assistant-heading {

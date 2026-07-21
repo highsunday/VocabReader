@@ -7,6 +7,8 @@ import { registerChatIpc } from "./chat-ipc";
 import { SpawnedCodexAppServerClient } from "./codex-app-server-client";
 import { registerLibraryIpc } from "./library-ipc";
 import { LocalBookLibrary } from "./library-service";
+import { registerSettingsIpc } from "./settings-ipc";
+import { LocalSettingsStore } from "./settings-store";
 
 let chatController: ChatController | undefined;
 let unsubscribeChatState: (() => void) | undefined;
@@ -51,6 +53,10 @@ app.whenReady().then(() => {
       ? join(app.getPath("temp"), `lingoshelf-library-test-${process.pid}`)
       : join(app.getPath("userData"), "library");
   registerLibraryIpc(ipcMain, dialog, new LocalBookLibrary(libraryPath));
+  const settingsPath = process.env.NODE_ENV === "test"
+    ? join(app.getPath("temp"), `lingoshelf-settings-test-${process.pid}`)
+    : join(app.getPath("userData"), "settings");
+  registerSettingsIpc(ipcMain, new LocalSettingsStore(settingsPath));
   const runtimePath = join(app.getPath("userData"), "codex-runtime");
   const conversationPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-chat-test-${process.pid}`)

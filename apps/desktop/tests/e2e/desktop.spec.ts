@@ -24,6 +24,76 @@ test("launches the secure Electron reading shell", async () => {
     await expect(page.getByRole("button", { name: "設定" })).toBeVisible();
     await expect(page.getByLabel("Codex 狀態")).toBeVisible();
 
+    const annotationToolVisual = await page.evaluate(() => {
+      const content = document.querySelector<HTMLElement>(".content");
+      if (!content) throw new Error("center content is unavailable");
+      const dock = document.createElement("div");
+      dock.className = "annotation-tool-dock";
+      dock.dataset.testid = "annotation-tool-style-probe";
+      const button = document.createElement("button");
+      button.className = "annotation-tool";
+      const label = document.createElement("span");
+      label.className = "annotation-tool-label";
+      label.textContent = "標記";
+      const count = document.createElement("span");
+      count.className = "annotation-tool-count";
+      count.textContent = "12";
+      button.append(label, count);
+      dock.append(button);
+      content.append(dock);
+      const dockStyle = getComputedStyle(dock);
+      const buttonStyle = getComputedStyle(button);
+      const countStyle = getComputedStyle(count);
+      const backgroundImage = buttonStyle.backgroundImage;
+      const backgroundColor = buttonStyle.backgroundColor;
+      const countBackgroundColor = countStyle.backgroundColor;
+      button.style.transition = "none";
+      button.classList.add("active");
+      const activeButtonStyle = getComputedStyle(button);
+      const activeCountStyle = getComputedStyle(count);
+      return {
+        position: dockStyle.position,
+        top: dockStyle.top,
+        minWidth: buttonStyle.minWidth,
+        height: buttonStyle.height,
+        borderRadius: buttonStyle.borderRadius,
+        countPosition: countStyle.position,
+        countTop: countStyle.top,
+        countRight: countStyle.right,
+        countText: count.textContent,
+        backgroundImage,
+        backgroundColor,
+        countBackgroundColor,
+        activeBackgroundImage: activeButtonStyle.backgroundImage,
+        activeBackgroundColor: activeButtonStyle.backgroundColor,
+        activeCountBackgroundColor: activeCountStyle.backgroundColor
+      };
+    });
+    expect(annotationToolVisual).toEqual({
+      position: "sticky",
+      top: "72px",
+      minWidth: "84px",
+      height: "40px",
+      borderRadius: "999px",
+      countPosition: "absolute",
+      countTop: "-6px",
+      countRight: "-6px",
+      countText: "12",
+      backgroundImage: "none",
+      backgroundColor: "rgb(250, 249, 245)",
+      countBackgroundColor: "rgb(226, 232, 225)",
+      activeBackgroundImage: "none",
+      activeBackgroundColor: "rgb(246, 237, 207)",
+      activeCountBackgroundColor: "rgb(234, 220, 169)"
+    });
+    const annotationProbe = page.getByTestId("annotation-tool-style-probe");
+    await expect(annotationProbe.locator("[role=tooltip]")).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect.poll(() => annotationProbe.locator("button").evaluate(
+      (element) => getComputedStyle(element).transitionDuration
+    )).toBe("0s");
+    await annotationProbe.evaluate((element) => element.remove());
+
     const assistantPanel = page.getByLabel("AI 助教");
     const resizeHandle = page.getByRole("separator", {
       name: "調整 AI 對話面板寬度"
@@ -45,16 +115,22 @@ test("launches the secure Electron reading shell", async () => {
     await expect.poll(async () => (await assistantPanel.boundingBox())?.width)
       .toBeGreaterThan(initialAssistantBox.width + 80);
 
-    const resizedAssistantBox = await assistantPanel.boundingBox();
-    if (!resizedAssistantBox) throw new Error("resized AI panel bounds are unavailable");
+    const resizedAssistantWidth = await page.locator(".workspace").evaluate(
+      (element) => Number.parseFloat(
+        getComputedStyle(element).getPropertyValue("--right-sidebar-width")
+      )
+    );
     await page.getByRole("button", { name: "摺疊右側欄" }).click();
     await expect(resizeHandle).not.toBeAttached();
     await page.getByRole("button", { name: "展開右側欄" }).click();
     await expect(page.getByRole("separator", {
       name: "調整 AI 對話面板寬度"
     })).toBeVisible();
-    await expect.poll(async () => (await assistantPanel.boundingBox())?.width)
-      .toBeCloseTo(resizedAssistantBox.width, 0);
+    await expect.poll(async () => page.locator(".workspace").evaluate(
+      (element) => Number.parseFloat(
+        getComputedStyle(element).getPropertyValue("--right-sidebar-width")
+      )
+    )).toBeCloseTo(resizedAssistantWidth, 0);
 
     const security = await page.evaluate(() => {
       const desktop = (
@@ -67,6 +143,11 @@ test("launches the secure Electron reading shell", async () => {
               getChapterContent: unknown;
               saveReadingState: unknown;
               saveReadingRange: unknown;
+              saveAnnotations: unknown;
+            };
+            settings: {
+              get: unknown;
+              save: unknown;
             };
             chat: {
               getState: unknown;
@@ -90,6 +171,10 @@ test("launches the secure Electron reading shell", async () => {
         hasChapterReader: typeof desktop?.library.getChapterContent,
         hasReadingStateSave: typeof desktop?.library.saveReadingState,
         hasReadingRangeSave: typeof desktop?.library.saveReadingRange,
+        hasAnnotationSave: typeof desktop?.library.saveAnnotations,
+        hasSettingsGet: typeof desktop?.settings.get,
+        hasSettingsSave: typeof desktop?.settings.save,
+        settingsKeys: Object.keys(desktop?.settings ?? {}).sort(),
         hasChatState: typeof desktop?.chat.getState,
         hasChatConnect: typeof desktop?.chat.connect,
         hasChatSend: typeof desktop?.chat.sendMessage,
@@ -111,6 +196,10 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasChapterReader).toBe("function");
     expect(security.hasReadingStateSave).toBe("function");
     expect(security.hasReadingRangeSave).toBe("function");
+    expect(security.hasAnnotationSave).toBe("function");
+    expect(security.hasSettingsGet).toBe("function");
+    expect(security.hasSettingsSave).toBe("function");
+    expect(security.settingsKeys).toEqual(["get", "save"]);
     expect(security.hasChatState).toBe("function");
     expect(security.hasChatConnect).toBe("function");
     expect(security.hasChatSend).toBe("function");
@@ -132,6 +221,18 @@ test("launches the secure Electron reading shell", async () => {
       "sendMessage"
     ].sort());
     expect(security.hasNodeRequire).toBe("undefined");
+
+    await page.getByRole("button", { name: "設定" }).click();
+    const language = page.getByLabel("講解語言");
+    await expect(language.locator("option")).toHaveText([
+      "原文語言（預設）",
+      "繁體中文",
+      "English",
+      "日本語"
+    ]);
+    await language.selectOption("ja");
+    await expect(language).toHaveValue("ja");
+    await page.getByRole("button", { name: "關閉設定" }).click();
 
     const dataImageLoads = await page.evaluate(async () => {
       const image = new Image();

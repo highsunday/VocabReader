@@ -403,6 +403,71 @@ describe("LocalBookLibrary", () => {
     });
   });
 
+  it("persists independent annotations for each chapter and supports removal", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "annotations.epub");
+    const libraryPath = join(root, "library");
+    await createEpub3(epubPath);
+    const library = new LocalBookLibrary(libraryPath);
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    const [first, second] = imported.book.chapters;
+    const firstAnnotation = { id: "a1", start: 0, end: 7, text: "Chapter" };
+    const secondAnnotation = { id: "a2", start: 8, end: 11, text: "two" };
+
+    await library.saveAnnotations({
+      bookId: imported.book.id,
+      chapterId: first.id,
+      annotations: [firstAnnotation]
+    });
+    await library.saveAnnotations({
+      bookId: imported.book.id,
+      chapterId: second.id,
+      annotations: [secondAnnotation]
+    });
+    const [reloaded] = await new LocalBookLibrary(libraryPath).listBooks();
+
+    expect(reloaded.chapterAnnotations).toEqual({
+      [first.id]: [firstAnnotation],
+      [second.id]: [secondAnnotation]
+    });
+
+    await library.saveAnnotations({
+      bookId: imported.book.id,
+      chapterId: first.id,
+      annotations: []
+    });
+    expect((await library.listBooks())[0].chapterAnnotations).toEqual({
+      [first.id]: [],
+      [second.id]: [secondAnnotation]
+    });
+  });
+
+  it("normalizes missing annotation data and silently ignores overlaps", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "annotation-overlap.epub");
+    const libraryPath = join(root, "library");
+    await createEpub3(epubPath);
+    const library = new LocalBookLibrary(libraryPath);
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    const chapterId = imported.book.chapters[0].id;
+
+    expect(imported.book.chapterAnnotations).toEqual({});
+    const saved = await library.saveAnnotations({
+      bookId: imported.book.id,
+      chapterId,
+      annotations: [
+        { id: "a1", start: 0, end: 7, text: "Chapter" },
+        { id: "a2", start: 5, end: 11, text: "er one" }
+      ]
+    });
+
+    expect(saved.chapterAnnotations).toEqual({});
+    expect((await new LocalBookLibrary(libraryPath).listBooks())[0]
+      .chapterAnnotations).toEqual({});
+  });
+
   it("rejects invalid or unknown chapter reading ranges without changing the book", async () => {
     const root = await createTemporaryDirectory();
     const epubPath = join(root, "invalid-range.epub");

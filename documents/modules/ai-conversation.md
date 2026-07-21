@@ -11,6 +11,7 @@ related_implements:
   - F10-ai-conversation-management
   - F11-improve-ai-conversation-composer
   - F12-resizable-ai-conversation-panel
+  - F13-persistent-annotations-and-ai-analysis
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -35,10 +36,13 @@ related_implements:
 - 分頁讀取 `model/list` 的可見模型，以 server default 作為初始選擇；目錄失敗時仍可使用 Codex 預設模型對話。
 - 使用者可在 AI 未回覆時切換模型；新 thread 與後續 turn 都使用目前模型及該模型的預設推理強度。
 - 空白新對話送出第一個問題後才建立產品對話與 Codex thread；後續追問在相同 thread 建立新 turn。
-- 右側面板可開啟跨書籍共用的全域對話清單、建立新對話、切換過去對話及確認移除。
+- 右側面板可開啟跨書籍共用的全域對話清單、建立新對話、切換過去對話及直接移除；移除時不顯示確認視窗。
 - 每筆對話保存產品對話 id、Codex thread id、標題、時間、來源摘要及顯示訊息；重啟恢復上次查看的對話。
 - 延續過去對話時使用 `thread/resume` 恢復相同 thread；移除時使用 `thread/archive`，本機保存失敗會嘗試 `thread/unarchive` 回滾。
 - 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
+- START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」每次都附上當下區段。
+- 預設解析意圖由 Main process 組成可信任規則，自動依單字、片語、句子分組；一般輸入仍是正常多輪問答。
+- 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；只影響後續標記解析。
 - assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy。
 - 同一 thread 不允許並行 turn，包含第一次 thread 尚在建立的時間窗。
 - 回覆中可使用 `turn/interrupt` 停止目前 turn；若 thread／turn 尚在建立，會先等待真實識別碼再中斷。
@@ -48,7 +52,7 @@ related_implements:
 - 左側窄欄狀態卡顯示 Codex、右上角連線標籤與上下排列的五小時／每週額度；不顯示信箱或含帳戶資料的「已連線」明細。
 - AI 回覆中狀態位於對話訊息流底部；提問框固定呈現「輸入你的疑問」與 Enter／Shift+Enter 提示，並避免輸入法組字期間 Enter 誤送。
 - AI 對話面板左邊界可用滑鼠拖曳或方向鍵調整寬度；展開寬度限制於 280–640px 並保護中央閱讀區，摺疊後展開會恢復本次工作階段的調整寬度。
-- 「設定」仍是無副作用的空按鈕；模型選擇直接位於 AI 對話提問框，不提供推理強度設定。
+- 「設定」提供講解語言選擇；模型選擇仍直接位於 AI 對話提問框，不提供推理強度設定。
 
 ## 3. Module Boundary
 
@@ -98,7 +102,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 
 - 訂閱並呈現 `ChatSnapshot`，不自行模擬已連線、帳戶或額度資料。
 - 從目前模式、選取書籍、章節與 `extractReadingSegment()` 組裝 `SendChatMessageInput`。
-- 以 `bookId + chapterId + start + end` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
+- 以 `bookId + chapterId + start + end + annotation revision` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
+- 將一般訊息與型別化 `explainAnnotations` 意圖分開；前者不要求分類，後者每次提供當下區段與講解語言。
 - 空閱讀區段只送出一般問題，不使用整章 fallback。
 - 顯示處理中、需要登入、連線失敗與額度不可用狀態。
 - 在提問框呈現模型選擇、鍵盤操作提示與停止按鈕；回覆中狀態顯示於訊息流，IME composition Enter 不觸發送出。
@@ -135,6 +140,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - `context.bookTitle`：可選，目前書籍名稱。
 - `context.chapterTitle`：可選，目前章節名稱。
 - `context.readingSegment`：可選，只能來自 `extractReadingSegment()` 的非空輸出。
+- `intent`：可選且目前只接受 `explainAnnotations`，由產品預設動作使用。
+- `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja`。
 
 ## 5. Connection and Allowance Flow
 
@@ -157,8 +164,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 ## 6. Conversation Flow
 
 1. Renderer 驗證 Codex ready、輸入非空且沒有 active turn。
-2. 閱讀模式以 `extractReadingSegment()` 取得目前非空區段，並以書籍、章節及 START／END 組成區段識別。
-3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時只送使用者問題。其他模式或空區段不附 EPUB 原文。
+2. 閱讀模式以 START／END 裁切目前非空區段，安全插入區段內標記，並以書籍、章節、邊界及標記 revision 組成區段識別。
+3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時，普通追問只送使用者問題。預設標記解析每次提供當下區段；其他模式或空區段不附 EPUB 原文。
 4. Controller 在任何 await 前先進入 starting，封鎖第二個並行 send 及對話管理操作。
 5. 空白新對話以固定的唯讀、無工具設定及目前選定模型建立 thread，再建立本機產品對話；過去對話則以 `thread/resume` 恢復既有 thread。
 6. Controller 保存畫面用的純使用者問題，另把本次實際收到的有限閱讀 context 組成 Codex input，並更新該對話的最近來源摘要。
@@ -190,6 +197,9 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/preload/preload.ts` | 暴露窄化的 `readerDesktop.chat` |
 | `apps/desktop/src/renderer/App.tsx` | AI 對話面板、閱讀區段 context 與左側狀態卡 |
 | `apps/desktop/src/renderer/styles.css` | 對話與窄欄狀態卡樣式 |
+| `apps/desktop/src/shared/settings-contracts.ts` | 講解語言與設定 bridge 型別 |
+| `apps/desktop/src/main/settings-store.ts` | 全域講解語言載入、降級與原子保存 |
+| `apps/desktop/src/main/settings-ipc.ts` | 講解語言 IPC 白名單與輸入驗證 |
 
 ## 9. Testing Notes
 
@@ -216,16 +226,17 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - 對話只保存在本機，不提供帳戶或跨裝置同步。
 - 模型選擇不為每筆 AI 對話個別保存，重新啟動時回到 Codex 模型目錄的 server default。
 - AI 對話面板的調整寬度只保留於目前工作階段，重新啟動後回到 360px。
-- 不提供推理強度或 API key 設定；「設定」按鈕目前無副作用。
+- 不提供推理強度或 API key 設定；設定視窗目前只包含講解語言。
 - 不提供內嵌 Codex／ChatGPT 登入或帳戶切換。
 - Markdown 程式碼區塊目前不提供語法高亮。
-- 尚未實作區段解析、標記說明、區段練習、生詞庫與 Anki 式複習的 AI 流程。
+- 尚未實作區段練習、生詞庫、AI 分類結構化保存與 Anki 式複習流程。
 - 本機 GUI 環境必須能找到已安裝的 `codex` 可執行檔。
 
 ## 11. Related Documents
 
 - `CONTEXT.md`
 - `documents/modules/reading-range.md`
+- `documents/modules/annotation.md`
 - `documents/implements/F05-ai-reading-range-markers.md`
 - `documents/implements/F07-codex-ai-conversation.md`
 - `documents/implements/F08-compact-markdown-chat-messages.md`
@@ -233,5 +244,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/F10-ai-conversation-management.md`
 - `documents/implements/F11-improve-ai-conversation-composer.md`
 - `documents/implements/F12-resizable-ai-conversation-panel.md`
+- `documents/implements/F13-persistent-annotations-and-ai-analysis.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

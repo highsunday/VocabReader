@@ -11,6 +11,7 @@ related_implements:
   - F05-ai-reading-range-markers
   - F06-reading-range-boundary-lines
   - F07-codex-ai-conversation
+  - F13-persistent-annotations-and-ai-analysis
   - B01-preserve-epub-chapter-hierarchy
   - B02-persist-range-marker-on-drag-release
 ---
@@ -48,6 +49,7 @@ related_implements:
 - 在閱讀介面返回書籍總覽或切換上一章。
 - 每本書保存最後所在畫面、章節與相對捲動位置，切換書籍或重新啟動後可恢復。
 - 每章保存唯一一對範圍標籤；閱讀頁可拖曳或從目前行功能選單調整，並以「完成這段，前往下一段」明確推進。
+- 每章保存不重疊的持久標記；舊索引沒有標記欄位時安全視為空集合。
 - 閱讀區段使用章內文字 offset 定位，不依賴頁碼、像素或捲動比例；版面重新換行後仍對應相同原文。
 - 封面以 Data URL 經安全 preload bridge 傳給 renderer。
 - 長章節清單只捲動中央內容，左右欄保持在視窗內。
@@ -62,7 +64,7 @@ related_implements:
 
 1. React renderer 顯示書庫與書籍總覽。
 2. Electron preload 提供受限 library API。
-3. Main process IPC 接收 library:list、library:import、library:delete、library:chapter、library:save-reading-state 與 library:save-reading-range。
+3. Main process IPC 接收 library:list、library:import、library:delete、library:chapter、library:save-reading-state、library:save-reading-range 與 library:save-annotations。
 4. LocalBookLibrary 負責 EPUB 解析、去重、刪除、章節內容安全處理與狀態持久化。
 5. 書籍資料保存到 Electron user data，再沿原路回傳 renderer。
 
@@ -75,7 +77,7 @@ related_implements:
 ### Preload bridge
 
 - 使用 contextBridge 暴露唯讀的 readerDesktop.library API。
-- 僅提供 listBooks()、importBook()、deleteBook()、getChapterContent()、saveReadingState() 與 saveReadingRange()。
+- 僅提供 listBooks()、importBook()、deleteBook()、getChapterContent()、saveReadingState()、saveReadingRange() 與 saveAnnotations()。
 - 不暴露 Node.js require、fs、ipcRenderer 或通用 IPC 呼叫。
 
 ### Renderer
@@ -115,6 +117,7 @@ related_implements:
 | lastChapterId | 上次閱讀章節；同時供舊索引相容與開始／繼續閱讀使用 |
 | readingState | 每本書的最後畫面（overview／reader）、章節識別碼與 0–1 相對捲動位置 |
 | chapterRanges | 以 chapterId 為鍵、保存該章唯一一對起點／終點文字 offset 的集合 |
+| chapterAnnotations | 以 chapterId 為鍵、保存該章不重疊 `Annotation[]` 的集合 |
 | chapters | 依 order 排列的章節集合 |
 
 正式恢復狀態以 `readingState` 為準；載入沒有此欄位的舊索引時，會從既有欄位建立相容預設。
@@ -220,7 +223,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - index.json 保存完整 LibraryBook[]，包含 Base64 封面與章節 metadata。
 - 索引更新先寫入 index.json.next，再以 rename 替換正式索引。
 - 閱讀狀態寫入在單一 LocalBookLibrary instance 內串行執行，以最後一筆操作為準。
-- 章內範圍標籤與閱讀狀態共用同一寫入佇列，並分別保存在 `chapterRanges` 與 `readingState`。
+- 章內範圍標籤、持久標記與閱讀狀態共用同一寫入佇列，並分別保存在 `chapterRanges`、`chapterAnnotations` 與 `readingState`。
 - 書籍刪除與閱讀狀態寫入共用同一佇列，避免刪除後又被較晚完成的狀態保存寫回索引。
 - 刪除先原子更新索引，再移除 books/<book-sha256>；目錄移除失敗時嘗試恢復原索引並回報失敗。
 - 新書導入時先建立內容雜湊目錄並複製 EPUB；後續步驟失敗時移除該書目錄。
@@ -252,6 +255,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - 閱讀位置使用 0–1 相對值並限制於有效範圍；不存在的書籍或章節不得改寫狀態。
 - 範圍標籤使用章內文字 offset；起終點必須是非負整數且起點不得大於終點，不存在的章節不得保存範圍。
 - 範圍標籤只能裁切目前章節，任何操作與自動推進都不得跨章。
+- 標記必須使用合法章內純文字 offset、包含非空原文且同章互不重疊；不存在的書籍或章節不得保存標記。
 - 快速連續的閱讀狀態寫入必須串行，最後一筆操作為最終狀態。
 - 刪除請求只接受索引中存在的 bookId；renderer 不得提供檔案路徑，刪除失敗時不得先從畫面移除書籍。
 
@@ -295,8 +299,10 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - documents/implements/F04-delete-library-book.md
 - documents/implements/F05-ai-reading-range-markers.md
 - documents/implements/F06-reading-range-boundary-lines.md
+- documents/implements/F13-persistent-annotations-and-ai-analysis.md
 - documents/implements/B01-preserve-epub-chapter-hierarchy.md
 - documents/implements/B02-persist-range-marker-on-drag-release.md
 - documents/modules/reading-range.md
+- documents/modules/annotation.md
 
 更新本模組行為、資料格式、IPC、儲存路徑或 EPUB 解析規則時，必須同步更新本文件與相關 FXX／RXX／BXX 實作紀錄。

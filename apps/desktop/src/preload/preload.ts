@@ -8,9 +8,14 @@ import type {
   ChapterContent,
   ImportBookResult,
   LibraryBook,
+  SaveAnnotationsInput,
   SaveReadingRangeInput,
   SaveReadingStateInput
 } from "../shared/library-contracts";
+import type {
+  AppSettings,
+  SettingsDesktopApi
+} from "../shared/settings-contracts";
 
 const desktopApi = Object.freeze({
   platform: process.platform,
@@ -33,8 +38,15 @@ const desktopApi = Object.freeze({
     saveReadingState: (input: SaveReadingStateInput): Promise<LibraryBook> =>
       ipcRenderer.invoke("library:save-reading-state", input),
     saveReadingRange: (input: SaveReadingRangeInput): Promise<LibraryBook> =>
-      ipcRenderer.invoke("library:save-reading-range", input)
+      ipcRenderer.invoke("library:save-reading-range", input),
+    saveAnnotations: (input: SaveAnnotationsInput): Promise<LibraryBook> =>
+      ipcRenderer.invoke("library:save-annotations", input)
   }),
+  settings: Object.freeze({
+    get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
+    save: (settings: AppSettings): Promise<AppSettings> =>
+      ipcRenderer.invoke("settings:save", settings)
+  } satisfies SettingsDesktopApi),
   chat: Object.freeze({
     getState: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:get-state"),
     connect: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:connect"),

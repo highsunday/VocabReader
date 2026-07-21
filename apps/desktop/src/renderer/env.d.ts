@@ -35,6 +35,22 @@ interface ReaderDesktopApi {
       chapterId: string;
       range: { start: number; end: number };
     }): Promise<DesktopLibraryBook>;
+    saveAnnotations(input: {
+      bookId: string;
+      chapterId: string;
+      annotations: Array<{
+        id: string;
+        start: number;
+        end: number;
+        text: string;
+      }>;
+    }): Promise<DesktopLibraryBook>;
+  };
+  settings: {
+    get(): Promise<{ explanationLanguage: "source" | "zh-TW" | "en" | "ja" }>;
+    save(settings: {
+      explanationLanguage: "source" | "zh-TW" | "en" | "ja";
+    }): Promise<{ explanationLanguage: "source" | "zh-TW" | "en" | "ja" }>;
   };
   chat: ChatDesktopApi;
 }
@@ -52,6 +68,12 @@ interface DesktopLibraryBook {
     scrollProgress: number;
   };
   chapterRanges?: Record<string, { start: number; end: number }>;
+  chapterAnnotations?: Record<string, Array<{
+    id: string;
+    start: number;
+    end: number;
+    text: string;
+  }>>;
   chapters: Array<{
     id: string;
     title: string;
