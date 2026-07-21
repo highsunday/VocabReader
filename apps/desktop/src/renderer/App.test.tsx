@@ -520,7 +520,10 @@ describe("App", () => {
     saveReadingRange.mockClear();
 
     fireEvent.contextMenu(second, { clientX: 120, clientY: 180 });
-    fireEvent.click(screen.getByRole("menuitem", { name: "將起點移到這裡" }));
+    const moveStart = screen.getByRole("menuitem", { name: "將起點移到這裡" });
+    fireEvent.pointerDown(moveStart);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.click(moveStart);
 
     await waitFor(() => expect(saveReadingRange).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -531,8 +534,8 @@ describe("App", () => {
     ));
   });
 
-  it("persists the last valid marker position immediately when a pointer drag is released in the gutter", async () => {
-    const { getChapterContent, saveReadingRange } = installLibraryApi();
+  it("closes the current line range menu when pressing outside it", async () => {
+    const { getChapterContent } = installLibraryApi();
     getChapterContent.mockResolvedValue({
       bookId: "book-one",
       chapterId: "one-1",
@@ -544,8 +547,32 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     const second = await screen.findByText("Second readable line.");
-    await waitFor(() => expect(saveReadingRange).toHaveBeenCalled());
-    saveReadingRange.mockClear();
+
+    fireEvent.contextMenu(second, { clientX: 120, clientY: 180 });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "返回總覽" }));
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("persists the last valid marker position immediately when a pointer drag is released in the gutter", async () => {
+    const rangedBooks: LibraryBook[] = [{
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: 41 } }
+    }];
+    const { getChapterContent, saveReadingRange } = installLibraryApi(rangedBooks);
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>First readable line.</p><p>Second readable line.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const second = await screen.findByText("Second readable line.");
     const originalElementFromPoint = document.elementFromPoint;
     const elementFromPoint = vi.fn().mockReturnValue(second);
     Object.defineProperty(document, "elementFromPoint", {
@@ -608,7 +635,7 @@ describe("App", () => {
     });
   });
 
-  it("rejects a current-line move that would cross the other marker", async () => {
+  it("moves end with start when a current-line start move crosses end", async () => {
     const rangedBooks: LibraryBook[] = [{
       ...books[0],
       chapterRanges: { "one-1": { start: 0, end: 10 } }
@@ -628,12 +655,15 @@ describe("App", () => {
 
     fireEvent.contextMenu(second);
     const moveStart = screen.getByRole("menuitem", { name: "將起點移到這裡" });
-    expect(moveStart).toBeDisabled();
+    expect(moveStart).toBeEnabled();
     fireEvent.click(moveStart);
-    expect(saveReadingRange).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(saveReadingRange).toHaveBeenCalledWith(
+      expect.objectContaining({ range: { start: 20, end: 20 } })
+    ));
   });
 
-  it("does not persist a pointer drag that would cross the other range marker", async () => {
+  it("moves end with start and persists when a start drag crosses end", async () => {
     const rangedBooks: LibraryBook[] = [{
       ...books[0],
       chapterRanges: { "one-1": { start: 0, end: 10 } }
@@ -661,12 +691,65 @@ describe("App", () => {
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 50, clientY: 100 });
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 50, clientY: 100 });
 
-    expect(saveReadingRange).not.toHaveBeenCalled();
-    expect(marker).toHaveAttribute("data-text-offset", "0");
+    await waitFor(() => expect(saveReadingRange).toHaveBeenCalledWith(
+      expect.objectContaining({ range: { start: 20, end: 20 } })
+    ));
+    expect(marker).toHaveAttribute("data-text-offset", "20");
+    expect(screen.getByRole("button", { name: "閱讀區段終點" }))
+      .toHaveAttribute("data-text-offset", "20");
     Object.defineProperty(document, "elementFromPoint", {
       configurable: true,
       value: originalElementFromPoint
     });
+  });
+
+  it("moves start with end when a current-line end move crosses start", async () => {
+    const rangedBooks: LibraryBook[] = [{
+      ...books[0],
+      chapterRanges: { "one-1": { start: 30, end: 40 } }
+    }];
+    const { getChapterContent, saveReadingRange } = installLibraryApi(rangedBooks);
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>First readable line.</p><p>Second readable line.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const second = await screen.findByText("Second readable line.");
+
+    fireEvent.contextMenu(second);
+    const moveEnd = screen.getByRole("menuitem", { name: "將終點移到這裡" });
+    expect(moveEnd).toBeEnabled();
+    fireEvent.click(moveEnd);
+
+    await waitFor(() => expect(saveReadingRange).toHaveBeenCalledWith(
+      expect.objectContaining({ range: { start: 20, end: 20 } })
+    ));
+    expect(screen.getByRole("button", { name: "閱讀區段起點" }))
+      .toHaveAttribute("data-text-offset", "20");
+  });
+
+  it("starts both markers of an unsaved chapter range at the first line", async () => {
+    const { getChapterContent } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "\n  <p>First readable line.</p><p>Second readable line.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+
+    expect(await screen.findByRole("button", { name: "閱讀區段起點" }))
+      .toHaveAttribute("data-text-offset", "0");
+    expect(screen.getByRole("button", { name: "閱讀區段終點" }))
+      .toHaveAttribute("data-text-offset", "0");
   });
 
   it("restores saved offsets and keeps them through layout changes", async () => {

@@ -12,22 +12,11 @@ function words(count: number, prefix = "word") {
 }
 
 describe("reading range", () => {
-  it("initializes a long chapter to the first 800 English words", () => {
+  it("initializes both markers on the first line of a new chapter", () => {
     const chapter = words(1_000);
 
-    const range = initialReadingRange(chapter);
-
-    expect(extractReadingSegment(chapter, range).split(/\s+/)).toHaveLength(800);
-    expect(extractReadingSegment(chapter, range)).toMatch(/^word1\b/);
-    expect(extractReadingSegment(chapter, range)).toMatch(/\bword800$/);
-  });
-
-  it("uses the whole chapter when fewer than 800 English words are available", () => {
-    const chapter = words(120);
-
-    const range = initialReadingRange(chapter);
-
-    expect(extractReadingSegment(chapter, range)).toBe(chapter);
+    expect(initialReadingRange(chapter)).toEqual({ start: 0, end: 0 });
+    expect(initialReadingRange(words(10))).toEqual({ start: 0, end: 0 });
   });
 
   it("extracts only the selected text and excludes both outside regions", () => {

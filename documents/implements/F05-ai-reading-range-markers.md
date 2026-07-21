@@ -3,7 +3,7 @@ author: Codex
 date: 2026-07-21
 title: 以章內範圍標籤限制 AI 可讀內文
 uuid: d46f7fcdd0414cf09edafbbde6877d63
-version: 1.1.0
+version: 1.4.0
 status: implemented
 ---
 
@@ -28,20 +28,20 @@ status: implemented
   - **When** 章節內容完成載入
   - **Then** 閱讀內容左側顯示一個起點標籤與一個終點標籤，且同一章不提供第二組標籤
 
-- **Scenario 2：首次開啟時建立短範圍**
+- **Scenario 2：首次開啟時從第一行開始**
   - **Given** 此章尚未保存範圍標籤位置
   - **When** 使用者首次開啟此章
-  - **Then** 起點位於第一個可閱讀文字位置，終點位於累計約 800 個英文單字後的第一個可用內容邊界；若章節不足 800 個單字，終點位於章末
+  - **Then** 起點與終點都位於內文第一行，初始位置為 `start = end = 0`
 
 - **Scenario 3：拖曳調整標籤**
   - **Given** 章節已顯示起點與終點標籤
   - **When** 使用者把任一標籤拖到章內另一個可閱讀文字位置
-  - **Then** 對應邊界更新到該位置，另一個標籤維持不變，且系統不允許起點越過終點或終點越過起點
+  - **Then** 對應邊界更新到該位置；未越界時另一個標籤維持不變，越界時另一個標籤跟到新的拖曳位置
 
 - **Scenario 4：從目前行更新標籤位置**
   - **Given** 使用者在章節某一行開啟功能選單
   - **When** 使用者選擇「將起點移到這裡」或「將終點移到這裡」
-  - **Then** 對應標籤移到該行所代表的穩定原文位置；若移動會造成起點與終點順序顛倒，操作不可套用
+  - **Then** 對應標籤移到該行所代表的穩定原文位置；若移動會造成順序顛倒，另一個標籤跟到同一位置
 
 - **Scenario 5：標籤不得跨章節**
   - **Given** 使用者正在閱讀目前章節
@@ -88,10 +88,10 @@ status: implemented
 | ID | Scenario | Given | When | Then | Priority |
 |---|---|---|---|---|---|
 | TC1 | 唯一標籤組 | 章節內容已載入 | 檢視閱讀頁 | 左側只有一個起點與一個終點標籤 | High |
-| TC2 | 長章首次初始化 | 尚無已存位置且章節超過 800 個單字 | 首次開章 | 起點在首個文字位置，終點在約 800 字後的內容邊界 | High |
-| TC3 | 短章首次初始化 | 尚無已存位置且章節少於 800 個單字 | 首次開章 | 終點位於章末 | High |
+| TC2 | 長章首次初始化 | 尚無已存位置且章節內容較長 | 首次開章 | START／END 都在第一行，offset 都是 0 | High |
+| TC3 | 短章首次初始化 | 尚無已存位置且章節內容較短 | 首次開章 | START／END 同樣都在第一行，offset 都是 0 | High |
 | TC4 | 拖曳起點 | 已顯示有效範圍 | 拖曳起點到終點之前的新位置 | 只更新起點 | High |
-| TC5 | 拒絕交叉 | 已顯示有效範圍 | 嘗試把任一標籤移過另一標籤 | 維持有效順序且不套用無效位置 | High |
+| TC5 | 越界聯動 | 已顯示有效範圍 | 嘗試把任一標籤移過另一標籤 | 另一個標籤跟到新的移動位置，兩者同位且維持有效順序 | High |
 | TC6 | 功能選單更新 | 在章內某行開啟功能選單 | 選擇更新起點或終點 | 對應標籤定位到該行原文位置 | High |
 | TC7 | 防止跨章 | 目前章節前後皆有章節 | 調整標籤 | 可選位置始終限制在目前章節 | High |
 | TC8 | 分章保存 | 兩章各自調整過標籤 | 反覆切換章節 | 各章恢復自己的標籤位置 | High |
@@ -110,7 +110,7 @@ status: implemented
 - 範圍起點與終點皆屬目前章節，且必須維持有序。輸入驗證應同時存在於 renderer 操作層與實際保存邊界。
 - 每本書目前只保存一個最後閱讀位置；本功能需要增加以章節為鍵的範圍標籤狀態，不能用單一 `BookReadingState` 覆蓋所有章節。
 - AI 功能尚未正式接入時，應先提供可獨立測試的「擷取目前閱讀區段」能力；未來所有區段解析、標記說明與區段練習請求必須共用這個裁切入口，避免各自繞過範圍限制。
-- 「約 800 個英文單字」是首次初始化的內容量基準；圖片、純裝飾元素與無可讀文字的節點不計入。自動推進則以舊閱讀區段的約略可讀字數為目標。
+- 首次初始化不預選固定字數，START／END 都從第一行開始。自動推進仍以使用者後續選定區段的約略可讀字數為目標。
 - 「完成這段，前往下一段」是唯一的自動推進入口。AI 回覆完成、題目生成完成或送出追問都不得隱式推進。
 
 ## 6. Assumptions, Open Questions and Non-goals
@@ -118,9 +118,9 @@ status: implemented
 ### Assumptions
 
 - 起點與終點均包含其所在的可讀文字位置；AI 上下文包含起點至終點之間的連續內容。
-- 無效的交叉移動會被拒絕，不自動交換起點與終點角色。
+- 越界移動會讓未操作的另一個標籤跟到新的移動位置，使兩者同位；不交換起點與終點角色。
 - 使用者已確認每章只能有一對範圍標籤。
-- 使用者已確認首次範圍約為 5–10 分鐘閱讀量，本文件以約 800 個英文單字作為可測試基準。
+- 使用者已確認未保存章節的 START／END 都預設在第一行。
 - 使用者已確認自動推進需由明確的「完成這段，前往下一段」操作觸發。
 
 ### Open Questions
@@ -161,9 +161,9 @@ Implemented
 
 ### Implementation Summary
 
-- 在章節原文左側加入唯一一對起點／終點範圍標籤，支援指標拖曳與目前行右鍵功能選單定位，並拒絕起終點交叉。
+- 在章節原文左側加入唯一一對起點／終點範圍標籤，支援指標拖曳與目前行右鍵功能選單定位；越界時另一端跟到新的移動位置。
 - 新增章內文字 offset 定位；標籤保存原文位置而非頁碼、像素或捲動比例，視窗重排時重新計算畫面位置。
-- 沒有已存位置的章節以第一個可讀位置至約 800 個英文單字初始化，短章終點落在章末；每章位置獨立持久化並可跨次啟動恢復。
+- 沒有已存位置的章節以 `{ start: 0, end: 0 }` 初始化，START／END 都顯示在第一行；每章位置獨立持久化並可跨次啟動恢復。
 - 新增純函式閱讀區段裁切及推進能力；只有「完成這段，前往下一段」會以目前約略字數建立下一個相鄰範圍，一般訊息操作不推進。
 - 以 memoized 章節原文元件隔離 `dangerouslySetInnerHTML`，標籤狀態更新不會重建 EPUB 內容 DOM 或中斷目前文字元素。
 - 新增窄化的 `saveReadingRange` preload／IPC／service 路徑；main process 驗證書籍、章節、非負整數與起終點順序，並與其他狀態寫入共用序列佇列。
@@ -171,7 +171,7 @@ Implemented
 ### Test Coverage
 
 - `reading-range.test.ts`：TC2、TC3、TC11、TC13、TC14、TC15。
-- `App.test.tsx`：TC1、TC4–TC7、TC10、TC12、TC13，並測試無效交叉移動。
+- `App.test.tsx`：TC1、TC4–TC7、TC10、TC12、TC13，並測試 START／END 雙向越界聯動。
 - `library-service.test.ts`：TC8、TC9，以及未知章節與無效範圍拒絕。
 - `library-ipc.test.ts`：閱讀區段 IPC 正常路徑與格式驗證。
 - `desktop.spec.ts`：安全 preload bridge 暴露明確的 `saveReadingRange`，未暴露通用 Node 能力。
@@ -208,7 +208,7 @@ Implemented
 | Acceptance criterion | Status | Basis |
 |---|---|---|
 | 每章唯一一對範圍標籤 | Pass | `shows exactly one start and one end range marker for the active chapter` |
-| 首次開啟時建立短範圍 | Pass | `initializes a long chapter to the first 800 English words`; short-chapter test |
+| 首次開啟時從第一行開始 | Pass | `initializes both markers on the first line of a new chapter`；renderer 同時驗證兩個 marker offset |
 | 拖曳調整標籤 | Pass | `drags a marker to another readable block without crossing its pair` |
 | 從目前行更新標籤位置 | Pass | `moves a range marker from the current line menu and persists it` |
 | 標籤不得跨章節 | Pass | DOM 定位只接受目前 `articleRef` 的後代；service 驗證目前 chapterId |
@@ -225,10 +225,10 @@ Implemented
 | Test scenario ID | Status | Automated test basis |
 |---|---|---|
 | TC1 | Pass | 唯一起點／終點 renderer 測試 |
-| TC2 | Pass | 800 個英文單字初始化單元測試 |
-| TC3 | Pass | 短章使用全文單元測試 |
+| TC2 | Pass | 長章 START／END offset 皆為 0 的初始化單元測試 |
+| TC3 | Pass | 短章 START／END offset 皆為 0 的初始化單元測試 |
 | TC4 | Pass | 拖曳起點 renderer 測試 |
-| TC5 | Pass | 拒絕交叉的目前行功能選單測試；service 無效範圍測試 |
+| TC5 | Pass | START／END 雙向越界時另一端跟隨的右鍵與 Pointer 測試；service 無效範圍測試 |
 | TC6 | Pass | 目前行功能選單定位 renderer 測試 |
 | TC7 | Pass | 目前 article 後代限制及 unknown chapter service 測試 |
 | TC8 | Pass | 每章獨立範圍持久化測試 |

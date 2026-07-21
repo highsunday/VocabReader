@@ -773,7 +773,7 @@ button {
 
 .reading-range-shell {
   position: relative;
-  padding-left: 34px;
+  padding-left: 38px;
 }
 
 .reading-range-markers {
@@ -786,86 +786,159 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   align-items: center;
-  color: #728b70;
+  color: #657d64;
   pointer-events: none;
   transform: translateY(-50%);
+  transition: transform 140ms ease;
 }
 
 .reading-range-boundary.end {
-  color: #a4774c;
+  color: #9a7049;
 }
 
 .reading-range-boundary.start.is-overlapping {
-  transform: translateY(calc(-50% - 13px));
+  transform: translateY(calc(-50% - 16px));
 }
 
 .reading-range-boundary.end.is-overlapping {
-  transform: translateY(calc(-50% + 13px));
+  transform: translateY(calc(-50% + 16px));
 }
 
 .reading-range-marker {
   flex: 0 0 auto;
-  width: 27px;
-  height: 24px;
+  width: 31px;
+  height: 28px;
   padding: 0;
-  border: 1px solid #728b70;
-  border-radius: 6px 2px 2px 6px;
+  border: 0;
+  border-radius: 8px;
   display: grid;
   place-items: center;
-  color: #fff;
-  background: #728b70;
-  box-shadow: 0 4px 10px rgb(58 77 57 / 20%);
+  color: inherit;
+  background: transparent;
   cursor: ns-resize;
   pointer-events: auto;
   touch-action: none;
+  transition: background 120ms ease, box-shadow 120ms ease;
   user-select: none;
 }
 
-.reading-range-marker.end {
-  border-color: #a4774c;
-  background: #a4774c;
+.reading-range-marker:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  box-shadow: 0 3px 10px color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.reading-range-marker:active {
+  cursor: grabbing;
+  background: color-mix(in srgb, currentColor 18%, transparent);
 }
 
 .reading-range-marker span {
-  font-size: 11px;
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 18px;
+  filter: drop-shadow(0 1px 1px rgb(44 54 44 / 18%));
   transform: translateX(1px);
+  transition: transform 120ms ease;
+}
+
+.reading-range-marker span::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  width: 14px;
+  height: 12px;
+  background: currentColor;
+  clip-path: polygon(0 4%, 52% 4%, 100% 50%, 52% 96%, 0 96%);
+}
+
+.reading-range-marker span::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.reading-range-marker:hover span {
+  transform: translateX(2px) scale(1.05);
+}
+
+.reading-range-marker:active span {
+  transform: translateX(2px) scale(0.94);
 }
 
 .reading-range-marker:focus-visible {
-  outline: 3px solid rgb(83 112 80 / 30%);
-  outline-offset: 2px;
+  outline: 2px solid color-mix(in srgb, currentColor 48%, transparent);
+  outline-offset: 1px;
 }
 
 .reading-range-divider {
   position: relative;
   flex: 1 1 auto;
+  height: 18px;
+  margin-left: 3px;
+}
+
+.reading-range-divider::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
   height: 1px;
-  margin-left: 6px;
-  background: currentColor;
+  background: linear-gradient(
+    90deg,
+    currentColor 0%,
+    color-mix(in srgb, currentColor 68%, transparent) 70%,
+    transparent 100%
+  );
+  opacity: 0.5;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.reading-range-boundary:has(.reading-range-marker:hover) .reading-range-divider::before,
+.reading-range-boundary:has(.reading-range-marker:focus-visible) .reading-range-divider::before {
   opacity: 0.78;
 }
 
 .reading-range-divider-label {
   position: absolute;
   top: 50%;
-  left: 12px;
-  padding: 2px 7px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
+  left: 10px;
+  padding: 2px 7px 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: currentColor;
   background: #fffdf8;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
   line-height: 1;
   transform: translateY(-50%);
 }
 
+.reading-range-divider-label::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 12%, transparent);
+}
+
 .reading-range-actions {
-  margin: 14px 0 0 34px;
+  margin: 14px 0 0 38px;
   display: flex;
   align-items: center;
   justify-content: space-between;

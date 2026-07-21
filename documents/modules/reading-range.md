@@ -29,12 +29,12 @@ related_implements:
 目前支援：
 
 - 每章恰有一對 START／END，不支援同章多組範圍。
-- 首次開啟章節時，預設從第一個可閱讀字元選取約 800 個英文單字；短章使用整章。
+- 首次開啟尚未保存範圍的章節時，START／END 都預設位於內文第一行，初始 offset 為 `start = end = 0`。
 - 已保存的章節範圍會在重新開啟、切換書籍及重新啟動應用程式後恢復。
 - START／END 以章內文字 offset 定位，不依賴 EPUB 頁碼、捲動比例或固定像素。
 - 可拖曳左側書籤，拖曳途中即時預覽，放開時保存一次。
 - 可在內文目前行開啟右鍵功能選單，把 START 或 END 移到該行。
-- START 不得越過 END；END 不得移到 START 之前。
+- START 不得位於 END 之後；拖曳或右鍵更新若越界，另一個標籤會跟到正在移動的新位置，使兩者位於同一位置。
 - 每個書籤向內文延伸具名分隔線；位置過近時會上下錯開，避免重疊。
 - 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍，章末停止且不跨章。
 - 已提供只擷取 START／END 之間原文的共用函式，尚未串接完整 AI 區段解析或區段練習。
@@ -88,7 +88,7 @@ related_implements:
 
 1. Renderer 載入安全的 `ChapterContent.contentHtml`，並由穩定的 `ChapterArticle` DOM 取得 `textContent`。
 2. 若 `selectedBook.chapterRanges[chapterId]` 存在、順序有效且 END 未超出目前文字長度，直接恢復保存值。
-3. 否則 `initialReadingRange()` 從第一個非空白字元開始，向後選取最多約 800 個英文單字；不足時停在章末。
+3. 否則 `initialReadingRange()` 將 START／END 都設為章節內文第一行，建立 `{ start: 0, end: 0 }` 的初始空範圍。
 4. 只有完全沒有保存值時，初始範圍會立即透過 `saveReadingRange()` 持久化。
 5. 範圍狀態改變時不重建章節原文 DOM，避免中斷文字選取、右鍵定位或 Pointer 拖曳。
 
@@ -113,7 +113,7 @@ related_implements:
 
 1. `pointerdown` 攔截瀏覽器預設行為，記住拖曳前範圍。
 2. `pointermove` 透過 caret API 或目前命中的閱讀元素取得文字 offset。
-3. 只有不穿越另一範圍標籤的候選值才更新畫面預覽；拖曳途中不寫入本機書庫。
+3. 候選位置若越過另一個標籤，另一個標籤會跟到候選位置，形成 `start === end` 並維持有效順序；拖曳途中不寫入本機書庫。
 4. 系統持續保存「最後一個有效範圍」。即使使用者最後在左側標籤區或其他沒有文字 offset 的位置放開，`pointerup` 仍會保存最後有效範圍一次，不需要額外點擊。
 5. `pointercancel` 移除監聽、恢復拖曳前範圍且不保存。
 
@@ -123,8 +123,8 @@ related_implements:
 
 1. 章節 article 的原生 `contextmenu` listener 將事件位置轉成文字 offset。
 2. 功能選單提供「將起點移到這裡」與「將終點移到這裡」。
-3. 會造成 START／END 交叉的選項呈停用狀態。
-4. 有效操作立即更新 renderer 狀態並保存。
+3. 兩個選項始終可用；若目標位置會造成交叉，另一個標籤會跟到目標位置。
+4. 操作立即更新 renderer 狀態並保存。
 
 ### Explicit automatic advance
 
@@ -175,8 +175,8 @@ related_implements:
 
 | Test file | Coverage |
 |---|---|
-| `apps/desktop/src/renderer/reading-range.test.ts` | 約 800 字初始化、短章、嚴格裁切、等長推進、章末停止、點位轉 offset、START 在線前／END 在線後、標記資料不受推進影響 |
-| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、防交叉、版面變動與明確推進 |
+| `apps/desktop/src/renderer/reading-range.test.ts` | START／END 第一行初始化、嚴格裁切、等長推進、章末停止、點位轉 offset、START 在線前／END 在線後、標記資料不受推進影響 |
+| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動與明確推進 |
 | `apps/desktop/src/main/library-service.test.ts` | 每章範圍保存、快速連續寫入、無效範圍與不存在章節拒絕 |
 | `apps/desktop/src/main/library-ipc.test.ts` | 保存 IPC 路由及輸入格式驗證 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron preload 確實暴露 `saveReadingRange()`，安全設定與應用程式啟動回歸 |
@@ -184,7 +184,7 @@ related_implements:
 最近驗證（2026-07-21）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：52/52 passed。
+- Desktop Vitest：54/54 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -204,7 +204,7 @@ related_implements:
 - 完整 AI 區段解析、標記說明及區段練習尚未接上 `extractReadingSegment()`。
 - 尚未提供鍵盤調整 START／END 的操作。
 - 尚未提供範圍歷史、復原／重做或多組範圍。
-- 目前使用約 800 個英文單字作為預設閱讀量，尚未成為使用者設定。
+- 初始 `start === end` 是空閱讀區段；使用者需移動 END 後才會建立可供 AI 裁切的非空範圍。
 - 已存在但超出新章節文字長度的舊範圍只在畫面回退，不會立即覆寫持久化值。
 - E2E 尚未以真實 EPUB 自動操作 START／END 拖曳；主要互動覆蓋位於 renderer 行為測試。
 

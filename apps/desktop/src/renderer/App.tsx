@@ -84,6 +84,7 @@ export function App() {
   const [messages, setMessages] = useState(initialMessages);
   const contentRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLElement>(null);
+  const rangeMenuRef = useRef<HTMLDivElement>(null);
   const initializedRangeRef = useRef<string | undefined>(undefined);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const chapterStartRef = useRef<{
@@ -234,6 +235,16 @@ export function App() {
   }, [chapterContent]);
 
   useEffect(() => {
+    if (!rangeMenu) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (rangeMenuRef.current?.contains(event.target as Node)) return;
+      setRangeMenu(undefined);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [rangeMenu]);
+
+  useEffect(() => {
     if (!chapterContent || !selectedBook || !contentRef.current) return;
     const maximum = Math.max(
       0,
@@ -352,13 +363,13 @@ export function App() {
     const textLength = articleRef.current?.textContent?.length ?? 0;
     const bounded = Math.min(textLength, Math.max(0, Math.trunc(offset)));
     if (marker === "start") {
-      return bounded <= sourceRange.end
-        ? { ...sourceRange, start: bounded }
-        : undefined;
+      return bounded > sourceRange.end
+        ? { start: bounded, end: bounded }
+        : { ...sourceRange, start: bounded };
     }
-    return bounded >= sourceRange.start
-      ? { ...sourceRange, end: bounded }
-      : undefined;
+    return bounded < sourceRange.start
+      ? { start: bounded, end: bounded }
+      : { ...sourceRange, end: bounded };
   }
 
   function moveRangeMarker(marker: "start" | "end", offset: number) {
@@ -834,7 +845,7 @@ export function App() {
                             onPointerDown={(event) => startDraggingRangeMarker("start", event)}
                             type="button"
                           >
-                            <span aria-hidden="true">▶</span>
+                            <span aria-hidden="true" />
                           </button>
                           <span className="reading-range-divider start" aria-hidden="true">
                             <span className="reading-range-divider-label">START</span>
@@ -853,7 +864,7 @@ export function App() {
                             onPointerDown={(event) => startDraggingRangeMarker("end", event)}
                             type="button"
                           >
-                            <span aria-hidden="true">▶</span>
+                            <span aria-hidden="true" />
                           </button>
                           <span className="reading-range-divider end" aria-hidden="true">
                             <span className="reading-range-divider-label">END</span>
@@ -875,6 +886,7 @@ export function App() {
                   </div>
                   {rangeMenu ? (
                     <div
+                      ref={rangeMenuRef}
                       className="reading-range-menu"
                       role="menu"
                       style={{ left: rangeMenu.x, top: rangeMenu.y }}
@@ -882,7 +894,6 @@ export function App() {
                       <button
                         role="menuitem"
                         type="button"
-                        disabled={Boolean(readingRange && rangeMenu.offset > readingRange.end)}
                         onClick={() => moveRangeMarker("start", rangeMenu.offset)}
                       >
                         將起點移到這裡
@@ -890,7 +901,6 @@ export function App() {
                       <button
                         role="menuitem"
                         type="button"
-                        disabled={Boolean(readingRange && rangeMenu.offset < readingRange.start)}
                         onClick={() => moveRangeMarker("end", rangeMenu.offset)}
                       >
                         將終點移到這裡

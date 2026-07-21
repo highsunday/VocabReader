@@ -1,6 +1,5 @@
 import type { ReadingRange } from "../shared/library-contracts";
 
-const DEFAULT_READING_WORDS = 800;
 const WORD_PATTERN = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
 
 function clampOffset(text: string, value: number) {
@@ -30,15 +29,8 @@ function endAfterWords(text: string, start: number, desiredWords: number) {
   return text.length;
 }
 
-export function initialReadingRange(
-  text: string,
-  desiredWords = DEFAULT_READING_WORDS
-): ReadingRange {
-  const start = firstReadableOffset(text, 0);
-  return {
-    start,
-    end: endAfterWords(text, start, Math.max(1, desiredWords))
-  };
+export function initialReadingRange(_text: string): ReadingRange {
+  return { start: 0, end: 0 };
 }
 
 export function extractReadingSegment(text: string, range: ReadingRange) {
