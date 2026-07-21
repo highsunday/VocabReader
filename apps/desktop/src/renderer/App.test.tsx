@@ -32,16 +32,20 @@ const books: LibraryBook[] = [
 function installLibraryApi(storedBooks: LibraryBook[] = books) {
   const importBook = vi.fn();
   const deleteBook = vi.fn().mockResolvedValue(undefined);
-  const getChapterContent = vi.fn((bookId: string, chapterId: string) =>
-    Promise.resolve({
+  const getChapterContent = vi.fn((bookId: string, chapterId: string) => {
+    const chapter = storedBooks
+      .find((book) => book.id === bookId)
+      ?.chapters.find((candidate) => candidate.id === chapterId);
+    return Promise.resolve({
       bookId,
       chapterId,
-      title: storedBooks
-        .find((book) => book.id === bookId)
-        ?.chapters.find((chapter) => chapter.id === chapterId)?.title ?? "Chapter",
-      contentHtml: `<p>Content for ${chapterId}</p>`
-    })
-  );
+      title: chapter?.title ?? "Chapter",
+      fragment: chapter?.fragment ?? null,
+      contentHtml: `<p>Content for ${chapterId}</p>${
+        chapter?.fragment ? `<h2 id="${chapter.fragment}">Section target</h2>` : ""
+      }`
+    });
+  });
   const saveReadingState = vi.fn((state) =>
     Promise.resolve({
       ...storedBooks.find((book) => book.id === state.bookId),
@@ -297,6 +301,8 @@ describe("App", () => {
 
     expect(await screen.findByText("Content for one-2")).toBeInTheDocument();
     expect(getChapterContent).toHaveBeenCalledWith("book-one", "one-2");
+    expect(screen.queryByText("Chapter workspace")).not.toBeInTheDocument();
+    expect(screen.getAllByText("A New Road")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "完成本章" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "下一章" })).toBeDisabled();
     const toolbar = screen.getByRole("group", { name: "章節導覽" })
@@ -310,6 +316,41 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "下一章" }));
     expect(await screen.findByText("Content for one-2")).toBeInTheDocument();
     expect(getChapterContent).toHaveBeenLastCalledWith("book-one", "one-2");
+  });
+
+  it("starts at the top when moving to another chapter", async () => {
+    const anchoredBook: LibraryBook = {
+      ...books[0],
+      chapters: [
+        books[0].chapters[0],
+        { ...books[0].chapters[1], fragment: "middle" }
+      ]
+    };
+    installLibraryApi([anchoredBook]);
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    expect(await screen.findByText("Content for one-1")).toBeInTheDocument();
+
+    const content = document.querySelector<HTMLElement>(".content");
+    if (!content) throw new Error("missing content scroller");
+    Object.defineProperties(content, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 200 }
+    });
+    content.scrollTop = 400;
+
+    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+
+    expect(await screen.findByText("Content for one-2")).toBeInTheDocument();
+    expect(content.scrollTop).toBe(0);
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
   it("moves to the next distinct chapter when EPUB navigation entries share an id", async () => {

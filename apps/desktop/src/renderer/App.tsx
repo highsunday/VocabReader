@@ -47,6 +47,11 @@ export function App() {
   const [messages, setMessages] = useState(initialMessages);
   const contentRef = useRef<HTMLElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const chapterStartRef = useRef<{
+    bookId: string;
+    chapterId: string;
+    useFragment: boolean;
+  } | undefined>(undefined);
 
   const selectedBook = useMemo(
     () => books.find((book) => book.id === selectedBookId) ?? books[0],
@@ -84,6 +89,13 @@ export function App() {
       book.chapters.some((chapter) => chapter.id === state.chapterId);
     setSelectedBookId(book.id);
     setActiveChapterId(canResumeReader ? state.chapterId ?? undefined : undefined);
+    if (canResumeReader && state.chapterId) {
+      chapterStartRef.current = {
+        bookId: book.id,
+        chapterId: state.chapterId,
+        useFragment: true
+      };
+    }
     setMode(canResumeReader ? "reader" : "overview");
   }
 
@@ -141,7 +153,13 @@ export function App() {
     const progress = selectedBook.readingState.chapterId === chapterContent.chapterId
       ? selectedBook.readingState.scrollProgress
       : 0;
-    if (progress === 0 && chapterContent.fragment) {
+    const startPreference = chapterStartRef.current;
+    const useFragment =
+      !startPreference ||
+      startPreference.bookId !== chapterContent.bookId ||
+      startPreference.chapterId !== chapterContent.chapterId ||
+      startPreference.useFragment;
+    if (progress === 0 && useFragment && chapterContent.fragment) {
       const target = Array.from(
         contentRef.current.querySelectorAll<HTMLElement>("[id]")
       ).find((element) => element.id === chapterContent.fragment);
@@ -293,8 +311,16 @@ export function App() {
     if (book) restoreBook(book);
   }
 
-  function openChapter(chapterId: string) {
+  function openChapter(chapterId: string, useFragment = true) {
     if (!selectedBook) return;
+    chapterStartRef.current = {
+      bookId: selectedBook.id,
+      chapterId,
+      useFragment
+    };
+    if (!useFragment && contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
     persistReadingState(selectedBook, "reader", chapterId, 0);
     setActiveChapterId(chapterId);
     setMode("reader");
@@ -313,11 +339,11 @@ export function App() {
   }
 
   function openPreviousChapter() {
-    if (previousChapter) openChapter(previousChapter.id);
+    if (previousChapter) openChapter(previousChapter.id, false);
   }
 
   function openNextChapter() {
-    if (nextChapter) openChapter(nextChapter.id);
+    if (nextChapter) openChapter(nextChapter.id, false);
   }
 
   function startOrContinueReading() {
@@ -549,16 +575,7 @@ export function App() {
               </section>
             )
           ) : mode === "reader" ? (
-            <section className="reader-panel" aria-labelledby="reader-title">
-              <div className="section-heading reader-heading">
-                <div>
-                  <span className="eyebrow">Chapter workspace</span>
-                  <h1 id="reader-title">
-                    {activeChapter?.title ?? selectedBook?.title ?? "導入 EPUB 開始閱讀"}
-                  </h1>
-                </div>
-              </div>
-
+            <section className="reader-panel" aria-label="章節閱讀">
               {isLoadingChapter ? (
                 <div className="chapter-status" role="status">章節載入中…</div>
               ) : chapterError ? (

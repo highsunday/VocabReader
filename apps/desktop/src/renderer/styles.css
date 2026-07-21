@@ -676,14 +676,9 @@ button {
   cursor: pointer;
 }
 
-.reader-heading {
-  padding-bottom: 18px;
-  border-bottom: 1px solid #d8d3c7;
-}
-
 .chapter-status {
   min-height: 300px;
-  margin-top: 28px;
+  margin-top: 0;
   padding: 42px;
   border: 1px solid #ded7c8;
   border-radius: 18px;
@@ -704,7 +699,7 @@ button {
 }
 
 .chapter-content {
-  margin-top: 28px;
+  margin-top: 0;
   padding: clamp(34px, 6vw, 68px);
   border: 1px solid #ded7c8;
   border-radius: 18px;
