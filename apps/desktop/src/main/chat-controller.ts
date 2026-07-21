@@ -5,6 +5,7 @@ import type {
   AiUsageAllowanceWindow,
   ChatMessage,
   ChatSnapshot,
+  ConversationModel,
   ConnectionPhase,
   SendChatMessageInput
 } from "../shared/chat-contracts";
@@ -59,6 +60,29 @@ function turnIdFrom(value: unknown): string | undefined {
     typeof value.turn.id === "string"
     ? value.turn.id
     : undefined;
+}
+
+function modelFrom(value: unknown): ConversationModel | null {
+  if (!isObject(value) || value.hidden === true) return null;
+  if (typeof value.id !== "string" ||
+    typeof value.displayName !== "string" ||
+    typeof value.defaultReasoningEffort !== "string" ||
+    !Array.isArray(value.supportedReasoningEfforts) ||
+    typeof value.isDefault !== "boolean") {
+    throw new Error("Codex 模型目錄包含無法辨識的模型。");
+  }
+  const supportsDefault = value.supportedReasoningEfforts.some(
+    (option) => isObject(option) &&
+      option.reasoningEffort === value.defaultReasoningEffort
+  );
+  if (!supportsDefault) {
+    throw new Error("Codex 模型的預設推理強度不可用。");
+  }
+  return {
+    id: value.id,
+    displayName: value.displayName,
+    defaultReasoningEffort: value.defaultReasoningEffort
+  };
 }
 
 function unavailableAllowance(detail: string): AiUsageAllowance {
@@ -182,6 +206,13 @@ export class ChatController {
   #managementBusy = false;
   #conversationError: string | null = null;
   #allowance = unavailableAllowance("尚未取得 AI 使用額度。");
+  #models: ConversationModel[] = [];
+  #selectedModelId: string | null = null;
+  #modelCatalogDetail = "尚未取得可用模型。";
+  #stopRequested = false;
+  #stopPromise: Promise<ChatSnapshot> | undefined;
+  #turnReadyPromise: Promise<string | null> | undefined;
+  #resolveTurnReady: ((turnId: string | null) => void) | undefined;
   #connectPromise: Promise<ChatSnapshot> | undefined;
 
   constructor(options: ChatControllerOptions) {
@@ -224,7 +255,11 @@ export class ChatController {
         .sort((left, right) => right.updatedAt - left.updatedAt),
       activeConversationId: this.#activeConversationId,
       managementBusy: this.#managementBusy,
-      conversationError: this.#conversationError
+      conversationError: this.#conversationError,
+      models: structuredClone(this.#models),
+      selectedModelId: this.#selectedModelId,
+      modelCatalogDetail: this.#modelCatalogDetail,
+      stopRequested: this.#stopRequested
     };
   }
 
@@ -254,6 +289,45 @@ export class ChatController {
     this.#persist();
     this.#emit();
     return this.getSnapshot();
+  }
+
+  selectModel(modelId: string): ChatSnapshot {
+    this.#assertManagementAvailable();
+    const model = this.#models.find((candidate) => candidate.id === modelId);
+    if (!model) throw new Error("選取的 AI 模型目前不可用。");
+    this.#selectedModelId = model.id;
+    this.#emit();
+    return this.getSnapshot();
+  }
+
+  stopResponse(): Promise<ChatSnapshot> {
+    if (this.#stopPromise) return this.#stopPromise;
+    if (this.#stopRequested) return Promise.resolve(this.getSnapshot());
+    if (!this.#activeTurnId || !this.#client) {
+      return Promise.reject(new Error("目前沒有可停止的 AI 回覆。"));
+    }
+    const client = this.#client;
+    this.#stopRequested = true;
+    this.#emit();
+    this.#stopPromise = (async () => {
+      const turnId = this.#activeTurnId === "starting"
+        ? await this.#turnReadyPromise
+        : this.#activeTurnId;
+      const threadId = this.#threadId;
+      if (!turnId || turnId === "starting" || !threadId ||
+        !this.#activeTurnId) return this.getSnapshot();
+      await client.request("turn/interrupt", { threadId, turnId });
+      return this.getSnapshot();
+    })()
+      .catch((error) => {
+        this.#stopRequested = false;
+        this.#emit();
+        throw error;
+      })
+      .finally(() => {
+        this.#stopPromise = undefined;
+      });
+    return this.#stopPromise;
   }
 
   async removeConversation(conversationId: string): Promise<ChatSnapshot> {
@@ -337,6 +411,7 @@ export class ChatController {
       if (this.#client !== client) return;
       this.#client = undefined;
       this.#activeTurnId = null;
+      this.#stopRequested = false;
       this.#setConnection("error", error.message);
     });
 
@@ -357,15 +432,17 @@ export class ChatController {
           return this.getSnapshot();
         }
         this.#account = account.account;
-        const label = account.account.email ?? account.account.type;
         this.#allowance = {
           phase: "loading",
           fiveHour: null,
           weekly: null,
           detail: "正在取得帳戶共用額度…"
         };
-        this.#setConnection("ready", `已連線：${label}`);
-        await this.#loadAllowance(client);
+        this.#setConnection("ready", "Codex 已連線。");
+        await Promise.all([
+          this.#loadAllowance(client),
+          this.#loadModelCatalog(client)
+        ]);
         return this.getSnapshot();
       } catch (error) {
         if (this.#client === client) {
@@ -394,6 +471,10 @@ export class ChatController {
 
     const client = this.#client;
     this.#activeTurnId = "starting";
+    this.#stopRequested = false;
+    this.#turnReadyPromise = new Promise((resolve) => {
+      this.#resolveTurnReady = resolve;
+    });
     this.#emit();
 
     try {
@@ -420,6 +501,9 @@ export class ChatController {
           config: isolationConfig,
           environments: [],
           selectedCapabilityRoots: [],
+          ...(this.#selectedModelId
+            ? { model: this.#selectedModelId }
+            : {}),
           developerInstructions
         });
         const threadId = threadIdFrom(threadResponse);
@@ -453,6 +537,7 @@ export class ChatController {
       this.#emit();
       const response = await client.request("turn/start", {
         threadId: this.#threadId,
+        ...this.#selectedModelSettings(),
         input: [{
           type: "text",
           text: composeCodexInput({ ...input, text }),
@@ -463,11 +548,16 @@ export class ChatController {
       if (!turnId) throw new Error("Codex 未回傳回答識別碼。");
       userMessage.turnId = turnId;
       if (this.#activeTurnId === "starting") this.#activeTurnId = turnId;
+      this.#resolveTurnReady?.(turnId);
+      this.#resolveTurnReady = undefined;
       this.#persist();
       this.#emit();
       return this.getSnapshot();
     } catch (error) {
+      this.#resolveTurnReady?.(null);
+      this.#resolveTurnReady = undefined;
       this.#activeTurnId = null;
+      this.#stopRequested = false;
       this.#connectionDetail = error instanceof Error
         ? error.message
         : "無法送出訊息。";
@@ -481,6 +571,7 @@ export class ChatController {
     this.#connection = "disconnected";
     this.#connectionDetail = "Codex 連線已關閉。";
     this.#activeTurnId = null;
+    this.#stopRequested = false;
   }
 
   #handleNotification(notification: CodexNotification): void {
@@ -572,6 +663,9 @@ export class ChatController {
         }
       }
       this.#activeTurnId = null;
+      this.#stopRequested = false;
+      this.#resolveTurnReady?.(null);
+      this.#resolveTurnReady = undefined;
       if (!completed) {
         this.#connectionDetail = isObject(params.turn.error) &&
           typeof params.turn.error.message === "string"
@@ -688,6 +782,60 @@ export class ChatController {
       );
     }
     this.#emit();
+  }
+
+  async #loadModelCatalog(client: CodexAppServerClient): Promise<void> {
+    try {
+      const models: Array<ConversationModel & { isDefault?: boolean }> = [];
+      let cursor: string | null = null;
+      do {
+        const response = await client.request("model/list", {
+          cursor,
+          includeHidden: false
+        });
+        if (!isObject(response) || !Array.isArray(response.data)) {
+          throw new Error("Codex 模型目錄回傳了無法辨識的資料。");
+        }
+        for (const candidate of response.data) {
+          const model = modelFrom(candidate);
+          if (model) {
+            models.push({
+              ...model,
+              isDefault: isObject(candidate) && candidate.isDefault === true
+            });
+          }
+        }
+        cursor = typeof response.nextCursor === "string"
+          ? response.nextCursor
+          : null;
+      } while (cursor);
+      if (models.length === 0) throw new Error("沒有可用的 AI 模型。");
+      this.#models = models.map(({ isDefault: _isDefault, ...model }) => model);
+      const selectedStillExists = this.#selectedModelId && models.some(
+        (model) => model.id === this.#selectedModelId
+      );
+      if (!selectedStillExists) {
+        this.#selectedModelId = models.find((model) => model.isDefault)?.id ??
+          models[0]?.id ?? null;
+      }
+      this.#modelCatalogDetail = "已取得可用對話模型。";
+    } catch (error) {
+      this.#models = [];
+      this.#selectedModelId = null;
+      this.#modelCatalogDetail = error instanceof Error
+        ? error.message
+        : "無法取得可用的 AI 模型。";
+    }
+    this.#emit();
+  }
+
+  #selectedModelSettings(): { model: string; effort: string } | object {
+    const model = this.#models.find(
+      (candidate) => candidate.id === this.#selectedModelId
+    );
+    return model
+      ? { model: model.id, effort: model.defaultReasoningEffort }
+      : {};
   }
 
   #disposeClient(): void {

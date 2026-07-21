@@ -9,13 +9,15 @@ related_implements:
   - F08-compact-markdown-chat-messages
   - F09-send-reading-segment-on-range-change
   - F10-ai-conversation-management
+  - F11-improve-ai-conversation-composer
+  - F12-resizable-ai-conversation-panel
 ---
 
 # Codex AI 對話與帳戶狀態模組
 
 ## 1. Purpose
 
-本模組以使用者本機既有的 Codex／ChatGPT 登入狀態提供 **Codex AI 執行層**，讓右側 **AI 對話面板**建立、保存、切換及移除全域 **AI 對話**，並進行多輪串流互動；左側窄欄顯示真實連線、帳戶與五小時／每週帳戶共用額度。
+本模組以使用者本機既有的 Codex／ChatGPT 登入狀態提供 **Codex AI 執行層**，讓右側 **AI 對話面板**建立、保存、切換及移除全域 **AI 對話**，選擇可用 AI 模型，並進行可停止的多輪串流互動；左側窄欄只顯示連線階段與五小時／每週帳戶共用額度，不呈現登入信箱。
 
 閱讀頁的 AI 上下文只包含產品層明確組裝的書籍名稱、章節名稱與目前 **閱讀區段**；本模組不讀取整章、整本 EPUB 或 Renderer 任意指定的檔案。
 
@@ -30,6 +32,8 @@ related_implements:
 - 顯示 disconnected、connecting、ready、auth-required 與 error 連線階段。
 - 依 300 與 10,080 分鐘視窗辨識五小時與每週額度；缺值、載入中與確實 0% 保持不同語意。
 - 合併 `account/rateLimits/updated` 的 partial live update，不建立 AI turn。
+- 分頁讀取 `model/list` 的可見模型，以 server default 作為初始選擇；目錄失敗時仍可使用 Codex 預設模型對話。
+- 使用者可在 AI 未回覆時切換模型；新 thread 與後續 turn 都使用目前模型及該模型的預設推理強度。
 - 空白新對話送出第一個問題後才建立產品對話與 Codex thread；後續追問在相同 thread 建立新 turn。
 - 右側面板可開啟跨書籍共用的全域對話清單、建立新對話、切換過去對話及確認移除。
 - 每筆對話保存產品對話 id、Codex thread id、標題、時間、來源摘要及顯示訊息；重啟恢復上次查看的對話。
@@ -37,11 +41,14 @@ related_implements:
 - 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
 - assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy。
 - 同一 thread 不允許並行 turn，包含第一次 thread 尚在建立的時間窗。
+- 回覆中可使用 `turn/interrupt` 停止目前 turn；若 thread／turn 尚在建立，會先等待真實識別碼再中斷。
 - 對話清單與訊息以原子檔案替換方式保存在 Electron user data；損壞資料不會被空資料覆寫，殘留 streaming 訊息重啟後正規化為 failed。
 - 對話訊息不顯示占寬的「你／AI」角色標籤；使用者訊息以靠右淡色氣泡呈現，AI 回覆以滿寬正文呈現，並保留輔助技術可辨識的角色語意。
 - 使用安全的 Markdown Renderer 呈現 CommonMark 與 GitHub Flavored Markdown；原始 HTML 不會插入 DOM，表格與程式碼在窄側欄中可水平捲動。
-- 左側窄欄狀態卡顯示 Codex、右上角連線標籤、單行省略信箱，以及上下排列的五小時／每週額度；完整信箱、帳戶類型與重置時間保留於提示文字及無障礙名稱。
-- 「設定」目前是無副作用的空按鈕，不提供模型或推理強度設定。
+- 左側窄欄狀態卡顯示 Codex、右上角連線標籤與上下排列的五小時／每週額度；不顯示信箱或含帳戶資料的「已連線」明細。
+- AI 回覆中狀態位於對話訊息流底部；提問框固定呈現「輸入你的疑問」與 Enter／Shift+Enter 提示，並避免輸入法組字期間 Enter 誤送。
+- AI 對話面板左邊界可用滑鼠拖曳或方向鍵調整寬度；展開寬度限制於 280–640px 並保護中央閱讀區，摺疊後展開會恢復本次工作階段的調整寬度。
+- 「設定」仍是無副作用的空按鈕；模型選擇直接位於 AI 對話提問框，不提供推理強度設定。
 
 ## 3. Module Boundary
 
@@ -61,8 +68,9 @@ related_implements:
 
 `ChatController` 負責：
 
-- 連線階段、帳戶、額度、全域對話集合、目前對話、thread、active turn 與訊息投影。
+- 連線階段、帳戶、額度、模型目錄與選擇、全域對話集合、目前對話、thread、active turn 與訊息投影。
 - Codex thread／turn 生命週期與串流 notification 投影。
+- `turn/interrupt` 停止流程，以及 starting 狀態等待真實 turn id 的同步。
 - 新對話、切換、恢復、封存與管理操作互斥。
 - 把產品層提供的結構化 context 組成單次 Codex 文字 input。
 - 以完整、可複製的 `ChatSnapshot` 通知上層。
@@ -81,7 +89,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 
 ### Electron IPC and Preload
 
-- `chat:get-state`、`chat:connect`、`chat:send`、`chat:new`、`chat:select` 與 `chat:remove` 是唯一 Renderer 可呼叫的 AI IPC。
+- `chat:get-state`、`chat:connect`、`chat:send`、`chat:new`、`chat:select`、`chat:remove`、`chat:select-model` 與 `chat:stop` 是唯一 Renderer 可呼叫的 AI IPC。
 - `chat:state-changed` 只向 Renderer 發送完整型別化 snapshot。
 - Preload 將這些能力收斂於 `window.readerDesktop.chat`。
 - Renderer 不能指定任意 Codex method、工作目錄、approval、sandbox、process 或工具設定。
@@ -93,6 +101,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 以 `bookId + chapterId + start + end` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
 - 空閱讀區段只送出一般問題，不使用整章 fallback。
 - 顯示處理中、需要登入、連線失敗與額度不可用狀態。
+- 在提問框呈現模型選擇、鍵盤操作提示與停止按鈕；回覆中狀態顯示於訊息流，IME composition Enter 不觸發送出。
+- 管理 AI 對話面板的工作階段寬度、拖曳／鍵盤調整、安全邊界與摺疊恢復；不經 IPC 保存。
 - 以安全的 Markdown 元件呈現 user／assistant 訊息，並在串流尚無文字時保留「…」占位。
 - 在右側面板的對話內容與全域清單之間切換，顯示對話標題、最近來源及更新時間。
 - AI 回覆與範圍標籤狀態分離；送出或完成訊息不推進 START／END。
@@ -114,6 +124,10 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 | `activeConversationId` | 目前選取的產品對話 id；空白新對話時為 null |
 | `managementBusy` | 封存等管理操作是否進行中 |
 | `conversationError` | 本機保存、恢復或移除對話的可顯示錯誤 |
+| `models` | Main Process 驗證過的可見 AI 模型目錄 |
+| `selectedModelId` | 目前全域選取的模型 id；目錄不可用時為 null |
+| `modelCatalogDetail` | 模型目錄載入或降級原因 |
+| `stopRequested` | 已送出中斷 request、正在等待 turn 完成通知；用來防止重複停止 |
 
 ### SendChatMessageInput
 
@@ -132,8 +146,8 @@ App ready
   → initialized notification
   → account/read
   → 無帳戶：auth-required
-  → 有帳戶：ready + allowance loading
-  → account/rateLimits/read
+  → 有帳戶：ready + allowance／model catalog loading
+  → account/rateLimits/read + paginated model/list
   → 依 windowDurationMins 正規化五小時／每週
   → ChatSnapshot 經 IPC 推送 Renderer
 ```
@@ -146,10 +160,10 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 2. 閱讀模式以 `extractReadingSegment()` 取得目前非空區段，並以書籍、章節及 START／END 組成區段識別。
 3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時只送使用者問題。其他模式或空區段不附 EPUB 原文。
 4. Controller 在任何 await 前先進入 starting，封鎖第二個並行 send 及對話管理操作。
-5. 空白新對話以固定的唯讀、無工具設定建立 thread，再建立本機產品對話；過去對話則以 `thread/resume` 恢復既有 thread。
+5. 空白新對話以固定的唯讀、無工具設定及目前選定模型建立 thread，再建立本機產品對話；過去對話則以 `thread/resume` 恢復既有 thread。
 6. Controller 保存畫面用的純使用者問題，另把本次實際收到的有限閱讀 context 組成 Codex input，並更新該對話的最近來源摘要。
-7. `turn/start` 成功後 Renderer 才把本次區段識別記為已提供；bridge 拒絕時保留待提供狀態。
-8. 後續 delta／completed notification 更新同一 assistant 訊息並持久保存；turn completed 後解除 busy，使用者才能追問、切換、新建或移除對話。
+7. `turn/start` 使用目前選定模型及其預設推理強度；成功後 Renderer 才把本次區段識別記為已提供，bridge 拒絕時保留待提供狀態。
+8. 後續 delta／completed notification 更新同一 assistant 訊息並持久保存；使用者可用停止按鈕中斷目前 turn，turn completed 後解除 busy，才能追問、切換、新建、移除對話或切換模型。
 
 ## 7. Runtime and Safety Constraints
 
@@ -167,9 +181,9 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 
 | File | Responsibility |
 |---|---|
-| `apps/desktop/src/shared/chat-contracts.ts` | Main／Preload／Renderer 共用的帳戶、額度、訊息、snapshot 與 context 型別 |
+| `apps/desktop/src/shared/chat-contracts.ts` | Main／Preload／Renderer 共用的帳戶、額度、模型、訊息、snapshot 與 context 型別 |
 | `apps/desktop/src/main/codex-app-server-client.ts` | Codex 子程序、JSONL transport、request timeout 與 account 解析 |
-| `apps/desktop/src/main/chat-controller.ts` | 連線、額度、thread／turn、串流訊息與 context 組裝 |
+| `apps/desktop/src/main/chat-controller.ts` | 連線、額度、模型目錄、thread／turn、中斷、串流訊息與 context 組裝 |
 | `apps/desktop/src/main/chat-conversation-store.ts` | 全域對話資料驗證、載入、原子保存與重啟正規化 |
 | `apps/desktop/src/main/chat-ipc.ts` | chat IPC 白名單與輸入驗證 |
 | `apps/desktop/src/main/main.ts` | 建立 Controller、發布 snapshot、管理 app 關閉清理 |
@@ -182,15 +196,15 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、重啟 streaming 正規化與損壞資料隔離 |
-| `apps/desktop/src/main/chat-controller.test.ts` | initialize、帳戶／額度、多輪串流、全域對話建立／切換／恢復／移除、失敗回滾、並行保護與 process close |
-| `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 白名單、對話 id、結構化 context 與惡意格式拒絕 |
-| `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、bridge send、閱讀區段裁切與去重、全域對話清單／切換／確認移除、安全 Markdown／GFM 與串流占位 |
-| `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、對話管理入口、七項 chat bridge 白名單與 Node 隔離 |
+| `apps/desktop/src/main/chat-controller.test.ts` | initialize、帳戶／額度、模型目錄與選擇、turn 中斷、多輪串流、全域對話建立／切換／恢復／移除、失敗回滾、並行保護與 process close |
+| `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
+| `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、bridge send、閱讀區段裁切與去重、全域對話管理、安全 Markdown／GFM 與串流占位 |
+| `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、AI 面板實際調寬與摺疊恢復、對話管理入口、九項 chat bridge 白名單與 Node 隔離 |
 
 最近驗證（2026-07-21）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：81/81 passed。
+- Desktop Vitest：89/89 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -200,7 +214,9 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 
 - 不提供對話搜尋、篩選、釘選、重新命名、匯出、垃圾桶或復原。
 - 對話只保存在本機，不提供帳戶或跨裝置同步。
-- 不提供模型、推理強度或 API key 設定；「設定」按鈕目前無副作用。
+- 模型選擇不為每筆 AI 對話個別保存，重新啟動時回到 Codex 模型目錄的 server default。
+- AI 對話面板的調整寬度只保留於目前工作階段，重新啟動後回到 360px。
+- 不提供推理強度或 API key 設定；「設定」按鈕目前無副作用。
 - 不提供內嵌 Codex／ChatGPT 登入或帳戶切換。
 - Markdown 程式碼區塊目前不提供語法高亮。
 - 尚未實作區段解析、標記說明、區段練習、生詞庫與 Anki 式複習的 AI 流程。
@@ -215,5 +231,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/F08-compact-markdown-chat-messages.md`
 - `documents/implements/F09-send-reading-segment-on-range-change.md`
 - `documents/implements/F10-ai-conversation-management.md`
+- `documents/implements/F11-improve-ai-conversation-composer.md`
+- `documents/implements/F12-resizable-ai-conversation-panel.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

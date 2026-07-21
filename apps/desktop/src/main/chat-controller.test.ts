@@ -112,6 +112,86 @@ describe("ChatController", () => {
     controller.close();
   });
 
+  it("loads visible models and applies the selected model to new threads and turns", async () => {
+    const { fake, controller } = fixture();
+
+    const connected = await controller.connect();
+    expect(connected.models?.map((model) => model.id))
+      .toEqual(["gpt-default", "gpt-reader"]);
+    expect(connected.selectedModelId).toBe("gpt-default");
+
+    controller.selectModel("gpt-reader");
+    await controller.sendMessage({ text: "Explain this" });
+
+    const threadStart = fake.requests.find(
+      (request) => request.method === "thread/start"
+    );
+    const turnStart = fake.requests.find(
+      (request) => request.method === "turn/start"
+    );
+    expect(threadStart?.params?.model).toBe("gpt-reader");
+    expect(turnStart?.params).toMatchObject({
+      model: "gpt-reader",
+      effort: "high"
+    });
+    controller.close();
+  });
+
+  it("keeps chat usable with the Codex default when the model catalog fails", async () => {
+    const { fake, controller } = fixture({ modelListError: "catalog offline" });
+
+    const connected = await controller.connect();
+    expect(connected.models).toEqual([]);
+    expect(connected.modelCatalogDetail).toMatch(/catalog offline/);
+    await controller.sendMessage({ text: "Use the default" });
+
+    const turnStart = fake.requests.find(
+      (request) => request.method === "turn/start"
+    );
+    expect(turnStart?.params?.model).toBeUndefined();
+    expect(turnStart?.params?.effort).toBeUndefined();
+    controller.close();
+  });
+
+  it("interrupts the active Codex turn", async () => {
+    const { fake, controller } = fixture({ turnDelayMs: 80 });
+    await controller.connect();
+    await controller.sendMessage({ text: "Long answer" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === "turn-1");
+
+    await controller.stopResponse();
+    await controller.stopResponse();
+
+    expect(fake.requests.filter(
+      (request) => request.method === "turn/interrupt"
+    )).toEqual([expect.objectContaining({
+      params: { threadId: "thread-1", turnId: "turn-1" }
+    })]);
+    expect(controller.getSnapshot().stopRequested).toBe(true);
+    controller.close();
+  });
+
+  it("waits for a starting thread and turn before interrupting", async () => {
+    const { fake, controller } = fixture({
+      threadStartDelayMs: 30,
+      turnDelayMs: 80
+    });
+    await controller.connect();
+    const send = controller.sendMessage({ text: "Stop immediately" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === "starting");
+
+    const stop = controller.stopResponse();
+    await send;
+    await stop;
+
+    expect(fake.requests.filter(
+      (request) => request.method === "turn/interrupt"
+    )).toEqual([expect.objectContaining({
+      params: { threadId: "thread-1", turnId: "turn-1" }
+    })]);
+    controller.close();
+  });
+
   it("streams two answers on one thread while keeping reader context out of the visible user message", async () => {
     const { fake, controller } = fixture();
     await controller.connect();

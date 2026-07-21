@@ -24,6 +24,38 @@ test("launches the secure Electron reading shell", async () => {
     await expect(page.getByRole("button", { name: "設定" })).toBeVisible();
     await expect(page.getByLabel("Codex 狀態")).toBeVisible();
 
+    const assistantPanel = page.getByLabel("AI 助教");
+    const resizeHandle = page.getByRole("separator", {
+      name: "調整 AI 對話面板寬度"
+    });
+    await expect(resizeHandle).toBeVisible();
+    const initialAssistantBox = await assistantPanel.boundingBox();
+    if (!initialAssistantBox) throw new Error("AI panel bounds are unavailable");
+
+    await resizeHandle.press("ArrowLeft");
+    await expect.poll(async () => (await assistantPanel.boundingBox())?.width)
+      .toBeCloseTo(initialAssistantBox.width + 16, 0);
+
+    const handleBox = await resizeHandle.boundingBox();
+    if (!handleBox) throw new Error("AI resize handle bounds are unavailable");
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + 80);
+    await page.mouse.down();
+    await page.mouse.move(handleBox.x - 80, handleBox.y + 80);
+    await page.mouse.up();
+    await expect.poll(async () => (await assistantPanel.boundingBox())?.width)
+      .toBeGreaterThan(initialAssistantBox.width + 80);
+
+    const resizedAssistantBox = await assistantPanel.boundingBox();
+    if (!resizedAssistantBox) throw new Error("resized AI panel bounds are unavailable");
+    await page.getByRole("button", { name: "摺疊右側欄" }).click();
+    await expect(resizeHandle).not.toBeAttached();
+    await page.getByRole("button", { name: "展開右側欄" }).click();
+    await expect(page.getByRole("separator", {
+      name: "調整 AI 對話面板寬度"
+    })).toBeVisible();
+    await expect.poll(async () => (await assistantPanel.boundingBox())?.width)
+      .toBeCloseTo(resizedAssistantBox.width, 0);
+
     const security = await page.evaluate(() => {
       const desktop = (
         window as unknown as {
@@ -43,6 +75,8 @@ test("launches the secure Electron reading shell", async () => {
               startNewConversation: unknown;
               selectConversation: unknown;
               removeConversation: unknown;
+              selectModel: unknown;
+              stopResponse: unknown;
               onStateChanged: unknown;
             };
           };
@@ -62,6 +96,8 @@ test("launches the secure Electron reading shell", async () => {
         hasChatNew: typeof desktop?.chat.startNewConversation,
         hasChatSelect: typeof desktop?.chat.selectConversation,
         hasChatRemove: typeof desktop?.chat.removeConversation,
+        hasChatSelectModel: typeof desktop?.chat.selectModel,
+        hasChatStop: typeof desktop?.chat.stopResponse,
         hasChatSubscription: typeof desktop?.chat.onStateChanged,
         chatKeys: Object.keys(desktop?.chat ?? {}).sort(),
         hasNodeRequire: typeof (window as Window & { require?: unknown }).require
@@ -81,14 +117,18 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasChatNew).toBe("function");
     expect(security.hasChatSelect).toBe("function");
     expect(security.hasChatRemove).toBe("function");
+    expect(security.hasChatSelectModel).toBe("function");
+    expect(security.hasChatStop).toBe("function");
     expect(security.hasChatSubscription).toBe("function");
     expect(security.chatKeys).toEqual([
       "connect",
       "getState",
       "onStateChanged",
       "removeConversation",
+      "selectModel",
       "selectConversation",
       "startNewConversation",
+      "stopResponse",
       "sendMessage"
     ].sort());
     expect(security.hasNodeRequire).toBe("undefined");

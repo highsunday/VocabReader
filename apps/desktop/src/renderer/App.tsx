@@ -34,6 +34,15 @@ import {
 
 type WorkspaceMode = "overview" | "reader" | "review";
 
+const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
+const COLLAPSED_PANEL_WIDTH = 48;
+const MIN_ASSISTANT_PANEL_WIDTH = 280;
+const MAX_ASSISTANT_PANEL_WIDTH = 640;
+const MIN_READING_AREA_WIDTH = 520;
+const EXPANDED_LEFT_SIDEBAR_WIDTH = 220;
+const COLLAPSED_LEFT_SIDEBAR_WIDTH = 48;
+const ASSISTANT_PANEL_RESIZE_STEP = 16;
+
 const initialChatSnapshot: ChatSnapshot = {
   connection: "disconnected",
   connectionDetail: "尚未連線 Codex。",
@@ -50,7 +59,11 @@ const initialChatSnapshot: ChatSnapshot = {
   conversations: [],
   activeConversationId: null,
   managementBusy: false,
-  conversationError: null
+  conversationError: null,
+  models: [],
+  selectedModelId: null,
+  modelCatalogDetail: "尚未取得可用模型。",
+  stopRequested: false
 };
 
 function desktopBridge(): {
@@ -135,6 +148,10 @@ export function App() {
   const [mode, setMode] = useState<WorkspaceMode>("overview");
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
   const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
+  const [assistantPanelWidth, setAssistantPanelWidth] = useState(
+    DEFAULT_ASSISTANT_PANEL_WIDTH
+  );
+  const [isAssistantPanelResizing, setIsAssistantPanelResizing] = useState(false);
   const [books, setBooks] = useState<LibraryBook[]>([]);
   const [selectedBookId, setSelectedBookId] = useState<string>();
   const [activeChapterId, setActiveChapterId] = useState<string>();
@@ -162,6 +179,9 @@ export function App() {
     useState<ChatConversationSummary>();
   const [isConversationActionPending, setIsConversationActionPending] =
     useState(false);
+  const [isModelActionPending, setIsModelActionPending] = useState(false);
+  const [isStopPending, setIsStopPending] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
@@ -385,6 +405,79 @@ export function App() {
   useEffect(() => () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
   }, []);
+
+  function assistantPanelMaximumWidth(): number {
+    const measuredWorkspaceWidth = workspaceRef.current
+      ?.getBoundingClientRect().width;
+    const workspaceWidth = measuredWorkspaceWidth && measuredWorkspaceWidth > 0
+      ? measuredWorkspaceWidth
+      : window.innerWidth;
+    const leftSidebarWidth = isLeftSidebarCollapsed
+      ? COLLAPSED_LEFT_SIDEBAR_WIDTH
+      : EXPANDED_LEFT_SIDEBAR_WIDTH;
+    const availableWidth = workspaceWidth - leftSidebarWidth - MIN_READING_AREA_WIDTH;
+    return Math.max(
+      MIN_ASSISTANT_PANEL_WIDTH,
+      Math.min(MAX_ASSISTANT_PANEL_WIDTH, availableWidth)
+    );
+  }
+
+  function boundedAssistantPanelWidth(width: number): number {
+    return Math.round(Math.max(
+      MIN_ASSISTANT_PANEL_WIDTH,
+      Math.min(assistantPanelMaximumWidth(), width)
+    ));
+  }
+
+  function startAssistantPanelResize(
+    event: React.PointerEvent<HTMLDivElement>
+  ) {
+    event.preventDefault();
+    const initialPointerX = event.clientX;
+    const initialWidth = assistantPanelWidth;
+    setIsAssistantPanelResizing(true);
+
+    const stopListening = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+      setIsAssistantPanelResizing(false);
+    };
+    const handlePointerMove = (pointerEvent: PointerEvent) => {
+      const delta = initialPointerX - pointerEvent.clientX;
+      setAssistantPanelWidth(boundedAssistantPanelWidth(initialWidth + delta));
+    };
+    const handlePointerUp = () => {
+      stopListening();
+    };
+    const handlePointerCancel = () => {
+      stopListening();
+      setAssistantPanelWidth(initialWidth);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+  }
+
+  function handleAssistantPanelResizeKeyDown(
+    event: React.KeyboardEvent<HTMLDivElement>
+  ) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const change = event.key === "ArrowLeft"
+      ? ASSISTANT_PANEL_RESIZE_STEP
+      : -ASSISTANT_PANEL_RESIZE_STEP;
+    setAssistantPanelWidth((current) => boundedAssistantPanelWidth(current + change));
+  }
+
+  useEffect(() => {
+    const handleWindowResize = () => {
+      setAssistantPanelWidth((current) => boundedAssistantPanelWidth(current));
+    };
+    window.addEventListener("resize", handleWindowResize);
+    return () => window.removeEventListener("resize", handleWindowResize);
+  }, [isLeftSidebarCollapsed]);
 
   function currentScrollProgress(): number {
     const scroller = contentRef.current;
@@ -788,6 +881,34 @@ export function App() {
     }
   }
 
+  async function selectModel(modelId: string) {
+    const chat = desktopChat();
+    if (!chat || chatSnapshot.activeTurnId || isModelActionPending) return;
+    setIsModelActionPending(true);
+    setChatError("");
+    try {
+      setChatSnapshot(await chat.selectModel(modelId));
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "無法切換 AI 模型。");
+    } finally {
+      setIsModelActionPending(false);
+    }
+  }
+
+  async function stopResponse() {
+    const chat = desktopChat();
+    if (!chat || !chatSnapshot.activeTurnId || isStopPending) return;
+    setIsStopPending(true);
+    setChatError("");
+    try {
+      setChatSnapshot(await chat.stopResponse());
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "無法停止 AI 回覆。");
+    } finally {
+      setIsStopPending(false);
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -811,11 +932,18 @@ export function App() {
       </header>
 
       <div
+        ref={workspaceRef}
         className={[
           "workspace",
           isLeftSidebarCollapsed ? "left-collapsed" : "",
-          isRightSidebarCollapsed ? "right-collapsed" : ""
+          isRightSidebarCollapsed ? "right-collapsed" : "",
+          isAssistantPanelResizing ? "resizing-right" : ""
         ].filter(Boolean).join(" ")}
+        style={{
+          "--right-sidebar-width": `${
+            isRightSidebarCollapsed ? COLLAPSED_PANEL_WIDTH : assistantPanelWidth
+          }px`
+        } as CSSProperties}
       >
         <aside
           className={isLeftSidebarCollapsed ? "sidebar collapsed" : "sidebar"}
@@ -901,29 +1029,6 @@ export function App() {
                       {connectionLabel(chatSnapshot.connection)}
                     </span>
                   </div>
-                  <p
-                    className="codex-account-identity"
-                    title={chatSnapshot.account
-                      ? [chatSnapshot.account.email, chatSnapshot.account.type]
-                          .filter(Boolean)
-                          .join(" · ")
-                      : chatSnapshot.connectionDetail}
-                    aria-label={chatSnapshot.account
-                      ? [chatSnapshot.account.email, chatSnapshot.account.type]
-                          .filter(Boolean)
-                          .join(" · ")
-                      : chatSnapshot.connectionDetail}
-                  >
-                    {chatSnapshot.account ? (
-                      <span className="codex-account-email">
-                        {chatSnapshot.account.email ?? "本機帳戶"}
-                      </span>
-                    ) : (
-                      <span className="codex-account-email">
-                        {chatSnapshot.connectionDetail}
-                      </span>
-                    )}
-                  </p>
                   <div className="allowance-summary">
                     {([
                       ["5 小時", chatSnapshot.allowance.fiveHour],
@@ -1207,6 +1312,20 @@ export function App() {
           className={isRightSidebarCollapsed ? "assistant-panel collapsed" : "assistant-panel"}
           aria-label="AI 助教"
         >
+          {!isRightSidebarCollapsed ? (
+            <div
+              className="assistant-resize-handle"
+              role="separator"
+              aria-label="調整 AI 對話面板寬度"
+              aria-orientation="vertical"
+              aria-valuemin={MIN_ASSISTANT_PANEL_WIDTH}
+              aria-valuemax={Math.round(assistantPanelMaximumWidth())}
+              aria-valuenow={assistantPanelWidth}
+              tabIndex={0}
+              onPointerDown={startAssistantPanelResize}
+              onKeyDown={handleAssistantPanelResizeKeyDown}
+            />
+          ) : null}
           <div className="assistant-heading">
             {!isRightSidebarCollapsed ? (
               <>
@@ -1337,44 +1456,99 @@ export function App() {
                         <ChatMessageContent text={message.text} />
                       </article>
                     ))}
+                    {chatSnapshot.activeTurnId ? (
+                      <div className="chat-reply-status" role="status">
+                        <span aria-hidden="true" />
+                        Codex 正在回覆…
+                      </div>
+                    ) : null}
                   </div>
 
                   <form className="chat-form" onSubmit={sendMessage}>
-                    <label htmlFor="chat-input">詢問目前內容</label>
+                    <label className="visually-hidden" htmlFor="chat-input">
+                      詢問目前內容
+                    </label>
                     <textarea
                       id="chat-input"
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
                       onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
+                        if (event.key === "Enter" && !event.shiftKey &&
+                          !event.nativeEvent.isComposing && event.keyCode !== 229) {
                           event.preventDefault();
                           event.currentTarget.form?.requestSubmit();
                         }
                       }}
-                      placeholder="例如：這句為什麼使用過去完成式？"
+                      placeholder="輸入你的疑問"
                       rows={3}
                       disabled={chatSnapshot.connection !== "ready" ||
                         Boolean(chatSnapshot.activeTurnId) ||
                         chatSnapshot.managementBusy || isConversationActionPending}
                     />
-                    <div>
-                      <small>
-                        {chatError || chatSnapshot.conversationError ||
-                          (chatSnapshot.activeTurnId
-                            ? "Codex 正在回覆…"
-                            : chatSnapshot.connectionDetail)}
-                      </small>
-                      <button
-                        type="submit"
+                    <div className="chat-form-actions">
+                      <select
+                        aria-label="AI 模型"
+                        value={chatSnapshot.selectedModelId ?? ""}
+                        title={chatSnapshot.modelCatalogDetail}
+                        onChange={(event) => void selectModel(event.target.value)}
                         disabled={chatSnapshot.connection !== "ready" ||
                           Boolean(chatSnapshot.activeTurnId) ||
                           chatSnapshot.managementBusy ||
-                          isConversationActionPending || !draft.trim()}
+                          isConversationActionPending ||
+                          isModelActionPending ||
+                          (chatSnapshot.models?.length ?? 0) === 0}
                       >
-                        送出
-                      </button>
+                        {(chatSnapshot.models?.length ?? 0) === 0 ? (
+                          <option value="">預設模型</option>
+                        ) : chatSnapshot.models?.map((model) => (
+                          <option value={model.id} key={model.id}>
+                            {model.displayName}
+                          </option>
+                        ))}
+                      </select>
+                      {chatSnapshot.activeTurnId ? (
+                        <button
+                          className="stop-response-button"
+                          type="button"
+                          aria-label={isStopPending || chatSnapshot.stopRequested
+                            ? "停止中…"
+                            : "停止"}
+                          title={isStopPending || chatSnapshot.stopRequested
+                            ? "正在停止回覆"
+                            : "停止回覆"}
+                          onClick={() => void stopResponse()}
+                          disabled={isStopPending || chatSnapshot.stopRequested}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 20 20">
+                            <rect x="6" y="6" width="8" height="8" rx="1.5" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <button
+                          className="send-message-button"
+                          type="submit"
+                          aria-label="送出"
+                          title="送出"
+                          disabled={chatSnapshot.connection !== "ready" ||
+                            chatSnapshot.managementBusy ||
+                            isConversationActionPending || !draft.trim()}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 20 20">
+                            <path d="M10 15V5m0 0L6.5 8.5M10 5l3.5 3.5" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </form>
+                  <small className={chatError || chatSnapshot.conversationError
+                    ? "chat-form-hint error"
+                    : "chat-form-hint"}
+                  >
+                    {chatError || chatSnapshot.conversationError ||
+                      (chatSnapshot.connection === "ready"
+                        ? "Enter 送出 · Shift+Enter 換行"
+                        : chatSnapshot.connectionDetail)}
+                  </small>
                 </>
               )}
             </div>

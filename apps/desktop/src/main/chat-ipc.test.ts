@@ -36,6 +36,8 @@ describe("chat IPC", () => {
       startNewConversation: vi.fn().mockReturnValue(snapshot),
       selectConversation: vi.fn().mockReturnValue(snapshot),
       removeConversation: vi.fn().mockResolvedValue(snapshot),
+      selectModel: vi.fn().mockReturnValue(snapshot),
+      stopResponse: vi.fn().mockResolvedValue(snapshot),
       onStateChanged: vi.fn(() => listener)
     };
     const publish = vi.fn();
@@ -52,6 +54,8 @@ describe("chat IPC", () => {
     expect(handlers.has("chat:new")).toBe(true);
     expect(handlers.has("chat:select")).toBe(true);
     expect(handlers.has("chat:remove")).toBe(true);
+    expect(handlers.has("chat:select-model")).toBe(true);
+    expect(handlers.has("chat:stop")).toBe(true);
     await handlers.get("chat:send")?.({}, {
       text: "Explain",
       context: {
@@ -75,9 +79,13 @@ describe("chat IPC", () => {
     await handlers.get("chat:new")?.({});
     await handlers.get("chat:select")?.({}, "conversation-a");
     await handlers.get("chat:remove")?.({}, "conversation-a");
+    await handlers.get("chat:select-model")?.({}, "gpt-reader");
+    await handlers.get("chat:stop")?.({});
     expect(controller.startNewConversation).toHaveBeenCalledOnce();
     expect(controller.selectConversation).toHaveBeenCalledWith("conversation-a");
     expect(controller.removeConversation).toHaveBeenCalledWith("conversation-a");
+    expect(controller.selectModel).toHaveBeenCalledWith("gpt-reader");
+    expect(controller.stopResponse).toHaveBeenCalledOnce();
     expect(() => handlers.get("chat:select")?.({}, ""))
       .toThrow(/對話識別碼/);
     expect(unsubscribe).toBe(listener);

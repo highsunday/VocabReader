@@ -11,6 +11,7 @@ export interface RecordedCodexRequest {
 interface FakeCodexOptions {
   accountResult?: unknown;
   rateLimitsResult?: unknown;
+  modelListError?: string;
   threadStartDelayMs?: number;
   turnDelayMs?: number;
   resumeError?: string;
@@ -61,6 +62,37 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
           rateLimits: allowanceSnapshot(10, 20),
           rateLimitsByLimitId: { codex: allowanceSnapshot(24, 38) }
         });
+      } else if (message.method === "model/list") {
+        if (options.modelListError) {
+          respondError(message.id, options.modelListError);
+        } else {
+          respond(message.id, {
+            data: [{
+              id: "gpt-default",
+              displayName: "GPT Default",
+              description: "Default test model",
+              hidden: false,
+              supportedReasoningEfforts: [{
+                reasoningEffort: "medium",
+                description: "Balanced"
+              }],
+              defaultReasoningEffort: "medium",
+              isDefault: true
+            }, {
+              id: "gpt-reader",
+              displayName: "GPT Reader",
+              description: "Reader test model",
+              hidden: false,
+              supportedReasoningEfforts: [{
+                reasoningEffort: "high",
+                description: "Detailed"
+              }],
+              defaultReasoningEffort: "high",
+              isDefault: false
+            }],
+            nextCursor: null
+          });
+        }
       } else if (message.method === "thread/start") {
         const threadId = `thread-${++threadCount}`;
         setTimeout(() => {
@@ -122,6 +154,8 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
             turn: { id: turnId, status: "completed", error: null }
           });
         }, options.turnDelayMs ?? 0);
+      } else if (message.method === "turn/interrupt") {
+        respond(message.id, {});
       }
     }
   });

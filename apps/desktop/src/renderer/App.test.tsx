@@ -101,8 +101,28 @@ afterEach(() => {
   });
 });
 
+function initialReadySnapshot(): ChatSnapshot {
+  return {
+    connection: "ready",
+    connectionDetail: "Codex 已連線。",
+    account: { type: "plus", email: "reader@example.com" },
+    allowance: {
+      phase: "available",
+      fiveHour: null,
+      weekly: null,
+      detail: "已取得帳戶共用額度。"
+    },
+    messages: [],
+    threadId: null,
+    activeTurnId: null,
+    conversations: [],
+    activeConversationId: null,
+    managementBusy: false
+  };
+}
+
 describe("App", () => {
-  it("renders the live Codex account card and sends through the AI conversation bridge", async () => {
+  it("renders model and composer controls without exposing the Codex email", async () => {
     const snapshot = {
       connection: "ready" as const,
       connectionDetail: "Codex 已連線。",
@@ -118,9 +138,19 @@ describe("App", () => {
       activeTurnId: null,
       conversations: [],
       activeConversationId: null,
-      managementBusy: false
+      managementBusy: false,
+      models: [
+        { id: "gpt-default", displayName: "GPT Default", defaultReasoningEffort: "medium" },
+        { id: "gpt-reader", displayName: "GPT Reader", defaultReasoningEffort: "high" }
+      ],
+      selectedModelId: "gpt-default",
+      modelCatalogDetail: "已取得可用對話模型。"
     };
     const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    const selectModel = vi.fn().mockResolvedValue({
+      ...snapshot,
+      selectedModelId: "gpt-reader"
+    });
     Object.defineProperty(window, "readerDesktop", {
       configurable: true,
       value: {
@@ -130,6 +160,8 @@ describe("App", () => {
           getState: vi.fn().mockResolvedValue(snapshot),
           connect: vi.fn().mockResolvedValue(snapshot),
           sendMessage,
+          selectModel,
+          stopResponse: vi.fn(),
           onStateChanged: vi.fn().mockReturnValue(() => undefined)
         }
       }
@@ -143,12 +175,8 @@ describe("App", () => {
       .toBeInTheDocument();
     expect(screen.getByText("已連線", { selector: ".codex-connection-label" }))
       .toBeInTheDocument();
-    const identity = screen.getByText("reader@example.com", {
-      selector: ".codex-account-email"
-    });
-    expect(identity).toBeInTheDocument();
-    expect(identity.closest(".codex-account-identity"))
-      .toHaveAttribute("title", "reader@example.com · plus");
+    expect(screen.queryByText("reader@example.com")).not.toBeInTheDocument();
+    expect(screen.queryByText(/已連線：/)).not.toBeInTheDocument();
     expect(screen.queryByText("plus", {
       selector: ".codex-account-type"
     })).not.toBeInTheDocument();
@@ -162,14 +190,104 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "設定" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
+    expect(screen.getByLabelText("AI 模型")).toHaveValue("gpt-default");
+    fireEvent.change(screen.getByLabelText("AI 模型"), {
+      target: { value: "gpt-reader" }
+    });
+    await waitFor(() => expect(selectModel).toHaveBeenCalledWith("gpt-reader"));
+
+    const input = screen.getByLabelText("詢問目前內容");
+    expect(input).toHaveAttribute("placeholder", "輸入你的疑問");
+    expect(screen.getByText("詢問目前內容")).toHaveClass("visually-hidden");
+    expect(screen.getByLabelText("AI 模型")).toHaveProperty(
+      "parentElement",
+      document.querySelector(".chat-form-actions")
+    );
+    expect(screen.getByText("Enter 送出 · Shift+Enter 換行"))
+      .toHaveClass("chat-form-hint");
+
     fireEvent.change(screen.getByLabelText("詢問目前內容"), {
       target: { value: "這句話的文法是什麼？" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    const sendButton = screen.getByRole("button", { name: "送出" });
+    expect(sendButton).toHaveClass("send-message-button");
+    expect(sendButton.querySelector("svg")).toBeInTheDocument();
+    fireEvent.click(sendButton);
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
       text: "這句話的文法是什麼？"
     }));
+  });
+
+  it("does not submit Enter while an input method is composing text", async () => {
+    const snapshot: ChatSnapshot = {
+      ...initialReadySnapshot(),
+      models: [],
+      selectedModelId: null,
+      modelCatalogDetail: "無法取得模型"
+    };
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    installLibraryApi([], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+
+    const input = await screen.findByLabelText("詢問目前內容");
+    fireEvent.change(input, { target: { value: "中文選字" } });
+    fireEvent.keyDown(input, {
+      key: "Enter",
+      keyCode: 229,
+      isComposing: true
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+  });
+
+  it("shows reply progress in the conversation and exposes a stop action", async () => {
+    const snapshot: ChatSnapshot = {
+      ...initialReadySnapshot(),
+      activeTurnId: "turn-1",
+      stopRequested: false,
+      threadId: "thread-1",
+      models: [{
+        id: "gpt-default",
+        displayName: "GPT Default",
+        defaultReasoningEffort: "medium"
+      }],
+      selectedModelId: "gpt-default",
+      modelCatalogDetail: "已取得可用對話模型。"
+    };
+    const stopResponse = vi.fn().mockResolvedValue({
+      ...snapshot,
+      stopRequested: true
+    });
+    installLibraryApi([], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage: vi.fn().mockResolvedValue(snapshot),
+      stopResponse,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+
+    const progress = await screen.findByText("Codex 正在回覆…");
+    expect(progress).toHaveClass("chat-reply-status");
+    expect(progress.closest(".messages")).toBeInTheDocument();
+    expect(screen.getByText("Enter 送出 · Shift+Enter 換行"))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText("AI 模型")).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "停止" }));
+    await waitFor(() => expect(stopResponse).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "停止中…" })).toBeDisabled();
   });
 
   it("sends only the current reading segment as EPUB context", async () => {
@@ -743,6 +861,102 @@ describe("App", () => {
     expect(workspace).not.toHaveClass("right-collapsed");
   });
 
+  it("resizes the AI conversation panel and restores its width after collapsing", () => {
+    render(<App />);
+
+    const workspace = document.querySelector<HTMLElement>(".workspace");
+    if (!workspace) throw new Error("workspace is missing");
+    vi.spyOn(workspace, "getBoundingClientRect").mockReturnValue({
+      bottom: 800,
+      height: 800,
+      left: 0,
+      right: 1440,
+      top: 0,
+      width: 1440,
+      x: 0,
+      y: 0,
+      toJSON: () => undefined
+    });
+
+    const resizeHandle = screen.getByRole("separator", {
+      name: "調整 AI 對話面板寬度"
+    });
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("360px");
+
+    fireEvent.pointerDown(resizeHandle, { clientX: 920, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 820, pointerId: 1 });
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("460px");
+    fireEvent.pointerUp(window, { clientX: 820, pointerId: 1 });
+
+    fireEvent.click(screen.getByRole("button", { name: "摺疊右側欄" }));
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("48px");
+    expect(screen.queryByRole("separator", {
+      name: "調整 AI 對話面板寬度"
+    })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "展開右側欄" }));
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("460px");
+    expect(screen.getByRole("separator", {
+      name: "調整 AI 對話面板寬度"
+    })).toBeInTheDocument();
+  });
+
+  it("limits pointer and keyboard resizing and restores width when dragging is cancelled", () => {
+    render(<App />);
+
+    const workspace = document.querySelector<HTMLElement>(".workspace");
+    if (!workspace) throw new Error("workspace is missing");
+    vi.spyOn(workspace, "getBoundingClientRect").mockReturnValue({
+      bottom: 800,
+      height: 800,
+      left: 0,
+      right: 1400,
+      top: 0,
+      width: 1400,
+      x: 0,
+      y: 0,
+      toJSON: () => undefined
+    });
+
+    const resizeHandle = screen.getByRole("separator", {
+      name: "調整 AI 對話面板寬度"
+    });
+
+    fireEvent.pointerDown(resizeHandle, { clientX: 920, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 100, pointerId: 1 });
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("640px");
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    fireEvent.pointerDown(resizeHandle, { clientX: 920, pointerId: 2 });
+    fireEvent.pointerMove(window, { clientX: 1500, pointerId: 2 });
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("280px");
+    fireEvent.pointerUp(window, { pointerId: 2 });
+
+    fireEvent.keyDown(resizeHandle, { key: "ArrowLeft" });
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("296px");
+    fireEvent.keyDown(resizeHandle, { key: "ArrowRight" });
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("280px");
+
+    fireEvent.pointerDown(resizeHandle, { clientX: 920, pointerId: 3 });
+    fireEvent.pointerMove(window, { clientX: 820, pointerId: 3 });
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("380px");
+    fireEvent.pointerCancel(window, { pointerId: 3 });
+    expect(workspace.style.getPropertyValue("--right-sidebar-width"))
+      .toBe("280px");
+    expect(resizeHandle).toHaveAttribute("aria-valuemin", "280");
+    expect(resizeHandle).toHaveAttribute("aria-valuemax", "640");
+    expect(resizeHandle).toHaveAttribute("aria-valuenow", "280");
+  });
+
   it("lists persisted books and switches to the selected book overview", async () => {
     installLibraryApi();
     render(<App />);
@@ -1151,7 +1365,7 @@ describe("App", () => {
       value: elementFromPoint
     });
 
-    const marker = screen.getByRole("button", { name: "閱讀區段起點" });
+    const marker = await screen.findByRole("button", { name: "閱讀區段起點" });
     expect(marker).not.toHaveAttribute("draggable");
     fireEvent.pointerDown(marker, { pointerId: 1, clientX: 12, clientY: 40 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 50, clientY: 100 });
@@ -1223,6 +1437,7 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     const second = await screen.findByText("Second readable line.");
+    await screen.findByRole("button", { name: "閱讀區段起點" });
 
     fireEvent.contextMenu(second);
     const moveStart = screen.getByRole("menuitem", { name: "將起點移到這裡" });
@@ -1291,6 +1506,7 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     const second = await screen.findByText("Second readable line.");
+    await screen.findByRole("button", { name: "閱讀區段起點" });
 
     fireEvent.contextMenu(second);
     const moveEnd = screen.getByRole("menuitem", { name: "將終點移到這裡" });

@@ -30,6 +30,12 @@ export interface AiUsageAllowance {
   detail: string;
 }
 
+export interface ConversationModel {
+  id: string;
+  displayName: string;
+  defaultReasoningEffort: string;
+}
+
 export interface ChatContext {
   bookTitle?: string;
   chapterTitle?: string;
@@ -61,6 +67,10 @@ export interface ChatSnapshot {
   activeConversationId: string | null;
   managementBusy: boolean;
   conversationError?: string | null;
+  models?: ConversationModel[];
+  selectedModelId?: string | null;
+  modelCatalogDetail?: string;
+  stopRequested?: boolean;
 }
 
 export interface ChatDesktopApi {
@@ -70,5 +80,7 @@ export interface ChatDesktopApi {
   startNewConversation(): Promise<ChatSnapshot>;
   selectConversation(conversationId: string): Promise<ChatSnapshot>;
   removeConversation(conversationId: string): Promise<ChatSnapshot>;
+  selectModel(modelId: string): Promise<ChatSnapshot>;
+  stopResponse(): Promise<ChatSnapshot>;
   onStateChanged(listener: (snapshot: ChatSnapshot) => void): () => void;
 }

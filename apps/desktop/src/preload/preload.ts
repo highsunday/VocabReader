@@ -46,6 +46,9 @@ const desktopApi = Object.freeze({
       ipcRenderer.invoke("chat:select", conversationId),
     removeConversation: (conversationId: string): Promise<ChatSnapshot> =>
       ipcRenderer.invoke("chat:remove", conversationId),
+    selectModel: (modelId: string): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:select-model", modelId),
+    stopResponse: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:stop"),
     onStateChanged(listener: (snapshot: ChatSnapshot) => void) {
       const wrapped = (
         _event: Electron.IpcRendererEvent,

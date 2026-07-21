@@ -53,5 +53,9 @@ export function registerChatIpc(
   ipc.handle("chat:remove", (_event, conversationId) => {
     return controller.removeConversation(parseConversationId(conversationId));
   });
+  ipc.handle("chat:select-model", (_event, modelId) => {
+    return controller.selectModel(parseConversationId(modelId));
+  });
+  ipc.handle("chat:stop", () => controller.stopResponse());
   return controller.onStateChanged(publish);
 }
