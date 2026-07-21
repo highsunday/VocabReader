@@ -1,6 +1,6 @@
 # Q01 ledger archive — L010–L048
 
-Archived: 2026-07-22 01:47 CST  
+Archived: 2026-07-22 01:47 CST
 Reason: the Q01 master document exceeded the compact-context threshold before Q01-04.
 
 The Q01 Log Index remains authoritative. This archive preserves the resolved communication
@@ -25,4 +25,3 @@ the active queue focused on the Q01-04 dispatch.
 
 No pending proposal state, review scheduling, AI writes/deletes/archives, or old-card
 automatic translation was introduced in the resolved items.
-

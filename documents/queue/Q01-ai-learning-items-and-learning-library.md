@@ -4,7 +4,7 @@ date: 2026-07-22
 title: 依 P01 建立 AI 學習項目與生詞庫
 uuid: ec8c9d89f8074d309825154d9bb108ef
 version: 1.0
-status: completed_pending_orchestrator_closeout
+status: completed
 source_plan: documents/planning/P01-ai-learning-items-and-learning-library.md
 batch_limit: 4
 mode: sequential
@@ -18,7 +18,7 @@ notify_email_from:
 notify_email_to:
 notify_on_queue_blocked: true
 notify_on_queue_completed: true
-orchestrator_closeout: ready
+orchestrator_closeout: completed
 ---
 
 # Queue - AI 學習項目與生詞庫
@@ -141,7 +141,7 @@ reviewed_at: 2026-07-22 00:41 CST
 | Q01-01 | 拆分可擴充的桌面工作區邊界 | RXX | codex | — | completed | documents/implements/R01-desktop-workspace-boundaries.md | 0701a3b |
 | Q01-02 | 建立本機生詞庫與來源卡片基礎 | FXX | codex | Q01-01 | completed | documents/implements/F19-local-learning-library.md | ab7b12e |
 | Q01-03 | 產生結構化 AI 學習項目提案 | FXX | codex | Q01-02 | completed | documents/implements/F20-structured-ai-learning-proposals.md | 5766ba8 |
-| Q01-04 | 確認並安全套用新增／更新提案 | FXX | codex | Q01-03 | completed | F21-safe-learning-proposal-apply | pending-orchestrator |
+| Q01-04 | 確認並安全套用新增／更新提案 | FXX | codex | Q01-03 | completed | documents/implements/F21-safe-learning-proposal-apply.md | 7895d8d |
 
 ## 4. Queue Items
 
@@ -344,11 +344,11 @@ unlock_condition: Q01-03 completed with a commit, and valid create/update/unchan
 auto_approve: true
 commit_required: true
 implemented_doc: documents/implements/F21-safe-learning-proposal-apply.md
-commit: pending-orchestrator
+commit: 7895d8d
 worker_session: codex acceptance correction 2026-07-22 02:05 CST
 worker_log: F21 correction RED: 3 expected failures for retained navigation proposals and unchanged count 0. GREEN: explicit Renderer context disposal/late guard and no-op update summary consistency. Focused 64; full server 3 + desktop 156; typecheck, build and E2E 2/2 passed. No boundary expansion.
-handoff_summary: Q01-04 acceptance correction complete, commit remains pending-orchestrator. Session-only review is discarded on reader/source-context changes and late responses are ignored. No-op updates count unchanged while source/content/version stability holds. All required verification is green; no scheduling or AI writes/delete/archive added.
-communication_entries: [L004, L005, L006, L007, L049, L051, L052, L053, L054, L055, L056, L057, L058, L059, L060, L061, L062, L063, L064, L065]
+handoff_summary: Q01-04 accepted at 7895d8d. Session-only review is discarded on reader/source-context changes and late responses are ignored. No-op updates count unchanged while source/content/version stability holds. All required verification is green; no scheduling or AI writes/delete/archive added.
+communication_entries: [L004, L005, L006, L007, L049, L051, L052, L053, L054, L055, L056, L057, L058, L059, L060, L061, L062, L063, L064, L065, L066, L067]
 archive_refs: []
 
 ### Requirements
@@ -364,11 +364,11 @@ archive_refs: []
 
 ### Acceptance criteria
 
-- [ ] 混合提案可逐項取消或改 action，再一次套用選取項目；結果摘要與生詞庫變化一致。
-- [ ] 更新後保留舊來源並追加本次來源；未選取欄位與人工內容依 intake 決策保留。
-- [ ] 同一區段重跑不建立重複項目或來源，unchanged 不無故改變版本或 `updatedAt`。
-- [ ] 目標項目在提案後被編輯時，舊提案因版本衝突被拒絕並要求重新產生。
-- [ ] 重啟後已套用項目、不同語義與來源仍可查看，既有閱讀與 AI 流程無回歸。
+- [x] 混合提案可逐項取消或改 action，再一次套用選取項目；結果摘要與生詞庫變化一致。
+- [x] 更新後保留舊來源並追加本次來源；未選取欄位與人工內容依 intake 決策保留。
+- [x] 同一區段重跑不建立重複項目或來源，unchanged 不無故改變版本或 `updatedAt`。
+- [x] 目標項目在提案後被編輯時，舊提案因版本衝突被拒絕並要求重新產生。
+- [x] 重啟後已套用項目、不同語義與來源仍可查看，既有閱讀與 AI 流程無回歸。
 
 ### Stop conditions
 
@@ -390,10 +390,10 @@ archive_refs: []
 
 ### Agent Handoff Summary
 
-- Current state: acceptance correction complete; `commit: pending-orchestrator`
+- Current state: completed and accepted at `7895d8d`
 - Decisions: explicit confirmation and transaction guards retained; session-only review drops on source context changes
 - Tests: correction RED 3/61; focused GREEN 64/64; full 159, typecheck, build and E2E 2/2 green
-- Risks: no known regression; queue closeout and notification remain orchestrator-only
+- Risks: no known regression; review scheduling remains intentionally out of scope
 
 ## 5. Agent Communication Ledger (Append-only)
 
@@ -466,6 +466,8 @@ archive_refs: []
 | L063 | 2026-07-22 02:12 | Q01-04 | codex -> queue | acceptance | Full server 3 + desktop 156, typecheck, build and Electron E2E 2/2 passed | — |
 | L064 | 2026-07-22 02:12 | Q01-04 | codex -> queue | handoff | Correction complete pending amended commit verification; notification suppressed | — |
 | L065 | 2026-07-22 02:17 | Q01-04 | codex -> queue | acceptance | Final snapshot rerun passed focused/full/typecheck/build/E2E after range-drag review | — |
+| L066 | 2026-07-22 02:20 | Q01-04 | orchestrator -> queue | acceptance | Verified amended item commit 7895d8d, clean worktree and all F21 acceptance evidence | — |
+| L067 | 2026-07-22 02:20 | ALL | orchestrator -> user | notification | Q01 completed; email skipped because From/To are not configured, conversation fallback used | — |
 
 ### Active Entries
 
@@ -641,6 +643,29 @@ After final behavior review added disposal on the first actual range-marker drag
 assertion independent of same-millisecond row ordering, the complete final snapshot was rerun:
 focused 64/64, `npm test` server 3 + desktop 156, typecheck, production build and Electron E2E 2/2
 all passed. No queue closeout or notification was performed.
+
+#### L066 — 2026-07-22 02:20 — Q01-04 — orchestrator -> queue — acceptance
+
+**Message**
+Verified the single amended Q01-04 feature commit `7895d8d`. The final implementation retains the
+typed transactional apply boundary, manual-field protection, candidate/source/version checks,
+audit and idempotency; it also discards stale session proposals across source-context changes and
+reports no-op updates consistently. Focused 64, full server 3 + desktop 156, typecheck, production
+build and Electron E2E 2/2 are green. Q01-04 is accepted and its actual commit is recorded.
+
+#### L067 — 2026-07-22 02:20 — ALL — orchestrator -> user — notification
+
+**Message**
+Q01 completed successfully: all four ordered items have implemented documents, accepted commits
+and verified unlock evidence. P01 is completed and Q01 is closed. Queue-completed email was skipped
+because `notify_email_from` and `notify_email_to` are not configured; the configured fallback is
+this Codex conversation.
+
+**Notification**
+- ddd-email-notify: skipped-not-configured
+- From: —
+- To: —
+- Fallback: current Codex conversation
 
 ## 6. Queue execution rules
 
