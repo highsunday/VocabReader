@@ -6,6 +6,7 @@ last_updated: 2026-07-21
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
+  - F08-compact-markdown-chat-messages
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -31,6 +32,8 @@ related_implements:
 - assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy。
 - 同一 thread 不允許並行 turn，包含第一次 thread 尚在建立的時間窗。
 - 右側 AI 對話面板顯示 session 內訊息；關閉應用程式後不保存對話。
+- 對話訊息不顯示占寬的「你／AI」角色標籤；使用者訊息以靠右淡色氣泡呈現，AI 回覆以滿寬正文呈現，並保留輔助技術可辨識的角色語意。
+- 使用安全的 Markdown Renderer 呈現 CommonMark 與 GitHub Flavored Markdown；原始 HTML 不會插入 DOM，表格與程式碼在窄側欄中可水平捲動。
 - 左側窄欄狀態卡顯示 Codex、右上角連線標籤、單行省略信箱，以及上下排列的五小時／每週額度；完整信箱、帳戶類型與重置時間保留於提示文字及無障礙名稱。
 - 「設定」目前是無副作用的空按鈕，不提供模型或推理強度設定。
 
@@ -73,6 +76,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 從目前模式、選取書籍、章節與 `extractReadingSegment()` 組裝 `SendChatMessageInput`。
 - 空閱讀區段只送出一般問題，不使用整章 fallback。
 - 顯示處理中、需要登入、連線失敗與額度不可用狀態。
+- 以安全的 Markdown 元件呈現 user／assistant 訊息，並在串流尚無文字時保留「…」占位。
 - AI 回覆與範圍標籤狀態分離；送出或完成訊息不推進 START／END。
 
 ## 4. Shared Data
@@ -154,13 +158,13 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 |---|---|
 | `apps/desktop/src/main/chat-controller.test.ts` | initialize 順序、帳戶、額度、loading、partial update、0%／缺值、多輪串流、thread 重用、錯誤、登入、並行保護與 process close |
 | `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 白名單、結構化 context 與惡意格式拒絕 |
-| `apps/desktop/src/renderer/App.test.tsx` | 真實 snapshot 狀態卡、窄欄帳戶呈現、空設定按鈕、bridge send、閱讀區段裁切與一般對話 fallback |
+| `apps/desktop/src/renderer/App.test.tsx` | 真實 snapshot 狀態卡、窄欄帳戶呈現、空設定按鈕、bridge send、閱讀區段裁切、一般對話 fallback、精簡角色排版、安全 Markdown／GFM 與串流占位 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、狀態卡、設定按鈕、四項 chat bridge 白名單與 Node 隔離 |
 
 最近驗證（2026-07-21）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：65/65 passed。
+- Desktop Vitest：67/67 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -171,6 +175,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - 不保存或恢復跨次啟動對話。
 - 不提供模型、推理強度或 API key 設定；「設定」按鈕目前無副作用。
 - 不提供內嵌 Codex／ChatGPT 登入或帳戶切換。
+- Markdown 程式碼區塊目前不提供語法高亮。
 - 尚未實作區段解析、標記說明、區段練習、生詞庫與 Anki 式複習的 AI 流程。
 - 本機 GUI 環境必須能找到已安裝的 `codex` 可執行檔。
 
@@ -180,5 +185,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/modules/reading-range.md`
 - `documents/implements/F05-ai-reading-range-markers.md`
 - `documents/implements/F07-codex-ai-conversation.md`
+- `documents/implements/F08-compact-markdown-chat-messages.md`
 
-變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡或對話生命週期時，必須同步更新本文件與 F07 實作紀錄。
+變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

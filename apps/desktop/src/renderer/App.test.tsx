@@ -303,6 +303,122 @@ describe("App", () => {
       .toBeInTheDocument();
   });
 
+  it("renders compact role-aware messages with safe GitHub Flavored Markdown", async () => {
+    const snapshot: ChatSnapshot = {
+      connection: "ready",
+      connectionDetail: "Codex 已連線。",
+      account: { type: "plus" },
+      allowance: {
+        phase: "unavailable",
+        fiveHour: null,
+        weekly: null,
+        detail: "無法取得"
+      },
+      messages: [
+        {
+          id: "user-1",
+          turnId: "turn-1",
+          role: "user",
+          text: "請整理這一段",
+          status: "completed"
+        },
+        {
+          id: "assistant-1",
+          turnId: "turn-1",
+          role: "assistant",
+          text: [
+            "## 章節重點",
+            "",
+            "這是 **粗體**、[外部連結](https://example.com) 與 `inlineCode`。",
+            "",
+            "- 第一點",
+            "- 第二點",
+            "",
+            "> 一段引用",
+            "",
+            "```ts",
+            "const answer = 42;",
+            "```",
+            "",
+            "| 項目 | 說明 |",
+            "| --- | --- |",
+            "| A | B |",
+            "",
+            "<span data-testid=\"unsafe-html\">不可信 HTML</span>"
+          ].join("\n"),
+          status: "completed"
+        }
+      ],
+      threadId: "thread-1",
+      activeTurnId: null
+    };
+    installLibraryApi([], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage: vi.fn().mockResolvedValue(snapshot),
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+
+    render(<App />);
+
+    const userMessage = await screen.findByLabelText("使用者訊息");
+    const assistantMessage = screen.getByLabelText("AI 回覆");
+    expect(userMessage).toHaveClass("user");
+    expect(assistantMessage).toHaveClass("assistant");
+    expect(userMessage.querySelector(":scope > .message-role"))
+      .not.toBeInTheDocument();
+    expect(assistantMessage.querySelector(":scope > .message-role"))
+      .not.toBeInTheDocument();
+    expect(assistantMessage.querySelector("h2")).toHaveTextContent("章節重點");
+    expect(assistantMessage.querySelector("strong")).toHaveTextContent("粗體");
+    expect(assistantMessage.querySelectorAll("li")).toHaveLength(2);
+    expect(assistantMessage.querySelector("blockquote"))
+      .toHaveTextContent("一段引用");
+    expect(assistantMessage.querySelector("code")).toHaveTextContent("inlineCode");
+    expect(assistantMessage.querySelector("pre code"))
+      .toHaveTextContent("const answer = 42;");
+    expect(assistantMessage.querySelector("table")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "外部連結" }))
+      .toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "外部連結" }))
+      .toHaveAttribute("rel", "noreferrer");
+    expect(assistantMessage.querySelector("[data-testid='unsafe-html']"))
+      .not.toBeInTheDocument();
+  });
+
+  it("keeps the streaming placeholder in the compact message body", async () => {
+    const snapshot: ChatSnapshot = {
+      connection: "ready",
+      connectionDetail: "Codex 已連線。",
+      account: { type: "plus" },
+      allowance: {
+        phase: "unavailable",
+        fiveHour: null,
+        weekly: null,
+        detail: "無法取得"
+      },
+      messages: [{
+        id: "assistant-1",
+        turnId: "turn-1",
+        role: "assistant",
+        text: "",
+        status: "streaming"
+      }],
+      threadId: "thread-1",
+      activeTurnId: "turn-1"
+    };
+    installLibraryApi([], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage: vi.fn().mockResolvedValue(snapshot),
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+
+    render(<App />);
+
+    expect(await screen.findByLabelText("AI 回覆")).toHaveTextContent("…");
+  });
+
   it("collapses and expands the left and right sidebars independently", () => {
     render(<App />);
 

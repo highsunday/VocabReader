@@ -8,6 +8,8 @@ import {
   useState
 } from "react";
 import type { CSSProperties } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type {
   ChatDesktopApi,
   ChatSnapshot,
@@ -86,6 +88,29 @@ function resetLabel(timestamp: number | undefined) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function ChatMessageContent({ text }: { text: string }) {
+  return (
+    <div className="message-content">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        skipHtml
+        components={{
+          a: ({ node: _node, ...props }) => (
+            <a {...props} target="_blank" rel="noreferrer" />
+          ),
+          table: ({ node: _node, ...props }) => (
+            <div className="markdown-table-scroll">
+              <table {...props} />
+            </div>
+          )
+        }}
+      >
+        {text || "…"}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 const ChapterArticle = memo(forwardRef<HTMLElement, {
@@ -1131,10 +1156,13 @@ export function App() {
                   </div>
                 ) : null}
                 {chatSnapshot.messages.map((message) => (
-                  <div className={"message " + message.role} key={message.id}>
-                    <span>{message.role === "assistant" ? "AI" : "你"}</span>
-                    <p>{message.text || "…"}</p>
-                  </div>
+                  <article
+                    aria-label={message.role === "assistant" ? "AI 回覆" : "使用者訊息"}
+                    className={"message " + message.role}
+                    key={message.id}
+                  >
+                    <ChatMessageContent text={message.text} />
+                  </article>
                 ))}
               </div>
 
