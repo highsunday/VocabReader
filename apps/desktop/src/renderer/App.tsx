@@ -26,14 +26,6 @@ import type {
   ReadingRange
 } from "../shared/library-contracts";
 import type {
-  LearningDesktopApi,
-  LearningItem,
-  LearningListStatus,
-  LearningProposalAction,
-  LearningProposalField,
-  UpdateLearningItemInput
-} from "../shared/learning-contracts";
-import type {
   AppSettings,
   ExplanationLanguage,
   SettingsDesktopApi
@@ -50,12 +42,8 @@ import {
   renderAnnotationHighlights,
   textOffsetAtPoint
 } from "./reading-range";
-import { AiConversationPanel } from "./workspace/AiConversationPanel";
-import { LearningLibraryWorkspace } from "./workspace/LearningLibraryWorkspace";
-import { PrimaryNavigation } from "./workspace/PrimaryNavigation";
-import { ReadingWorkspace } from "./workspace/ReadingWorkspace";
 
-type WorkspaceMode = "overview" | "reader" | "learning";
+type WorkspaceMode = "overview" | "reader" | "review";
 
 const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
 const COLLAPSED_PANEL_WIDTH = 48;
@@ -91,7 +79,6 @@ const initialChatSnapshot: ChatSnapshot = {
 
 function desktopBridge(): {
   library?: LibraryDesktopApi;
-  learning?: LearningDesktopApi;
   settings?: SettingsDesktopApi;
   chat?: ChatDesktopApi;
 } | undefined {
@@ -99,7 +86,6 @@ function desktopBridge(): {
     window as unknown as {
       readerDesktop?: {
         library?: LibraryDesktopApi;
-        learning?: LearningDesktopApi;
         settings?: SettingsDesktopApi;
         chat?: ChatDesktopApi;
       };
@@ -109,10 +95,6 @@ function desktopBridge(): {
 
 function desktopLibrary(): LibraryDesktopApi | undefined {
   return desktopBridge()?.library;
-}
-
-function desktopLearning(): LearningDesktopApi | undefined {
-  return desktopBridge()?.learning;
 }
 
 function desktopChat(): ChatDesktopApi | undefined {
@@ -200,20 +182,6 @@ export function App() {
   const [readingRange, setReadingRange] = useState<ReadingRange>();
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [isAnnotationMode, setIsAnnotationMode] = useState(false);
-  const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
-  const [learningStatus, setLearningStatus] = useState<LearningListStatus>("active");
-  const [selectedLearningItem, setSelectedLearningItem] = useState<LearningItem>();
-  const [isLearningLoading, setIsLearningLoading] = useState(false);
-  const [learningError, setLearningError] = useState("");
-  const [learningNotice, setLearningNotice] = useState("");
-  const [learningProposals, setLearningProposals] = useState<Awaited<ReturnType<LearningDesktopApi["generateProposals"]>>["proposals"]>([]);
-  const [learningProposalReviews, setLearningProposalReviews] = useState<Record<string, {
-    selected: boolean;
-    action: LearningProposalAction;
-    confirmedFields: LearningProposalField[];
-  }>>({});
-  const [isGeneratingLearningCards, setIsGeneratingLearningCards] = useState(false);
-  const [isApplyingLearningProposals, setIsApplyingLearningProposals] = useState(false);
   const [rangeMenu, setRangeMenu] = useState<{
     x: number;
     y: number;
@@ -245,8 +213,6 @@ export function App() {
   const initializedRangeRef = useRef<string | undefined>(undefined);
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const annotationCounterRef = useRef(0);
-  const learningProposalBatchIdRef = useRef<string | undefined>(undefined);
-  const learningProposalContextKeyRef = useRef<string | undefined>(undefined);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const chapterStartRef = useRef<{
     bookId: string;
@@ -267,21 +233,6 @@ export function App() {
   const activeChapterIndex = selectedBook?.chapters.findIndex(
     (chapter) => chapter.id === activeChapterId
   ) ?? -1;
-  const learningProposalContextKey = mode === "reader" && selectedBook && activeChapter &&
-    chapterContent && readingRange
-    ? JSON.stringify([
-        selectedBook.id,
-        selectedBook.title,
-        activeChapter.id,
-        activeChapter.title,
-        chapterContent.contentHtml,
-        readingRange.start,
-        readingRange.end,
-        annotationRevision(annotations),
-        settings.explanationLanguage
-      ])
-    : undefined;
-  learningProposalContextKeyRef.current = learningProposalContextKey;
   const previousChapter = adjacentChapter(-1);
   const nextChapter = adjacentChapter(1);
 
@@ -301,7 +252,6 @@ export function App() {
   }
 
   function restoreBook(book: LibraryBook) {
-    discardLearningProposals();
     const state = book.readingState;
     const canResumeReader =
       state?.view === "reader" &&
@@ -333,10 +283,6 @@ export function App() {
       })
       .catch(() => setLibraryError("無法讀取本機書庫，請重新開啟應用程式。"));
   }, []);
-
-  useEffect(() => {
-    void loadLearningItems(learningStatus);
-  }, [learningStatus]);
 
   useEffect(() => {
     const chat = desktopChat();
@@ -662,9 +608,6 @@ export function App() {
     const book = selectedBook;
     const chapterId = chapterContent?.chapterId ?? activeChapterId;
     if (!book || !chapterId) return;
-    if (readingRange && (readingRange.start !== range.start || readingRange.end !== range.end)) {
-      discardLearningProposals();
-    }
     setReadingRange(range);
     setBooks((current) => current.map((candidate) =>
       candidate.id === book.id
@@ -699,9 +642,6 @@ export function App() {
     const book = selectedBook;
     const chapterId = chapterContent?.chapterId ?? activeChapterId;
     if (!book || !chapterId) return;
-    if (annotationRevision(annotations) !== annotationRevision(next)) {
-      discardLearningProposals();
-    }
     setAnnotations(next);
     setBooks((current) => current.map((candidate) =>
       candidate.id === book.id
@@ -733,87 +673,6 @@ export function App() {
     });
   }
 
-  async function loadLearningItems(status = learningStatus) {
-    const learning = desktopLearning();
-    if (!learning) return;
-    setIsLearningLoading(true);
-    setLearningError("");
-    try {
-      const items = await learning.listItems({ status });
-      setLearningItems(items);
-      setSelectedLearningItem((current) =>
-        current ? items.find((item) => item.id === current.id) : items[0]
-      );
-    } catch (error) {
-      setLearningError(error instanceof Error ? error.message : "無法讀取生詞庫。");
-    } finally {
-      setIsLearningLoading(false);
-    }
-  }
-
-  function sourceSentenceForAnnotation(annotation: Annotation): string {
-    const text = articleRef.current?.textContent ?? annotation.text;
-    const before = text.slice(0, annotation.start);
-    const after = text.slice(annotation.end);
-    const start = Math.max(
-      before.lastIndexOf(".") + 1,
-      before.lastIndexOf("!") + 1,
-      before.lastIndexOf("?") + 1,
-      before.lastIndexOf("\n") + 1
-    );
-    const ending = after.search(/[.!?\n]/);
-    const end = ending < 0 ? text.length : annotation.end + ending + 1;
-    return text.slice(start, end).trim() || annotation.text;
-  }
-
-  async function addAnnotationToLearningLibrary(annotationId: string) {
-    const learning = desktopLearning();
-    const annotation = annotations.find((candidate) => candidate.id === annotationId);
-    if (!learning || !annotation || !selectedBook || !activeChapter) return;
-    setLearningError("");
-    try {
-      const result = await learning.createDraft({
-        bookId: selectedBook.id,
-        bookTitle: selectedBook.title,
-        chapterId: activeChapter.id,
-        chapterTitle: activeChapter.title,
-        annotation,
-        sourceSentence: sourceSentenceForAnnotation(annotation)
-      });
-      setLearningNotice(result.created ? "已加入生詞庫，待 AI 整理。" : "這個標記已在生詞庫中。");
-      await loadLearningItems("active");
-    } catch (error) {
-      setLearningError(error instanceof Error ? error.message : "無法加入生詞庫。");
-    } finally {
-      setRangeMenu(undefined);
-    }
-  }
-
-  async function saveLearningItem(input: UpdateLearningItemInput) {
-    const learning = desktopLearning();
-    if (!learning) return;
-    try {
-      const saved = await learning.updateItem(input);
-      setLearningNotice("學習項目已儲存。");
-      await loadLearningItems(learningStatus);
-      setSelectedLearningItem(saved);
-    } catch (error) {
-      setLearningError(error instanceof Error ? error.message : "無法儲存學習項目。");
-    }
-  }
-
-  async function archiveLearningItem(itemId: string) {
-    const learning = desktopLearning();
-    if (!learning) return;
-    try {
-      await learning.archiveItem(itemId);
-      setLearningNotice("學習項目已封存。");
-      await loadLearningItems(learningStatus);
-    } catch (error) {
-      setLearningError(error instanceof Error ? error.message : "無法封存學習項目。");
-    }
-  }
-
   function createAnnotation(selected: { start: number; end: number; text: string }) {
     if (hasAnnotationOverlap(annotations, selected)) {
       setRangeMenu(undefined);
@@ -840,7 +699,6 @@ export function App() {
 
   async function saveExplanationLanguage(value: ExplanationLanguage) {
     const api = desktopSettings();
-    if (value !== settings.explanationLanguage) discardLearningProposals();
     setIsSettingsSaving(true);
     setSettingsError("");
     try {
@@ -897,9 +755,7 @@ export function App() {
       const next = rangeWithOffset(marker, offset, initialRange);
       if (!next) return;
       lastValidRange = next;
-      const moved = next.start !== initialRange.start || next.end !== initialRange.end;
-      if (moved && !hasMoved) discardLearningProposals();
-      hasMoved = moved;
+      hasMoved = next.start !== initialRange.start || next.end !== initialRange.end;
       setReadingRange(next);
     };
     const stopListening = () => {
@@ -1031,7 +887,6 @@ export function App() {
 
   function openChapter(chapterId: string, useFragment = true) {
     if (!selectedBook) return;
-    if (chapterId !== activeChapterId) discardLearningProposals();
     chapterStartRef.current = {
       bookId: selectedBook.id,
       chapterId,
@@ -1046,7 +901,6 @@ export function App() {
   }
 
   function returnToOverview() {
-    discardLearningProposals();
     if (selectedBook) {
       persistReadingState(
         selectedBook,
@@ -1159,103 +1013,6 @@ export function App() {
       intent: "practiceReading",
       explanationLanguage: settings.explanationLanguage
     });
-  }
-
-  async function generateLearningCards() {
-    const learning = desktopLearning();
-    const chapterText = articleRef.current?.textContent ?? "";
-    if (!learning || !selectedBook || !activeChapter || !readingRange) return;
-    const readingSegment = extractReadingSegment(chapterText, readingRange);
-    const sources = annotations.filter((annotation) =>
-      annotation.start >= readingRange.start && annotation.end <= readingRange.end &&
-      !/[.!?]$/u.test(annotation.text.trim()) && annotation.text.trim().split(/\s+/u).length <= 6
-    ).map((annotation) => ({ annotationId: annotation.id, annotationText: annotation.text, startOffset: annotation.start, endOffset: annotation.end, sourceSentence: readingSegment }));
-    if (!readingSegment || !sources.length) return;
-    const requestContextKey = learningProposalContextKey;
-    setIsGeneratingLearningCards(true); setLearningError(""); setLearningNotice("");
-    try {
-      const result = await learning.generateProposals({ bookId: selectedBook.id, bookTitle: selectedBook.title, chapterId: activeChapter.id, chapterTitle: activeChapter.title, readingSegment, explanationLanguage: settings.explanationLanguage, sources });
-      if (learningProposalContextKeyRef.current !== requestContextKey) return;
-      setLearningProposals(result.proposals);
-      setLearningProposalReviews(Object.fromEntries(result.proposals.map((proposal) => [
-        proposal.source.annotationId,
-        { selected: true, action: proposal.action, confirmedFields: [] }
-      ])));
-      learningProposalBatchIdRef.current = undefined;
-    } catch (error) { setLearningError(error instanceof Error ? error.message : "無法產生學習卡提案。"); }
-    finally { setIsGeneratingLearningCards(false); }
-  }
-
-  function discardLearningProposals() {
-    if (!learningProposals.length && !Object.keys(learningProposalReviews).length &&
-      !learningProposalBatchIdRef.current) return;
-    setLearningProposals([]);
-    setLearningProposalReviews({});
-    learningProposalBatchIdRef.current = undefined;
-  }
-
-  function proposalActions(proposal: typeof learningProposals[number]): LearningProposalAction[] {
-    const allowed: LearningProposalAction[] = proposal.existingItem
-      ? ["update", "unchanged", "create-distinct-sense"]
-      : ["create", "create-distinct-sense"];
-    return allowed.includes(proposal.action) ? allowed : [proposal.action, ...allowed];
-  }
-
-  function updateLearningProposalReview(
-    proposalId: string,
-    update: Partial<{ selected: boolean; action: LearningProposalAction; confirmedFields: LearningProposalField[] }>
-  ) {
-    setLearningProposalReviews((reviews) => ({
-      ...reviews,
-      [proposalId]: { ...reviews[proposalId], ...update }
-    }));
-    learningProposalBatchIdRef.current = undefined;
-  }
-
-  async function applyLearningProposals() {
-    const learning = desktopLearning();
-    if (!learning || !selectedBook || !activeChapter || !learningProposals.length) return;
-    const batchId = learningProposalBatchIdRef.current ??
-      (globalThis.crypto?.randomUUID?.() ?? `learning-proposal-${Date.now()}`);
-    learningProposalBatchIdRef.current = batchId;
-    setIsApplyingLearningProposals(true);
-    setLearningError("");
-    try {
-      const result = await learning.applyProposalBatch({
-        batchId,
-        proposals: learningProposals.map((proposal) => {
-          const review = learningProposalReviews[proposal.source.annotationId] ?? {
-            selected: true, action: proposal.action, confirmedFields: []
-          };
-          const targetsExistingItem = review.action === "update" || review.action === "unchanged";
-          return {
-            proposalId: proposal.source.annotationId,
-            selected: review.selected,
-            action: review.action,
-            source: {
-              bookId: selectedBook.id,
-              bookTitle: selectedBook.title,
-              chapterId: activeChapter.id,
-              chapterTitle: activeChapter.title,
-              ...proposal.source
-            },
-            candidate: proposal.candidate,
-            existingItemId: targetsExistingItem ? proposal.existingItem?.id ?? null : null,
-            expectedVersion: targetsExistingItem ? proposal.existingItem?.version ?? null : null,
-            confirmedFields: review.action === "update" ? review.confirmedFields : []
-          };
-        })
-      });
-      setLearningNotice(`已套用：新增 ${result.created}、更新 ${result.updated}、維持不變 ${result.unchanged}、取消 ${result.cancelled}。`);
-      setLearningProposals([]);
-      setLearningProposalReviews({});
-      learningProposalBatchIdRef.current = undefined;
-      await loadLearningItems(learningStatus);
-    } catch (error) {
-      setLearningError(error instanceof Error ? error.message : "無法套用學習卡提案；請重新產生後再試。");
-    } finally {
-      setIsApplyingLearningProposals(false);
-    }
   }
 
   async function startNewConversation() {
@@ -1378,7 +1135,10 @@ export function App() {
           }px`
         } as CSSProperties}
       >
-        <PrimaryNavigation collapsed={isLeftSidebarCollapsed}>
+        <aside
+          className={isLeftSidebarCollapsed ? "sidebar collapsed" : "sidebar"}
+          aria-label="主要導覽"
+        >
           <div className="sidebar-heading">
             {!isLeftSidebarCollapsed ? (
               <div className="book-summary">
@@ -1425,18 +1185,15 @@ export function App() {
               <div className="sidebar-footer">
                 <nav>
                   <button
-                    className={mode === "learning" ? "nav-item active" : "nav-item"}
+                    className={mode === "review" ? "nav-item active" : "nav-item"}
                     onClick={() => {
                       saveCurrentReaderPosition();
-                      discardLearningProposals();
-                      setMode("learning");
-                      setLearningNotice("");
-                      void loadLearningItems(learningStatus);
+                      setMode("review");
                     }}
                   >
                     <span>↻</span>
-                    生詞庫
-                    <em>{learningItems.length}</em>
+                    Anki 複習
+                    <em>10</em>
                   </button>
                 </nav>
 
@@ -1496,11 +1253,11 @@ export function App() {
               </div>
             </div>
           ) : null}
-        </PrimaryNavigation>
+        </aside>
 
-        <ReadingWorkspace
-          isReader={mode === "reader"}
-          contentRef={contentRef}
+        <main
+          className={mode === "reader" ? "content reader-content" : "content"}
+          ref={contentRef}
           onScroll={handleContentScroll}
         >
           {mode === "reader" ? (
@@ -1761,15 +1518,6 @@ export function App() {
                         <button
                           role="menuitem"
                           type="button"
-                          onClick={() => void addAnnotationToLearningLibrary(rangeMenu.annotationId!)}
-                        >
-                          加入生詞庫
-                        </button>
-                      ) : null}
-                      {rangeMenu.annotationId ? (
-                        <button
-                          role="menuitem"
-                          type="button"
                           onClick={() => removeAnnotation(rangeMenu.annotationId!)}
                         >
                           移除標記
@@ -1781,26 +1529,25 @@ export function App() {
               ) : null}
             </section>
           ) : (
-            <LearningLibraryWorkspace
-              items={learningItems}
-              status={learningStatus}
-              selectedItem={selectedLearningItem}
-              isLoading={isLearningLoading}
-              error={learningError}
-              notice={learningNotice}
-              onStatusChange={(status) => {
-                setLearningStatus(status);
-                setSelectedLearningItem(undefined);
-                setLearningNotice("");
-              }}
-              onSelect={setSelectedLearningItem}
-              onSave={(input) => void saveLearningItem(input)}
-              onArchive={(itemId) => void archiveLearningItem(itemId)}
-            />
+            <section className="review-panel" aria-labelledby="review-title">
+              <span className="eyebrow">Spaced repetition</span>
+              <h1 id="review-title">Anki 式間隔複習</h1>
+              <p>
+                這裡只處理生詞庫中的到期項目，跨書籍與章節產生填空、造句等題目。
+              </p>
+              <div className="review-card">
+                <strong>今日待複習</strong>
+                <b>10</b>
+                <span>完成回答後才會更新各項目的複習間隔。</span>
+              </div>
+            </section>
           )}
-        </ReadingWorkspace>
+        </main>
 
-        <AiConversationPanel collapsed={isRightSidebarCollapsed}>
+        <aside
+          className={isRightSidebarCollapsed ? "assistant-panel collapsed" : "assistant-panel"}
+          aria-label="AI 助教"
+        >
           {!isRightSidebarCollapsed ? (
             <div
               className="assistant-resize-handle"
@@ -1983,94 +1730,8 @@ export function App() {
                         </svg>
                         <span>閱讀測驗</span>
                       </button>
-                      <button
-                        className="annotation-analysis-preset"
-                        type="button"
-                        onClick={() => void generateLearningCards()}
-                        disabled={isGeneratingLearningCards || !readingRange || !extractReadingSegment(articleRef.current?.textContent ?? "", readingRange) || !annotations.some((annotation) => annotation.start >= readingRange.start && annotation.end <= readingRange.end && !/[.!?]$/u.test(annotation.text.trim()) && annotation.text.trim().split(/\s+/u).length <= 6)}
-                      >
-                        <span>{isGeneratingLearningCards ? "產生中…" : "產生學習卡"}</span>
-                      </button>
                     </div>
                   ) : null}
-                  {learningNotice ? <p role="status" className="learning-notice">{learningNotice}</p> : null}
-                  {learningError ? <p role="alert" className="learning-error">{learningError}</p> : null}
-                  {learningProposals.length ? <section className="learning-library-panel" aria-label="學習卡提案">
-                    <h3>學習卡提案（尚未儲存）</h3>
-                    {learningProposals.map((proposal) => {
-                      const proposalId = proposal.source.annotationId;
-                      const review = learningProposalReviews[proposalId] ?? {
-                        selected: true, action: proposal.action, confirmedFields: []
-                      };
-                      return <article className="learning-source-card" key={proposalId}>
-                        <strong>{proposal.candidate.displayForm} · {review.action}</strong>
-                        <p>{proposal.source.annotationText} — {proposal.candidate.conciseExplanation}</p>
-                        <p>{proposal.fieldDiffs.map((diff) => `${diff.field}: ${diff.from ?? "—"} → ${diff.to ?? "—"}`).join("；") || "無欄位差異"}</p>
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={review.selected}
-                            onChange={(event) => updateLearningProposalReview(
-                              proposalId, { selected: event.target.checked }
-                            )}
-                          />
-                          套用 {proposal.candidate.displayForm}
-                        </label>
-                        <label>
-                          動作
-                          <select
-                            aria-label={`${proposal.candidate.displayForm} 的提案動作`}
-                            value={review.action}
-                            onChange={(event) => updateLearningProposalReview(proposalId, {
-                              action: event.target.value as LearningProposalAction,
-                              confirmedFields: []
-                            })}
-                          >
-                            {proposalActions(proposal).map((action) =>
-                              <option key={action} value={action}>{action}</option>
-                            )}
-                          </select>
-                        </label>
-                        {review.action === "update" && proposal.fieldDiffs.length ? <fieldset>
-                          <legend>確認允許覆寫的欄位</legend>
-                          {proposal.fieldDiffs.map((diff) => <label key={diff.field}>
-                            <input
-                              type="checkbox"
-                              checked={review.confirmedFields.includes(diff.field)}
-                              onChange={(event) => updateLearningProposalReview(proposalId, {
-                                confirmedFields: event.target.checked
-                                  ? [...review.confirmedFields, diff.field]
-                                  : review.confirmedFields.filter((field) => field !== diff.field)
-                              })}
-                            />
-                            覆寫 {diff.field}
-                          </label>)}
-                        </fieldset> : null}
-                      </article>;
-                    })}
-                    <div className="learning-item-actions">
-                      <button
-                        type="button"
-                        onClick={() => void applyLearningProposals()}
-                        disabled={isApplyingLearningProposals || !learningProposals.some((proposal) =>
-                          learningProposalReviews[proposal.source.annotationId]?.selected ?? true
-                        )}
-                      >
-                        {isApplyingLearningProposals ? "套用中…" : "套用已選提案"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLearningProposals([]);
-                          setLearningProposalReviews({});
-                          learningProposalBatchIdRef.current = undefined;
-                        }}
-                        disabled={isApplyingLearningProposals}
-                      >
-                        取消提案
-                      </button>
-                    </div>
-                  </section> : null}
 
                   <form className="chat-form" onSubmit={sendMessage}>
                     <label className="visually-hidden" htmlFor="chat-input">
@@ -2161,7 +1822,7 @@ export function App() {
               )}
             </div>
           ) : null}
-        </AiConversationPanel>
+        </aside>
       </div>
 
       {bookPendingDeletion ? (

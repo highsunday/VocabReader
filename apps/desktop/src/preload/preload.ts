@@ -13,12 +13,6 @@ import type {
   SaveReadingStateInput
 } from "../shared/library-contracts";
 import type {
-  CreateLearningDraftInput,
-  LearningDesktopApi,
-  LearningItem,
-  UpdateLearningItemInput
-} from "../shared/learning-contracts";
-import type {
   AppSettings,
   SettingsDesktopApi
 } from "../shared/settings-contracts";
@@ -48,24 +42,6 @@ const desktopApi = Object.freeze({
     saveAnnotations: (input: SaveAnnotationsInput): Promise<LibraryBook> =>
       ipcRenderer.invoke("library:save-annotations", input)
   }),
-  learning: Object.freeze({
-    listItems: (input: { status: "active" | "archived" }): Promise<LearningItem[]> =>
-      ipcRenderer.invoke("learning:list", input),
-    getItem: (itemId: string): Promise<LearningItem> =>
-      ipcRenderer.invoke("learning:get", itemId),
-    createDraft: (input: CreateLearningDraftInput): Promise<{
-      item: LearningItem;
-      created: boolean;
-    }> => ipcRenderer.invoke("learning:create-draft", input),
-    updateItem: (input: UpdateLearningItemInput): Promise<LearningItem> =>
-      ipcRenderer.invoke("learning:update", input),
-    archiveItem: (itemId: string): Promise<LearningItem> =>
-      ipcRenderer.invoke("learning:archive", itemId),
-    generateProposals: (input: import("../shared/learning-contracts").GenerateLearningCardsInput) =>
-      ipcRenderer.invoke("learning:generate-proposals", input),
-    applyProposalBatch: (input: import("../shared/learning-contracts").ApplyLearningProposalBatchInput) =>
-      ipcRenderer.invoke("learning:apply-proposal-batch", input)
-  } satisfies LearningDesktopApi),
   settings: Object.freeze({
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
     save: (settings: AppSettings): Promise<AppSettings> =>

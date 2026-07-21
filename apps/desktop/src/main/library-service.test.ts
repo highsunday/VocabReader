@@ -4,7 +4,6 @@ import { join } from "node:path";
 import JSZip from "jszip";
 import { afterEach, describe, expect, it } from "vitest";
 import type { LibraryBook } from "../shared/library-contracts";
-import { LocalLearningLibrary } from "./learning-library-service";
 import { LocalBookLibrary } from "./library-service";
 
 const temporaryDirectories: string[] = [];
@@ -512,39 +511,6 @@ describe("LocalBookLibrary", () => {
     await expect(
       stat(join(libraryPath, "books", imported.book.id))
     ).rejects.toMatchObject({ code: "ENOENT" });
-  });
-
-  it("keeps a learning item source snapshot after its source book is deleted", async () => {
-    const root = await createTemporaryDirectory();
-    const epubPath = join(root, "source-book.epub");
-    const bookLibrary = new LocalBookLibrary(join(root, "library"));
-    await createEpub3(epubPath, "A saved source word stays visible.");
-    const imported = await bookLibrary.importFromPath(epubPath);
-    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
-    const chapter = imported.book.chapters[0];
-    const learningLibrary = new LocalLearningLibrary(join(root, "learning.sqlite"), {
-      isBookAvailable: (bookId) => bookLibrary.hasBook(bookId)
-    });
-    const { item } = await learningLibrary.createDraft({
-      bookId: imported.book.id,
-      bookTitle: imported.book.title,
-      chapterId: chapter.id,
-      chapterTitle: chapter.title,
-      annotation: { id: "annotation-1", start: 15, end: 21, text: "source" },
-      sourceSentence: "A saved source word stays visible."
-    });
-
-    await bookLibrary.deleteBook(imported.book.id);
-
-    await expect(learningLibrary.getItem(item.id)).resolves.toMatchObject({
-      sources: [expect.objectContaining({
-        bookTitle: "Practical English",
-        chapterTitle: "Getting Started",
-        annotationText: "source",
-        sourceSentence: "A saved source word stays visible.",
-        bookAvailable: false
-      })]
-    });
   });
 
   it("rejects deleting an unknown book without changing the library", async () => {

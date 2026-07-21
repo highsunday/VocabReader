@@ -32,8 +32,7 @@ const books: LibraryBook[] = [
 
 function installLibraryApi(
   storedBooks: LibraryBook[] = books,
-  chat?: Partial<ChatDesktopApi>,
-  learning?: Record<string, unknown>
+  chat?: Partial<ChatDesktopApi>
 ) {
   const importBook = vi.fn();
   const deleteBook = vi.fn().mockResolvedValue(undefined);
@@ -98,8 +97,7 @@ function installLibraryApi(
         saveAnnotations
       },
       settings: { get: getSettings, save: saveSettings },
-      ...(chat ? { chat } : {}),
-      ...(learning ? { learning } : {})
+      ...(chat ? { chat } : {})
     }
   });
   return {
@@ -593,7 +591,7 @@ describe("App", () => {
       .toBe("<reading-segment>Content</reading-segment>");
   });
 
-  it("keeps chapter practice separate from the Learning Library", () => {
+  it("keeps chapter practice separate from spaced review", () => {
     render(<App />);
 
     expect(
@@ -601,15 +599,15 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("章末選擇題", { selector: ".flow-tags span" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /生詞庫/ }))
+    expect(screen.getByRole("button", { name: /Anki 複習/ }))
       .toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /生詞庫/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Anki 複習/ }));
 
     expect(
-      screen.getByRole("heading", { name: "生詞庫" })
+      screen.getByRole("heading", { name: "Anki 式間隔複習" })
     ).toBeInTheDocument();
-    expect(screen.getByText(/保存從閱讀標記建立的學習項目/))
+    expect(screen.getByText(/跨書籍與章節產生填空、造句/))
       .toBeInTheDocument();
   });
 
@@ -618,7 +616,7 @@ describe("App", () => {
 
     expect(screen.queryByRole("button", { name: /書籍總覽/ }))
       .not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /生詞庫/ }))
+    expect(screen.getByRole("button", { name: /Anki 複習/ }))
       .toBeInTheDocument();
     expect(screen.queryByText("章節機制")).not.toBeInTheDocument();
     expect(screen.queryByText("閱讀與劃線")).not.toBeInTheDocument();
@@ -1779,85 +1777,6 @@ describe("App", () => {
     })).toBeInTheDocument();
   });
 
-  it("creates an idempotent source-linked draft, then edits and archives it from 生詞庫", async () => {
-    const chapterText = "He learned one useful word today.";
-    const sourceAnnotation = {
-      id: "annotation-1",
-      start: chapterText.indexOf("word"),
-      end: chapterText.indexOf("word") + "word".length,
-      text: "word"
-    };
-    const rangedBook: LibraryBook = {
-      ...books[0],
-      chapterAnnotations: { "one-1": [sourceAnnotation] }
-    };
-    let items: Array<Record<string, unknown>> = [];
-    const listItems = vi.fn(({ status }: { status: "active" | "archived" }) =>
-      Promise.resolve(items.filter((item) => status === "active"
-        ? item.status === "pending_ai"
-        : item.status === "archived"))
-    );
-    const createDraft = vi.fn((input: {
-      bookId: string; bookTitle: string; chapterId: string; chapterTitle: string;
-      annotation: typeof sourceAnnotation; sourceSentence: string;
-    }) => {
-      const existing = items[0];
-      if (existing) return Promise.resolve({ item: existing, created: false });
-      const item = {
-        id: "item-1", displayForm: "word", canonicalForm: "word", itemType: "word",
-        partOfSpeech: null, contextualMeaning: "", conciseExplanation: "", cefr: null,
-        pronunciation: null, collocationNotes: null, status: "pending_ai",
-        createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
-        sources: [{ ...input.annotation, annotationId: input.annotation.id,
-          annotationText: input.annotation.text, startOffset: input.annotation.start,
-          endOffset: input.annotation.end, bookId: input.bookId, bookTitle: input.bookTitle,
-          chapterId: input.chapterId, chapterTitle: input.chapterTitle,
-          sourceSentence: input.sourceSentence, bookAvailable: true,
-          createdAt: "2026-01-01T00:00:00.000Z" }]
-      };
-      items = [item];
-      return Promise.resolve({ item, created: true });
-    });
-    const updateItem = vi.fn((input: Record<string, unknown>) => {
-      items = items.map((item) => ({ ...item, ...input }));
-      return Promise.resolve(items[0]);
-    });
-    const archiveItem = vi.fn(() => {
-      items = items.map((item) => ({ ...item, status: "archived" }));
-      return Promise.resolve(items[0]);
-    });
-    const { getChapterContent } = installLibraryApi([rangedBook], undefined, {
-      listItems, createDraft, updateItem, archiveItem, getItem: vi.fn()
-    });
-    getChapterContent.mockResolvedValue({
-      bookId: "book-one", chapterId: "one-1", title: "Opening", fragment: null,
-      contentHtml: `<p>${chapterText}</p>`
-    });
-    render(<App />);
-    await screen.findByRole("heading", { name: "The First Book" });
-    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    const article = await screen.findByLabelText("Opening 章節內容");
-    await waitFor(() => expect(article.querySelector("mark[data-annotation-id]")).toBeInTheDocument());
-    const mark = article.querySelector("mark[data-annotation-id]") as HTMLElement;
-    fireEvent.contextMenu(mark, { clientX: 140, clientY: 190 });
-    fireEvent.click(screen.getByRole("menuitem", { name: "加入生詞庫" }));
-    await waitFor(() => expect(createDraft).toHaveBeenCalledWith(expect.objectContaining({
-      bookId: "book-one", chapterTitle: "Opening", annotation: sourceAnnotation,
-      sourceSentence: chapterText
-    })));
-    fireEvent.click(screen.getByRole("button", { name: /生詞庫/ }));
-    expect(await screen.findByText("待 AI 整理")).toBeInTheDocument();
-    expect(screen.getByText(chapterText)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("本文語義"), { target: { value: "詞彙" } });
-    fireEvent.change(screen.getByLabelText("簡明解釋"), { target: { value: "一個單字" } });
-    fireEvent.click(screen.getByRole("button", { name: "儲存變更" }));
-    await waitFor(() => expect(updateItem).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole("button", { name: "封存項目" }));
-    await waitFor(() => expect(archiveItem).toHaveBeenCalledWith("item-1"));
-    fireEvent.click(screen.getByRole("button", { name: "已封存" }));
-    expect(await screen.findByText("已封存")).toBeInTheDocument();
-  });
-
   it("refreshes AI context after annotation changes while ordinary follow-ups remain normal", async () => {
     const chapterText = "He was reluctant to admit that the plan had failed.";
     const rangedBook: LibraryBook = {
@@ -2155,284 +2074,5 @@ describe("App", () => {
       name: "開啟標記模式，目前章節 2 個標記"
     }))
       .toHaveAttribute("aria-pressed", "false");
-  });
-
-  it("disables Generate Learning Cards for an empty reading segment without proposal IPC", async () => {
-    const generateProposals = vi.fn();
-    const rangedBook: LibraryBook = {
-      ...books[0],
-      chapterRanges: { "one-1": { start: 0, end: 0 } }
-    };
-    const { getChapterContent } = installLibraryApi([rangedBook], undefined, {
-      listItems: vi.fn().mockResolvedValue([]), generateProposals
-    });
-    getChapterContent.mockResolvedValue({
-      bookId: "book-one", chapterId: "one-1", title: "Opening", fragment: null,
-      contentHtml: "<p>A readable chapter.</p>"
-    });
-    render(<App />);
-    await screen.findByRole("heading", { name: "The First Book" });
-    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
-
-    const preset = screen.getByRole("button", { name: "產生學習卡" });
-    expect(preset).toBeDisabled();
-    fireEvent.click(preset);
-    expect(generateProposals).not.toHaveBeenCalled();
-  });
-
-  it("disables Generate Learning Cards for sentence-only annotations without proposal IPC", async () => {
-    const chapterText = "This entire sentence is an annotation.";
-    const generateProposals = vi.fn();
-    const rangedBook: LibraryBook = {
-      ...books[0],
-      chapterRanges: { "one-1": { start: 0, end: chapterText.length } },
-      chapterAnnotations: {
-        "one-1": [{ id: "sentence", start: 0, end: chapterText.length, text: chapterText }]
-      }
-    };
-    const { getChapterContent } = installLibraryApi([rangedBook], undefined, {
-      listItems: vi.fn().mockResolvedValue([]), generateProposals
-    });
-    getChapterContent.mockResolvedValue({
-      bookId: "book-one", chapterId: "one-1", title: "Opening", fragment: null,
-      contentHtml: `<p>${chapterText}</p>`
-    });
-    render(<App />);
-    await screen.findByRole("heading", { name: "The First Book" });
-    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
-
-    const preset = screen.getByRole("button", { name: "產生學習卡" });
-    expect(preset).toBeDisabled();
-    fireEvent.click(preset);
-    expect(generateProposals).not.toHaveBeenCalled();
-  });
-
-  it("sends only eligible in-range sources and visibly renders unsaved learning-card proposals", async () => {
-    const chapterText = "A reluctant student paused. Outside annotation remains here.";
-    const inRangeStart = chapterText.indexOf("reluctant");
-    const rangeEnd = chapterText.indexOf(". Outside") + 1;
-    const generateProposals = vi.fn().mockResolvedValue({
-      proposals: [{
-        action: "update", source: {
-          annotationId: "word", annotationText: "reluctant", startOffset: inRangeStart,
-          endOffset: inRangeStart + "reluctant".length, sourceSentence: chapterText.slice(0, rangeEnd)
-        },
-        candidate: {
-          displayForm: "reluctant", canonicalForm: "reluctant", itemType: "word",
-          contextualMeaning: "不情願的", conciseExplanation: "不願意做某事"
-        },
-        existingItem: null,
-        fieldDiffs: [{ field: "conciseExplanation", from: "舊解釋", to: "不願意做某事" }]
-      }]
-    });
-    const rangedBook: LibraryBook = {
-      ...books[0],
-      chapterRanges: { "one-1": { start: 0, end: rangeEnd } },
-      chapterAnnotations: {
-        "one-1": [
-          { id: "word", start: inRangeStart, end: inRangeStart + "reluctant".length, text: "reluctant" },
-          { id: "sentence", start: 0, end: rangeEnd, text: chapterText.slice(0, rangeEnd) },
-          { id: "outside", start: chapterText.indexOf("Outside"), end: chapterText.indexOf("Outside") + "Outside".length, text: "Outside" }
-        ]
-      }
-    };
-    const { getChapterContent, getSettings } = installLibraryApi([rangedBook], undefined, {
-      listItems: vi.fn().mockResolvedValue([]), generateProposals
-    });
-    getSettings.mockResolvedValue({ explanationLanguage: "zh-TW" });
-    getChapterContent.mockResolvedValue({
-      bookId: "book-one", chapterId: "one-1", title: "Opening", fragment: null,
-      contentHtml: `<p>${chapterText}</p>`
-    });
-    render(<App />);
-    await screen.findByRole("heading", { name: "The First Book" });
-    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
-
-    const proposalPreset = screen.getByRole("button", { name: "產生學習卡" });
-    await waitFor(() => expect(proposalPreset).toBeEnabled());
-    fireEvent.click(proposalPreset);
-    await waitFor(() => expect(generateProposals).toHaveBeenCalledWith(expect.objectContaining({
-      readingSegment: chapterText.slice(0, rangeEnd), explanationLanguage: "zh-TW",
-      sources: [{
-        annotationId: "word", annotationText: "reluctant", startOffset: inRangeStart,
-        endOffset: inRangeStart + "reluctant".length, sourceSentence: chapterText.slice(0, rangeEnd)
-      }]
-    })));
-    expect(await screen.findByRole("region", { name: "學習卡提案" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "學習卡提案（尚未儲存）" })).toBeInTheDocument();
-    expect(screen.getByText("reluctant · update")).toBeInTheDocument();
-    expect(screen.getByText("reluctant — 不願意做某事")).toBeInTheDocument();
-    expect(screen.getByText("conciseExplanation: 舊解釋 → 不願意做某事")).toBeInTheDocument();
-  });
-
-  async function openSessionOnlyProposalSource(generateProposals = vi.fn().mockImplementation(
-    (input) => Promise.resolve({
-      proposals: [{
-        action: "create",
-        source: input.sources[0],
-        candidate: {
-          displayForm: "content", canonicalForm: "content", itemType: "word",
-          aliases: [], partOfSpeech: "noun", contextualMeaning: "material",
-          conciseExplanation: "the subject matter", cefr: "B1", pronunciation: null,
-          collocationNotes: null
-        },
-        existingItem: null,
-        fieldDiffs: []
-      }]
-    })
-  )) {
-    const sourceText = "Content";
-    const proposalBook: LibraryBook = {
-      ...books[0],
-      chapterRanges: {
-        "one-1": { start: 0, end: sourceText.length },
-        "one-2": { start: 0, end: sourceText.length }
-      },
-      chapterAnnotations: {
-        "one-1": [{ id: "one-source", start: 0, end: sourceText.length, text: sourceText }],
-        "one-2": [{ id: "two-source", start: 0, end: sourceText.length, text: sourceText }]
-      }
-    };
-    installLibraryApi([proposalBook], undefined, {
-      listItems: vi.fn().mockResolvedValue([]), generateProposals
-    });
-    render(<App />);
-    await screen.findByRole("heading", { name: "The First Book" });
-    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByText("Content for one-1");
-    const preset = screen.getByRole("button", { name: "產生學習卡" });
-    await waitFor(() => expect(preset).toBeEnabled());
-    return { generateProposals, preset };
-  }
-
-  async function renderSessionOnlyProposal() {
-    const { preset } = await openSessionOnlyProposalSource();
-    fireEvent.click(preset);
-    await screen.findByRole("region", { name: "學習卡提案" });
-  }
-
-  it("discards session-only proposals when the reader leaves the reading workspace", async () => {
-    await renderSessionOnlyProposal();
-
-    fireEvent.click(screen.getByRole("button", { name: "返回總覽" }));
-
-    await waitFor(() => expect(screen.queryByRole("region", { name: "學習卡提案" }))
-      .not.toBeInTheDocument());
-  });
-
-  it("discards session-only proposals when navigation changes the source chapter", async () => {
-    await renderSessionOnlyProposal();
-
-    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
-    await screen.findByText("Content for one-2");
-
-    expect(screen.queryByRole("region", { name: "學習卡提案" }))
-      .not.toBeInTheDocument();
-  });
-
-  it("does not restore a stale proposal response after the source chapter changes", async () => {
-    let finishGeneration!: (value: unknown) => void;
-    const generateProposals = vi.fn().mockReturnValue(new Promise((resolve) => {
-      finishGeneration = resolve;
-    }));
-    const { preset } = await openSessionOnlyProposalSource(generateProposals);
-    fireEvent.click(preset);
-    await waitFor(() => expect(generateProposals).toHaveBeenCalledOnce());
-
-    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
-    await screen.findByText("Content for one-2");
-    finishGeneration({
-      proposals: [{
-        action: "create",
-        source: {
-          annotationId: "one-source", annotationText: "Content", startOffset: 0,
-          endOffset: 7, sourceSentence: "Content"
-        },
-        candidate: {
-          displayForm: "content", canonicalForm: "content", itemType: "word", aliases: [],
-          partOfSpeech: "noun", contextualMeaning: "material",
-          conciseExplanation: "the subject matter", cefr: "B1", pronunciation: null,
-          collocationNotes: null
-        },
-        existingItem: null,
-        fieldDiffs: []
-      }]
-    });
-
-    await waitFor(() => expect(screen.getByRole("button", { name: "產生學習卡" }))
-      .toHaveTextContent("產生學習卡"));
-    expect(screen.queryByRole("region", { name: "學習卡提案" }))
-      .not.toBeInTheDocument();
-  });
-
-  it("lets the reader confirm individual update fields and applies a session-only proposal through the narrow API", async () => {
-    const chapterText = "A reluctant student paused.";
-    const start = chapterText.indexOf("reluctant");
-    const applyProposalBatch = vi.fn().mockResolvedValue({
-      batchId: "batch-1", created: 0, updated: 1, unchanged: 0, cancelled: 0,
-      sourceAppended: 1, results: []
-    });
-    const existing = {
-      id: "existing-1", displayForm: "reluctant", canonicalForm: "reluctant",
-      itemType: "word", partOfSpeech: "adjective", contextualMeaning: "舊語義",
-      conciseExplanation: "舊解釋", cefr: null, pronunciation: null,
-      collocationNotes: null, status: "pending_ai", version: 3,
-      createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", sources: []
-    };
-    const generateProposals = vi.fn().mockResolvedValue({
-      proposals: [{
-        action: "update",
-        source: {
-          annotationId: "word", annotationText: "reluctant", startOffset: start,
-          endOffset: start + "reluctant".length, sourceSentence: chapterText
-        },
-        candidate: {
-          displayForm: "reluctant", canonicalForm: "reluctant", itemType: "word",
-          aliases: [], partOfSpeech: "adjective", contextualMeaning: "不情願的",
-          conciseExplanation: "不願意做某事", cefr: "B2", pronunciation: null, collocationNotes: null
-        },
-        existingItem: existing,
-        fieldDiffs: [
-          { field: "contextualMeaning", from: "舊語義", to: "不情願的" },
-          { field: "conciseExplanation", from: "舊解釋", to: "不願意做某事" }
-        ]
-      }]
-    });
-    const rangedBook: LibraryBook = {
-      ...books[0],
-      chapterRanges: { "one-1": { start: 0, end: chapterText.length } },
-      chapterAnnotations: {
-        "one-1": [{ id: "word", start, end: start + "reluctant".length, text: "reluctant" }]
-      }
-    };
-    const { getChapterContent } = installLibraryApi([rangedBook], undefined, {
-      listItems: vi.fn().mockResolvedValue([]), generateProposals, applyProposalBatch
-    });
-    getChapterContent.mockResolvedValue({
-      bookId: "book-one", chapterId: "one-1", title: "Opening", fragment: null,
-      contentHtml: `<p>${chapterText}</p>`
-    });
-    render(<App />);
-    await screen.findByRole("heading", { name: "The First Book" });
-    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
-    const proposalPreset = screen.getByRole("button", { name: "產生學習卡" });
-    await waitFor(() => expect(proposalPreset).toBeEnabled());
-    fireEvent.click(proposalPreset);
-    await screen.findByRole("checkbox", { name: "覆寫 conciseExplanation" });
-
-    fireEvent.click(screen.getByRole("checkbox", { name: "覆寫 conciseExplanation" }));
-    fireEvent.click(screen.getByRole("button", { name: "套用已選提案" }));
-
-    await waitFor(() => expect(applyProposalBatch).toHaveBeenCalledWith(expect.objectContaining({
-      proposals: [expect.objectContaining({
-        proposalId: "word", action: "update", existingItemId: "existing-1",
-        expectedVersion: 3, confirmedFields: ["conciseExplanation"]
-      })]
-    })));
-    expect(await screen.findByRole("status")).toHaveTextContent("已套用：新增 0、更新 1、維持不變 0、取消 0。");
   });
 });

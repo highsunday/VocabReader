@@ -2,7 +2,7 @@
 title: 書籍與本機書庫模組
 module: book-library
 status: active
-last_updated: 2026-07-22
+last_updated: 2026-07-21
 related_implements:
   - F01-epub-book-library
   - F02-chapter-reading-resume
@@ -14,7 +14,6 @@ related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - B01-preserve-epub-chapter-hierarchy
   - B02-persist-range-marker-on-drag-release
-  - F19-local-learning-library
 ---
 
 # 書籍與本機書庫模組
@@ -198,9 +197,6 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 3. 確認後，preload 只把 bookId 傳給 library:delete；main process 驗證它是非空字串。
 4. LocalBookLibrary 將刪除排入閱讀狀態寫入佇列，先從 index.json 移除書籍，再刪除該 SHA-256 書籍目錄；目錄刪除失敗時嘗試還原索引。
 5. Renderer 只在後端成功後更新目前清單：優先選取原位置的下一本，否則前一本；沒有書籍時回到空書庫總覽。
-
-書籍刪除不連帶刪除生詞庫的學習項目或來源快照。生詞庫讀取來源時會以目前書庫判斷
-availability，並將保留的來源顯示為「原書已刪除」；詳見 `documents/modules/learning-library.md`。
 
 ## 7. EPUB Parsing Rules
 
