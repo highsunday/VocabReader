@@ -4,7 +4,7 @@ date: 2026-07-22
 title: 依 P01 建立 AI 學習項目與生詞庫
 uuid: ec8c9d89f8074d309825154d9bb108ef
 version: 1.0
-status: completed
+status: in_progress
 source_plan: documents/planning/P01-ai-learning-items-and-learning-library.md
 batch_limit: 4
 mode: sequential
@@ -139,8 +139,8 @@ reviewed_at: 2026-07-22 00:41 CST
 |---|---|---|---|---|---|---|---|
 | Q01-01 | 拆分可擴充的桌面工作區邊界 | RXX | codex | — | completed | documents/implements/R01-desktop-workspace-boundaries.md | 0701a3b |
 | Q01-02 | 建立本機生詞庫與來源卡片基礎 | FXX | codex | Q01-01 | completed | documents/implements/F19-local-learning-library.md | ab7b12e |
-| Q01-03 | 產生結構化 AI 學習項目提案 | FXX | codex | Q01-02 | in_progress | documents/implements/F20-structured-ai-learning-proposals.md | pending-orchestrator |
-| Q01-04 | 確認並安全套用新增／更新提案 | FXX | auto | Q01-03 | pending | — | — |
+| Q01-03 | 產生結構化 AI 學習項目提案 | FXX | codex | Q01-02 | completed | documents/implements/F20-structured-ai-learning-proposals.md | 5766ba8 |
+| Q01-04 | 確認並安全套用新增／更新提案 | FXX | codex | Q01-03 | in_progress | — | — |
 
 ## 4. Queue Items
 
@@ -212,7 +212,7 @@ archive_refs: []
 id: Q01-02
 type: FXX
 agent: codex
-status: in_progress
+status: completed
 clarification_status: clarified
 depends_on: [Q01-01]
 unlock_condition: Q01-01 completed with a commit, and renderer regression tests plus production build pass
@@ -281,11 +281,11 @@ unlock_condition: Q01-02 completed with a commit, and a persisted source-linked 
 auto_approve: true
 commit_required: true
 implemented_doc: documents/implements/F20-structured-ai-learning-proposals.md
-commit: pending-orchestrator
+commit: 5766ba8
 worker_session: codex correction 2026-07-22 01:43 CST
 worker_log: F20 acceptance correction complete. RED reproduced a valid 1.5-second App Server completion failing at the prior ~1-second polling cap. GREEN replaces it with notification-driven two-minute waiting plus timeout interrupt/close cleanup. Direct Renderer tests prove empty/sentence-only disablement/no IPC and visible unsaved review proposals. Focused 59 desktop, full server 3 + desktop 147, typecheck and build passed. No apply/persistence; Q01-04 remains untouched.
-handoff_summary: Q01-03 accepted pending orchestrator hash substitution. Commit must remain the single amended `760c67b` lineage. F20 now waits event-driven for each App Server turn (two-minute timeout; interrupt/close cleanup). Direct UI tests cover empty/no-eligible disablement and source/action/diff preview. No DB writes, whole-chapter fallback, sentence sources, or proposal persistence; do not start Q01-04.
-communication_entries: [L003, L005, L006, L007, L032, L033, L034, L035, L036, L037, L038, L039, L040, L041, L042, L043, L044, L045, L046, L047]
+handoff_summary: Q01-03 accepted at 5766ba8. F20 waits event-driven for each App Server turn (two-minute timeout; interrupt/close cleanup). Direct UI tests cover empty/no-eligible disablement and source/action/diff preview. No DB writes, whole-chapter fallback, sentence sources, or proposal persistence. Q01-04 is unlocked for a fresh worker.
+communication_entries: [L003, L005, L006, L007, L032, L033, L034, L035, L036, L037, L038, L039, L040, L041, L042, L043, L044, L045, L046, L047, L048]
 archive_refs: []
 
 ### Requirements
@@ -335,8 +335,8 @@ archive_refs: []
 
 id: Q01-04
 type: FXX
-agent: auto
-status: pending
+agent: codex
+status: in_progress
 clarification_status: clarified
 depends_on: [Q01-03]
 unlock_condition: Q01-03 completed with a commit, and valid create/update/unchanged/distinct-sense proposals can be previewed without persistence
@@ -344,10 +344,10 @@ auto_approve: true
 commit_required: true
 implemented_doc: —
 commit: —
-worker_session: —
-worker_log: —
+worker_session: codex 2026-07-22 01:45 CST
+worker_log: Dispatched after corrected Q01-03 commit 5766ba8 and unlock verification: all four proposal actions preview without persistence; focused 59, full server 3 + desktop 147 tests, typecheck and build passed.
 handoff_summary: —
-communication_entries: [L004, L005, L006, L007]
+communication_entries: [L004, L005, L006, L007, L049]
 archive_refs: []
 
 ### Requirements
@@ -447,6 +447,8 @@ archive_refs: []
 | L045 | 2026-07-22 01:43 | Q01-03 | codex -> queue | acceptance | Full root tests, typecheck and build passed; F20 criteria accepted | — |
 | L046 | 2026-07-22 01:43 | Q01-03 | codex -> queue | handoff | Event-driven completion and proposal-only UI evidence recorded; Q01-04 remains locked | — |
 | L047 | 2026-07-22 01:43 | Q01-03 | codex -> queue | completed | Q01-03 corrected and completed pending orchestrator hash substitution; notification suppressed | — |
+| L048 | 2026-07-22 01:45 | Q01-03 | orchestrator -> queue | acceptance | Verified amended item commit 5766ba8 and Q01-04 unlock evidence | — |
+| L049 | 2026-07-22 01:45 | Q01-04 | orchestrator -> codex | dispatch | Dispatch Q01-04 through ddd-start, ddd-doc and ddd-tdd | — |
 
 ### Active Entries
 
@@ -824,6 +826,38 @@ transactions, audit/versioning, scheduling and proposal persistence remain Q01-0
 Q01-03 is completed with `commit: pending-orchestrator` pending the explicitly authorized amendment
 of the current latest Q01-03 commit. ddd-tdd completion notification is suppressed by the queue;
 no per-item email was sent. Q01-04 remains pending and untouched.
+
+#### L048 — 2026-07-22 01:45 — Q01-03 — orchestrator -> queue — acceptance
+
+**Message**
+Verified the single amended Q01-03 commit `5766ba8`. Acceptance evidence includes the
+1.5-second RED regression, event-driven two-minute bounded completion, direct Renderer
+disablement/preview tests, focused 59 tests, full server 3 plus desktop 147 tests,
+typecheck and production build. Valid create/update/unchanged/create-distinct-sense
+proposals are reviewable without persistence, satisfying the Q01-04 unlock condition.
+
+**Follow-up**
+- Start Q01-04 in a fresh worker session.
+
+#### L049 — 2026-07-22 01:45 — Q01-04 — orchestrator -> codex — dispatch
+
+**Message**
+Handle only Q01-04 through `ddd-start → ddd-doc → ddd-tdd`. Add the review-and-apply
+workflow for selected proposals with per-item action and per-field overwrite confirmation.
+Main must revalidate the batch in one transaction, protect manual fields by default,
+append sources, allow distinct senses, use version/audit/idempotency safeguards, reject
+stale proposals, and never allow AI to write/delete/archive directly. Pending proposals
+remain Renderer-session-only. Update FXX/P01/Q01/module docs, create one scoped commit,
+suppress the per-item completion notification, and do not implement review scheduling.
+
+**Context**
+- Dependency: Q01-03 at `5766ba8`
+- Unlock evidence: all four actions previewed without persistence; full tests/typecheck/build green
+- Explicit authorization: transaction, version, audit and schema migration are approved in intake
+
+**Expected Response**
+- Completed Q01-04 with FXX path, commit hash, tests, ledger entries and final queue handoff;
+  or a blocked state with one concrete user decision.
 
 ## 6. Queue execution rules
 
