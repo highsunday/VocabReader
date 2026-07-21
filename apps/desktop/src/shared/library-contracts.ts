@@ -5,6 +5,14 @@ export interface BookChapter {
   href: string;
 }
 
+export type BookView = "overview" | "reader";
+
+export interface BookReadingState {
+  view: BookView;
+  chapterId: string | null;
+  scrollProgress: number;
+}
+
 export interface LibraryBook {
   id: string;
   title: string;
@@ -12,7 +20,19 @@ export interface LibraryBook {
   coverDataUrl: string | null;
   progressPercent: number;
   lastChapterId: string | null;
+  readingState: BookReadingState;
   chapters: BookChapter[];
+}
+
+export interface ChapterContent {
+  bookId: string;
+  chapterId: string;
+  title: string;
+  contentHtml: string;
+}
+
+export interface SaveReadingStateInput extends BookReadingState {
+  bookId: string;
 }
 
 export type ImportBookResult =
@@ -22,4 +42,6 @@ export type ImportBookResult =
 export interface LibraryDesktopApi {
   listBooks(): Promise<LibraryBook[]>;
   importBook(): Promise<ImportBookResult>;
+  getChapterContent(bookId: string, chapterId: string): Promise<ChapterContent>;
+  saveReadingState(input: SaveReadingStateInput): Promise<LibraryBook>;
 }

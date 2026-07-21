@@ -1,5 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  BookView,
+  ChapterContent,
   LibraryBook,
   LibraryDesktopApi
 } from "../shared/library-contracts";
@@ -35,8 +37,13 @@ export function App() {
   const [activeChapterId, setActiveChapterId] = useState<string>();
   const [libraryError, setLibraryError] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [chapterContent, setChapterContent] = useState<ChapterContent>();
+  const [isLoadingChapter, setIsLoadingChapter] = useState(false);
+  const [chapterError, setChapterError] = useState("");
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState(initialMessages);
+  const contentRef = useRef<HTMLElement>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const selectedBook = useMemo(
     () => books.find((book) => book.id === selectedBookId) ?? books[0],
@@ -45,6 +52,20 @@ export function App() {
   const activeChapter = selectedBook?.chapters.find(
     (chapter) => chapter.id === activeChapterId
   );
+  const activeChapterIndex = selectedBook?.chapters.findIndex(
+    (chapter) => chapter.id === activeChapterId
+  ) ?? -1;
+
+  function restoreBook(book: LibraryBook) {
+    const state = book.readingState;
+    const canResumeReader =
+      state?.view === "reader" &&
+      Boolean(state.chapterId) &&
+      book.chapters.some((chapter) => chapter.id === state.chapterId);
+    setSelectedBookId(book.id);
+    setActiveChapterId(canResumeReader ? state.chapterId ?? undefined : undefined);
+    setMode(canResumeReader ? "reader" : "overview");
+  }
 
   useEffect(() => {
     const library = desktopLibrary();
@@ -56,10 +77,120 @@ export function App() {
       .listBooks()
       .then((storedBooks) => {
         setBooks(storedBooks);
-        setSelectedBookId((current) => current ?? storedBooks[0]?.id);
+        if (storedBooks[0]) restoreBook(storedBooks[0]);
       })
       .catch(() => setLibraryError("無法讀取本機書庫，請重新開啟應用程式。"));
   }, []);
+
+  useEffect(() => {
+    const library = desktopLibrary();
+    if (mode !== "reader" || !selectedBookId || !activeChapterId || !library) {
+      setChapterContent(undefined);
+      setChapterError("");
+      return;
+    }
+
+    let cancelled = false;
+    setChapterContent(undefined);
+    setChapterError("");
+    setIsLoadingChapter(true);
+    void library
+      .getChapterContent(selectedBookId, activeChapterId)
+      .then((content) => {
+        if (!cancelled) setChapterContent(content);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setChapterError("無法載入這個章節，請返回總覽後再試一次。");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingChapter(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, selectedBookId, activeChapterId]);
+
+  useEffect(() => {
+    if (!chapterContent || !selectedBook || !contentRef.current) return;
+    const maximum = Math.max(
+      0,
+      contentRef.current.scrollHeight - contentRef.current.clientHeight
+    );
+    const progress = selectedBook.readingState.chapterId === chapterContent.chapterId
+      ? selectedBook.readingState.scrollProgress
+      : 0;
+    contentRef.current.scrollTop = maximum * progress;
+  }, [chapterContent, selectedBookId]);
+
+  useEffect(() => {
+    if (mode !== "reader" && contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [mode, selectedBookId]);
+
+  useEffect(() => () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+  }, []);
+
+  function currentScrollProgress(): number {
+    const scroller = contentRef.current;
+    if (!scroller) return 0;
+    const maximum = scroller.scrollHeight - scroller.clientHeight;
+    return maximum > 0
+      ? Math.min(1, Math.max(0, scroller.scrollTop / maximum))
+      : 0;
+  }
+
+  function persistReadingState(
+    book: LibraryBook,
+    view: BookView,
+    chapterId: string | null,
+    scrollProgress: number
+  ) {
+    const state = { bookId: book.id, view, chapterId, scrollProgress };
+    setBooks((current) => current.map((candidate) =>
+      candidate.id === book.id
+        ? {
+            ...candidate,
+            lastChapterId: chapterId ?? candidate.lastChapterId,
+            readingState: { view, chapterId, scrollProgress }
+          }
+        : candidate
+    ));
+    void desktopLibrary()?.saveReadingState(state).then((savedBook) => {
+      setBooks((current) => current.map((candidate) =>
+        candidate.id === savedBook.id ? savedBook : candidate
+      ));
+    }).catch(() => {
+      setLibraryError("無法保存閱讀位置；本次切換仍可繼續使用。");
+    });
+  }
+
+  function saveCurrentReaderPosition() {
+    if (mode === "reader" && selectedBook && activeChapterId) {
+      persistReadingState(
+        selectedBook,
+        "reader",
+        activeChapterId,
+        currentScrollProgress()
+      );
+    }
+  }
+
+  function handleContentScroll() {
+    if (mode !== "reader" || !selectedBook || !activeChapterId) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      persistReadingState(
+        selectedBook,
+        "reader",
+        activeChapterId,
+        currentScrollProgress()
+      );
+    }, 300);
+  }
 
   async function handleImport() {
     const library = desktopLibrary();
@@ -84,9 +215,7 @@ export function App() {
           book.id === result.book.id ? result.book : book
         );
       });
-      setSelectedBookId(result.book.id);
-      setActiveChapterId(undefined);
-      setMode("overview");
+      restoreBook(result.book);
     } catch (error) {
       setLibraryError(
         error instanceof Error && error.message
@@ -99,14 +228,33 @@ export function App() {
   }
 
   function selectBook(bookId: string) {
-    setSelectedBookId(bookId);
-    setActiveChapterId(undefined);
-    setMode("overview");
+    saveCurrentReaderPosition();
+    const book = books.find((candidate) => candidate.id === bookId);
+    if (book) restoreBook(book);
   }
 
   function openChapter(chapterId: string) {
+    if (!selectedBook) return;
+    persistReadingState(selectedBook, "reader", chapterId, 0);
     setActiveChapterId(chapterId);
     setMode("reader");
+  }
+
+  function returnToOverview() {
+    if (selectedBook) {
+      persistReadingState(
+        selectedBook,
+        "overview",
+        activeChapterId ?? selectedBook.readingState.chapterId,
+        currentScrollProgress()
+      );
+    }
+    setMode("overview");
+  }
+
+  function openPreviousChapter() {
+    if (!selectedBook || activeChapterIndex <= 0) return;
+    openChapter(selectedBook.chapters[activeChapterIndex - 1].id);
   }
 
   function startOrContinueReading() {
@@ -186,14 +334,17 @@ export function App() {
           <nav>
             <button
               className={mode !== "review" ? "nav-item active" : "nav-item"}
-              onClick={() => setMode("overview")}
+              onClick={returnToOverview}
             >
               <span>▤</span>
               書籍總覽
             </button>
             <button
               className={mode === "review" ? "nav-item active" : "nav-item"}
-              onClick={() => setMode("review")}
+              onClick={() => {
+                saveCurrentReaderPosition();
+                setMode("review");
+              }}
             >
               <span>↻</span>
               Anki 複習
@@ -213,7 +364,7 @@ export function App() {
           </div>
         </aside>
 
-        <main className="content">
+        <main className="content" ref={contentRef} onScroll={handleContentScroll}>
           {libraryError ? <div className="library-error" role="alert">{libraryError}</div> : null}
 
           {mode === "overview" ? (
@@ -290,7 +441,19 @@ export function App() {
             )
           ) : mode === "reader" ? (
             <section className="reader-panel" aria-labelledby="reader-title">
-              <div className="section-heading">
+              <div className="reader-toolbar">
+                <button type="button" aria-label="返回總覽" onClick={returnToOverview}>
+                  ← 返回總覽
+                </button>
+                <button
+                  type="button"
+                  onClick={openPreviousChapter}
+                  disabled={activeChapterIndex <= 0}
+                >
+                  上一章
+                </button>
+              </div>
+              <div className="section-heading reader-heading">
                 <div>
                   <span className="eyebrow">Chapter workspace</span>
                   <h1 id="reader-title">
@@ -302,20 +465,20 @@ export function App() {
                 </button>
               </div>
 
-              <div className="empty-reader">
-                <span className="book-icon">Aa</span>
-                <h2>{activeChapter ? selectedBook?.title : "你的閱讀空間已準備好"}</h2>
-                <p>
-                  原文會顯示在這裡。第一次閱讀先劃線標記，完成後再讓 AI
-                  集中解析。
-                </p>
-                <div className="flow-tags" aria-label="章節學習流程">
-                  <span>閱讀標記</span>
-                  <span>AI 解析</span>
-                  <span>生詞庫</span>
-                  <span>章末選擇題</span>
+              {isLoadingChapter ? (
+                <div className="chapter-status" role="status">章節載入中…</div>
+              ) : chapterError ? (
+                <div className="chapter-status error" role="alert">
+                  <p>{chapterError}</p>
+                  <button type="button" onClick={returnToOverview}>返回總覽</button>
                 </div>
-              </div>
+              ) : chapterContent ? (
+                <article
+                  className="chapter-content"
+                  aria-label={`${chapterContent.title} 章節內容`}
+                  dangerouslySetInnerHTML={{ __html: chapterContent.contentHtml }}
+                />
+              ) : null}
             </section>
           ) : (
             <section className="review-panel" aria-labelledby="review-title">

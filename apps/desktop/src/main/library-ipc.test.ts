@@ -9,6 +9,7 @@ const book: LibraryBook = {
   coverDataUrl: null,
   progressPercent: 0,
   lastChapterId: null,
+  readingState: { view: "overview", chapterId: null, scrollProgress: 0 },
   chapters: [{ id: "chapter-id", title: "Chapter", order: 0, href: "chapter.xhtml" }]
 };
 
@@ -28,7 +29,14 @@ describe("library IPC", () => {
     };
     const library = {
       listBooks: vi.fn().mockResolvedValue([book]),
-      importFromPath: vi.fn().mockResolvedValue({ status: "imported", book })
+      importFromPath: vi.fn().mockResolvedValue({ status: "imported", book }),
+      getChapterContent: vi.fn().mockResolvedValue({
+        bookId: book.id,
+        chapterId: "chapter-id",
+        title: "Chapter",
+        contentHtml: "<p>Readable</p>"
+      }),
+      saveReadingState: vi.fn().mockResolvedValue(book)
     };
 
     registerLibraryIpc(ipc, dialog, library);
@@ -42,6 +50,24 @@ describe("library IPC", () => {
       expect.objectContaining({ properties: ["openFile"] })
     );
     expect(library.importFromPath).toHaveBeenCalledWith("/chosen/book.epub");
+    await expect(
+      handlers.get("library:chapter")?.({}, book.id, "chapter-id")
+    ).resolves.toMatchObject({ contentHtml: "<p>Readable</p>" });
+    await expect(
+      handlers.get("library:save-reading-state")?.({}, {
+        bookId: book.id,
+        view: "reader",
+        chapterId: "chapter-id",
+        scrollProgress: 0.4
+      })
+    ).resolves.toEqual(book);
+    expect(library.getChapterContent).toHaveBeenCalledWith(book.id, "chapter-id");
+    expect(library.saveReadingState).toHaveBeenCalledWith({
+      bookId: book.id,
+      view: "reader",
+      chapterId: "chapter-id",
+      scrollProgress: 0.4
+    });
   });
 
   it("returns a cancellation without touching the library", async () => {
@@ -56,7 +82,9 @@ describe("library IPC", () => {
     };
     const library = {
       listBooks: vi.fn(),
-      importFromPath: vi.fn()
+      importFromPath: vi.fn(),
+      getChapterContent: vi.fn(),
+      saveReadingState: vi.fn()
     };
 
     registerLibraryIpc(ipc, dialog, library);

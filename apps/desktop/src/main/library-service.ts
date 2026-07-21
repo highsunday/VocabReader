@@ -12,11 +12,15 @@ import { XMLParser } from "fast-xml-parser";
 import JSZip from "jszip";
 import type {
   BookChapter,
+  BookReadingState,
+  ChapterContent,
   ImportBookResult,
-  LibraryBook
+  LibraryBook,
+  SaveReadingStateInput
 } from "../shared/library-contracts";
 
 type XmlValue = string | number | Record<string, unknown> | XmlValue[];
+type OrderedXmlNode = Record<string, unknown>;
 
 interface ManifestItem {
   id: string;
@@ -38,6 +42,15 @@ const xmlParser = new XMLParser({
   removeNSPrefix: true,
   textNodeName: "#text",
   trimValues: true
+});
+
+const chapterXmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  preserveOrder: true,
+  removeNSPrefix: true,
+  textNodeName: "#text",
+  trimValues: false
 });
 
 function asArray<T>(value: T | T[] | undefined): T[] {
@@ -137,6 +150,145 @@ function ncxLinks(value: unknown): Array<{ title: string; href: string }> {
 
 function mediaTypeToDataUrl(mediaType: string, bytes: Uint8Array): string {
   return `data:${mediaType};base64,${Buffer.from(bytes).toString("base64")}`;
+}
+
+const readableTags = new Set([
+  "p", "h1", "h2", "h3", "h4", "h5", "h6", "div", "span", "em",
+  "strong", "b", "i", "u", "s", "blockquote", "pre", "code", "ul",
+  "ol", "li", "dl", "dt", "dd", "table", "thead", "tbody", "tfoot",
+  "tr", "th", "td", "hr", "br", "figure", "figcaption", "sup", "sub"
+]);
+
+const discardedTags = new Set([
+  "script", "style", "iframe", "object", "embed", "form", "input",
+  "button", "select", "textarea", "meta", "link", "base", "svg", "canvas",
+  "audio", "video"
+]);
+
+function escapeHtmlText(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function imageMediaType(path: string): string | undefined {
+  switch (posix.extname(path).toLowerCase()) {
+    case ".png": return "image/png";
+    case ".jpg":
+    case ".jpeg": return "image/jpeg";
+    case ".gif": return "image/gif";
+    case ".webp": return "image/webp";
+    case ".avif": return "image/avif";
+    default: return undefined;
+  }
+}
+
+async function sanitizeChapterHtml(
+  zip: JSZip,
+  chapterPath: string,
+  source: string
+): Promise<string> {
+  const parsed = chapterXmlParser.parse(source) as OrderedXmlNode[];
+
+  function findBody(nodes: OrderedXmlNode[]): OrderedXmlNode[] | undefined {
+    for (const node of nodes) {
+      if (Array.isArray(node.body)) return node.body as OrderedXmlNode[];
+      for (const [key, value] of Object.entries(node)) {
+        if (key !== ":@" && Array.isArray(value)) {
+          const body = findBody(value as OrderedXmlNode[]);
+          if (body) return body;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  async function renderNodes(nodes: OrderedXmlNode[]): Promise<string> {
+    let output = "";
+    for (const node of nodes) {
+      if (typeof node["#text"] === "string") {
+        output += escapeHtmlText(node["#text"]);
+        continue;
+      }
+      const entry = Object.entries(node).find(
+        ([key, value]) => key !== ":@" && Array.isArray(value)
+      );
+      if (!entry) continue;
+      const [rawName, rawChildren] = entry;
+      const name = rawName.toLowerCase();
+      const children = rawChildren as OrderedXmlNode[];
+      if (discardedTags.has(name)) continue;
+      const attributes = asRecord(node[":@"]) as Record<string, unknown>;
+
+      if (name === "img") {
+        const sourcePath = String(attributes["@_src"] ?? "");
+        if (!sourcePath || /^(?:[a-z]+:|\/\/|#)/i.test(sourcePath)) continue;
+        try {
+          const assetPath = resolveArchivePath(posix.dirname(chapterPath), sourcePath);
+          const mediaType = imageMediaType(assetPath);
+          const asset = mediaType ? zip.file(assetPath) : null;
+          if (!mediaType || !asset) continue;
+          const dataUrl = mediaTypeToDataUrl(mediaType, await asset.async("uint8array"));
+          const alt = escapeHtmlAttribute(String(attributes["@_alt"] ?? ""));
+          output += `<img src="${dataUrl}" alt="${alt}">`;
+        } catch {
+          // Invalid or missing book-local images are omitted from readable content.
+        }
+        continue;
+      }
+
+      const renderedChildren = await renderNodes(children);
+      if (!readableTags.has(name)) {
+        output += renderedChildren;
+        continue;
+      }
+      const allowedAttributes: string[] = [];
+      if (name === "ol" && /^\d+$/.test(String(attributes["@_start"] ?? ""))) {
+        allowedAttributes.push(`start="${attributes["@_start"]}"`);
+      }
+      if (name === "td" || name === "th") {
+        for (const attributeName of ["colspan", "rowspan"] as const) {
+          const value = String(attributes[`@_${attributeName}`] ?? "");
+          if (/^\d+$/.test(value)) {
+            allowedAttributes.push(`${attributeName}="${value}"`);
+          }
+        }
+      }
+      const opening = `<${name}${allowedAttributes.length ? ` ${allowedAttributes.join(" ")}` : ""}>`;
+      output += name === "br" || name === "hr"
+        ? opening
+        : `${opening}${renderedChildren}</${name}>`;
+    }
+    return output;
+  }
+
+  return (await renderNodes(findBody(parsed) ?? parsed)).trim();
+}
+
+function defaultReadingState(book: Partial<LibraryBook>): BookReadingState {
+  const saved = book.readingState;
+  const chapterExists = book.chapters?.some(
+    (chapter) => chapter.id === saved?.chapterId
+  );
+  const scrollProgress = Number(saved?.scrollProgress);
+  return {
+    view: saved?.view === "reader" && chapterExists ? "reader" : "overview",
+    chapterId: chapterExists
+      ? saved?.chapterId ?? null
+      : book.lastChapterId ?? null,
+    scrollProgress: Number.isFinite(scrollProgress)
+      ? Math.min(1, Math.max(0, scrollProgress))
+      : 0
+  };
 }
 
 async function requiredTextFile(zip: JSZip, path: string, label: string) {
@@ -247,6 +399,7 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
 export class LocalBookLibrary {
   readonly #indexPath: string;
   readonly #booksPath: string;
+  #stateWriteQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly libraryPath: string) {
     this.#indexPath = join(libraryPath, "index.json");
@@ -267,10 +420,14 @@ export class LocalBookLibrary {
     await this.#ensureLibrary();
     const contents = await readFile(this.#indexPath, "utf8");
     const books = JSON.parse(contents) as LibraryBook[];
-    return books.map((book) => ({
-      ...book,
-      chapters: [...book.chapters].sort((left, right) => left.order - right.order)
-    }));
+    return books.map((book) => {
+      const chapters = [...book.chapters].sort((left, right) => left.order - right.order);
+      return {
+        ...book,
+        chapters,
+        readingState: defaultReadingState({ ...book, chapters })
+      };
+    });
   }
 
   async #saveBooks(books: LibraryBook[]): Promise<void> {
@@ -299,7 +456,8 @@ export class LocalBookLibrary {
       id,
       ...parsed,
       progressPercent: 0,
-      lastChapterId: null
+      lastChapterId: null,
+      readingState: { view: "overview", chapterId: null, scrollProgress: 0 }
     };
     const bookPath = join(this.#booksPath, id);
     try {
@@ -311,5 +469,71 @@ export class LocalBookLibrary {
       throw error;
     }
     return { status: "imported", book };
+  }
+
+  async getChapterContent(
+    bookId: string,
+    requestedChapterId: string
+  ): Promise<ChapterContent> {
+    const books = await this.listBooks();
+    const book = books.find((candidate) => candidate.id === bookId);
+    if (!book) throw new Error("找不到書籍");
+    const chapter = book.chapters.find(
+      (candidate) => candidate.id === requestedChapterId
+    );
+    if (!chapter) throw new Error("找不到章節");
+
+    const epub = await readFile(join(this.#booksPath, book.id, "book.epub"));
+    const zip = await JSZip.loadAsync(epub);
+    const file = zip.file(chapter.href);
+    if (!file) throw new Error("章節內容遺失");
+    const contentHtml = await sanitizeChapterHtml(
+      zip,
+      chapter.href,
+      await file.async("text")
+    );
+    return {
+      bookId: book.id,
+      chapterId: chapter.id,
+      title: chapter.title,
+      contentHtml
+    };
+  }
+
+  async saveReadingState(input: SaveReadingStateInput): Promise<LibraryBook> {
+    const operation = this.#stateWriteQueue.then(async () => {
+      const books = await this.listBooks();
+      const index = books.findIndex((book) => book.id === input.bookId);
+      if (index < 0) throw new Error("找不到書籍");
+      const book = books[index];
+      const chapter = input.chapterId
+        ? book.chapters.find((candidate) => candidate.id === input.chapterId)
+        : undefined;
+      if (input.chapterId && !chapter) throw new Error("找不到章節");
+      const scrollProgress = Number.isFinite(input.scrollProgress)
+        ? Math.min(1, Math.max(0, input.scrollProgress))
+        : 0;
+      const progressPercent = chapter
+        ? Math.max(
+            book.progressPercent,
+            Math.round(((chapter.order + scrollProgress) / book.chapters.length) * 100)
+          )
+        : book.progressPercent;
+      const updated: LibraryBook = {
+        ...book,
+        progressPercent,
+        lastChapterId: chapter?.id ?? book.lastChapterId,
+        readingState: {
+          view: input.view,
+          chapterId: chapter?.id ?? book.readingState.chapterId,
+          scrollProgress
+        }
+      };
+      books[index] = updated;
+      await this.#saveBooks(books);
+      return updated;
+    });
+    this.#stateWriteQueue = operation.then(() => undefined, () => undefined);
+    return operation;
   }
 }

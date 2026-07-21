@@ -156,6 +156,7 @@ describe("LocalBookLibrary", () => {
     const persisted = JSON.parse(await readFile(indexPath, "utf8")) as LibraryBook[];
     persisted[0].progressPercent = 45;
     persisted[0].lastChapterId = persisted[0].chapters[0].id;
+    delete (persisted[0] as Partial<LibraryBook>).readingState;
     await writeFile(indexPath, `${JSON.stringify(persisted, null, 2)}\n`);
 
     const duplicate = await new LocalBookLibrary(join(root, "library")).importFromPath(firstPath);
@@ -166,6 +167,11 @@ describe("LocalBookLibrary", () => {
     if (duplicate.status === "cancelled") throw new Error("unexpected cancellation");
     expect(duplicate.book.progressPercent).toBe(45);
     expect(duplicate.book.lastChapterId).toBe(persisted[0].chapters[0].id);
+    expect(duplicate.book.readingState).toEqual({
+      view: "overview",
+      chapterId: persisted[0].chapters[0].id,
+      scrollProgress: 0
+    });
     expect(revision.status).toBe("imported");
     expect(await library.listBooks()).toHaveLength(2);
     if (revision.status === "cancelled") {
@@ -187,5 +193,76 @@ describe("LocalBookLibrary", () => {
     );
     expect(await library.listBooks()).toEqual([]);
     await expect(readFile(join(libraryPath, "index.json"), "utf8")).resolves.toBe("[]\n");
+  });
+
+  it("loads safe chapter content and embeds book-local images", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "readable.epub");
+    await createEpub3(
+      epubPath,
+      `<h1 onclick="alert('no')">A real chapter</h1>
+       <p>Keep this paragraph.</p>
+       <img src="cover.png" alt="Book art" />
+       <img src="https://tracker.example/pixel.png" alt="Tracker" />
+       <script>window.evil = true</script><form><input /></form>`
+    );
+    const library = new LocalBookLibrary(join(root, "library"));
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+
+    const chapter = await library.getChapterContent(
+      imported.book.id,
+      imported.book.chapters[0].id
+    );
+
+    expect(chapter).toMatchObject({
+      bookId: imported.book.id,
+      chapterId: imported.book.chapters[0].id,
+      title: "Getting Started"
+    });
+    expect(chapter.contentHtml).toContain("A real chapter");
+    expect(chapter.contentHtml).toContain("Keep this paragraph.");
+    expect(chapter.contentHtml).toMatch(/src="data:image\/png;base64,/);
+    expect(chapter.contentHtml).not.toMatch(/script|onclick|form|input|https:\/\//i);
+  });
+
+  it("persists each book reading view, chapter and relative position", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "resume.epub");
+    const libraryPath = join(root, "library");
+    await createEpub3(epubPath);
+    const library = new LocalBookLibrary(libraryPath);
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+
+    const saved = await library.saveReadingState({
+      bookId: imported.book.id,
+      view: "reader",
+      chapterId: imported.book.chapters[1].id,
+      scrollProgress: 0.5
+    });
+    const [reloaded] = await new LocalBookLibrary(libraryPath).listBooks();
+
+    expect(saved.readingState).toEqual({
+      view: "reader",
+      chapterId: imported.book.chapters[1].id,
+      scrollProgress: 0.5
+    });
+    expect(reloaded.readingState).toEqual(saved.readingState);
+    expect(reloaded.lastChapterId).toBe(imported.book.chapters[1].id);
+  });
+
+  it("rejects unknown chapter requests without changing reading state", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "unknown.epub");
+    const library = new LocalBookLibrary(join(root, "library"));
+    await createEpub3(epubPath);
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+
+    await expect(
+      library.getChapterContent(imported.book.id, "missing-chapter")
+    ).rejects.toThrow(/找不到章節/);
+    expect((await library.listBooks())[0].readingState.view).toBe("overview");
   });
 });

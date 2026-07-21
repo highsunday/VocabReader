@@ -13,6 +13,18 @@ interface ReaderDesktopApi {
       | { status: "cancelled" }
       | { status: "imported" | "existing"; book: DesktopLibraryBook }
     >;
+    getChapterContent(bookId: string, chapterId: string): Promise<{
+      bookId: string;
+      chapterId: string;
+      title: string;
+      contentHtml: string;
+    }>;
+    saveReadingState(input: {
+      bookId: string;
+      view: "overview" | "reader";
+      chapterId: string | null;
+      scrollProgress: number;
+    }): Promise<DesktopLibraryBook>;
   };
 }
 
@@ -23,6 +35,11 @@ interface DesktopLibraryBook {
   coverDataUrl: string | null;
   progressPercent: number;
   lastChapterId: string | null;
+  readingState: {
+    view: "overview" | "reader";
+    chapterId: string | null;
+    scrollProgress: number;
+  };
   chapters: Array<{
     id: string;
     title: string;

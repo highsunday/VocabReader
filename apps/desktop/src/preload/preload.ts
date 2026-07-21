@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+  ChapterContent,
   ImportBookResult,
-  LibraryBook
+  LibraryBook,
+  SaveReadingStateInput
 } from "../shared/library-contracts";
 
 const desktopApi = Object.freeze({
@@ -14,7 +16,14 @@ const desktopApi = Object.freeze({
   library: Object.freeze({
     listBooks: (): Promise<LibraryBook[]> => ipcRenderer.invoke("library:list"),
     importBook: (): Promise<ImportBookResult> =>
-      ipcRenderer.invoke("library:import")
+      ipcRenderer.invoke("library:import"),
+    getChapterContent: (
+      bookId: string,
+      chapterId: string
+    ): Promise<ChapterContent> =>
+      ipcRenderer.invoke("library:chapter", bookId, chapterId),
+    saveReadingState: (input: SaveReadingStateInput): Promise<LibraryBook> =>
+      ipcRenderer.invoke("library:save-reading-state", input)
   })
 });
 

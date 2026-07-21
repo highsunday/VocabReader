@@ -1,6 +1,8 @@
 import type {
+  ChapterContent,
   ImportBookResult,
-  LibraryBook
+  LibraryBook,
+  SaveReadingStateInput
 } from "../shared/library-contracts";
 
 interface IpcRegistrar {
@@ -21,6 +23,8 @@ interface FileDialog {
 interface BookLibrary {
   listBooks(): Promise<LibraryBook[]>;
   importFromPath(path: string): Promise<ImportBookResult>;
+  getChapterContent(bookId: string, chapterId: string): Promise<ChapterContent>;
+  saveReadingState(input: SaveReadingStateInput): Promise<LibraryBook>;
 }
 
 export function registerLibraryIpc(
@@ -29,6 +33,27 @@ export function registerLibraryIpc(
   library: BookLibrary
 ): void {
   ipc.handle("library:list", () => library.listBooks());
+  ipc.handle("library:chapter", (_event, bookId, chapterId) => {
+    if (typeof bookId !== "string" || typeof chapterId !== "string") {
+      throw new Error("章節請求格式錯誤");
+    }
+    return library.getChapterContent(bookId, chapterId);
+  });
+  ipc.handle("library:save-reading-state", (_event, rawInput) => {
+    if (!rawInput || typeof rawInput !== "object") {
+      throw new Error("閱讀狀態格式錯誤");
+    }
+    const input = rawInput as Partial<SaveReadingStateInput>;
+    if (
+      typeof input.bookId !== "string" ||
+      (input.view !== "overview" && input.view !== "reader") ||
+      (input.chapterId !== null && typeof input.chapterId !== "string") ||
+      typeof input.scrollProgress !== "number"
+    ) {
+      throw new Error("閱讀狀態格式錯誤");
+    }
+    return library.saveReadingState(input as SaveReadingStateInput);
+  });
   ipc.handle("library:import", async () => {
     const selection = await dialog.showOpenDialog({
       title: "導入 EPUB",
