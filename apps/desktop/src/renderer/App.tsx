@@ -42,6 +42,10 @@ import {
   renderAnnotationHighlights,
   textOffsetAtPoint
 } from "./reading-range";
+import { AiConversationPanel } from "./workspace/AiConversationPanel";
+import { LearningLibraryWorkspace } from "./workspace/LearningLibraryWorkspace";
+import { PrimaryNavigation } from "./workspace/PrimaryNavigation";
+import { ReadingWorkspace } from "./workspace/ReadingWorkspace";
 
 type WorkspaceMode = "overview" | "reader" | "review";
 
@@ -1135,10 +1139,7 @@ export function App() {
           }px`
         } as CSSProperties}
       >
-        <aside
-          className={isLeftSidebarCollapsed ? "sidebar collapsed" : "sidebar"}
-          aria-label="主要導覽"
-        >
+        <PrimaryNavigation collapsed={isLeftSidebarCollapsed}>
           <div className="sidebar-heading">
             {!isLeftSidebarCollapsed ? (
               <div className="book-summary">
@@ -1253,11 +1254,11 @@ export function App() {
               </div>
             </div>
           ) : null}
-        </aside>
+        </PrimaryNavigation>
 
-        <main
-          className={mode === "reader" ? "content reader-content" : "content"}
-          ref={contentRef}
+        <ReadingWorkspace
+          isReader={mode === "reader"}
+          contentRef={contentRef}
           onScroll={handleContentScroll}
         >
           {mode === "reader" ? (
@@ -1529,25 +1530,11 @@ export function App() {
               ) : null}
             </section>
           ) : (
-            <section className="review-panel" aria-labelledby="review-title">
-              <span className="eyebrow">Spaced repetition</span>
-              <h1 id="review-title">Anki 式間隔複習</h1>
-              <p>
-                這裡只處理生詞庫中的到期項目，跨書籍與章節產生填空、造句等題目。
-              </p>
-              <div className="review-card">
-                <strong>今日待複習</strong>
-                <b>10</b>
-                <span>完成回答後才會更新各項目的複習間隔。</span>
-              </div>
-            </section>
+            <LearningLibraryWorkspace />
           )}
-        </main>
+        </ReadingWorkspace>
 
-        <aside
-          className={isRightSidebarCollapsed ? "assistant-panel collapsed" : "assistant-panel"}
-          aria-label="AI 助教"
-        >
+        <AiConversationPanel collapsed={isRightSidebarCollapsed}>
           {!isRightSidebarCollapsed ? (
             <div
               className="assistant-resize-handle"
@@ -1822,7 +1809,7 @@ export function App() {
               )}
             </div>
           ) : null}
-        </aside>
+        </AiConversationPanel>
       </div>
 
       {bookPendingDeletion ? (

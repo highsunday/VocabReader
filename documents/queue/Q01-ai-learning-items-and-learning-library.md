@@ -137,7 +137,7 @@ reviewed_at: 2026-07-22 00:41 CST
 
 | Item | Name | Type | Agent | Depends On | Status | Related doc | Commit |
 |---|---|---|---|---|---|---|---|
-| Q01-01 | 拆分可擴充的桌面工作區邊界 | RXX | codex | — | in_progress | — | — |
+| Q01-01 | 拆分可擴充的桌面工作區邊界 | RXX | codex | — | completed | documents/implements/R01-desktop-workspace-boundaries.md | pending-orchestrator |
 | Q01-02 | 建立本機生詞庫與來源卡片基礎 | FXX | auto | Q01-01 | pending | — | — |
 | Q01-03 | 產生結構化 AI 學習項目提案 | FXX | auto | Q01-02 | pending | — | — |
 | Q01-04 | 確認並安全套用新增／更新提案 | FXX | auto | Q01-03 | pending | — | — |
@@ -149,7 +149,7 @@ reviewed_at: 2026-07-22 00:41 CST
 id: Q01-01
 type: RXX
 agent: codex
-status: in_progress
+status: completed
 blocker_reason: — (resolved by user authorization and baseline commit 9885440)
 questions: []
 need_user_decision: []
@@ -158,12 +158,12 @@ depends_on: []
 unlock_condition: none
 auto_approve: true
 commit_required: true
-implemented_doc: —
-commit: —
-worker_session: codex 2026-07-22 00:52 CST
-worker_log: Dispatched after user-authorized baseline commit 9885440 and successful clean-worktree pre-flight.
-handoff_summary: —
-communication_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012]
+implemented_doc: documents/implements/R01-desktop-workspace-boundaries.md
+commit: pending-orchestrator
+worker_session: codex 2026-07-22 01:02 CST
+worker_log: R01 auto-approved; TC1 RED due to missing modules, then GREEN. Focused 61 tests, full desktop 129 tests, typecheck and production build passed. No IPC, data, CSS, visual or Codex protocol changes.
+handoff_summary: Q01-01 completed; four named Renderer workspace boundaries are composed by App. R01 records RED/GREEN evidence. Commit field is pending-orchestrator by circular-hash protocol; do not begin Q01-02 in this worker session.
+communication_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012, L013, L014, L015, L016, L017, L018, L019, L020, L021]
 archive_refs: []
 
 ### Requirements
@@ -196,15 +196,16 @@ archive_refs: []
 
 questions: []
 need_user_decision: []
-ledger_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012]
+ledger_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012, L013, L014, L015, L016, L017, L018, L019, L020, L021]
 archive_refs: []
 
 ### Agent Handoff Summary
 
-- Current state: in progress; dispatched to a fresh Codex worker
-- Decisions: pure renderer refactor; no product or visual changes
-- Tests: preserve overview, reader, annotations, ranges, chat and both presets
-- Risks: accidental state ownership or rendering regressions
+- Current state: completed; commit field is `pending-orchestrator` by circular-hash protocol
+- Documents: `documents/implements/R01-desktop-workspace-boundaries.md`
+- Decisions: pure Renderer composition; `App` retains all state, bridge, persistence and protocol ownership
+- Tests: TC1 RED then GREEN; focused 61, full desktop 129, typecheck and production build passed
+- Risks: no known regressions; do not start Q01-02 from this worker session
 
 ## Q01-02 建立本機生詞庫與來源卡片基礎
 
@@ -410,100 +411,17 @@ archive_refs: []
 | L010 | 2026-07-22 00:52 | Q01-01 | user -> orchestrator | answer | Authorized handling Git changes and automatic queue start | — |
 | L011 | 2026-07-22 00:52 | Q01-01 | orchestrator -> queue | decision | Reviewed and committed seven documentation paths as baseline 9885440 | — |
 | L012 | 2026-07-22 00:52 | Q01-01 | orchestrator -> codex | dispatch | Dispatch Q01-01 through ddd-start, ddd-doc and ddd-tdd | — |
+| L013 | 2026-07-22 00:54 | Q01-01 | codex -> orchestrator | status | Worker pre-flight passed; starting ddd-start | — |
+| L014 | 2026-07-22 00:56 | Q01-01 | codex -> queue | compaction | Archived resolved L001–L009 entry bodies after context threshold | `documents/queue/logs/Q01-ai-learning-items-and-learning-library-L001-L009.md` |
+| L015 | 2026-07-22 00:57 | Q01-01 | codex -> orchestrator | ddd-start | Classified as RXX; Renderer boundary map confirmed from centralized intake | — |
+| L016 | 2026-07-22 01:02 | Q01-01 | codex -> queue | status | Fresh worker resumed authorized partial R01 and queue state; Q01-02 remains untouched | — |
+| L017 | 2026-07-22 01:02 | Q01-01 | codex -> queue | ddd-doc | R01 approval reconfirmed from the clarified intake; scope is pure Renderer extraction | — |
+| L018 | 2026-07-22 01:02 | Q01-01 | codex -> queue | tdd-red | Boundary test failed because all four workspace modules were absent | — |
+| L019 | 2026-07-22 01:04 | Q01-01 | codex -> queue | tdd-green | Four boundaries composed; focused and full Renderer regressions, typecheck and build passed | — |
+| L020 | 2026-07-22 01:04 | Q01-01 | codex -> queue | handoff | Q01-01 ready for scoped commit; Q01-02 not started | — |
+| L021 | 2026-07-22 01:04 | Q01-01 | codex -> queue | completed | R01 updated and Q01-01 marked completed with pending-orchestrator commit field | — |
 
 ### Active Entries
-
-#### L001 — 2026-07-22 00:28 — Q01-01 — orchestrator -> user — intake-question
-
-**Message**
-請確認純重構邊界、不做視覺變更，並接受書籍總覽、標記／閱讀區段及三種 AI 操作為回歸驗收。
-
-**Follow-up**
-等待使用者回答 Queue Intake Questions / Q01-01。
-
-#### L002 — 2026-07-22 00:28 — Q01-02 — orchestrator -> user — intake-question
-
-**Message**
-請確認本機 SQLite 與 migration 授權、生詞庫導覽、fallback 草稿、卡片欄位、封存及來源書籍刪除後的資料語意。
-
-**Follow-up**
-等待使用者回答 Queue Intake Questions / Q01-02。
-
-#### L003 — 2026-07-22 00:28 — Q01-03 — orchestrator -> user — intake-question
-
-**Message**
-請確認獨立 AI workflow、word／phrase 標記範圍、空區段／無標記行為、講解語言及只提案不寫入原則。
-
-**Follow-up**
-等待使用者回答 Queue Intake Questions / Q01-03。
-
-#### L004 — 2026-07-22 00:28 — Q01-04 — orchestrator -> user — intake-question
-
-**Message**
-請確認人工內容保護、同詞不同義、pending 提案期限、逐項確認粒度及交易／版本／audit migration 授權。
-
-**Follow-up**
-等待使用者回答 Queue Intake Questions / Q01-04。
-
-#### L005 — 2026-07-22 00:28 — ALL — orchestrator -> user — intake-question
-
-**Message**
-請確認四項可 auto-approve、batch limit 建議設為 4，且未設定 email 時只在目前 Codex 對話回報 blocked／completed。
-
-**Follow-up**
-收到回答後追加 answer 與 decision entries；不得覆寫 L001–L005。
-
-#### L006 — 2026-07-22 00:41 — ALL — user -> orchestrator — answer
-
-**Message**
-使用者回答：「1. yes 2. ok 3. ok 4.ok 5.ok」。依先前約定，代表 Q01-01、Q01-02、Q01-03、Q01-04 與 cross-item execution decisions 全部採建議。
-
-**Artifacts**
-- Queue Intake Questions 全部獲回答。
-
-**Follow-up**
-- 將 queue 與四個 items 標記為 ready／clarified；執行前仍須通過 clean worktree pre-flight。
-
-#### L007 — 2026-07-22 00:41 — ALL — orchestrator -> workers — decision
-
-**Message**
-集中式 intake grill 完成。採用本機 SQLite＋窄化 IPC、來源快照、獨立背景 AI workflow、review-before-save、人工內容保護、同詞不同義、session-only pending proposals、交易／版本／audit 保護；四項 auto-approve，batch limit 4，通知只回報目前 Codex 對話。
-
-**Context**
-- Q01-01 → Q01-02 → Q01-03 → Q01-04 依序執行。
-- 任一新產品取捨、資料風險、無法建立 red test 或依賴失效時立即 block。
-
-**Follow-up**
-- Orchestrator 只有在工作樹乾淨且使用者要求執行時才能 dispatch Q01-01。
-
-#### L008 — 2026-07-22 00:47 — Q01-01 — orchestrator -> queue — blocked
-
-**Message**
-Queue execution pre-flight stopped because `git status --short` was not empty. Dirty paths included modified AI／annotation module documents and untracked module, P01 and Q01 documents. No worker session was launched.
-
-**Context**
-- Queue readiness: passed.
-- Q01-01 clarification: passed.
-- Codex CLI: available.
-- Claude CLI: available.
-- Clean worktree: failed.
-
-**Follow-up**
-- User must handle the existing changes outside the queue and confirm when `git status --short` is empty.
-
-#### L009 — 2026-07-22 00:47 — Q01-01 — orchestrator -> user — notification
-
-**Message**
-Q01 is blocked before dispatch because the working tree is not clean. The blocker is reported in the current Codex conversation.
-
-**Artifacts**
-- Email From: —
-- Email To: —
-- Delivery: skipped-not-configured
-- Fallback: current Codex conversation
-
-**Follow-up**
-- Resume only after a clean-worktree pre-flight succeeds.
 
 #### L010 — 2026-07-22 00:52 — Q01-01 — user -> orchestrator — answer
 
@@ -542,6 +460,86 @@ Handle only Q01-01. Execute `ddd-start → ddd-doc → ddd-tdd`, create one RXX 
 
 **Follow-up**
 - Do not start Q01-02.
+
+#### L013 — 2026-07-22 00:54 — Q01-01 — codex -> orchestrator — status
+
+**Message**
+Worker pre-flight passed at dispatch commit `220a704`: queue readiness and centralized intake are complete, Q01-01 is clarified and already in progress, `depends_on` is empty, and `git status --short` was empty before this ledger update.
+
+**Artifacts**
+- Queue: `documents/queue/Q01-ai-learning-items-and-learning-library.md`
+- Source plan: `documents/planning/P01-ai-learning-items-and-learning-library.md`
+
+**Follow-up**
+- Execute Q01-01 only through `ddd-start → ddd-doc → ddd-tdd`; suppress the per-item completion notification.
+
+#### L014 — 2026-07-22 00:56 — Q01-01 — codex -> queue — compaction
+
+**Message**
+Archived the resolved L001–L009 entry bodies after the queue master document exceeded the compact-context threshold. Their log-index rows remain authoritative; L010 onward remains active in the master document.
+
+**Artifacts**
+- `documents/queue/logs/Q01-ai-learning-items-and-learning-library-L001-L009.md`
+
+**Follow-up**
+- Read the archive only when a later worker needs those historical intake or blocker details.
+
+#### L015 — 2026-07-22 00:57 — Q01-01 — codex -> orchestrator — ddd-start
+
+**Message**
+ddd-start classified Q01-01 as an RXX because it improves Renderer structure without changing external behavior. `CONTEXT.md` is loaded. The zoom-out map found one application caller (`main.tsx → App`) and four presentational seams beneath App orchestration: primary navigation, book/reader content, the review placeholder, and the AI conversation panel. Existing reading-range helpers, Electron bridges, persistence, shared contracts, Codex protocol and CSS remain outside the refactor.
+
+**Context**
+- Domain terms retained: 書庫、書籍總覽、閱讀區段、範圍標籤、標記、AI 對話面板、生詞庫、複習回合。
+- Scope confirmation is already recorded in the centralized intake and L001/L006/L007; no interactive grill or duplicate confirmation is required.
+
+**Follow-up**
+- Create the next refactor specification as R01 and evaluate it for queue auto-approval.
+
+#### L016 — 2026-07-22 01:02 — Q01-01 — codex -> queue — status
+
+**Message**
+Fresh queue worker resumed only Q01-01 after the prior worker’s capacity interruption. The inherited dirty paths are authorized continuation artifacts: partial `R01`, Q01 updates, and its archive. No production code was present or changed. R01 is reviewed as approved under the completed intake; the worker will create and run the required workspace-boundary RED test before any Renderer implementation.
+
+**Follow-up**
+- Preserve the partial document and append-only ledger; do not start Q01-02.
+
+#### L017 — 2026-07-22 01:02 — Q01-01 — codex -> queue — ddd-doc
+
+**Message**
+The worker reviewed R01 against the completed intake, Renderer modules, contracts, tests, and package scripts. R01 is clear, low-risk, testable and auto-approved: `App` remains the owner of bridge calls, effects, persistence and cross-workspace state; the extracted components stay pure Renderer presentation boundaries. No unresolved requirement or scope contradiction was found.
+
+**Follow-up**
+- Begin strict RED with TC1 before any production change.
+
+#### L018 — 2026-07-22 01:02 — Q01-01 — codex -> queue — tdd-red
+
+**Message**
+Created `apps/desktop/src/renderer/workspace-boundaries.test.tsx` and ran `npm test -- workspace-boundaries.test.tsx` from `apps/desktop`. Vitest failed before executing tests because Vite could not resolve `./workspace/AiConversationPanel`; the other three requested workspace modules also did not exist. This is the expected unimplemented-boundary failure, not an environment or regression failure.
+
+**Follow-up**
+- Create the four Renderer workspace modules, then rerun TC1 and focused regressions.
+
+#### L019 — 2026-07-22 01:04 — Q01-01 — codex -> queue — tdd-green
+
+**Message**
+Implemented four named Renderer boundaries and composed them in `App`: `PrimaryNavigation`, `ReadingWorkspace`, `LearningLibraryWorkspace` and `AiConversationPanel`. TC1 passed after implementation. Focused `App.test.tsx` plus `reading-range.test.ts` passed 61 tests; the full desktop suite passed 12 files / 129 tests; `npm run typecheck` and `npm run build` passed. No data, IPC, persistence, CSS, visible text, ARIA or Codex protocol file changed.
+
+**Follow-up**
+- Update R01/P01/Q01 completion records and create the one scoped Q01-01 commit.
+
+#### L020 — 2026-07-22 01:04 — Q01-01 — codex -> queue — handoff
+
+**Message**
+Q01-01 is ready for closeout. The implementation document is `documents/implements/R01-desktop-workspace-boundaries.md`; the queue item uses `commit: pending-orchestrator` to avoid the circular commit-hash update. Q01-02 remains pending and must be handled by a later fresh worker only after its dependency is independently verified.
+
+**Follow-up**
+- Stage only Q01-01 files and commit once with the required message.
+
+#### L021 — 2026-07-22 01:04 — Q01-01 — codex -> queue — completed
+
+**Message**
+R01 implementation record and P01 Phase 1 are updated. Q01-01 is marked completed with its approved handoff and `pending-orchestrator` commit field. Per-item ddd-tdd completion notification is suppressed by Q01; no email was sent and Q01-02 was not started.
 
 ## 6. Queue execution rules
 

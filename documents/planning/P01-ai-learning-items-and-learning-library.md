@@ -41,7 +41,7 @@ status: draft
 
 | Phase | Name | Suggested doc type | Related doc | Status |
 |---|---|---|---|---|
-| P1 | 拆分可擴充的桌面工作區邊界 | RXX | — | [ ] Not started |
+| P1 | 拆分可擴充的桌面工作區邊界 | RXX | R01-desktop-workspace-boundaries | [x] Completed |
 | P2 | 建立本機生詞庫與來源卡片基礎 | FXX | — | [ ] Not started |
 | P3 | 產生結構化 AI 學習項目提案 | FXX | — | [ ] Not started |
 | P4 | 確認並安全套用新增／更新提案 | FXX | — | [ ] Not started |
@@ -62,9 +62,12 @@ status: draft
 
 **Suggested doc type**: `RXX` (refactor spec)
 
-**Related doc**: —
+**Related doc**: `R01-desktop-workspace-boundaries.md`
 
-**Status**: `[ ] Not started`
+**Status**: `[x] Completed`
+
+**Completion evidence**: TC1 workspace boundary test, full desktop Vitest suite (129 tests),
+desktop typecheck and production build all passed. Q01-02 remains the next pending queue item.
 
 ---
 
