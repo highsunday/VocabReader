@@ -1,0 +1,191 @@
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import JSZip from "jszip";
+import { afterEach, describe, expect, it } from "vitest";
+import type { LibraryBook } from "../shared/library-contracts";
+import { LocalBookLibrary } from "./library-service";
+
+const temporaryDirectories: string[] = [];
+
+async function createTemporaryDirectory() {
+  const directory = await mkdtemp(join(tmpdir(), "lingoshelf-library-test-"));
+  temporaryDirectories.push(directory);
+  return directory;
+}
+
+afterEach(async () => {
+  const { rm } = await import("node:fs/promises");
+  await Promise.all(
+    temporaryDirectories.splice(0).map((directory) =>
+      rm(directory, { recursive: true, force: true })
+    )
+  );
+});
+
+async function createEpub3(path: string, chapterText = "Chapter one") {
+  const zip = new JSZip();
+  zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
+  zip.file(
+    "META-INF/container.xml",
+    `<?xml version="1.0"?>
+      <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+        <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+      </container>`
+  );
+  zip.file(
+    "OEBPS/content.opf",
+    `<?xml version="1.0"?>
+      <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id">
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <dc:identifier id="book-id">urn:test:book</dc:identifier>
+          <dc:title>Practical English</dc:title>
+          <dc:creator>Jane Author</dc:creator>
+        </metadata>
+        <manifest>
+          <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+          <item id="cover" href="cover.png" media-type="image/png" properties="cover-image"/>
+          <item id="c1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+          <item id="c2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+        </manifest>
+        <spine><itemref idref="c1"/><itemref idref="c2"/></spine>
+      </package>`
+  );
+  zip.file(
+    "OEBPS/nav.xhtml",
+    `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+      <body><nav epub:type="toc"><ol>
+        <li><a href="chapter1.xhtml">Getting Started</a></li>
+        <li><a href="chapter2.xhtml">Useful Patterns</a></li>
+      </ol></nav></body></html>`
+  );
+  zip.file("OEBPS/chapter1.xhtml", `<html><body>${chapterText}</body></html>`);
+  zip.file("OEBPS/chapter2.xhtml", "<html><body>Chapter two</body></html>");
+  zip.file("OEBPS/cover.png", Uint8Array.from([137, 80, 78, 71]));
+  await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
+}
+
+async function createEpub2(path: string) {
+  const zip = new JSZip();
+  zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
+  zip.file(
+    "META-INF/container.xml",
+    `<container><rootfiles><rootfile full-path="OPS/book.opf"/></rootfiles></container>`
+  );
+  zip.file(
+    "OPS/book.opf",
+    `<package version="2.0">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Classic Reader</dc:title><dc:creator>Old Author</dc:creator>
+        <meta name="cover" content="cover-image"/>
+      </metadata>
+      <manifest>
+        <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+        <item id="cover-image" href="images/cover.jpg" media-type="image/jpeg"/>
+        <item id="intro" href="intro.xhtml" media-type="application/xhtml+xml"/>
+      </manifest>
+      <spine toc="ncx"><itemref idref="intro"/></spine>
+    </package>`
+  );
+  zip.file(
+    "OPS/toc.ncx",
+    `<ncx><navMap><navPoint id="intro"><navLabel><text>Introduction</text></navLabel><content src="intro.xhtml"/></navPoint></navMap></ncx>`
+  );
+  zip.file("OPS/intro.xhtml", "<html><body>Welcome</body></html>");
+  zip.file("OPS/images/cover.jpg", Uint8Array.from([255, 216, 255]));
+  await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
+}
+
+describe("LocalBookLibrary", () => {
+  it("imports EPUB 3 metadata, cover and navigation, then reloads it from disk", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "book.epub");
+    await createEpub3(epubPath);
+    const libraryPath = join(root, "library");
+
+    const result = await new LocalBookLibrary(libraryPath).importFromPath(epubPath);
+
+    expect(result.status).toBe("imported");
+    if (result.status === "cancelled") throw new Error("unexpected cancellation");
+    expect(result.book).toMatchObject({
+      title: "Practical English",
+      author: "Jane Author",
+      progressPercent: 0,
+      lastChapterId: null,
+      chapters: [
+        { title: "Getting Started", order: 0 },
+        { title: "Useful Patterns", order: 1 }
+      ]
+    });
+    expect(result.book.coverDataUrl).toMatch(/^data:image\/png;base64,/);
+    await expect(
+      stat(join(libraryPath, "books", result.book.id, "book.epub"))
+    ).resolves.toBeDefined();
+
+    const reloaded = await new LocalBookLibrary(libraryPath).listBooks();
+    expect(reloaded).toEqual([result.book]);
+  });
+
+  it("imports EPUB 2 metadata, legacy cover and NCX navigation", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "classic.epub");
+    await createEpub2(epubPath);
+
+    const result = await new LocalBookLibrary(join(root, "library")).importFromPath(epubPath);
+
+    if (result.status === "cancelled") throw new Error("unexpected cancellation");
+    expect(result.book.title).toBe("Classic Reader");
+    expect(result.book.author).toBe("Old Author");
+    expect(result.book.coverDataUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(result.book.chapters).toEqual([
+      expect.objectContaining({ title: "Introduction", order: 0 })
+    ]);
+  });
+
+  it("returns the existing book for identical content but permits same-title revisions", async () => {
+    const root = await createTemporaryDirectory();
+    const firstPath = join(root, "first.epub");
+    const revisionPath = join(root, "revision.epub");
+    await createEpub3(firstPath, "First revision");
+    await createEpub3(revisionPath, "Second revision");
+    const library = new LocalBookLibrary(join(root, "library"));
+
+    const first = await library.importFromPath(firstPath);
+    if (first.status === "cancelled") throw new Error("unexpected cancellation");
+    const indexPath = join(root, "library", "index.json");
+    const persisted = JSON.parse(await readFile(indexPath, "utf8")) as LibraryBook[];
+    persisted[0].progressPercent = 45;
+    persisted[0].lastChapterId = persisted[0].chapters[0].id;
+    await writeFile(indexPath, `${JSON.stringify(persisted, null, 2)}\n`);
+
+    const duplicate = await new LocalBookLibrary(join(root, "library")).importFromPath(firstPath);
+    const revision = await library.importFromPath(revisionPath);
+
+    expect(first.status).toBe("imported");
+    expect(duplicate.status).toBe("existing");
+    if (duplicate.status === "cancelled") throw new Error("unexpected cancellation");
+    expect(duplicate.book.progressPercent).toBe(45);
+    expect(duplicate.book.lastChapterId).toBe(persisted[0].chapters[0].id);
+    expect(revision.status).toBe("imported");
+    expect(await library.listBooks()).toHaveLength(2);
+    if (revision.status === "cancelled") {
+      throw new Error("unexpected cancellation");
+    }
+    expect(first.book.title).toBe(revision.book.title);
+    expect(first.book.id).not.toBe(revision.book.id);
+  });
+
+  it("rejects invalid EPUB content without leaving a partial book", async () => {
+    const root = await createTemporaryDirectory();
+    const invalidPath = join(root, "broken.epub");
+    await writeFile(invalidPath, "not an epub");
+    const libraryPath = join(root, "library");
+    const library = new LocalBookLibrary(libraryPath);
+
+    await expect(library.importFromPath(invalidPath)).rejects.toThrow(
+      /無法解析這本 EPUB/
+    );
+    expect(await library.listBooks()).toEqual([]);
+    await expect(readFile(join(libraryPath, "index.json"), "utf8")).resolves.toBe("[]\n");
+  });
+});

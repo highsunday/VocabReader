@@ -1,5 +1,7 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { join } from "node:path";
+import { registerLibraryIpc } from "./library-ipc";
+import { LocalBookLibrary } from "./library-service";
 
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -36,6 +38,11 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  const libraryPath =
+    process.env.NODE_ENV === "test"
+      ? join(app.getPath("temp"), `lingoshelf-library-test-${process.pid}`)
+      : join(app.getPath("userData"), "library");
+  registerLibraryIpc(ipcMain, dialog, new LocalBookLibrary(libraryPath));
   createMainWindow();
 
   app.on("activate", () => {
@@ -50,4 +57,3 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-

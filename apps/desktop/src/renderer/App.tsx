@@ -1,6 +1,10 @@
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import type {
+  LibraryBook,
+  LibraryDesktopApi
+} from "../shared/library-contracts";
 
-type WorkspaceMode = "reader" | "review";
+type WorkspaceMode = "overview" | "reader" | "review";
 
 interface ChatMessage {
   id: number;
@@ -16,22 +20,103 @@ const initialMessages: ChatMessage[] = [
   }
 ];
 
+function desktopLibrary(): LibraryDesktopApi | undefined {
+  return (
+    window as unknown as {
+      readerDesktop?: { library: LibraryDesktopApi };
+    }
+  ).readerDesktop?.library;
+}
+
 export function App() {
-  const [mode, setMode] = useState<WorkspaceMode>("reader");
-  const [bookName, setBookName] = useState<string>();
+  const [mode, setMode] = useState<WorkspaceMode>("overview");
+  const [books, setBooks] = useState<LibraryBook[]>([]);
+  const [selectedBookId, setSelectedBookId] = useState<string>();
+  const [activeChapterId, setActiveChapterId] = useState<string>();
+  const [libraryError, setLibraryError] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState(initialMessages);
 
-  const displayBookName = useMemo(
-    () => bookName?.replace(/\.epub$/i, "") ?? "尚未導入書籍",
-    [bookName]
+  const selectedBook = useMemo(
+    () => books.find((book) => book.id === selectedBookId) ?? books[0],
+    [books, selectedBookId]
+  );
+  const activeChapter = selectedBook?.chapters.find(
+    (chapter) => chapter.id === activeChapterId
   );
 
-  function handleImport(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (file) {
-      setBookName(file.name);
-      setMode("reader");
+  useEffect(() => {
+    const library = desktopLibrary();
+    if (!library) {
+      return;
+    }
+
+    void library
+      .listBooks()
+      .then((storedBooks) => {
+        setBooks(storedBooks);
+        setSelectedBookId((current) => current ?? storedBooks[0]?.id);
+      })
+      .catch(() => setLibraryError("無法讀取本機書庫，請重新開啟應用程式。"));
+  }, []);
+
+  async function handleImport() {
+    const library = desktopLibrary();
+    if (!library || isImporting) {
+      return;
+    }
+
+    setIsImporting(true);
+    setLibraryError("");
+    try {
+      const result = await library.importBook();
+      if (result.status === "cancelled") {
+        return;
+      }
+
+      setBooks((current) => {
+        const index = current.findIndex((book) => book.id === result.book.id);
+        if (index < 0) {
+          return [...current, result.book];
+        }
+        return current.map((book) =>
+          book.id === result.book.id ? result.book : book
+        );
+      });
+      setSelectedBookId(result.book.id);
+      setActiveChapterId(undefined);
+      setMode("overview");
+    } catch (error) {
+      setLibraryError(
+        error instanceof Error && error.message
+          ? error.message
+          : "無法導入這本 EPUB，請確認檔案未損壞且不含 DRM。"
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
+  function selectBook(bookId: string) {
+    setSelectedBookId(bookId);
+    setActiveChapterId(undefined);
+    setMode("overview");
+  }
+
+  function openChapter(chapterId: string) {
+    setActiveChapterId(chapterId);
+    setMode("reader");
+  }
+
+  function startOrContinueReading() {
+    if (!selectedBook) {
+      return;
+    }
+    const chapterId =
+      selectedBook.lastChapterId ?? selectedBook.chapters[0]?.id;
+    if (chapterId) {
+      openChapter(chapterId);
     }
   }
 
@@ -60,32 +145,51 @@ export function App() {
           </div>
         </div>
 
-        <label className="import-button">
-          <input
-            aria-label="導入 EPUB"
-            accept=".epub,application/epub+zip"
-            type="file"
-            onChange={handleImport}
-          />
-          ＋ 導入 EPUB
-        </label>
+        <button
+          aria-label="導入 EPUB"
+          className="import-button"
+          type="button"
+          onClick={() => void handleImport()}
+          disabled={isImporting || !desktopLibrary()}
+        >
+          {isImporting ? "導入中…" : "＋ 導入 EPUB"}
+        </button>
       </header>
 
       <div className="workspace">
         <aside className="sidebar" aria-label="主要導覽">
           <div className="book-summary">
-            <span className="eyebrow">目前書籍</span>
-            <strong>{displayBookName}</strong>
-            <span>{bookName ? "準備開始閱讀" : "從 EPUB 建立你的閱讀書庫"}</span>
+            <span className="eyebrow">我的書庫</span>
+            <strong>{books.length ? `${books.length} 本書籍` : "尚未導入書籍"}</strong>
+            <span>{books.length ? "選擇書籍即可查看總覽" : "從 EPUB 建立你的閱讀書庫"}</span>
+          </div>
+
+          <div className="book-list" aria-label="已導入書籍">
+            {books.map((book) => (
+              <button
+                className={book.id === selectedBook?.id ? "book-item active" : "book-item"}
+                key={book.id}
+                type="button"
+                onClick={() => selectBook(book.id)}
+              >
+                <span className="book-item-cover" aria-hidden="true">
+                  {book.coverDataUrl ? <img src={book.coverDataUrl} alt="" /> : "Aa"}
+                </span>
+                <span>
+                  <strong>{book.title}</strong>
+                  <small>{book.author}</small>
+                </span>
+              </button>
+            ))}
           </div>
 
           <nav>
             <button
-              className={mode === "reader" ? "nav-item active" : "nav-item"}
-              onClick={() => setMode("reader")}
+              className={mode !== "review" ? "nav-item active" : "nav-item"}
+              onClick={() => setMode("overview")}
             >
               <span>▤</span>
-              章節閱讀
+              書籍總覽
             </button>
             <button
               className={mode === "review" ? "nav-item active" : "nav-item"}
@@ -110,23 +214,97 @@ export function App() {
         </aside>
 
         <main className="content">
-          {mode === "reader" ? (
+          {libraryError ? <div className="library-error" role="alert">{libraryError}</div> : null}
+
+          {mode === "overview" ? (
+            selectedBook ? (
+              <section className="book-overview" aria-labelledby="book-overview-title">
+                <div className="overview-hero">
+                  <div className="overview-cover">
+                    {selectedBook.coverDataUrl ? (
+                      <img src={selectedBook.coverDataUrl} alt={`${selectedBook.title} 封面`} />
+                    ) : (
+                      <span>Aa</span>
+                    )}
+                  </div>
+                  <div className="overview-details">
+                    <span className="eyebrow">Book overview</span>
+                    <h1 id="book-overview-title">{selectedBook.title}</h1>
+                    <p className="book-author">{selectedBook.author}</p>
+                    <div className="book-facts">
+                      <span>{selectedBook.chapters.length} 個章節</span>
+                      <span>{selectedBook.progressPercent}% 已閱讀</span>
+                    </div>
+                    <div className="progress-track" aria-label={`閱讀進度 ${selectedBook.progressPercent}%`}>
+                      <span style={{ width: `${selectedBook.progressPercent}%` }} />
+                    </div>
+                    <button
+                      className="primary-action"
+                      type="button"
+                      onClick={startOrContinueReading}
+                      disabled={!selectedBook.chapters.length}
+                    >
+                      {selectedBook.progressPercent > 0 ? "繼續閱讀" : "開始閱讀"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="chapter-list">
+                  <div>
+                    <span className="eyebrow">Contents</span>
+                    <h2>章節</h2>
+                  </div>
+                  <ol>
+                    {selectedBook.chapters.map((chapter) => (
+                      <li key={chapter.id}>
+                        <button type="button" onClick={() => openChapter(chapter.id)}>
+                          <span>{String(chapter.order + 1).padStart(2, "0")}</span>
+                          <strong>{chapter.title}</strong>
+                          <em>開始閱讀 →</em>
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </section>
+            ) : (
+              <section className="reader-panel" aria-labelledby="reader-title">
+                <div className="section-heading">
+                  <div>
+                    <span className="eyebrow">Book library</span>
+                    <h1 id="reader-title">導入 EPUB 開始閱讀</h1>
+                  </div>
+                </div>
+                <div className="empty-reader">
+                  <span className="book-icon">Aa</span>
+                  <h2>你的閱讀空間已準備好</h2>
+                  <p>導入第一本 EPUB，書籍會保存在本機書庫並顯示於左側。</p>
+                  <div className="flow-tags" aria-label="章節學習流程">
+                    <span>閱讀標記</span>
+                    <span>AI 解析</span>
+                    <span>生詞庫</span>
+                    <span>章末選擇題</span>
+                  </div>
+                </div>
+              </section>
+            )
+          ) : mode === "reader" ? (
             <section className="reader-panel" aria-labelledby="reader-title">
               <div className="section-heading">
                 <div>
                   <span className="eyebrow">Chapter workspace</span>
                   <h1 id="reader-title">
-                    {bookName ? displayBookName : "導入 EPUB 開始閱讀"}
+                    {activeChapter?.title ?? selectedBook?.title ?? "導入 EPUB 開始閱讀"}
                   </h1>
                 </div>
-                <button className="quiet-button" disabled={!bookName}>
+                <button className="quiet-button" disabled={!activeChapter}>
                   完成本章
                 </button>
               </div>
 
               <div className="empty-reader">
                 <span className="book-icon">Aa</span>
-                <h2>{bookName ? "EPUB 解析器待接入" : "你的閱讀空間已準備好"}</h2>
+                <h2>{activeChapter ? selectedBook?.title : "你的閱讀空間已準備好"}</h2>
                 <p>
                   原文會顯示在這裡。第一次閱讀先劃線標記，完成後再讓 AI
                   集中解析。
@@ -161,7 +339,7 @@ export function App() {
               <span className="status-dot" />
               <strong>AI 助教</strong>
             </div>
-            <span>{mode === "reader" ? "章節上下文" : "複習上下文"}</span>
+            <span>{mode === "review" ? "複習上下文" : "書籍上下文"}</span>
           </div>
 
           <div className="messages" aria-live="polite">
@@ -192,4 +370,3 @@ export function App() {
     </div>
   );
 }
-
