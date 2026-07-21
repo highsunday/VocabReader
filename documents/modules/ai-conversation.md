@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -27,6 +27,8 @@ related_implements:
 本模組以使用者本機既有的 Codex／ChatGPT 登入狀態提供 **Codex AI 執行層**，讓右側 **AI 對話面板**建立、保存、切換及移除全域 **AI 對話**，選擇可用 AI 模型，並進行可停止的多輪串流互動；左側窄欄只顯示連線階段與五小時／每週帳戶共用額度，不呈現登入信箱。
 
 閱讀頁的 AI 上下文只包含產品層明確組裝的書籍名稱、章節名稱與目前 **閱讀區段**；本模組不讀取整章、整本 EPUB 或 Renderer 任意指定的檔案。
+
+本文件聚焦 AI 對話與 Codex transport 生命週期；App skills 的安裝與隔離、解釋標記 workflow、閱讀測驗 workflow 分別由 `skill-management.md`、`annotation-explanation.md` 與 `reading-comprehension-quiz.md` 詳述。
 
 ## 2. Current Implementation Status
 
@@ -251,6 +253,9 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `CONTEXT.md`
 - `documents/modules/reading-range.md`
 - `documents/modules/annotation.md`
+- `documents/modules/skill-management.md`
+- `documents/modules/annotation-explanation.md`
+- `documents/modules/reading-comprehension-quiz.md`
 - `documents/implements/F05-ai-reading-range-markers.md`
 - `documents/implements/F07-codex-ai-conversation.md`
 - `documents/implements/F08-compact-markdown-chat-messages.md`

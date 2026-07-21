@@ -2,7 +2,7 @@
 title: 持久標記與 AI 標記解析模組
 module: annotation
 status: active
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - F14-sticky-annotation-tool
@@ -20,6 +20,8 @@ related_implements:
 ## 1. Purpose
 
 本模組讓使用者在 EPUB 章節原文上建立持久的**標記（Annotation）**，並在右側目前選取的 AI 對話中，以預設動作「講解標記內容」要求 AI 解讀，或以「閱讀測驗」進行**區段練習**。標記代表使用者主動指出的困難文字；START／END **範圍標籤（Range Marker）**只界定 AI 可讀的上下文邊界，兩者是不同領域概念。
+
+標記的資料模型、保存與序列化仍以本文件為主；兩個 AI 預設 workflow 的細節分別記錄於 `annotation-explanation.md` 與 `reading-comprehension-quiz.md`，App skills 的打包、安裝與隔離記錄於 `skill-management.md`。
 
 AI 只取得 START／END 內的原文與標記交集。一般提問維持正常多輪問答；只有預設動作會要求 AI 自動判斷單字、片語或句子，並依該類型順序分組說明。
 
@@ -162,6 +164,9 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - `documents/modules/book-library.md`
 - `documents/modules/reading-range.md`
 - `documents/modules/ai-conversation.md`
+- `documents/modules/skill-management.md`
+- `documents/modules/annotation-explanation.md`
+- `documents/modules/reading-comprehension-quiz.md`
 - `documents/implements/F13-persistent-annotations-and-ai-analysis.md`
 - `documents/implements/F14-sticky-annotation-tool.md`
 - `documents/implements/F15-polish-annotation-tool-ui.md`
