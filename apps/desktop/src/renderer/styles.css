@@ -298,6 +298,11 @@ button {
 .sidebar nav {
   display: grid;
   gap: 7px;
+}
+
+.sidebar-footer {
+  display: grid;
+  gap: 10px;
   margin-top: auto;
 }
 
@@ -333,6 +338,167 @@ button {
   background: #b9704c;
   font-size: 11px;
   font-style: normal;
+}
+
+.settings-button {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #39433c;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 750;
+  text-align: left;
+}
+
+.settings-button:hover,
+.settings-button:focus-visible {
+  background: #dde6da;
+}
+
+.settings-button span {
+  width: 24px;
+  color: #647169;
+  text-align: center;
+  font-size: 17px;
+}
+
+.codex-account-card {
+  min-width: 0;
+  padding: 10px 11px 8px;
+  border: 1px solid #c3cbc6;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 64%);
+  box-shadow: 0 5px 16px rgb(55 63 57 / 5%);
+}
+
+.codex-account-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.codex-account-brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.codex-account-name {
+  color: #28332c;
+  font-size: 14px;
+  line-height: 1.15;
+}
+
+.codex-connection-label {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #547260;
+  background: #e2eee6;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.codex-account-card.connecting .codex-connection-label {
+  color: #826523;
+  background: #f2ead5;
+}
+
+.codex-account-card.error .codex-connection-label,
+.codex-account-card.auth-required .codex-connection-label {
+  color: #8a493e;
+  background: #f3e2de;
+}
+
+.codex-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #969c97;
+  box-shadow: 0 0 0 4px rgb(150 156 151 / 13%);
+}
+
+.codex-status-dot.ready {
+  background: #58bb8b;
+  box-shadow: 0 0 0 4px rgb(88 187 139 / 15%);
+}
+
+.codex-status-dot.connecting {
+  background: #d7a84a;
+  box-shadow: 0 0 0 4px rgb(215 168 74 / 15%);
+}
+
+.codex-status-dot.error,
+.codex-status-dot.auth-required {
+  background: #c66c5d;
+  box-shadow: 0 0 0 4px rgb(198 108 93 / 14%);
+}
+
+.codex-account-identity {
+  margin: 8px 0 0;
+  padding: 0 1px 8px;
+  min-width: 0;
+  display: block;
+  border-bottom: 1px solid #d9ddd8;
+  color: #777d78;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.codex-account-email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.allowance-summary {
+  display: grid;
+  gap: 0;
+}
+
+.allowance-summary-row {
+  min-width: 0;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 1px;
+  color: #788079;
+  font-size: 10px;
+}
+
+.allowance-summary-row + .allowance-summary-row {
+  border-top: 1px solid #e3e6e3;
+}
+
+.allowance-value {
+  min-width: 0;
+  overflow: hidden;
+  color: #323b35;
+  font-size: 11px;
+  line-height: 1;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.allowance-value.loading,
+.allowance-value.unavailable {
+  color: #7d8881;
+  font-size: 9px;
+  font-weight: 600;
 }
 
 .content {
@@ -1235,8 +1401,24 @@ h1 {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  background: #969c97;
+  box-shadow: 0 0 0 4px rgb(150 156 151 / 14%);
+}
+
+.status-dot.ready {
   background: #68a978;
   box-shadow: 0 0 0 4px #e0eee3;
+}
+
+.status-dot.connecting {
+  background: #d7a84a;
+  box-shadow: 0 0 0 4px rgb(215 168 74 / 15%);
+}
+
+.status-dot.error,
+.status-dot.auth-required {
+  background: #c66c5d;
+  box-shadow: 0 0 0 4px rgb(198 108 93 / 14%);
 }
 
 .messages {
@@ -1244,6 +1426,26 @@ h1 {
   padding: 22px;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.chat-empty-state {
+  padding: 18px;
+  border: 1px dashed #d7d2c8;
+  border-radius: 14px;
+  color: #59625b;
+  background: #fff;
+}
+
+.chat-empty-state strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+}
+
+.chat-empty-state p {
+  margin-top: 6px;
+  color: #8a8d86;
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .message {
@@ -1276,6 +1478,7 @@ h1 {
   background: #fff;
   font-size: 13px;
   line-height: 1.65;
+  white-space: pre-wrap;
 }
 
 .message.user p {
@@ -1307,6 +1510,11 @@ h1 {
   color: #253127;
 }
 
+.chat-form textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .chat-form > div {
   display: flex;
   align-items: center;
@@ -1315,10 +1523,15 @@ h1 {
 }
 
 .chat-form small {
+  min-width: 0;
+  overflow: hidden;
   color: #9a7b68;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-form button {
+  flex: 0 0 auto;
   cursor: pointer;
   border: 0;
   border-radius: 9px;
@@ -1326,4 +1539,10 @@ h1 {
   color: #fff;
   background: #365e47;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.chat-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }

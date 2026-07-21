@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ChatDesktopApi, ChatSnapshot } from "../shared/chat-contracts";
 import type { LibraryBook } from "../shared/library-contracts";
 import { App } from "./App";
 
@@ -29,7 +30,10 @@ const books: LibraryBook[] = [
   }
 ];
 
-function installLibraryApi(storedBooks: LibraryBook[] = books) {
+function installLibraryApi(
+  storedBooks: LibraryBook[] = books,
+  chat?: ChatDesktopApi
+) {
   const importBook = vi.fn();
   const deleteBook = vi.fn().mockResolvedValue(undefined);
   const getChapterContent = vi.fn((bookId: string, chapterId: string) => {
@@ -77,7 +81,8 @@ function installLibraryApi(storedBooks: LibraryBook[] = books) {
         getChapterContent,
         saveReadingState,
         saveReadingRange
-      }
+      },
+      ...(chat ? { chat } : {})
     }
   });
   return {
@@ -97,6 +102,121 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it("renders the live Codex account card and sends through the AI conversation bridge", async () => {
+    const snapshot = {
+      connection: "ready" as const,
+      connectionDetail: "Codex 已連線。",
+      account: { type: "plus", email: "reader@example.com" },
+      allowance: {
+        phase: "available" as const,
+        fiveHour: { remainingPercent: 76, resetsAt: 1_800_000_000 },
+        weekly: { remainingPercent: 62, resetsAt: 1_800_100_000 },
+        detail: "已取得帳戶共用額度。"
+      },
+      messages: [],
+      threadId: null,
+      activeTurnId: null
+    };
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    Object.defineProperty(window, "readerDesktop", {
+      configurable: true,
+      value: {
+        platform: "darwin",
+        versions: { chrome: "1", electron: "1", node: "1" },
+        chat: {
+          getState: vi.fn().mockResolvedValue(snapshot),
+          connect: vi.fn().mockResolvedValue(snapshot),
+          sendMessage,
+          onStateChanged: vi.fn().mockReturnValue(() => undefined)
+        }
+      }
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "設定" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("Codex", { selector: ".codex-account-name" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("已連線", { selector: ".codex-connection-label" }))
+      .toBeInTheDocument();
+    const identity = screen.getByText("reader@example.com", {
+      selector: ".codex-account-email"
+    });
+    expect(identity).toBeInTheDocument();
+    expect(identity.closest(".codex-account-identity"))
+      .toHaveAttribute("title", "reader@example.com · plus");
+    expect(screen.queryByText("plus", {
+      selector: ".codex-account-type"
+    })).not.toBeInTheDocument();
+    expect(screen.getByText("76%", { selector: ".allowance-value" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("62%", { selector: ".allowance-value" }))
+      .toBeInTheDocument();
+    expect(document.querySelector(".allowance-summary")).toBeInTheDocument();
+    expect(document.querySelectorAll(".allowance-summary-row")).toHaveLength(2);
+    expect(document.querySelector(".allowance-track")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "設定" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "這句話的文法是什麼？" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      text: "這句話的文法是什麼？"
+    }));
+  });
+
+  it("sends only the current reading segment as EPUB context", async () => {
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: 7 } }
+    };
+    const snapshot: ChatSnapshot = {
+      connection: "ready",
+      connectionDetail: "Codex 已連線。",
+      account: { type: "plus" },
+      allowance: {
+        phase: "unavailable",
+        fiveHour: null,
+        weekly: null,
+        detail: "無法取得"
+      },
+      messages: [],
+      threadId: null,
+      activeTurnId: null
+    };
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByText("Content for one-1");
+    await waitFor(() => expect(screen.getByLabelText("詢問目前內容"))
+      .not.toBeDisabled());
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "Explain this sentence" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      text: "Explain this sentence",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: "Content"
+      }
+    }));
+  });
+
   it("keeps chapter practice separate from spaced review", () => {
     render(<App />);
 
@@ -132,15 +252,55 @@ describe("App", () => {
       .not.toBeInTheDocument();
   });
 
-  it("adds a user message to the assistant panel", () => {
+  it("adds a user message returned by the AI conversation bridge", async () => {
+    const ready = {
+      connection: "ready" as const,
+      connectionDetail: "Codex 已連線。",
+      account: { type: "plus" },
+      allowance: {
+        phase: "unavailable" as const,
+        fiveHour: null,
+        weekly: null,
+        detail: "無法取得"
+      },
+      messages: [],
+      threadId: null,
+      activeTurnId: null
+    };
+    const answered = {
+      ...ready,
+      messages: [{
+        id: "user-1",
+        turnId: "turn-1",
+        role: "user" as const,
+        text: "這句話的文法是什麼？",
+        status: "completed" as const
+      }],
+      threadId: "thread-1"
+    };
+    Object.defineProperty(window, "readerDesktop", {
+      configurable: true,
+      value: {
+        chat: {
+          getState: vi.fn().mockResolvedValue(ready),
+          connect: vi.fn().mockResolvedValue(ready),
+          sendMessage: vi.fn().mockResolvedValue(answered),
+          onStateChanged: vi.fn().mockReturnValue(() => undefined)
+        }
+      }
+    });
     render(<App />);
 
+    await waitFor(() => expect(screen.getByLabelText("詢問目前內容"))
+      .not.toBeDisabled());
     fireEvent.change(screen.getByLabelText("詢問目前內容"), {
       target: { value: "這句話的文法是什麼？" }
     });
+    expect(screen.getByRole("button", { name: "送出" })).not.toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "送出" }));
 
-    expect(screen.getByText("這句話的文法是什麼？")).toBeInTheDocument();
+    expect(await screen.findByText("這句話的文法是什麼？"))
+      .toBeInTheDocument();
   });
 
   it("collapses and expands the left and right sidebars independently", () => {

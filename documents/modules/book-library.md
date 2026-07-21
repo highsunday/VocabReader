@@ -10,6 +10,7 @@ related_implements:
   - F04-delete-library-book
   - F05-ai-reading-range-markers
   - F06-reading-range-boundary-lines
+  - F07-codex-ai-conversation
   - B01-preserve-epub-chapter-hierarchy
   - B02-persist-range-marker-on-drag-release
 ---
@@ -179,12 +180,12 @@ related_implements:
 
 START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `documents/modules/reading-range.md`；本節只保留它與書庫持久化的整合摘要。
 
-1. 章節原文載入後，renderer 讀取該章 `chapterRanges`；沒有保存位置時以第一個可讀位置至約 800 個英文單字初始化，短章則使用章末。
+1. 章節原文載入後，renderer 讀取該章 `chapterRanges`；沒有保存位置時 START／END 都初始化於第一個可讀位置，形成合法的空閱讀區段。
 2. 起點與終點標籤顯示在原文左側並向內文延伸具名分隔線；`START` 位於起始行之前、`END` 位於終止行之後，畫面位置過近時會上下錯開。Pointer 拖曳途中即時預覽，放開時保存最後一個有效位置，即使放開點位於左側標籤區也不需額外點擊；目前行功能選單同樣可把位置轉成章內文字 offset，兩種操作都拒絕起終點交叉。
 3. Renderer 透過 `library:save-reading-range` 保存該章範圍；main process 驗證書籍、章節、非負整數及起終點順序後串行寫入索引。
 4. 範圍標籤調整不重建安全章節 DOM，避免中斷文字選取或拖曳；視窗重排時再由文字 offset 計算標籤畫面位置。
 5. 「完成這段，前往下一段」以目前區段約略字數建立下一個相鄰範圍，章末停止且不跨章；一般 AI 訊息操作不會推進。
-6. `extractReadingSegment` 是未來區段解析、標記說明與區段練習共用的裁切入口；完整 AI 串接不屬於 F05。
+6. `extractReadingSegment` 是 AI 對話、未來區段解析、標記說明與區段練習共用的裁切入口；F07 的 AI 對話已使用此入口，空區段不會回退成整章。
 
 ### Book deletion
 

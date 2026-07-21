@@ -9,6 +9,12 @@ import {
 } from "react";
 import type { CSSProperties } from "react";
 import type {
+  ChatDesktopApi,
+  ChatSnapshot,
+  ConnectionPhase,
+  SendChatMessageInput
+} from "../shared/chat-contracts";
+import type {
   BookView,
   ChapterContent,
   LibraryBook,
@@ -17,6 +23,7 @@ import type {
 } from "../shared/library-contracts";
 import {
   advanceReadingRange,
+  extractReadingSegment,
   initialReadingRange,
   markerTopForTextOffset,
   textOffsetAtPoint
@@ -24,26 +31,61 @@ import {
 
 type WorkspaceMode = "overview" | "reader" | "review";
 
-interface ChatMessage {
-  id: number;
-  role: "assistant" | "user";
-  content: string;
-}
+const initialChatSnapshot: ChatSnapshot = {
+  connection: "disconnected",
+  connectionDetail: "尚未連線 Codex。",
+  account: null,
+  allowance: {
+    phase: "unavailable",
+    fiveHour: null,
+    weekly: null,
+    detail: "尚未取得 AI 使用額度。"
+  },
+  messages: [],
+  threadId: null,
+  activeTurnId: null
+};
 
-const initialMessages: ChatMessage[] = [
-  {
-    id: 1,
-    role: "assistant",
-    content: "完成一章的標記後，我會集中解析單字、片語、句型與文法。"
-  }
-];
-
-function desktopLibrary(): LibraryDesktopApi | undefined {
+function desktopBridge(): {
+  library?: LibraryDesktopApi;
+  chat?: ChatDesktopApi;
+} | undefined {
   return (
     window as unknown as {
-      readerDesktop?: { library: LibraryDesktopApi };
+      readerDesktop?: {
+        library?: LibraryDesktopApi;
+        chat?: ChatDesktopApi;
+      };
     }
-  ).readerDesktop?.library;
+  ).readerDesktop;
+}
+
+function desktopLibrary(): LibraryDesktopApi | undefined {
+  return desktopBridge()?.library;
+}
+
+function desktopChat(): ChatDesktopApi | undefined {
+  return desktopBridge()?.chat;
+}
+
+function connectionLabel(phase: ConnectionPhase) {
+  return {
+    disconnected: "尚未連線",
+    connecting: "連線中…",
+    ready: "已連線",
+    "auth-required": "需要登入",
+    error: "連線失敗"
+  }[phase];
+}
+
+function resetLabel(timestamp: number | undefined) {
+  if (!Number.isFinite(timestamp)) return "";
+  return new Date((timestamp ?? 0) * 1000).toLocaleString(undefined, {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 const ChapterArticle = memo(forwardRef<HTMLElement, {
@@ -81,7 +123,8 @@ export function App() {
   }>();
   const [markerTops, setMarkerTops] = useState({ start: 0, end: 0 });
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState(initialMessages);
+  const [chatSnapshot, setChatSnapshot] = useState(initialChatSnapshot);
+  const [chatError, setChatError] = useState("");
   const contentRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
@@ -155,6 +198,30 @@ export function App() {
         if (storedBooks[0]) restoreBook(storedBooks[0]);
       })
       .catch(() => setLibraryError("無法讀取本機書庫，請重新開啟應用程式。"));
+  }, []);
+
+  useEffect(() => {
+    const chat = desktopChat();
+    if (!chat) return;
+    let active = true;
+    const update = (snapshot: ChatSnapshot) => {
+      if (active) setChatSnapshot(snapshot);
+    };
+    const unsubscribe = chat.onStateChanged(update);
+    void chat.getState()
+      .then(update)
+      .then(() => chat.connect())
+      .then(update)
+      .catch((error: unknown) => {
+        if (!active) return;
+        setChatError(
+          error instanceof Error ? error.message : "無法連線 Codex。"
+        );
+      });
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -572,18 +639,34 @@ export function App() {
     }
   }
 
-  function sendMessage(event: FormEvent<HTMLFormElement>) {
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const content = draft.trim();
-    if (!content) {
-      return;
-    }
+    const text = draft.trim();
+    const chat = desktopChat();
+    if (!text || !chat || chatSnapshot.connection !== "ready" ||
+      chatSnapshot.activeTurnId) return;
 
-    setMessages((current) => [
-      ...current,
-      { id: Date.now(), role: "user", content }
-    ]);
+    const segment = mode === "reader" && readingRange && articleRef.current
+      ? extractReadingSegment(articleRef.current.textContent ?? "", readingRange)
+      : "";
+    const context = {
+      ...(selectedBook?.title ? { bookTitle: selectedBook.title } : {}),
+      ...(mode === "reader" && activeChapter?.title
+        ? { chapterTitle: activeChapter.title }
+        : {}),
+      ...(segment ? { readingSegment: segment } : {})
+    };
+    const input: SendChatMessageInput = {
+      text,
+      ...(Object.keys(context).length ? { context } : {})
+    };
     setDraft("");
+    setChatError("");
+    try {
+      setChatSnapshot(await chat.sendMessage(input));
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "無法送出訊息。");
+    }
   }
 
   return (
@@ -662,19 +745,94 @@ export function App() {
                 ))}
               </div>
 
-              <nav>
-                <button
-                  className={mode === "review" ? "nav-item active" : "nav-item"}
-                  onClick={() => {
-                    saveCurrentReaderPosition();
-                    setMode("review");
-                  }}
-                >
-                  <span>↻</span>
-                  Anki 複習
-                  <em>10</em>
+              <div className="sidebar-footer">
+                <nav>
+                  <button
+                    className={mode === "review" ? "nav-item active" : "nav-item"}
+                    onClick={() => {
+                      saveCurrentReaderPosition();
+                      setMode("review");
+                    }}
+                  >
+                    <span>↻</span>
+                    Anki 複習
+                    <em>10</em>
+                  </button>
+                </nav>
+
+                <button className="settings-button" type="button">
+                  <span aria-hidden="true">⚙</span>
+                  設定
                 </button>
-              </nav>
+
+                <section
+                  className={`codex-account-card ${chatSnapshot.connection}`}
+                  aria-label="Codex 狀態"
+                  title={chatSnapshot.connectionDetail}
+                >
+                  <div className="codex-account-heading">
+                    <div className="codex-account-brand">
+                      <span
+                        className={`codex-status-dot ${chatSnapshot.connection}`}
+                        aria-hidden="true"
+                      />
+                      <strong className="codex-account-name">Codex</strong>
+                    </div>
+                    <span className="codex-connection-label">
+                      {connectionLabel(chatSnapshot.connection)}
+                    </span>
+                  </div>
+                  <p
+                    className="codex-account-identity"
+                    title={chatSnapshot.account
+                      ? [chatSnapshot.account.email, chatSnapshot.account.type]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : chatSnapshot.connectionDetail}
+                    aria-label={chatSnapshot.account
+                      ? [chatSnapshot.account.email, chatSnapshot.account.type]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : chatSnapshot.connectionDetail}
+                  >
+                    {chatSnapshot.account ? (
+                      <span className="codex-account-email">
+                        {chatSnapshot.account.email ?? "本機帳戶"}
+                      </span>
+                    ) : (
+                      <span className="codex-account-email">
+                        {chatSnapshot.connectionDetail}
+                      </span>
+                    )}
+                  </p>
+                  <div className="allowance-summary">
+                    {([
+                      ["5 小時", chatSnapshot.allowance.fiveHour],
+                      ["一週", chatSnapshot.allowance.weekly]
+                    ] as const).map(([label, allowance]) => (
+                      <div
+                        className="allowance-summary-row"
+                        key={label}
+                        title={allowance
+                          ? `${label}：剩餘 ${allowance.remainingPercent}%，${resetLabel(allowance.resetsAt)} 重置`
+                          : `${label}：${chatSnapshot.allowance.phase === "loading" ? "取得中" : "無法取得"}`}
+                        aria-label={allowance
+                          ? `${label}：剩餘 ${allowance.remainingPercent}%，${resetLabel(allowance.resetsAt)} 重置`
+                          : `${label}：${chatSnapshot.allowance.phase === "loading" ? "取得中" : "無法取得"}`}
+                      >
+                        <span>{label}</span>
+                        <strong className={`allowance-value ${allowance ? "available" : chatSnapshot.allowance.phase}`}>
+                          {allowance
+                            ? `${allowance.remainingPercent}%`
+                            : chatSnapshot.allowance.phase === "loading"
+                              ? "取得中…"
+                              : "無法取得"}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
             </div>
           ) : null}
         </aside>
@@ -934,10 +1092,18 @@ export function App() {
             {!isRightSidebarCollapsed ? (
               <>
                 <div>
-                  <span className="status-dot" />
+                  <span className={`status-dot ${chatSnapshot.connection}`} />
                   <strong>AI 助教</strong>
                 </div>
-                <span>{mode === "review" ? "複習上下文" : "書籍上下文"}</span>
+                <span>
+                  {mode === "reader" && readingRange &&
+                    extractReadingSegment(
+                      articleRef.current?.textContent ?? "",
+                      readingRange
+                    )
+                    ? "閱讀區段上下文"
+                    : "一般對話"}
+                </span>
               </>
             ) : null}
             <button
@@ -958,10 +1124,16 @@ export function App() {
           {!isRightSidebarCollapsed ? (
             <div className="assistant-content" id="right-sidebar-content">
               <div className="messages" aria-live="polite">
-                {messages.map((message) => (
+                {chatSnapshot.messages.length === 0 ? (
+                  <div className="chat-empty-state">
+                    <strong>從目前閱讀內容開始提問</strong>
+                    <p>Codex 只會收到你明確選取的閱讀區段。</p>
+                  </div>
+                ) : null}
+                {chatSnapshot.messages.map((message) => (
                   <div className={"message " + message.role} key={message.id}>
                     <span>{message.role === "assistant" ? "AI" : "你"}</span>
-                    <p>{message.content}</p>
+                    <p>{message.text || "…"}</p>
                   </div>
                 ))}
               </div>
@@ -972,12 +1144,30 @@ export function App() {
                   id="chat-input"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
                   placeholder="例如：這句為什麼使用過去完成式？"
                   rows={3}
+                  disabled={chatSnapshot.connection !== "ready" ||
+                    Boolean(chatSnapshot.activeTurnId)}
                 />
                 <div>
-                  <small>AI gateway 尚未連線</small>
-                  <button type="submit">送出</button>
+                  <small>
+                    {chatError || (chatSnapshot.activeTurnId
+                      ? "Codex 正在回覆…"
+                      : chatSnapshot.connectionDetail)}
+                  </small>
+                  <button
+                    type="submit"
+                    disabled={chatSnapshot.connection !== "ready" ||
+                      Boolean(chatSnapshot.activeTurnId) || !draft.trim()}
+                  >
+                    送出
+                  </button>
                 </div>
               </form>
             </div>

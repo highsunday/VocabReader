@@ -6,6 +6,7 @@ last_updated: 2026-07-21
 related_implements:
   - F05-ai-reading-range-markers
   - F06-reading-range-boundary-lines
+  - F07-codex-ai-conversation
   - B02-persist-range-marker-on-drag-release
 ---
 
@@ -13,7 +14,7 @@ related_implements:
 
 ## 1. Purpose
 
-本模組讓使用者在單一章節內，以唯一一對 **範圍標籤（Range Marker）** 界定目前的 **閱讀區段（Reading Segment）**。這個區段是未來區段解析、根據標記產生說明及區段練習可以取得的原文上限，避免 AI 讀到使用者尚未閱讀的同章內容。
+本模組讓使用者在單一章節內，以唯一一對 **範圍標籤（Range Marker）** 界定目前的 **閱讀區段（Reading Segment）**。這個區段是 AI 對話、未來區段解析、根據標記產生說明及區段練習可以取得的原文上限，避免 AI 讀到使用者尚未閱讀的同章內容。
 
 兩個範圍標籤分別呈現為：
 
@@ -37,7 +38,7 @@ related_implements:
 - START 不得位於 END 之後；拖曳或右鍵更新若越界，另一個標籤會跟到正在移動的新位置，使兩者位於同一位置。
 - 每個書籤向內文延伸具名分隔線；位置過近時會上下錯開，避免重疊。
 - 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍，章末停止且不跨章。
-- 已提供只擷取 START／END 之間原文的共用函式，尚未串接完整 AI 區段解析或區段練習。
+- 已提供只擷取 START／END 之間原文的共用函式；AI 對話面板已使用此入口，完整區段解析與區段練習尚未實作。
 
 ## 3. Module Boundary
 
@@ -59,7 +60,7 @@ related_implements:
 
 ### Out of scope
 
-- AI 區段解析、選擇題生成及對話上下文組裝。
+- AI 區段解析與選擇題生成。
 - 使用者原文標記、學習項目與生詞庫。
 - Anki 式間隔複習。
 - 跨章閱讀區段、多組範圍及範圍歷史。
@@ -150,14 +151,14 @@ related_implements:
 
 ## 9. AI Context Boundary
 
-`extractReadingSegment(text, range)` 是未來 AI 功能必須共用的裁切入口：
+`extractReadingSegment(text, range)` 是所有 AI 閱讀上下文必須共用的裁切入口：
 
 - 先把 START／END 限制在文字長度內。
 - 保證 END 不早於 START。
 - 只回傳 `text.slice(start, end).trim()`。
 - START 之前與 END 之後的同章內容不會出現在結果中。
 
-完整 AI 串接尚未實作。未來區段解析、根據標記產生說明及區段練習必須先透過這個邊界取得原文，不可直接傳送整章。
+F07 的 AI 對話面板已透過這個函式組裝 Codex context：非空閱讀區段會連同書籍與章節名稱傳入，空區段則只進行一般對話，絕不以整章作為 fallback。未來區段解析、根據標記產生說明及區段練習仍必須沿用同一邊界。
 
 ## 10. Key Files
 
@@ -166,6 +167,7 @@ related_implements:
 | `apps/desktop/src/shared/library-contracts.ts` | `ReadingRange`、`chapterRanges` 與保存輸入／API 型別 |
 | `apps/desktop/src/renderer/reading-range.ts` | 初始化、裁切、自動推進、DOM 點位轉 offset、offset 轉 START／END 座標 |
 | `apps/desktop/src/renderer/App.tsx` | 範圍狀態、拖曳、右鍵選單、分隔線、重疊避讓、樂觀更新與推進操作 |
+| `apps/desktop/src/shared/chat-contracts.ts` | AI 對話輸入中的閱讀上下文契約 |
 | `apps/desktop/src/renderer/styles.css` | START／END 書籤、分隔線、名稱與重疊避讓樣式 |
 | `apps/desktop/src/preload/preload.ts` | 暴露窄化的 `saveReadingRange()` bridge |
 | `apps/desktop/src/main/library-ipc.ts` | `library:save-reading-range` IPC 輸入驗證 |
@@ -176,7 +178,7 @@ related_implements:
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/renderer/reading-range.test.ts` | START／END 第一行初始化、嚴格裁切、等長推進、章末停止、點位轉 offset、START 在線前／END 在線後、標記資料不受推進影響 |
-| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動與明確推進 |
+| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、明確推進及 AI 對話嚴格裁切 |
 | `apps/desktop/src/main/library-service.test.ts` | 每章範圍保存、快速連續寫入、無效範圍與不存在章節拒絕 |
 | `apps/desktop/src/main/library-ipc.test.ts` | 保存 IPC 路由及輸入格式驗證 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron preload 確實暴露 `saveReadingRange()`，安全設定與應用程式啟動回歸 |
@@ -184,7 +186,7 @@ related_implements:
 最近驗證（2026-07-21）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：54/54 passed。
+- Desktop Vitest：65/65 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -201,7 +203,7 @@ related_implements:
 
 ## 13. Known Limitations and Follow-up
 
-- 完整 AI 區段解析、標記說明及區段練習尚未接上 `extractReadingSegment()`。
+- AI 對話已接上 `extractReadingSegment()`；完整區段解析、標記說明及區段練習仍未實作。
 - 尚未提供鍵盤調整 START／END 的操作。
 - 尚未提供範圍歷史、復原／重做或多組範圍。
 - 初始 `start === end` 是空閱讀區段；使用者需移動 END 後才會建立可供 AI 裁切的非空範圍。
@@ -214,6 +216,7 @@ related_implements:
 - `documents/modules/book-library.md`
 - `documents/implements/F05-ai-reading-range-markers.md`
 - `documents/implements/F06-reading-range-boundary-lines.md`
+- `documents/implements/F07-codex-ai-conversation.md`
 - `documents/implements/B02-persist-range-marker-on-drag-release.md`
 
 更新範圍資料格式、定位語意、拖曳生命週期、保存流程、自動推進或 AI 裁切邊界時，必須同步更新本文件及相關 FXX／BXX 實作紀錄。

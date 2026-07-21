@@ -1,7 +1,14 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { ChatController } from "./chat-controller";
+import { registerChatIpc } from "./chat-ipc";
+import { SpawnedCodexAppServerClient } from "./codex-app-server-client";
 import { registerLibraryIpc } from "./library-ipc";
 import { LocalBookLibrary } from "./library-service";
+
+let chatController: ChatController | undefined;
+let unsubscribeChatState: (() => void) | undefined;
 
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -43,7 +50,23 @@ app.whenReady().then(() => {
       ? join(app.getPath("temp"), `lingoshelf-library-test-${process.pid}`)
       : join(app.getPath("userData"), "library");
   registerLibraryIpc(ipcMain, dialog, new LocalBookLibrary(libraryPath));
+  const runtimePath = join(app.getPath("userData"), "codex-runtime");
+  mkdirSync(runtimePath, { recursive: true });
+  chatController = new ChatController({
+    createClient: () => new SpawnedCodexAppServerClient(),
+    workingDirectory: runtimePath
+  });
+  unsubscribeChatState = registerChatIpc(
+    ipcMain,
+    chatController,
+    (snapshot) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send("chat:state-changed", snapshot);
+      }
+    }
+  );
   createMainWindow();
+  void chatController.connect();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -56,4 +79,11 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  unsubscribeChatState?.();
+  unsubscribeChatState = undefined;
+  chatController?.close();
+  chatController = undefined;
 });

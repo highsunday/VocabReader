@@ -1,5 +1,8 @@
 /// <reference types="vite/client" />
 
+import type { ChatDesktopApi } from "../shared/chat-contracts";
+
+declare global {
 interface ReaderDesktopApi {
   platform: string;
   versions: {
@@ -33,6 +36,7 @@ interface ReaderDesktopApi {
       range: { start: number; end: number };
     }): Promise<DesktopLibraryBook>;
   };
+  chat: ChatDesktopApi;
 }
 
 interface DesktopLibraryBook {
@@ -61,3 +65,6 @@ interface DesktopLibraryBook {
 interface Window {
   readerDesktop?: ReaderDesktopApi;
 }
+}
+
+export {};

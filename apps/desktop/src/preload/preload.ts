@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+  ChatDesktopApi,
+  ChatSnapshot,
+  SendChatMessageInput
+} from "../shared/chat-contracts";
+import type {
   ChapterContent,
   ImportBookResult,
   LibraryBook,
@@ -29,7 +34,21 @@ const desktopApi = Object.freeze({
       ipcRenderer.invoke("library:save-reading-state", input),
     saveReadingRange: (input: SaveReadingRangeInput): Promise<LibraryBook> =>
       ipcRenderer.invoke("library:save-reading-range", input)
-  })
+  }),
+  chat: Object.freeze({
+    getState: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:get-state"),
+    connect: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:connect"),
+    sendMessage: (input: SendChatMessageInput): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:send", input),
+    onStateChanged(listener: (snapshot: ChatSnapshot) => void) {
+      const wrapped = (
+        _event: Electron.IpcRendererEvent,
+        snapshot: ChatSnapshot
+      ) => listener(snapshot);
+      ipcRenderer.on("chat:state-changed", wrapped);
+      return () => ipcRenderer.off("chat:state-changed", wrapped);
+    }
+  } satisfies ChatDesktopApi)
 });
 
 contextBridge.exposeInMainWorld("readerDesktop", desktopApi);

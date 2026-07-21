@@ -19,6 +19,8 @@ test("launches the secure Electron reading shell", async () => {
       page.getByRole("heading", { name: "導入 EPUB 開始閱讀" })
     ).toBeVisible();
     await expect(page.getByLabel("AI 助教")).toBeVisible();
+    await expect(page.getByRole("button", { name: "設定" })).toBeVisible();
+    await expect(page.getByLabel("Codex 狀態")).toBeVisible();
 
     const security = await page.evaluate(() => {
       const desktop = (
@@ -32,6 +34,12 @@ test("launches the secure Electron reading shell", async () => {
               saveReadingState: unknown;
               saveReadingRange: unknown;
             };
+            chat: {
+              getState: unknown;
+              connect: unknown;
+              sendMessage: unknown;
+              onStateChanged: unknown;
+            };
           };
         }
       ).readerDesktop;
@@ -43,6 +51,11 @@ test("launches the secure Electron reading shell", async () => {
         hasChapterReader: typeof desktop?.library.getChapterContent,
         hasReadingStateSave: typeof desktop?.library.saveReadingState,
         hasReadingRangeSave: typeof desktop?.library.saveReadingRange,
+        hasChatState: typeof desktop?.chat.getState,
+        hasChatConnect: typeof desktop?.chat.connect,
+        hasChatSend: typeof desktop?.chat.sendMessage,
+        hasChatSubscription: typeof desktop?.chat.onStateChanged,
+        chatKeys: Object.keys(desktop?.chat ?? {}).sort(),
         hasNodeRequire: typeof (window as Window & { require?: unknown }).require
       };
     });
@@ -54,6 +67,16 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasChapterReader).toBe("function");
     expect(security.hasReadingStateSave).toBe("function");
     expect(security.hasReadingRangeSave).toBe("function");
+    expect(security.hasChatState).toBe("function");
+    expect(security.hasChatConnect).toBe("function");
+    expect(security.hasChatSend).toBe("function");
+    expect(security.hasChatSubscription).toBe("function");
+    expect(security.chatKeys).toEqual([
+      "connect",
+      "getState",
+      "onStateChanged",
+      "sendMessage"
+    ]);
     expect(security.hasNodeRequire).toBe("undefined");
 
     const dataImageLoads = await page.evaluate(async () => {
