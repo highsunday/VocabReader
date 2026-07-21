@@ -12,13 +12,14 @@ export interface BundledSkillInstallResult {
   status: "installed" | "unchanged" | "updated";
 }
 
-export function installBundledAnnotationSkill(
+function installBundledSkill(
   runtimePath: string,
+  skillName: "explain-reader-annotations" | "practice-reading-comprehension",
   markdown: string
 ): BundledSkillInstallResult {
   const path = join(
     runtimePath,
-    ".agents/skills/explain-reader-annotations/SKILL.md"
+    `.agents/skills/${skillName}/SKILL.md`
   );
   const existed = existsSync(path);
   if (existed && readFileSync(path, "utf8") === markdown) {
@@ -30,4 +31,26 @@ export function installBundledAnnotationSkill(
   writeFileSync(nextPath, markdown, "utf8");
   renameSync(nextPath, path);
   return { path, status: existed ? "updated" : "installed" };
+}
+
+export function installBundledAnnotationSkill(
+  runtimePath: string,
+  markdown: string
+): BundledSkillInstallResult {
+  return installBundledSkill(
+    runtimePath,
+    "explain-reader-annotations",
+    markdown
+  );
+}
+
+export function installBundledReadingComprehensionSkill(
+  runtimePath: string,
+  markdown: string
+): BundledSkillInstallResult {
+  return installBundledSkill(
+    runtimePath,
+    "practice-reading-comprehension",
+    markdown
+  );
 }

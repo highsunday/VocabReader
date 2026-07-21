@@ -24,6 +24,8 @@ interface ChatControllerOptions {
   workingDirectory: string;
   annotationExplanationSkillPath: string;
   annotationExplanationSkillInstructions: string;
+  readingComprehensionSkillPath: string;
+  readingComprehensionSkillInstructions: string;
   conversationStore?: ChatConversationStore;
   createConversationId?(): string;
   now?(): number;
@@ -39,11 +41,16 @@ const isolationConfig = Object.freeze({
 });
 
 export function composeDeveloperInstructions(
-  annotationExplanationSkillInstructions: string
+  annotationExplanationSkillInstructions: string,
+  readingComprehensionSkillInstructions: string
 ): string {
-  const skill = annotationExplanationSkillInstructions.trim();
-  if (!skill) {
+  const annotationSkill = annotationExplanationSkillInstructions.trim();
+  const readingSkill = readingComprehensionSkillInstructions.trim();
+  if (!annotationSkill) {
     throw new Error("App 內建的標記解析 skill 內容不可為空。");
+  }
+  if (!readingSkill) {
+    throw new Error("App 內建的閱讀理解 skill 內容不可為空。");
   }
   return [
     "You are the AI Conversation Panel in an English-learning EPUB reader.",
@@ -51,11 +58,15 @@ export function composeDeveloperInstructions(
     "Use only the explicitly provided reading segment and prior conversation.",
     "Never claim knowledge of text outside the provided reading segment.",
     "Do not run tools, read arbitrary files, write files, or use the network.",
-    "The only app-provided skill available is explain-reader-annotations.",
-    "Its complete instructions are already loaded below; do not discover, load, or use any other skill.",
-    "Apply this skill only when the user input contains $explain-reader-annotations. Otherwise answer normally without applying its workflow.",
+    "The only app-provided skills available are explain-reader-annotations and practice-reading-comprehension.",
+    "Their complete instructions are already loaded below; do not discover, load, or use any other skill.",
+    "Apply explain-reader-annotations only when the user input contains $explain-reader-annotations.",
+    "Apply practice-reading-comprehension when the user input contains $practice-reading-comprehension. After this skill creates a quiz, continue using its assessment workflow when the user submits answers to that quiz in the same conversation, even without the marker. Do not apply it to unrelated turns.",
     "<app-provided-skill name=\"explain-reader-annotations\">",
-    skill,
+    annotationSkill,
+    "</app-provided-skill>",
+    "<app-provided-skill name=\"practice-reading-comprehension\">",
+    readingSkill,
     "</app-provided-skill>"
   ].join("\n");
 }
@@ -211,28 +222,15 @@ export function composeCodexInput(input: SendChatMessageInput): string {
     ja: "Japanese"
   }[input.explanationLanguage ?? "source"];
   if (input.intent === "practiceReading") {
-    const questionCount = readingQuizQuestionCount(
-      context?.readingSegment ?? ""
-    );
-    const openQuestionCount = readingQuizOpenQuestionCount(
-      context?.readingSegment ?? ""
-    );
     return [
+      "$practice-reading-comprehension",
       ...base,
       "",
-      "Create a reading comprehension quiz using only the current reading segment.",
-      `Quiz language: ${language}. Use this language for every heading, question, multiple-choice option, short-answer prompt, and answer instruction.`,
-      "Organize the quiz into Part A: Multiple Choice and Part B: Short Answer.",
-      `Generate exactly ${questionCount} questions. Give each question four options labeled A, B, C, and D, with exactly one best answer.`,
-      "Focus on reading comprehension such as the main idea, stated details, inference, author purpose, or meaning in context. Do not make isolated vocabulary recall the main task.",
-      `Then generate exactly ${openQuestionCount} short-answer questions in the quiz language.`,
-      "Use short-answer prompts that ask the learner to summarize, explain, infer, or paraphrase ideas from the passage.",
-      "Require the learner to answer the short-answer questions in complete English sentences so they practice English output.",
-      "Treat reader-annotation tags only as reader markup. Test the whole reading segment equally; annotations are not required and must not narrow the quiz scope.",
+      `Quiz language: ${language}.`,
+      "Answer language for open-ended questions: English.",
+      "Do not impose a sentence-count requirement on open-ended answers.",
       "Do not use or infer content outside the current reading segment.",
-      "Do not reveal the correct answers or explanations in this first response.",
-      "Do not provide sample answers for the short-answer questions in this first response.",
-      "After the questions, invite the learner to answer Part A in a compact format such as 1A 2C 3B, and Part B in complete English sentences."
+      "Use the App-provided practice-reading-comprehension workflow for quiz creation and later grading."
     ].join("\n");
   }
   if (input.intent !== "explainAnnotations") return base.join("\n");
@@ -250,26 +248,10 @@ export function composeCodexInput(input: SendChatMessageInput): string {
   ].join("\n");
 }
 
-export function readingQuizQuestionCount(readingSegment: string): number {
-  const wordCount = readingSegmentWordCount(readingSegment);
-  return Math.max(3, Math.min(10, Math.ceil(wordCount / 100)));
-}
-
-export function readingQuizOpenQuestionCount(readingSegment: string): number {
-  const wordCount = readingSegmentWordCount(readingSegment);
-  return Math.max(1, Math.min(3, Math.ceil(wordCount / 300)));
-}
-
-function readingSegmentWordCount(readingSegment: string): number {
-  const passageText = readingSegment.replace(/<[^>]+>/g, " ");
-  return passageText.match(
-    /[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g
-  )?.length ?? 0;
-}
-
 function composeTurnInput(
   input: SendChatMessageInput,
-  skillPath: string
+  annotationSkillPath: string,
+  readingSkillPath: string
 ): Array<Record<string, unknown>> {
   const items: Array<Record<string, unknown>> = [{
     type: "text",
@@ -280,7 +262,13 @@ function composeTurnInput(
     items.push({
       type: "skill",
       name: "explain-reader-annotations",
-      path: skillPath
+      path: annotationSkillPath
+    });
+  } else if (input.intent === "practiceReading") {
+    items.push({
+      type: "skill",
+      name: "practice-reading-comprehension",
+      path: readingSkillPath
     });
   }
   return items;
@@ -317,7 +305,8 @@ export class ChatController {
   constructor(options: ChatControllerOptions) {
     this.#options = options;
     this.#developerInstructions = composeDeveloperInstructions(
-      options.annotationExplanationSkillInstructions
+      options.annotationExplanationSkillInstructions,
+      options.readingComprehensionSkillInstructions
     );
     try {
       const stored = options.conversationStore?.load();
@@ -642,7 +631,8 @@ export class ChatController {
         ...this.#selectedModelSettings(),
         input: composeTurnInput(
           { ...input, text },
-          this.#options.annotationExplanationSkillPath
+          this.#options.annotationExplanationSkillPath,
+          this.#options.readingComprehensionSkillPath
         )
       });
       const turnId = turnIdFrom(response);

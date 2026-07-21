@@ -25,6 +25,13 @@ test("launches the secure Electron reading shell", async () => {
     ), "utf8");
     expect(installedSkill).toContain("name: explain-reader-annotations");
     expect(installedSkill).toContain("Use the requested explanation language");
+    const installedReadingSkill = readFileSync(join(
+      userDataPath,
+      "codex-runtime/.agents/skills/practice-reading-comprehension/SKILL.md"
+    ), "utf8");
+    expect(installedReadingSkill)
+      .toContain("name: practice-reading-comprehension");
+    expect(installedReadingSkill).toContain("8–12");
     await expect(page).toHaveTitle("LingoShelf");
     await expect(
       page.getByRole("heading", { name: "導入 EPUB 開始閱讀" })

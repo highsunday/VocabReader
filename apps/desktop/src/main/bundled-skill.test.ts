@@ -2,7 +2,10 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { installBundledAnnotationSkill } from "./bundled-skill";
+import {
+  installBundledAnnotationSkill,
+  installBundledReadingComprehensionSkill
+} from "./bundled-skill";
 
 const roots: string[] = [];
 
@@ -52,6 +55,39 @@ describe("installBundledAnnotationSkill", () => {
     const updated = installBundledAnnotationSkill(runtimePath, "bundled-v2");
 
     expect(updated).toEqual({ path: first.path, status: "updated" });
+    expect(readFileSync(updated.path, "utf8")).toBe("bundled-v2");
+    expect(() => readFileSync(join(dirname(updated.path), "SKILL.md.next")))
+      .toThrow();
+  });
+});
+
+describe("installBundledReadingComprehensionSkill", () => {
+  it("installs, preserves and atomically updates the App-bundled skill", () => {
+    const runtimePath = runtimeRoot();
+
+    const installed = installBundledReadingComprehensionSkill(
+      runtimePath,
+      "bundled-v1"
+    );
+    const unchanged = installBundledReadingComprehensionSkill(
+      runtimePath,
+      "bundled-v1"
+    );
+    writeFileSync(installed.path, "old-version", "utf8");
+    const updated = installBundledReadingComprehensionSkill(
+      runtimePath,
+      "bundled-v2"
+    );
+
+    expect(installed).toEqual({
+      path: join(
+        runtimePath,
+        ".agents/skills/practice-reading-comprehension/SKILL.md"
+      ),
+      status: "installed"
+    });
+    expect(unchanged).toEqual({ path: installed.path, status: "unchanged" });
+    expect(updated).toEqual({ path: installed.path, status: "updated" });
     expect(readFileSync(updated.path, "utf8")).toBe("bundled-v2");
     expect(() => readFileSync(join(dirname(updated.path), "SKILL.md.next")))
       .toThrow();

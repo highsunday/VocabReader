@@ -11,6 +11,7 @@ related_implements:
   - F17-reading-segment-comprehension-quiz
   - B03-load-only-bundled-annotation-skill
   - B04-use-language-setting-for-reading-quiz
+  - F18-use-reading-comprehension-skill
 ---
 
 # 持久標記與 AI 標記解析模組
@@ -36,7 +37,7 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 - 以 `<reading-segment>` 包住閱讀區段，並以 `<reader-annotation id="A1">…</reader-annotation>` 依原語序標出區段內標記。
 - START／END 或標記新增、移除後，下一則 AI 訊息會取得最新版本；一般未變追問不重傳相同上下文。
 - 「講解標記內容」每次都附上當下區段，避免先前一般問答的上下文去重使解析意圖看不到標記。
-- 「閱讀測驗」每次也附上當下區段，依區段英文詞數要求 3 至 10 題四選一閱讀理解題及 1 至 3 題問答題；題面使用目前講解語言，不要求已有標記，第一輪不揭露答案、解析或參考回答。
+- 「閱讀測驗」每次也附上當下區段，明確呼叫 App 內建閱讀理解 skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題英文輸出問答題；題面使用目前講解語言，不要求已有標記，第一輪不揭露答案、解析或提示。
 - AI 解析明確呼叫 App 內建並安裝到 user data 的 `explain-reader-annotations` skill，固定依單字、片語、句子分組，同組依原文位置排列，並依標記本文用法提供 CEFR 與複習表；分類只存在於 AI 回覆，不回寫標記。
 - 全域講解語言可選原文語言、繁體中文、English 或日本語，預設為原文語言並持久保存；後續標記解析及閱讀測驗題面共用這項設定。
 
@@ -102,7 +103,7 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 - 沒有標籤時明確回覆目前沒有標記內容。
 - 依 `source | zh-TW | en | ja` 決定本次講解語言。
 
-Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受限講解語言。Main process 忽略閱讀器 XML 標籤後計算英文詞數，以 `ceil(wordCount / 100)` 產生 3 至 10 題 A–D 四選一，再以 `ceil(wordCount / 300)` 產生 1 至 3 題問答題。標題、題目、選項、問答題與作答說明依 `source | zh-TW | en | ja` 使用原文語言、繁體中文、English 或日本語；Part B 始終要求使用者以英文完整句進行摘要、解釋、推論或重述。第一輪不揭露答案、解析或參考回答。這個意圖不注入標記解析 skill，且標記只作為閱讀器邊界資訊，不改變出題範圍。
+Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受限講解語言。Main process 加入 `$practice-reading-comprehension` marker 及指向 App user data 固定路徑的型別化 skill input。skill 先估計 CEFR，再依區段長度與複雜度產生 8 至 12 題 A–D 四選一及 1 至 3 題問答題，並在後續答案 turn 逐題批改與提供 final review。標題、題目、選項、問答題、作答說明及批改依 `source | zh-TW | en | ja` 使用原文語言、繁體中文、English 或日本語；英文原文、修正版本與學習詞句維持英文，Part B 始終要求使用者以英文作答且不限制句數。第一輪不揭露答案、解析、參考回答或提示。這個意圖不注入標記解析 skill，且標記只作為閱讀器邊界資訊，不改變出題範圍。
 
 一般輸入沒有此 intent，即使上下文含標籤也只是正常 AI 問答。預設動作沿用目前右側 AI 對話及 Codex thread；空白對話仍在送出時才建立。
 
@@ -124,8 +125,9 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 | `apps/desktop/src/shared/settings-contracts.ts` | 講解語言及設定 API 型別 |
 | `apps/desktop/src/main/settings-store.ts` | 全域偏好載入、降級與原子保存 |
 | `apps/desktop/src/main/settings-ipc.ts` | 設定值 IPC 驗證 |
-| `apps/desktop/src/main/chat-controller.ts` | 唯一 App skill instructions、marker gate、可信任標記解析與區段練習 input 組成 |
+| `apps/desktop/src/main/chat-controller.ts` | 兩個 App skills 的 instructions、marker gate、可信任標記解析與區段練習 input 組成 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析 workflow、動態講解語言、CEFR 與複習表規則 |
+| `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀測驗 CEFR、8–12／1–3 題、批改、英文修正與 final review workflow |
 | `apps/desktop/src/main/bundled-skill.ts` | 將 build 內嵌的 skill 安裝／更新到其他電腦的 user data runtime |
 | `apps/desktop/src/renderer/styles.css` | 標記模式、原文標示與設定視窗樣式 |
 
@@ -139,8 +141,9 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 | `apps/desktop/src/main/library-ipc.test.ts` | 標記 IPC 路由與輸入驗證 |
 | `apps/desktop/src/main/settings-store.test.ts` | 預設、保存、損壞／未知值降級 |
 | `apps/desktop/src/main/settings-ipc.test.ts` | 設定 IPC 路由與 enum 驗證 |
-| `apps/desktop/src/main/chat-controller.test.ts` | 一般 context、唯一 App skill 載入與其他 skills 隔離、既有 thread 恢復、空標記、解析與測驗的四種講解語言、動態選擇／問答題數與英文輸出 prompt 契約 |
-| `apps/desktop/src/main/bundled-skill.test.ts` | App 內建 skill 的首次安裝、無變更略過與升級替換 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 一般 context、兩個 App skills 載入與其他 skills 隔離、既有 thread 恢復、空標記、四種講解語言與型別化 skill input 契約 |
+| `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀理解 skill 的 CEFR、題型、題數、批改、語言與 final review rubric |
+| `apps/desktop/src/main/bundled-skill.test.ts` | 兩份 App 內建 skills 的首次安裝、無變更略過與升級替換 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | 標記解析／區段練習 intent 與講解語言白名單 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | preload 白名單、設定選項與 Electron 啟動回歸 |
 
@@ -165,5 +168,6 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - `documents/implements/F17-reading-segment-comprehension-quiz.md`
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
 - `documents/implements/B04-use-language-setting-for-reading-quiz.md`
+- `documents/implements/F18-use-reading-comprehension-skill.md`
 
 變更標記資料、不重疊規則、Selection offset、AI 序列化、預設 intent 或講解語言時，必須同步更新本文件與相關 FXX 實作紀錄。

@@ -3,9 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ChatController,
-  composeCodexInput,
-  readingQuizOpenQuestionCount,
-  readingQuizQuestionCount
+  composeCodexInput
 } from "./chat-controller";
 import { SpawnedCodexAppServerClient } from "./codex-app-server-client";
 import type {
@@ -20,6 +18,14 @@ const annotationExplanationSkillInstructions = readFileSync(resolve(
   process.cwd(),
   "../../.agents/skills/explain-reader-annotations/SKILL.md"
 ), "utf8");
+const readingComprehensionSkillPath =
+  "/tmp/lingoshelf-codex-test/.agents/skills/practice-reading-comprehension/SKILL.md";
+const readingComprehensionSkillInstructions = [
+  "name: practice-reading-comprehension",
+  "Estimate the passage CEFR level.",
+  "Create 8 to 12 multiple-choice questions.",
+  "Provide a final review after grading."
+].join("\n");
 
 class MemoryChatConversationStore implements ChatConversationStore {
   state: StoredChatState;
@@ -58,7 +64,9 @@ function fixture(options: Parameters<typeof createFakeCodexAppServer>[0] = {}) {
     }),
     workingDirectory: "/tmp/lingoshelf-codex-test",
     annotationExplanationSkillPath,
-    annotationExplanationSkillInstructions
+    annotationExplanationSkillInstructions,
+    readingComprehensionSkillPath,
+    readingComprehensionSkillInstructions
   });
   return { fake, controller };
 }
@@ -74,6 +82,8 @@ function managedFixture(store = new MemoryChatConversationStore()) {
     workingDirectory: "/tmp/lingoshelf-codex-test",
     annotationExplanationSkillPath,
     annotationExplanationSkillInstructions,
+    readingComprehensionSkillPath,
+    readingComprehensionSkillInstructions,
     conversationStore: store,
     createConversationId: () => `conversation-${++conversationId}`,
     now: () => ++now
@@ -253,7 +263,7 @@ describe("ChatController", () => {
     controller.close();
   });
 
-  it("injects the repo annotation explanation skill only for the preset action", async () => {
+  it("injects only the matching App skill for each preset action", async () => {
     const { fake, controller } = fixture();
     await controller.connect();
 
@@ -285,16 +295,19 @@ describe("ChatController", () => {
     const loadedInstructions = String(
       threadStart?.params?.developerInstructions ?? ""
     );
-    expect(loadedInstructions).toContain(
-      "The only app-provided skill available is explain-reader-annotations"
-    );
+    expect(loadedInstructions).toContain("explain-reader-annotations");
+    expect(loadedInstructions).toContain("practice-reading-comprehension");
     expect(loadedInstructions).toContain(
       "Judge the item as used in this passage, not in isolation"
     );
     expect(loadedInstructions).toContain(
       "Marked item | Simple meaning | CEFR level | Useful note"
     );
-    expect(loadedInstructions.match(/<app-provided-skill /g)).toHaveLength(1);
+    expect(loadedInstructions).toContain("Create 8 to 12 multiple-choice questions");
+    expect(loadedInstructions).toContain(
+      "continue using its assessment workflow"
+    );
+    expect(loadedInstructions.match(/<app-provided-skill /g)).toHaveLength(2);
     expect(loadedInstructions).not.toContain("Available skills:");
     expect(threadStart?.params?.config).toMatchObject({
       "skills.include_instructions": false,
@@ -312,8 +325,13 @@ describe("ChatController", () => {
     expect(practiceInput).toEqual([
       expect.objectContaining({
         type: "text",
-        text: expect.stringContaining("reading comprehension quiz")
-      })
+        text: expect.stringContaining("$practice-reading-comprehension")
+      }),
+      {
+        type: "skill",
+        name: "practice-reading-comprehension",
+        path: readingComprehensionSkillPath
+      }
     ]);
     expect(JSON.stringify(practiceInput)).not.toContain("explain-reader-annotations");
     expect(explanationInput).toEqual([
@@ -470,9 +488,8 @@ describe("ChatController", () => {
     )?.params?.developerInstructions;
     expect(resumedRequests[0]?.params?.developerInstructions)
       .toBe(startedInstructions);
-    expect(String(startedInstructions)).toContain(
-      "The only app-provided skill available is explain-reader-annotations"
-    );
+    expect(String(startedInstructions)).toContain("explain-reader-annotations");
+    expect(String(startedInstructions)).toContain("practice-reading-comprehension");
     const resumedTurn = fake.requests.filter(
       (request) => request.method === "turn/start"
     ).at(-1);
@@ -560,6 +577,8 @@ describe("ChatController", () => {
       workingDirectory: "/tmp/lingoshelf-codex-test",
       annotationExplanationSkillPath,
       annotationExplanationSkillInstructions,
+      readingComprehensionSkillPath,
+      readingComprehensionSkillInstructions,
       conversationStore: store
     });
     await controller.connect();
@@ -624,6 +643,8 @@ describe("ChatController", () => {
       workingDirectory: "/tmp/lingoshelf-codex-test",
       annotationExplanationSkillPath,
       annotationExplanationSkillInstructions,
+      readingComprehensionSkillPath,
+      readingComprehensionSkillInstructions,
       conversationStore: store
     });
     await controller.connect();
@@ -647,6 +668,8 @@ describe("ChatController", () => {
       workingDirectory: "/tmp/lingoshelf-codex-test",
       annotationExplanationSkillPath,
       annotationExplanationSkillInstructions,
+      readingComprehensionSkillPath,
+      readingComprehensionSkillInstructions,
       conversationStore: store,
       createConversationId: () => "conversation-a"
     });
@@ -673,6 +696,8 @@ describe("ChatController", () => {
       workingDirectory: "/tmp/lingoshelf-codex-test",
       annotationExplanationSkillPath,
       annotationExplanationSkillInstructions,
+      readingComprehensionSkillPath,
+      readingComprehensionSkillInstructions,
       conversationStore: store,
       createConversationId: () => "conversation-a"
     });
@@ -766,8 +791,9 @@ describe("composeCodexInput", () => {
     });
 
     expect(result).toContain(`Quiz language: ${expectedLanguage}`);
-    expect(result).toContain("complete English sentences");
-    expect(result).toContain("Do not provide sample answers");
+    expect(result).toContain("$practice-reading-comprehension");
+    expect(result).toContain("Answer language for open-ended questions: English");
+    expect(result).toContain("Do not impose a sentence-count requirement");
   });
 
   it("asks for a no-annotation response and supports source language", () => {
@@ -782,26 +808,7 @@ describe("composeCodexInput", () => {
     expect(result).toContain("Use the same language as the current reading segment");
   });
 
-  it.each([
-    [50, 3, 1],
-    [300, 3, 1],
-    [301, 4, 2],
-    [600, 6, 2],
-    [601, 7, 3],
-    [1_001, 10, 3]
-  ])("uses %i passage words to request %i multiple-choice and %i open questions", (
-    wordCount,
-    expectedChoiceCount,
-    expectedOpenCount
-  ) => {
-    const words = Array.from({ length: wordCount }, () => "word").join(" ");
-    const segment = `<reading-segment><reader-annotation id="A1">${words}</reader-annotation></reading-segment>`;
-
-    expect(readingQuizQuestionCount(segment)).toBe(expectedChoiceCount);
-    expect(readingQuizOpenQuestionCount(segment)).toBe(expectedOpenCount);
-  });
-
-  it("requests a length-based reading comprehension quiz without revealing answers", () => {
+  it("delegates the adaptive quiz and grading workflow to the reading skill", () => {
     const words = Array.from({ length: 301 }, () => "word").join(" ");
     const result = composeCodexInput({
       text: "開始閱讀測驗",
@@ -811,18 +818,12 @@ describe("composeCodexInput", () => {
       }
     });
 
-    expect(result).toContain("exactly 4");
-    expect(result).toContain("exactly 2 short-answer questions");
-    expect(result).toContain("English");
-    expect(result).toContain("A, B, C, and D");
-    expect(result).toContain("one best answer");
-    expect(result).toContain("reading comprehension");
-    expect(result).toContain("Do not reveal the correct answers");
-    expect(result).toContain("complete English sentences");
-    expect(result).toContain("summarize, explain, infer, or paraphrase");
-    expect(result).toContain("Do not provide sample answers");
-    expect(result).toContain("1A 2C 3B");
+    expect(result).toContain("$practice-reading-comprehension");
+    expect(result).toContain("Quiz language:");
+    expect(result).toContain("Answer language for open-ended questions: English");
     expect(result).toContain("Do not use or infer content outside");
+    expect(result).not.toContain("exactly 4");
+    expect(result).not.toContain("3 to 10");
   });
 });
 
