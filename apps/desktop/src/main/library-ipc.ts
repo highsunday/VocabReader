@@ -23,6 +23,7 @@ interface FileDialog {
 interface BookLibrary {
   listBooks(): Promise<LibraryBook[]>;
   importFromPath(path: string): Promise<ImportBookResult>;
+  deleteBook(bookId: string): Promise<void>;
   getChapterContent(bookId: string, chapterId: string): Promise<ChapterContent>;
   saveReadingState(input: SaveReadingStateInput): Promise<LibraryBook>;
 }
@@ -33,6 +34,12 @@ export function registerLibraryIpc(
   library: BookLibrary
 ): void {
   ipc.handle("library:list", () => library.listBooks());
+  ipc.handle("library:delete", (_event, bookId) => {
+    if (typeof bookId !== "string" || !bookId.trim()) {
+      throw new Error("書籍刪除請求格式錯誤");
+    }
+    return library.deleteBook(bookId);
+  });
   ipc.handle("library:chapter", (_event, bookId, chapterId) => {
     if (typeof bookId !== "string" || typeof chapterId !== "string") {
       throw new Error("章節請求格式錯誤");

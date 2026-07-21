@@ -17,6 +17,8 @@ const desktopApi = Object.freeze({
     listBooks: (): Promise<LibraryBook[]> => ipcRenderer.invoke("library:list"),
     importBook: (): Promise<ImportBookResult> =>
       ipcRenderer.invoke("library:import"),
+    deleteBook: (bookId: string): Promise<void> =>
+      ipcRenderer.invoke("library:delete", bookId),
     getChapterContent: (
       bookId: string,
       chapterId: string

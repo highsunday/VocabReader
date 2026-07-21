@@ -37,6 +37,8 @@ export function App() {
   const [activeChapterId, setActiveChapterId] = useState<string>();
   const [libraryError, setLibraryError] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [bookPendingDeletion, setBookPendingDeletion] = useState<LibraryBook>();
+  const [isDeleting, setIsDeleting] = useState(false);
   const [chapterContent, setChapterContent] = useState<ChapterContent>();
   const [isLoadingChapter, setIsLoadingChapter] = useState(false);
   const [chapterError, setChapterError] = useState("");
@@ -244,6 +246,37 @@ export function App() {
     }
   }
 
+  async function handleDelete() {
+    const library = desktopLibrary();
+    const target = bookPendingDeletion;
+    if (!library || !target || isDeleting) return;
+
+    setIsDeleting(true);
+    setLibraryError("");
+    try {
+      await library.deleteBook(target.id);
+      const deletedIndex = books.findIndex((book) => book.id === target.id);
+      const remainingBooks = books.filter((book) => book.id !== target.id);
+      const replacement =
+        remainingBooks[deletedIndex] ?? remainingBooks[deletedIndex - 1];
+      setBooks(remainingBooks);
+      setChapterContent(undefined);
+      setBookPendingDeletion(undefined);
+      if (replacement) {
+        restoreBook(replacement);
+      } else {
+        setSelectedBookId(undefined);
+        setActiveChapterId(undefined);
+        setMode("overview");
+      }
+    } catch {
+      setLibraryError("無法刪除這本書籍，請稍後再試一次。");
+      setBookPendingDeletion(undefined);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   function selectBook(bookId: string) {
     saveCurrentReaderPosition();
     const book = books.find((candidate) => candidate.id === bookId);
@@ -318,7 +351,7 @@ export function App() {
           className="import-button"
           type="button"
           onClick={() => void handleImport()}
-          disabled={isImporting || !desktopLibrary()}
+          disabled={isImporting || isDeleting || !desktopLibrary()}
         >
           {isImporting ? "導入中…" : "＋ 導入 EPUB"}
         </button>
@@ -443,6 +476,14 @@ export function App() {
                     >
                       {selectedBook.progressPercent > 0 ? "繼續閱讀" : "開始閱讀"}
                     </button>
+                    <button
+                      className="delete-book-button"
+                      type="button"
+                      onClick={() => setBookPendingDeletion(selectedBook)}
+                      disabled={isImporting || isDeleting}
+                    >
+                      刪除書籍
+                    </button>
                   </div>
                 </div>
 
@@ -561,6 +602,41 @@ export function App() {
           </form>
         </aside>
       </div>
+
+      {bookPendingDeletion ? (
+        <div className="dialog-backdrop">
+          <section
+            className="delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+          >
+            <span className="delete-dialog-icon" aria-hidden="true">!</span>
+            <h2 id="delete-dialog-title">刪除書籍？</h2>
+            <p>
+              將永久刪除《{bookPendingDeletion.title}》、本機 EPUB 與閱讀進度。
+              此操作無法復原。
+            </p>
+            <div className="delete-dialog-actions">
+              <button
+                type="button"
+                onClick={() => setBookPendingDeletion(undefined)}
+                disabled={isDeleting}
+              >
+                取消
+              </button>
+              <button
+                className="danger-action"
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "刪除中…" : "永久刪除"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

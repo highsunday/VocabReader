@@ -276,6 +276,42 @@ describe("LocalBookLibrary", () => {
     expect(reloaded.lastChapterId).toBe(imported.book.chapters[1].id);
   });
 
+  it("permanently deletes a book, its EPUB and saved reading state", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "delete-me.epub");
+    const libraryPath = join(root, "library");
+    await createEpub3(epubPath);
+    const library = new LocalBookLibrary(libraryPath);
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    const savingReadingState = library.saveReadingState({
+      bookId: imported.book.id,
+      view: "reader",
+      chapterId: imported.book.chapters[1].id,
+      scrollProgress: 0.5
+    });
+    const deletingBook = library.deleteBook(imported.book.id);
+
+    await Promise.all([savingReadingState, deletingBook]);
+
+    await expect(new LocalBookLibrary(libraryPath).listBooks()).resolves.toEqual([]);
+    await expect(
+      stat(join(libraryPath, "books", imported.book.id))
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects deleting an unknown book without changing the library", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "keep-me.epub");
+    const library = new LocalBookLibrary(join(root, "library"));
+    await createEpub3(epubPath);
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+
+    await expect(library.deleteBook("missing-book")).rejects.toThrow(/找不到書籍/);
+    await expect(library.listBooks()).resolves.toEqual([imported.book]);
+  });
+
   it("rejects unknown chapter requests without changing reading state", async () => {
     const root = await createTemporaryDirectory();
     const epubPath = join(root, "unknown.epub");

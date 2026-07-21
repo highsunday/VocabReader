@@ -42,6 +42,7 @@ export type ImportBookResult =
 export interface LibraryDesktopApi {
   listBooks(): Promise<LibraryBook[]>;
   importBook(): Promise<ImportBookResult>;
+  deleteBook(bookId: string): Promise<void>;
   getChapterContent(bookId: string, chapterId: string): Promise<ChapterContent>;
   saveReadingState(input: SaveReadingStateInput): Promise<LibraryBook>;
 }

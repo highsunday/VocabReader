@@ -27,6 +27,7 @@ test("launches the secure Electron reading shell", async () => {
             library: {
               listBooks: unknown;
               importBook: unknown;
+              deleteBook: unknown;
               getChapterContent: unknown;
               saveReadingState: unknown;
             };
@@ -37,6 +38,7 @@ test("launches the secure Electron reading shell", async () => {
         hasDesktopBridge: Boolean(desktop),
         hasLibraryList: typeof desktop?.library.listBooks,
         hasLibraryImport: typeof desktop?.library.importBook,
+        hasLibraryDelete: typeof desktop?.library.deleteBook,
         hasChapterReader: typeof desktop?.library.getChapterContent,
         hasReadingStateSave: typeof desktop?.library.saveReadingState,
         hasNodeRequire: typeof (window as Window & { require?: unknown }).require
@@ -46,6 +48,7 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasDesktopBridge).toBe(true);
     expect(security.hasLibraryList).toBe("function");
     expect(security.hasLibraryImport).toBe("function");
+    expect(security.hasLibraryDelete).toBe("function");
     expect(security.hasChapterReader).toBe("function");
     expect(security.hasReadingStateSave).toBe("function");
     expect(security.hasNodeRequire).toBe("undefined");

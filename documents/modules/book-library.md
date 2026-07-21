@@ -7,6 +7,7 @@ related_implements:
   - F01-epub-book-library
   - F02-chapter-reading-resume
   - F03-simplify-sidebar-navigation
+  - F04-delete-library-book
 ---
 
 # 書籍與本機書庫模組
@@ -35,6 +36,7 @@ related_implements:
 - 重新開啟應用程式後載入既有書庫。
 - 以 EPUB 完整內容 SHA-256 去重；相同內容不重複導入，同名不同內容可並存。
 - 在左側書庫直接選取與切換書籍，並於中央顯示書籍總覽；側欄不另設重複的「書籍總覽」按鈕。
+- 從書籍總覽經不可復原確認後永久刪除書籍、本機 EPUB 與閱讀進度，並自動切換至相鄰書籍或空書庫狀態。
 - 從總覽的開始／繼續閱讀按鈕或章節清單進入章節閱讀介面。
 - 從本機 EPUB 讀取指定章節，安全呈現常見文字結構、表格、清單與書內點陣圖片。
 - 在閱讀介面返回書籍總覽或切換上一章。
@@ -50,8 +52,8 @@ related_implements:
 
 1. React renderer 顯示書庫與書籍總覽。
 2. Electron preload 提供受限 library API。
-3. Main process IPC 接收 library:list、library:import、library:chapter 與 library:save-reading-state。
-4. LocalBookLibrary 負責 EPUB 解析、去重、章節內容安全處理與狀態持久化。
+3. Main process IPC 接收 library:list、library:import、library:delete、library:chapter 與 library:save-reading-state。
+4. LocalBookLibrary 負責 EPUB 解析、去重、刪除、章節內容安全處理與狀態持久化。
 5. 書籍資料保存到 Electron user data，再沿原路回傳 renderer。
 
 ### Electron main process
@@ -63,13 +65,14 @@ related_implements:
 ### Preload bridge
 
 - 使用 contextBridge 暴露唯讀的 readerDesktop.library API。
-- 僅提供 listBooks()、importBook()、getChapterContent() 與 saveReadingState()。
+- 僅提供 listBooks()、importBook()、deleteBook()、getChapterContent() 與 saveReadingState()。
 - 不暴露 Node.js require、fs、ipcRenderer 或通用 IPC 呼叫。
 
 ### Renderer
 
 - 載入並保存目前 session 的書籍清單、選取狀態與閱讀位置。
 - 顯示書籍縮圖、書籍總覽、章節清單、安全章節內容、載入與錯誤訊息。
+- 在書籍總覽提供刪除入口與確認對話框；刪除成功後依原清單位置選取下一本、前一本或顯示空書庫。
 - 側欄以書籍項目作為書籍總覽入口，保留獨立的 Anki 複習入口，不顯示章節機制說明卡片。
 - 不解析 EPUB，也不直接讀寫書庫檔案。
 
@@ -77,8 +80,8 @@ related_implements:
 
 | File | Responsibility |
 |---|---|
-| apps/desktop/src/main/library-service.ts | EPUB 解析、內容雜湊、章節安全輸出、閱讀狀態、書庫索引與錯誤回滾 |
-| apps/desktop/src/main/library-ipc.ts | 註冊書庫、導入、章節與閱讀狀態 IPC，開啟原生 EPUB 選擇器 |
+| apps/desktop/src/main/library-service.ts | EPUB 解析、內容雜湊、書籍刪除、章節安全輸出、閱讀狀態、書庫索引與錯誤回滾 |
+| apps/desktop/src/main/library-ipc.ts | 註冊書庫、導入、刪除、章節與閱讀狀態 IPC，開啟原生 EPUB 選擇器 |
 | apps/desktop/src/main/main.ts | 決定正式與測試書庫路徑，建立 LocalBookLibrary 並註冊 IPC |
 | apps/desktop/src/preload/preload.ts | 將受限書庫 API 暴露給 renderer |
 | apps/desktop/src/shared/library-contracts.ts | main、preload、renderer 共用的書籍、章節內容、閱讀狀態與導入結果型別 |
@@ -156,6 +159,14 @@ related_implements:
 8. 捲動採 300ms 防抖保存；切換書籍、章節或返回總覽前立即保存。
 9. LocalBookLibrary 串行寫入狀態並原子替換 index.json，避免快速操作互相覆蓋。
 
+### Book deletion
+
+1. 使用者在書籍總覽點擊「刪除書籍」。
+2. Renderer 顯示包含書名與不可復原警告的確認對話框；取消不呼叫刪除 API。
+3. 確認後，preload 只把 bookId 傳給 library:delete；main process 驗證它是非空字串。
+4. LocalBookLibrary 將刪除排入閱讀狀態寫入佇列，先從 index.json 移除書籍，再刪除該 SHA-256 書籍目錄；目錄刪除失敗時嘗試還原索引。
+5. Renderer 只在後端成功後更新目前清單：優先選取原位置的下一本，否則前一本；沒有書籍時回到空書庫總覽。
+
 ## 7. EPUB Parsing Rules
 
 - mimetype 必須是 application/epub+zip。
@@ -180,6 +191,8 @@ related_implements:
 - index.json 保存完整 LibraryBook[]，包含 Base64 封面與章節 metadata。
 - 索引更新先寫入 index.json.next，再以 rename 替換正式索引。
 - 閱讀狀態寫入在單一 LocalBookLibrary instance 內串行執行，以最後一筆操作為準。
+- 書籍刪除與閱讀狀態寫入共用同一佇列，避免刪除後又被較晚完成的狀態保存寫回索引。
+- 刪除先原子更新索引，再移除 books/<book-sha256>；目錄移除失敗時嘗試恢復原索引並回報失敗。
 - 新書導入時先建立內容雜湊目錄並複製 EPUB；後續步驟失敗時移除該書目錄。
 - 測試環境使用系統暫存目錄下、包含 process id 的隔離書庫。
 
@@ -207,19 +220,20 @@ related_implements:
 - EPUB 原始 XHTML 不可直接注入 renderer；章節輸出必須維持 allowlist 與外部資源封鎖。
 - 閱讀位置使用 0–1 相對值並限制於有效範圍；不存在的書籍或章節不得改寫狀態。
 - 快速連續的閱讀狀態寫入必須串行，最後一筆操作為最終狀態。
+- 刪除請求只接受索引中存在的 bookId；renderer 不得提供檔案路徑，刪除失敗時不得先從畫面移除書籍。
 
 ## 11. Testing Notes
 
 | Test file | Coverage |
 |---|---|
-| apps/desktop/src/main/library-service.test.ts | EPUB 導入、章節安全內容與圖片、閱讀狀態持久化、不存在章節與錯誤回滾 |
-| apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、章節與閱讀狀態 handler，以及取消導入 |
-| apps/desktop/src/renderer/App.test.tsx | 側欄書籍直接切換與內容精簡、書籍總覽、章節本文、章節切換、返回總覽、每本書畫面與閱讀位置恢復 |
-| apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge、章節／狀態 API、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
+| apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、章節安全內容與圖片、閱讀狀態持久化、不存在書籍／章節與錯誤回滾 |
+| apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、刪除、章節與閱讀狀態 handler，以及取消導入與刪除輸入驗證 |
+| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除確認／取消／成功／失敗與相鄰選取、空書庫、章節閱讀及閱讀位置恢復 |
+| apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge（含刪除 API）、章節／狀態 API、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
 
 最近驗證（2026-07-21）：
 
-- Desktop Vitest：17/17 passed。
+- Desktop Vitest：27/27 passed。
 - Electron Playwright：2/2 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
@@ -228,7 +242,7 @@ related_implements:
 
 - 章節閱讀只保留常見安全 HTML 與點陣圖片，尚未支援 EPUB 自訂 CSS／字型、SVG、影音、MathML 與複雜互動內容。
 - 相對閱讀位置可容忍版面重排，但字型或視窗變動很大時只能恢復到接近原段落，無法保證像素完全一致。
-- 尚未提供刪除、重新命名、排序、重新導入或匯出書籍的操作。
+- 尚未提供重新命名、排序、重新導入或匯出書籍的操作。
 - index.json 沒有 schema version、資料 migration、結構驗證或損壞修復流程。
 - 書庫沒有跨 process 寫入鎖；目前假設只有單一 Electron main process 操作。
 - Base64 封面直接保存在 index.json 並經 IPC 傳遞；大量或高解析度封面可能使索引與 IPC payload 過大。
@@ -243,5 +257,6 @@ related_implements:
 - documents/implements/F01-epub-book-library.md
 - documents/implements/F02-chapter-reading-resume.md
 - documents/implements/F03-simplify-sidebar-navigation.md
+- documents/implements/F04-delete-library-book.md
 
 更新本模組行為、資料格式、IPC、儲存路徑或 EPUB 解析規則時，必須同步更新本文件與相關 FXX／RXX／BXX 實作紀錄。

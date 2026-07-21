@@ -36,7 +36,8 @@ describe("library IPC", () => {
         title: "Chapter",
         contentHtml: "<p>Readable</p>"
       }),
-      saveReadingState: vi.fn().mockResolvedValue(book)
+      saveReadingState: vi.fn().mockResolvedValue(book),
+      deleteBook: vi.fn().mockResolvedValue(undefined)
     };
 
     registerLibraryIpc(ipc, dialog, library);
@@ -68,6 +69,10 @@ describe("library IPC", () => {
       chapterId: "chapter-id",
       scrollProgress: 0.4
     });
+    await expect(
+      handlers.get("library:delete")?.({}, book.id)
+    ).resolves.toBeUndefined();
+    expect(library.deleteBook).toHaveBeenCalledWith(book.id);
   });
 
   it("returns a cancellation without touching the library", async () => {
@@ -84,7 +89,8 @@ describe("library IPC", () => {
       listBooks: vi.fn(),
       importFromPath: vi.fn(),
       getChapterContent: vi.fn(),
-      saveReadingState: vi.fn()
+      saveReadingState: vi.fn(),
+      deleteBook: vi.fn()
     };
 
     registerLibraryIpc(ipc, dialog, library);
@@ -93,5 +99,31 @@ describe("library IPC", () => {
       status: "cancelled"
     });
     expect(library.importFromPath).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid delete request without touching the library", async () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const ipc = {
+      handle(channel: string, handler: (...args: unknown[]) => unknown) {
+        handlers.set(channel, handler);
+      }
+    };
+    const library = {
+      listBooks: vi.fn(),
+      importFromPath: vi.fn(),
+      getChapterContent: vi.fn(),
+      saveReadingState: vi.fn(),
+      deleteBook: vi.fn()
+    };
+    const dialog = { showOpenDialog: vi.fn() };
+    registerLibraryIpc(ipc, dialog, library);
+
+    expect(() => handlers.get("library:delete")?.({}, "")).toThrow(
+      /書籍刪除請求格式錯誤/
+    );
+    expect(() => handlers.get("library:delete")?.({}, 42)).toThrow(
+      /書籍刪除請求格式錯誤/
+    );
+    expect(library.deleteBook).not.toHaveBeenCalled();
   });
 });

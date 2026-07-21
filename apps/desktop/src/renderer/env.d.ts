@@ -13,6 +13,7 @@ interface ReaderDesktopApi {
       | { status: "cancelled" }
       | { status: "imported" | "existing"; book: DesktopLibraryBook }
     >;
+    deleteBook(bookId: string): Promise<void>;
     getChapterContent(bookId: string, chapterId: string): Promise<{
       bookId: string;
       chapterId: string;

@@ -382,6 +382,96 @@ button {
   opacity: 0.5;
 }
 
+.delete-book-button {
+  margin-left: 10px;
+  padding: 10px 14px;
+  border: 1px solid #c98d78;
+  border-radius: 10px;
+  color: #8b3f2d;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.delete-book-button:hover:not(:disabled) {
+  background: #f8e9e1;
+}
+
+.delete-book-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(30 35 30 / 52%);
+  backdrop-filter: blur(3px);
+}
+
+.delete-dialog {
+  width: min(420px, 100%);
+  padding: 28px;
+  border: 1px solid #d9b4a5;
+  border-radius: 18px;
+  color: #362f2b;
+  background: #fffdf8;
+  box-shadow: 0 24px 70px rgb(31 28 24 / 28%);
+}
+
+.delete-dialog-icon {
+  width: 38px;
+  height: 38px;
+  margin-bottom: 16px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #a64e37;
+  font-weight: 900;
+}
+
+.delete-dialog h2 {
+  margin-bottom: 10px;
+  font-size: 26px;
+}
+
+.delete-dialog p {
+  margin-bottom: 24px;
+  color: #6d5d54;
+  line-height: 1.65;
+}
+
+.delete-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.delete-dialog-actions button {
+  padding: 10px 15px;
+  border: 1px solid #c9c2b3;
+  border-radius: 9px;
+  background: #faf8f2;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.delete-dialog-actions .danger-action {
+  border-color: #9a432f;
+  color: #fff;
+  background: #9a432f;
+}
+
+.delete-dialog-actions button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .chapter-list {
   margin-top: 34px;
 }

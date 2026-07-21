@@ -31,6 +31,7 @@ const books: LibraryBook[] = [
 
 function installLibraryApi(storedBooks: LibraryBook[] = books) {
   const importBook = vi.fn();
+  const deleteBook = vi.fn().mockResolvedValue(undefined);
   const getChapterContent = vi.fn((bookId: string, chapterId: string) =>
     Promise.resolve({
       bookId,
@@ -59,12 +60,13 @@ function installLibraryApi(storedBooks: LibraryBook[] = books) {
       library: {
         listBooks: vi.fn().mockResolvedValue(storedBooks),
         importBook,
+        deleteBook,
         getChapterContent,
         saveReadingState
       }
     }
   });
-  return { importBook, getChapterContent, saveReadingState };
+  return { importBook, deleteBook, getChapterContent, saveReadingState };
 }
 
 afterEach(() => {
@@ -169,6 +171,85 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "Newly Imported" })
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Newly Imported/ }))
+      .toBeInTheDocument();
+  });
+
+  it("asks for confirmation and cancels without deleting the book", async () => {
+    const { deleteBook } = installLibraryApi();
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+
+    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
+
+    const dialog = screen.getByRole("dialog", { name: "刪除書籍？" });
+    expect(dialog).toHaveTextContent("The First Book");
+    expect(dialog).toHaveTextContent("無法復原");
+    expect(deleteBook).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "The First Book" }))
+      .toBeInTheDocument();
+    expect(deleteBook).not.toHaveBeenCalled();
+  });
+
+  it("deletes the selected book and selects the next book", async () => {
+    const { deleteBook } = installLibraryApi();
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+
+    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
+    fireEvent.click(screen.getByRole("button", { name: "永久刪除" }));
+
+    await waitFor(() => expect(deleteBook).toHaveBeenCalledWith("book-one"));
+    expect(await screen.findByRole("heading", { name: "The Second Book" }))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /The First Book/ }))
+      .not.toBeInTheDocument();
+  });
+
+  it("selects the previous book when deleting the last book", async () => {
+    installLibraryApi();
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /The Second Book/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
+    fireEvent.click(screen.getByRole("button", { name: "永久刪除" }));
+
+    expect(await screen.findByRole("heading", { name: "The First Book" }))
+      .toBeInTheDocument();
+  });
+
+  it("shows the empty library after deleting its only book", async () => {
+    installLibraryApi([books[0]]);
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+
+    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
+    fireEvent.click(screen.getByRole("button", { name: "永久刪除" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "導入 EPUB 開始閱讀" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("尚未導入書籍")).toBeInTheDocument();
+  });
+
+  it("keeps the book visible and reports an error when deletion fails", async () => {
+    const { deleteBook } = installLibraryApi();
+    deleteBook.mockRejectedValue(new Error("disk busy"));
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+
+    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
+    fireEvent.click(screen.getByRole("button", { name: "永久刪除" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "無法刪除這本書籍"
+    );
+    expect(screen.getByRole("heading", { name: "The First Book" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /The First Book/ }))
       .toBeInTheDocument();
   });
 

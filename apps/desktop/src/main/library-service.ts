@@ -483,6 +483,24 @@ export class LocalBookLibrary {
     return { status: "imported", book };
   }
 
+  async deleteBook(bookId: string): Promise<void> {
+    const operation = this.#stateWriteQueue.then(async () => {
+      const books = await this.listBooks();
+      const book = books.find((candidate) => candidate.id === bookId);
+      if (!book) throw new Error("找不到書籍");
+
+      await this.#saveBooks(books.filter((candidate) => candidate.id !== bookId));
+      try {
+        await rm(join(this.#booksPath, book.id), { recursive: true, force: true });
+      } catch (error) {
+        await this.#saveBooks(books);
+        throw error;
+      }
+    });
+    this.#stateWriteQueue = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
   async getChapterContent(
     bookId: string,
     requestedChapterId: string
