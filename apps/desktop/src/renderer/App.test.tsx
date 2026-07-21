@@ -1832,7 +1832,7 @@ describe("App", () => {
     await ask("Follow-up");
     expect(sendMessage).toHaveBeenNthCalledWith(2, { text: "Follow-up" });
 
-    fireEvent.click(screen.getByRole("button", { name: "講解標記內容" }));
+    fireEvent.click(screen.getByRole("button", { name: "解釋標記" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(3));
     expect(sendMessage).toHaveBeenNthCalledWith(3, {
       text: "講解標記內容",
@@ -1924,7 +1924,7 @@ describe("App", () => {
       'mark[data-annotation-id="a1"]'
     )).toHaveTextContent("reluctant"));
 
-    fireEvent.click(screen.getByRole("button", { name: "講解標記內容" }));
+    fireEvent.click(screen.getByRole("button", { name: "解釋標記" }));
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
       text: "講解標記內容",
@@ -1966,7 +1966,7 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByRole("button", {
       name: "閱讀區段終點"
     })).toHaveAttribute("data-text-offset", String(chapterText.length)));
-    const preset = await screen.findByRole("button", { name: "講解標記內容" });
+    const preset = await screen.findByRole("button", { name: "解釋標記" });
 
     expect(preset).toBeEnabled();
     fireEvent.click(preset);

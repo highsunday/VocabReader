@@ -1626,27 +1626,6 @@ h1 {
   opacity: 0.48;
 }
 
-.annotation-analysis-preset {
-  margin: 10px 14px 0;
-  padding: 10px 12px;
-  border: 1px solid #b9c8bb;
-  border-radius: 10px;
-  color: #294633;
-  background: #edf4eb;
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.annotation-analysis-preset:hover:not(:disabled) {
-  border-color: #819b85;
-  background: #e3eee1;
-}
-
-.annotation-analysis-preset:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
 .assistant-heading {
   height: var(--panel-heading-height);
   padding: 0 16px 0 22px;
@@ -1999,8 +1978,59 @@ h1 {
   accent-color: #365e47;
 }
 
+.chat-preset-bar {
+  min-height: 34px;
+  margin: 8px 14px 0;
+  display: flex;
+  align-items: center;
+}
+
+.annotation-analysis-preset {
+  min-height: 32px;
+  padding: 5px 11px 5px 9px;
+  border: 1px solid #d5d8d1;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #3f4d43;
+  background: #fffefa;
+  box-shadow: 0 1px 2px rgb(46 49 41 / 4%);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.annotation-analysis-preset svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.25;
+}
+
+.annotation-analysis-preset:hover:not(:disabled) {
+  border-color: #aebcaf;
+  color: #294633;
+  background: #edf4eb;
+}
+
+.annotation-analysis-preset:focus-visible {
+  outline: 2px solid #477057;
+  outline-offset: 2px;
+}
+
+.annotation-analysis-preset:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .chat-form {
-  margin: 12px 14px 0;
+  margin: 6px 14px 0;
   padding: 14px 12px 10px 16px;
   border: 1px solid #d9d4ca;
   border-radius: 18px;

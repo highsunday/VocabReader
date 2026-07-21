@@ -1611,19 +1611,6 @@ export function App() {
                 </button>
               </div>
 
-              {mode === "reader" ? (
-                <button
-                  className="annotation-analysis-preset"
-                  type="button"
-                  onClick={() => void explainAnnotations()}
-                  disabled={chatSnapshot.connection !== "ready" ||
-                    Boolean(chatSnapshot.activeTurnId) ||
-                    chatSnapshot.managementBusy || isConversationActionPending}
-                >
-                  講解標記內容
-                </button>
-              ) : null}
-
               {chatView === "history" ? (
                 <section className="conversation-history" aria-labelledby="conversation-history-title">
                   <div className="conversation-history-heading">
@@ -1704,6 +1691,25 @@ export function App() {
                       </div>
                     ) : null}
                   </div>
+
+                  {mode === "reader" ? (
+                    <div className="chat-preset-bar" aria-label="提問快捷功能">
+                      <button
+                        className="annotation-analysis-preset"
+                        type="button"
+                        onClick={() => void explainAnnotations()}
+                        disabled={chatSnapshot.connection !== "ready" ||
+                          Boolean(chatSnapshot.activeTurnId) ||
+                          chatSnapshot.managementBusy || isConversationActionPending}
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 18 18">
+                          <path d="M9 2.25l1.15 3.6L13.75 7l-3.6 1.15L9 11.75 7.85 8.15 4.25 7l3.6-1.15L9 2.25Z" />
+                          <path d="M14.25 11.25l.55 1.7 1.7.55-1.7.55-.55 1.7-.55-1.7-1.7-.55 1.7-.55.55-1.7Z" />
+                        </svg>
+                        <span>解釋標記</span>
+                      </button>
+                    </div>
+                  ) : null}
 
                   <form className="chat-form" onSubmit={sendMessage}>
                     <label className="visually-hidden" htmlFor="chat-input">
