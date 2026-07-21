@@ -4,7 +4,7 @@ date: 2026-07-22
 title: 依 P01 建立 AI 學習項目與生詞庫
 uuid: ec8c9d89f8074d309825154d9bb108ef
 version: 1.0
-status: completed
+status: in_progress
 source_plan: documents/planning/P01-ai-learning-items-and-learning-library.md
 batch_limit: 4
 mode: sequential
@@ -212,18 +212,18 @@ archive_refs: []
 id: Q01-02
 type: FXX
 agent: codex
-status: in_progress
+status: completed
 clarification_status: clarified
 depends_on: [Q01-01]
 unlock_condition: Q01-01 completed with a commit, and renderer regression tests plus production build pass
 auto_approve: true
 commit_required: true
 implemented_doc: documents/implements/F19-local-learning-library.md
-commit: pending-orchestrator
+commit: ab7b12e
 worker_session: codex 2026-07-22 01:07 CST
 worker_log: F19 auto-approved; RED confirmed missing repository and hard-coded Anki placeholder. GREEN: focused 75 tests, desktop 138 tests, full project 141 tests, typecheck and production build passed. SQLite migration, typed IPC, fallback, edit/archive and deleted-book snapshots are complete; no Q01-03 work started.
-handoff_summary: Q01-02 completed pending commit hash. F19 implements `node:sqlite` under userData with migration 1; sources retain snapshots after book deletion and expose availability. Renderer renamed Anki placeholder to 生詞庫 and supports real zero/list/detail/edit/archive plus annotation fallback. Full project test/typecheck/build green. Q01-03 can start only in a fresh worker after this commit is verified.
-communication_entries: [L002, L005, L006, L007, L023, L024, L025, L026, L027, L028, L029, L030]
+handoff_summary: Q01-02 completed at ab7b12e. F19 implements `node:sqlite` under userData with migration 1; sources retain snapshots after book deletion and expose availability. Renderer renamed Anki placeholder to 生詞庫 and supports real zero/list/detail/edit/archive plus annotation fallback. Full project test/typecheck/build green. Q01-03 is unlocked for a fresh worker.
+communication_entries: [L002, L005, L006, L007, L023, L024, L025, L026, L027, L028, L029, L030, L031]
 archive_refs: []
 
 ### Requirements
@@ -273,8 +273,8 @@ archive_refs: []
 
 id: Q01-03
 type: FXX
-agent: auto
-status: pending
+agent: codex
+status: in_progress
 clarification_status: clarified
 depends_on: [Q01-02]
 unlock_condition: Q01-02 completed with a commit, and a persisted source-linked learning item can be created and listed
@@ -282,10 +282,10 @@ auto_approve: true
 commit_required: true
 implemented_doc: —
 commit: —
-worker_session: —
-worker_log: —
+worker_session: codex 2026-07-22 01:22 CST
+worker_log: Dispatched after Q01-02 commit ab7b12e and unlock verification: persisted source-linked learning items, full project 141 tests, typecheck and production build passed.
 handoff_summary: —
-communication_entries: [L003, L005, L006, L007]
+communication_entries: [L003, L005, L006, L007, L032]
 archive_refs: []
 
 ### Requirements
@@ -430,6 +430,8 @@ archive_refs: []
 | L028 | 2026-07-22 01:20 | Q01-02 | codex -> queue | tdd-green | SQLite, IPC and renderer implementation passed focused and full verification | — |
 | L029 | 2026-07-22 01:20 | Q01-02 | codex -> queue | handoff | F19, P01 and module docs updated; ready for scoped item commit | — |
 | L030 | 2026-07-22 01:20 | Q01-02 | codex -> queue | completed | Q01-02 complete pending orchestrator commit-hash substitution; notification suppressed | — |
+| L031 | 2026-07-22 01:22 | Q01-02 | orchestrator -> queue | acceptance | Verified item commit ab7b12e and Q01-03 unlock evidence | — |
+| L032 | 2026-07-22 01:22 | Q01-03 | orchestrator -> codex | dispatch | Dispatch Q01-03 through ddd-start, ddd-doc and ddd-tdd | — |
 
 ### Active Entries
 
@@ -661,6 +663,39 @@ verified.
 Q01-02 is complete and ready for scoped commit verification. Per-item ddd-tdd completion
 notification is suppressed by Q01; no email was sent because the queue has no configured
 sender or recipient. Q01-03 was not started.
+
+#### L031 — 2026-07-22 01:22 — Q01-02 — orchestrator -> queue — acceptance
+
+**Message**
+Verified scoped item commit `ab7b12e` (`feat: complete Q01-02 local learning library`)
+with a clean worktree. The recorded GREEN evidence is 6 focused files / 75 tests,
+15 desktop files / 138 tests, 141 full-project tests, typecheck and production build.
+The implementation can create, persist and list a source-linked learning item, so the
+declared Q01-03 unlock condition is satisfied.
+
+**Follow-up**
+- Start Q01-03 in a fresh worker session.
+
+#### L032 — 2026-07-22 01:22 — Q01-03 — orchestrator -> codex — dispatch
+
+**Message**
+Handle only Q01-03. Execute `ddd-start → ddd-doc → ddd-tdd`, create one FXX document,
+record strict RED/GREEN evidence, update P01 and Q01, and commit only Q01-03 artifacts.
+Build an independent background 「產生學習卡」 workflow that accepts only word/phrase
+annotations from a non-empty reading segment, uses the current explanation language,
+performs programmatic candidate lookup, validates structured AI output, and returns
+reviewable create/update/unchanged/create-distinct-sense proposals without writing the
+learning library. Suppress the per-item completion notification and do not start Q01-04.
+
+**Context**
+- Queue file: `documents/queue/Q01-ai-learning-items-and-learning-library.md`
+- Source plan: `documents/planning/P01-ai-learning-items-and-learning-library.md`
+- Depends on: Q01-02 at `ab7b12e`
+- Unlock evidence: persisted source-linked learning item plus full project verification
+
+**Expected Response**
+- Completed Q01-03 with FXX path, commit hash, tests, ledger entries and handoff; or a
+  blocked state with a concrete question.
 
 ## 6. Queue execution rules
 
