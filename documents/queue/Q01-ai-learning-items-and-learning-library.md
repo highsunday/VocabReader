@@ -137,8 +137,8 @@ reviewed_at: 2026-07-22 00:41 CST
 
 | Item | Name | Type | Agent | Depends On | Status | Related doc | Commit |
 |---|---|---|---|---|---|---|---|
-| Q01-01 | 拆分可擴充的桌面工作區邊界 | RXX | codex | — | completed | documents/implements/R01-desktop-workspace-boundaries.md | pending-orchestrator |
-| Q01-02 | 建立本機生詞庫與來源卡片基礎 | FXX | auto | Q01-01 | pending | — | — |
+| Q01-01 | 拆分可擴充的桌面工作區邊界 | RXX | codex | — | completed | documents/implements/R01-desktop-workspace-boundaries.md | 0701a3b |
+| Q01-02 | 建立本機生詞庫與來源卡片基礎 | FXX | codex | Q01-01 | in_progress | — | — |
 | Q01-03 | 產生結構化 AI 學習項目提案 | FXX | auto | Q01-02 | pending | — | — |
 | Q01-04 | 確認並安全套用新增／更新提案 | FXX | auto | Q01-03 | pending | — | — |
 
@@ -159,11 +159,11 @@ unlock_condition: none
 auto_approve: true
 commit_required: true
 implemented_doc: documents/implements/R01-desktop-workspace-boundaries.md
-commit: pending-orchestrator
+commit: 0701a3b
 worker_session: codex 2026-07-22 01:02 CST
 worker_log: R01 auto-approved; TC1 RED due to missing modules, then GREEN. Focused 61 tests, full desktop 129 tests, typecheck and production build passed. No IPC, data, CSS, visual or Codex protocol changes.
 handoff_summary: Q01-01 completed; four named Renderer workspace boundaries are composed by App. R01 records RED/GREEN evidence. Commit field is pending-orchestrator by circular-hash protocol; do not begin Q01-02 in this worker session.
-communication_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012, L013, L014, L015, L016, L017, L018, L019, L020, L021]
+communication_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012, L013, L014, L015, L016, L017, L018, L019, L020, L021, L022]
 archive_refs: []
 
 ### Requirements
@@ -196,12 +196,12 @@ archive_refs: []
 
 questions: []
 need_user_decision: []
-ledger_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012, L013, L014, L015, L016, L017, L018, L019, L020, L021]
+ledger_entries: [L001, L005, L006, L007, L008, L009, L010, L011, L012, L013, L014, L015, L016, L017, L018, L019, L020, L021, L022]
 archive_refs: []
 
 ### Agent Handoff Summary
 
-- Current state: completed; commit field is `pending-orchestrator` by circular-hash protocol
+- Current state: completed; actual item commit is `0701a3b`
 - Documents: `documents/implements/R01-desktop-workspace-boundaries.md`
 - Decisions: pure Renderer composition; `App` retains all state, bridge, persistence and protocol ownership
 - Tests: TC1 RED then GREEN; focused 61, full desktop 129, typecheck and production build passed
@@ -211,8 +211,8 @@ archive_refs: []
 
 id: Q01-02
 type: FXX
-agent: auto
-status: pending
+agent: codex
+status: in_progress
 clarification_status: clarified
 depends_on: [Q01-01]
 unlock_condition: Q01-01 completed with a commit, and renderer regression tests plus production build pass
@@ -220,10 +220,10 @@ auto_approve: true
 commit_required: true
 implemented_doc: —
 commit: —
-worker_session: —
-worker_log: —
+worker_session: codex 2026-07-22 01:07 CST
+worker_log: Dispatched after Q01-01 commit 0701a3b and unlock verification: full desktop 129 tests, typecheck and production build passed.
 handoff_summary: —
-communication_entries: [L002, L005, L006, L007]
+communication_entries: [L002, L005, L006, L007, L023]
 archive_refs: []
 
 ### Requirements
@@ -420,6 +420,8 @@ archive_refs: []
 | L019 | 2026-07-22 01:04 | Q01-01 | codex -> queue | tdd-green | Four boundaries composed; focused and full Renderer regressions, typecheck and build passed | — |
 | L020 | 2026-07-22 01:04 | Q01-01 | codex -> queue | handoff | Q01-01 ready for scoped commit; Q01-02 not started | — |
 | L021 | 2026-07-22 01:04 | Q01-01 | codex -> queue | completed | R01 updated and Q01-01 marked completed with pending-orchestrator commit field | — |
+| L022 | 2026-07-22 01:07 | Q01-01 | orchestrator -> queue | acceptance | Verified item commit 0701a3b and Q01-02 unlock evidence | — |
+| L023 | 2026-07-22 01:07 | Q01-02 | orchestrator -> codex | dispatch | Dispatch Q01-02 through ddd-start, ddd-doc and ddd-tdd | — |
 
 ### Active Entries
 
@@ -540,6 +542,32 @@ Q01-01 is ready for closeout. The implementation document is `documents/implemen
 
 **Message**
 R01 implementation record and P01 Phase 1 are updated. Q01-01 is marked completed with its approved handoff and `pending-orchestrator` commit field. Per-item ddd-tdd completion notification is suppressed by Q01; no email was sent and Q01-02 was not started.
+
+#### L022 — 2026-07-22 01:07 — Q01-01 — orchestrator -> queue — acceptance
+
+**Message**
+Orchestrator verified the scoped item commit `0701a3b` (`refactor: complete Q01-01 workspace boundaries`) and replaced the circular placeholder. The worktree was clean. Unlock evidence for Q01-02 is satisfied: Q01-01 is completed with R01, the full desktop suite passed 12 files / 129 tests, desktop typecheck passed, and the production build passed.
+
+**Follow-up**
+- Dispatch Q01-02 to a fresh worker session; do not reuse the Q01-01 worker.
+
+#### L023 — 2026-07-22 01:07 — Q01-02 — orchestrator -> codex — dispatch
+
+**Message**
+Handle only Q01-02. Execute `ddd-start → ddd-doc → ddd-tdd`, create one FXX document, record strict red／green evidence, implement the authorized local SQLite learning library and source-linked fallback workflow, update P01 and Q01, and create one scoped item commit. Suppress per-item completion notification.
+
+**Context**
+- Q01-01 dependency commit: `0701a3b`
+- Unlock condition: verified by 129 desktop tests, typecheck and production build
+- Intake: completed; Q01-02 clarified
+- Persistence: Electron `node:sqlite` under `userData`, narrow IPC only
+- Product boundary: 生詞庫 list/detail/edit/archive, source snapshot, same-source idempotency; no hard delete or spaced-review flow
+
+**Expected Response**
+- Completed item with FXX path, actual commit hash, migration/schema and test evidence, ledger entries and handoff; or blocked state with a concrete question
+
+**Follow-up**
+- Do not start Q01-03.
 
 ## 6. Queue execution rules
 
