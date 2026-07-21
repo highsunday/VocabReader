@@ -13,6 +13,8 @@ interface FakeCodexOptions {
   rateLimitsResult?: unknown;
   threadStartDelayMs?: number;
   turnDelayMs?: number;
+  resumeError?: string;
+  archiveError?: string;
 }
 
 export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
@@ -24,6 +26,7 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
   const requests: RecordedCodexRequest[] = [];
   const killSignals: (NodeJS.Signals | number | undefined)[] = [];
   let buffer = "";
+  let threadCount = 0;
   let turnCount = 0;
 
   Object.assign(events, {
@@ -59,10 +62,28 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
           rateLimitsByLimitId: { codex: allowanceSnapshot(24, 38) }
         });
       } else if (message.method === "thread/start") {
+        const threadId = `thread-${++threadCount}`;
         setTimeout(() => {
-          respond(message.id as number, { thread: { id: "thread-1" } });
+          respond(message.id as number, { thread: { id: threadId } });
         }, options.threadStartDelayMs ?? 0);
+      } else if (message.method === "thread/resume") {
+        if (options.resumeError) {
+          respondError(message.id, options.resumeError);
+        } else {
+          respond(message.id, {
+            thread: { id: String(message.params?.threadId ?? "") }
+          });
+        }
+      } else if (message.method === "thread/archive") {
+        if (options.archiveError) {
+          respondError(message.id, options.archiveError);
+        } else {
+          respond(message.id, {});
+        }
+      } else if (message.method === "thread/unarchive") {
+        respond(message.id, {});
       } else if (message.method === "turn/start") {
+        const threadId = String(message.params?.threadId ?? "");
         const turnId = `turn-${++turnCount}`;
         const input = Array.isArray(message.params?.input)
           ? message.params.input[0]
@@ -76,28 +97,28 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
         respond(message.id, { turn: { id: turnId } });
         setTimeout(() => {
           notify("turn/started", {
-            threadId: "thread-1",
+            threadId,
             turn: { id: turnId }
           });
           notify("item/agentMessage/delta", {
-            threadId: "thread-1",
+            threadId,
             turnId,
             itemId,
             delta: answer.slice(0, 12)
           });
           notify("item/agentMessage/delta", {
-            threadId: "thread-1",
+            threadId,
             turnId,
             itemId,
             delta: answer.slice(12)
           });
           notify("item/completed", {
-            threadId: "thread-1",
+            threadId,
             turnId,
             item: { type: "agentMessage", id: itemId, text: answer }
           });
           notify("turn/completed", {
-            threadId: "thread-1",
+            threadId,
             turn: { id: turnId, status: "completed", error: null }
           });
         }, options.turnDelayMs ?? 0);
@@ -107,6 +128,13 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
 
   function respond(id: number, result: unknown) {
     stdout.write(`${JSON.stringify({ id, result })}\n`);
+  }
+
+  function respondError(id: number, message: string) {
+    stdout.write(`${JSON.stringify({
+      id,
+      error: { code: -32_000, message }
+    })}\n`);
   }
 
   function notify(method: string, params: unknown) {

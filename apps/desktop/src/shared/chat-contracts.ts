@@ -41,6 +41,14 @@ export interface SendChatMessageInput {
   context?: ChatContext;
 }
 
+export interface ChatConversationSummary {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  source: Pick<ChatContext, "bookTitle" | "chapterTitle"> | null;
+}
+
 export interface ChatSnapshot {
   connection: ConnectionPhase;
   connectionDetail: string;
@@ -49,11 +57,18 @@ export interface ChatSnapshot {
   activeTurnId: string | null;
   allowance: AiUsageAllowance;
   messages: ChatMessage[];
+  conversations: ChatConversationSummary[];
+  activeConversationId: string | null;
+  managementBusy: boolean;
+  conversationError?: string | null;
 }
 
 export interface ChatDesktopApi {
   getState(): Promise<ChatSnapshot>;
   connect(): Promise<ChatSnapshot>;
   sendMessage(input: SendChatMessageInput): Promise<ChatSnapshot>;
+  startNewConversation(): Promise<ChatSnapshot>;
+  selectConversation(conversationId: string): Promise<ChatSnapshot>;
+  removeConversation(conversationId: string): Promise<ChatSnapshot>;
   onStateChanged(listener: (snapshot: ChatSnapshot) => void): () => void;
 }

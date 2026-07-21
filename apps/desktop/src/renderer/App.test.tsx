@@ -32,7 +32,7 @@ const books: LibraryBook[] = [
 
 function installLibraryApi(
   storedBooks: LibraryBook[] = books,
-  chat?: ChatDesktopApi
+  chat?: Partial<ChatDesktopApi>
 ) {
   const importBook = vi.fn();
   const deleteBook = vi.fn().mockResolvedValue(undefined);
@@ -115,7 +115,10 @@ describe("App", () => {
       },
       messages: [],
       threadId: null,
-      activeTurnId: null
+      activeTurnId: null,
+      conversations: [],
+      activeConversationId: null,
+      managementBusy: false
     };
     const sendMessage = vi.fn().mockResolvedValue(snapshot);
     Object.defineProperty(window, "readerDesktop", {
@@ -186,7 +189,10 @@ describe("App", () => {
       },
       messages: [],
       threadId: null,
-      activeTurnId: null
+      activeTurnId: null,
+      conversations: [],
+      activeConversationId: null,
+      managementBusy: false
     };
     const sendMessage = vi.fn().mockResolvedValue(snapshot);
     installLibraryApi([rangedBook], {
@@ -234,7 +240,10 @@ describe("App", () => {
       },
       messages: [],
       threadId: "thread-1",
-      activeTurnId: null
+      activeTurnId: null,
+      conversations: [],
+      activeConversationId: null,
+      managementBusy: false
     };
     const sendMessage = vi.fn().mockResolvedValue(snapshot);
     installLibraryApi([rangedBook], {
@@ -320,7 +329,10 @@ describe("App", () => {
       },
       messages: [],
       threadId: "thread-1",
-      activeTurnId: null
+      activeTurnId: null,
+      conversations: [],
+      activeConversationId: null,
+      managementBusy: false
     };
     const sendMessage = vi.fn().mockResolvedValue(snapshot);
     installLibraryApi([rangedBook], {
@@ -375,7 +387,10 @@ describe("App", () => {
       },
       messages: [],
       threadId: "thread-1",
-      activeTurnId: null
+      activeTurnId: null,
+      conversations: [],
+      activeConversationId: null,
+      managementBusy: false
     };
     const sendMessage = vi.fn()
       .mockRejectedValueOnce(new Error("bridge unavailable"))
@@ -456,7 +471,10 @@ describe("App", () => {
       },
       messages: [],
       threadId: null,
-      activeTurnId: null
+      activeTurnId: null,
+      conversations: [],
+      activeConversationId: null,
+      managementBusy: false
     };
     const answered = {
       ...ready,
@@ -492,6 +510,84 @@ describe("App", () => {
 
     expect(await screen.findByText("這句話的文法是什麼？"))
       .toBeInTheDocument();
+  });
+
+  it("manages the global conversation list from the AI conversation panel", async () => {
+    const snapshot: ChatSnapshot = {
+      connection: "ready",
+      connectionDetail: "Codex 已連線。",
+      account: { type: "plus" },
+      allowance: {
+        phase: "unavailable",
+        fiveHour: null,
+        weekly: null,
+        detail: "無法取得"
+      },
+      messages: [{
+        id: "user-latest",
+        turnId: "turn-latest",
+        role: "user",
+        text: "Latest question",
+        status: "completed"
+      }],
+      threadId: "thread-latest",
+      activeTurnId: null,
+      conversations: [{
+        id: "latest",
+        title: "Latest question",
+        createdAt: 200,
+        updatedAt: 300,
+        source: { bookTitle: "The First Book", chapterTitle: "Opening" }
+      }, {
+        id: "older",
+        title: "Older question",
+        createdAt: 100,
+        updatedAt: 150,
+        source: null
+      }],
+      activeConversationId: "latest",
+      managementBusy: false
+    };
+    const startNewConversation = vi.fn().mockResolvedValue({
+      ...snapshot,
+      messages: [],
+      threadId: null,
+      activeConversationId: null
+    });
+    const selectConversation = vi.fn().mockResolvedValue(snapshot);
+    const removeConversation = vi.fn().mockResolvedValue(snapshot);
+    installLibraryApi(books, {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage: vi.fn().mockResolvedValue(snapshot),
+      startNewConversation,
+      selectConversation,
+      removeConversation,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+
+    render(<App />);
+    await screen.findByText("Latest question", { selector: ".message-content p" });
+
+    fireEvent.click(screen.getByRole("button", { name: "對話紀錄" }));
+    expect(screen.getByRole("heading", { name: "所有 AI 對話" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("The First Book · Opening")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "開啟 Older question" }));
+    await waitFor(() => expect(selectConversation).toHaveBeenCalledWith("older"));
+
+    fireEvent.click(screen.getByRole("button", { name: "對話紀錄" }));
+    fireEvent.click(screen.getByRole("button", { name: "移除 Older question" }));
+    expect(screen.getByRole("dialog", { name: "移除 AI 對話？" }))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "取消移除" }));
+    expect(removeConversation).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "移除 Older question" }));
+    fireEvent.click(screen.getByRole("button", { name: "確認移除" }));
+    await waitFor(() => expect(removeConversation).toHaveBeenCalledWith("older"));
+
+    fireEvent.click(screen.getByRole("button", { name: "新對話" }));
+    await waitFor(() => expect(startNewConversation).toHaveBeenCalledOnce());
   });
 
   it("renders compact role-aware messages with safe GitHub Flavored Markdown", async () => {
@@ -541,7 +637,10 @@ describe("App", () => {
         }
       ],
       threadId: "thread-1",
-      activeTurnId: null
+      activeTurnId: null,
+      conversations: [],
+      activeConversationId: null,
+      managementBusy: false
     };
     installLibraryApi([], {
       getState: vi.fn().mockResolvedValue(snapshot),
@@ -596,7 +695,10 @@ describe("App", () => {
         status: "streaming"
       }],
       threadId: "thread-1",
-      activeTurnId: "turn-1"
+      activeTurnId: "turn-1",
+      conversations: [],
+      activeConversationId: null,
+      managementBusy: false
     };
     installLibraryApi([], {
       getState: vi.fn().mockResolvedValue(snapshot),
@@ -608,6 +710,8 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByLabelText("AI 回覆")).toHaveTextContent("…");
+    expect(screen.getByRole("button", { name: "新對話" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "對話紀錄" })).toBeDisabled();
   });
 
   it("collapses and expands the left and right sidebars independently", () => {

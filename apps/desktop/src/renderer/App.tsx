@@ -12,6 +12,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type {
   ChatDesktopApi,
+  ChatConversationSummary,
   ChatSnapshot,
   ConnectionPhase,
   SendChatMessageInput
@@ -45,7 +46,11 @@ const initialChatSnapshot: ChatSnapshot = {
   },
   messages: [],
   threadId: null,
-  activeTurnId: null
+  activeTurnId: null,
+  conversations: [],
+  activeConversationId: null,
+  managementBusy: false,
+  conversationError: null
 };
 
 function desktopBridge(): {
@@ -150,6 +155,13 @@ export function App() {
   const [draft, setDraft] = useState("");
   const [chatSnapshot, setChatSnapshot] = useState(initialChatSnapshot);
   const [chatError, setChatError] = useState("");
+  const [chatView, setChatView] = useState<"conversation" | "history">(
+    "conversation"
+  );
+  const [conversationPendingRemoval, setConversationPendingRemoval] =
+    useState<ChatConversationSummary>();
+  const [isConversationActionPending, setIsConversationActionPending] =
+    useState(false);
   const contentRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
@@ -670,7 +682,7 @@ export function App() {
     const text = draft.trim();
     const chat = desktopChat();
     if (!text || !chat || chatSnapshot.connection !== "ready" ||
-      chatSnapshot.activeTurnId) return;
+      chatSnapshot.activeTurnId || chatSnapshot.managementBusy) return;
 
     const segment = mode === "reader" && readingRange && articleRef.current
       ? extractReadingSegment(articleRef.current.textContent ?? "", readingRange)
@@ -715,6 +727,64 @@ export function App() {
       setChatSnapshot(snapshot);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "無法送出訊息。");
+    }
+  }
+
+  async function startNewConversation() {
+    const chat = desktopChat();
+    if (!chat || chatSnapshot.activeTurnId || chatSnapshot.managementBusy ||
+      isConversationActionPending) return;
+    setIsConversationActionPending(true);
+    setChatError("");
+    try {
+      setChatSnapshot(await chat.startNewConversation());
+      setDraft("");
+      setChatView("conversation");
+      lastProvidedReadingSegmentRef.current = undefined;
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "無法建立新對話。");
+    } finally {
+      setIsConversationActionPending(false);
+    }
+  }
+
+  async function selectConversation(conversationId: string) {
+    const chat = desktopChat();
+    if (!chat || chatSnapshot.activeTurnId || chatSnapshot.managementBusy ||
+      isConversationActionPending) return;
+    setIsConversationActionPending(true);
+    setChatError("");
+    try {
+      setChatSnapshot(await chat.selectConversation(conversationId));
+      setDraft("");
+      setChatView("conversation");
+      lastProvidedReadingSegmentRef.current = undefined;
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "無法開啟 AI 對話。");
+    } finally {
+      setIsConversationActionPending(false);
+    }
+  }
+
+  async function removeConversation() {
+    const target = conversationPendingRemoval;
+    const chat = desktopChat();
+    if (!target || !chat || chatSnapshot.activeTurnId ||
+      chatSnapshot.managementBusy || isConversationActionPending) return;
+    setIsConversationActionPending(true);
+    setChatError("");
+    try {
+      setChatSnapshot(await chat.removeConversation(target.id));
+      setConversationPendingRemoval(undefined);
+      if (target.id === chatSnapshot.activeConversationId) {
+        setChatView("conversation");
+        setDraft("");
+        lastProvidedReadingSegmentRef.current = undefined;
+      }
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "無法移除 AI 對話。");
+    } finally {
+      setIsConversationActionPending(false);
     }
   }
 
@@ -1172,56 +1242,141 @@ export function App() {
 
           {!isRightSidebarCollapsed ? (
             <div className="assistant-content" id="right-sidebar-content">
-              <div className="messages" aria-live="polite">
-                {chatSnapshot.messages.length === 0 ? (
-                  <div className="chat-empty-state">
-                    <strong>從目前閱讀內容開始提問</strong>
-                    <p>Codex 只會收到你明確選取的閱讀區段。</p>
-                  </div>
-                ) : null}
-                {chatSnapshot.messages.map((message) => (
-                  <article
-                    aria-label={message.role === "assistant" ? "AI 回覆" : "使用者訊息"}
-                    className={"message " + message.role}
-                    key={message.id}
-                  >
-                    <ChatMessageContent text={message.text} />
-                  </article>
-                ))}
+              <div className="chat-management-bar">
+                <button
+                  type="button"
+                  aria-label="新對話"
+                  onClick={() => void startNewConversation()}
+                  disabled={Boolean(chatSnapshot.activeTurnId) ||
+                    chatSnapshot.managementBusy || isConversationActionPending}
+                >
+                  ＋ 新對話
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={chatView === "history"}
+                  onClick={() => setChatView((current) =>
+                    current === "history" ? "conversation" : "history")}
+                  disabled={Boolean(chatSnapshot.activeTurnId) ||
+                    chatSnapshot.managementBusy || isConversationActionPending}
+                >
+                  對話紀錄
+                </button>
               </div>
 
-              <form className="chat-form" onSubmit={sendMessage}>
-                <label htmlFor="chat-input">詢問目前內容</label>
-                <textarea
-                  id="chat-input"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      event.currentTarget.form?.requestSubmit();
-                    }
-                  }}
-                  placeholder="例如：這句為什麼使用過去完成式？"
-                  rows={3}
-                  disabled={chatSnapshot.connection !== "ready" ||
-                    Boolean(chatSnapshot.activeTurnId)}
-                />
-                <div>
-                  <small>
-                    {chatError || (chatSnapshot.activeTurnId
-                      ? "Codex 正在回覆…"
-                      : chatSnapshot.connectionDetail)}
-                  </small>
-                  <button
-                    type="submit"
-                    disabled={chatSnapshot.connection !== "ready" ||
-                      Boolean(chatSnapshot.activeTurnId) || !draft.trim()}
-                  >
-                    送出
-                  </button>
-                </div>
-              </form>
+              {chatView === "history" ? (
+                <section className="conversation-history" aria-labelledby="conversation-history-title">
+                  <div className="conversation-history-heading">
+                    <div>
+                      <span className="eyebrow">Conversation history</span>
+                      <h2 id="conversation-history-title">所有 AI 對話</h2>
+                    </div>
+                    <span>{chatSnapshot.conversations.length} 筆</span>
+                  </div>
+                  {chatSnapshot.conversations.length === 0 ? (
+                    <div className="chat-empty-state">
+                      <strong>還沒有對話紀錄</strong>
+                      <p>送出第一個問題後，對話會自動保存在這裡。</p>
+                    </div>
+                  ) : (
+                    <div className="conversation-list">
+                      {chatSnapshot.conversations.map((conversation) => {
+                        const source = [
+                          conversation.source?.bookTitle,
+                          conversation.source?.chapterTitle
+                        ].filter(Boolean).join(" · ");
+                        return (
+                          <article
+                            className={conversation.id === chatSnapshot.activeConversationId
+                              ? "conversation-list-item active"
+                              : "conversation-list-item"}
+                            key={conversation.id}
+                          >
+                            <button
+                              className="conversation-open-button"
+                              type="button"
+                              aria-label={`開啟 ${conversation.title}`}
+                              onClick={() => void selectConversation(conversation.id)}
+                              disabled={isConversationActionPending}
+                            >
+                              <strong>{conversation.title}</strong>
+                              <span>{source || "一般對話"}</span>
+                              <small>{new Date(conversation.updatedAt).toLocaleString()}</small>
+                            </button>
+                            <button
+                              className="conversation-remove-button"
+                              type="button"
+                              aria-label={`移除 ${conversation.title}`}
+                              title="移除對話"
+                              onClick={() => setConversationPendingRemoval(conversation)}
+                              disabled={isConversationActionPending}
+                            >
+                              ×
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              ) : (
+                <>
+                  <div className="messages" aria-live="polite">
+                    {chatSnapshot.messages.length === 0 ? (
+                      <div className="chat-empty-state">
+                        <strong>從目前閱讀內容開始提問</strong>
+                        <p>Codex 只會收到你明確選取的閱讀區段。</p>
+                      </div>
+                    ) : null}
+                    {chatSnapshot.messages.map((message) => (
+                      <article
+                        aria-label={message.role === "assistant" ? "AI 回覆" : "使用者訊息"}
+                        className={"message " + message.role}
+                        key={message.id}
+                      >
+                        <ChatMessageContent text={message.text} />
+                      </article>
+                    ))}
+                  </div>
+
+                  <form className="chat-form" onSubmit={sendMessage}>
+                    <label htmlFor="chat-input">詢問目前內容</label>
+                    <textarea
+                      id="chat-input"
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          event.currentTarget.form?.requestSubmit();
+                        }
+                      }}
+                      placeholder="例如：這句為什麼使用過去完成式？"
+                      rows={3}
+                      disabled={chatSnapshot.connection !== "ready" ||
+                        Boolean(chatSnapshot.activeTurnId) ||
+                        chatSnapshot.managementBusy || isConversationActionPending}
+                    />
+                    <div>
+                      <small>
+                        {chatError || chatSnapshot.conversationError ||
+                          (chatSnapshot.activeTurnId
+                            ? "Codex 正在回覆…"
+                            : chatSnapshot.connectionDetail)}
+                      </small>
+                      <button
+                        type="submit"
+                        disabled={chatSnapshot.connection !== "ready" ||
+                          Boolean(chatSnapshot.activeTurnId) ||
+                          chatSnapshot.managementBusy ||
+                          isConversationActionPending || !draft.trim()}
+                      >
+                        送出
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
             </div>
           ) : null}
         </aside>
@@ -1256,6 +1411,43 @@ export function App() {
                 disabled={isDeleting}
               >
                 {isDeleting ? "刪除中…" : "永久刪除"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {conversationPendingRemoval ? (
+        <div className="dialog-backdrop">
+          <section
+            className="delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="remove-conversation-dialog-title"
+          >
+            <span className="delete-dialog-icon" aria-hidden="true">!</span>
+            <h2 id="remove-conversation-dialog-title">移除 AI 對話？</h2>
+            <p>
+              「{conversationPendingRemoval.title}」將從全域對話清單移除。
+              第一版不提供復原功能。
+            </p>
+            <div className="delete-dialog-actions">
+              <button
+                type="button"
+                onClick={() => setConversationPendingRemoval(undefined)}
+                disabled={isConversationActionPending}
+                aria-label="取消移除"
+              >
+                取消
+              </button>
+              <button
+                className="danger-action"
+                type="button"
+                onClick={() => void removeConversation()}
+                disabled={isConversationActionPending}
+                aria-label="確認移除"
+              >
+                {isConversationActionPending ? "移除中…" : "移除"}
               </button>
             </div>
           </section>

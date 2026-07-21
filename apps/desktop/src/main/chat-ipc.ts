@@ -29,6 +29,13 @@ function parseSendInput(value: unknown): SendChatMessageInput {
   return { text: value.text, context };
 }
 
+function parseConversationId(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error("AI 對話識別碼格式錯誤。");
+  }
+  return value;
+}
+
 export function registerChatIpc(
   ipc: IpcRegistrar,
   controller: ChatController,
@@ -38,6 +45,13 @@ export function registerChatIpc(
   ipc.handle("chat:connect", () => controller.connect());
   ipc.handle("chat:send", (_event, input) => {
     return controller.sendMessage(parseSendInput(input));
+  });
+  ipc.handle("chat:new", () => controller.startNewConversation());
+  ipc.handle("chat:select", (_event, conversationId) => {
+    return controller.selectConversation(parseConversationId(conversationId));
+  });
+  ipc.handle("chat:remove", (_event, conversationId) => {
+    return controller.removeConversation(parseConversationId(conversationId));
   });
   return controller.onStateChanged(publish);
 }

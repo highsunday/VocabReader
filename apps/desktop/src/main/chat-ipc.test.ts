@@ -14,7 +14,10 @@ const snapshot: ChatSnapshot = {
   },
   messages: [],
   threadId: null,
-  activeTurnId: null
+  activeTurnId: null,
+  conversations: [],
+  activeConversationId: null,
+  managementBusy: false
 };
 
 describe("chat IPC", () => {
@@ -30,6 +33,9 @@ describe("chat IPC", () => {
       getSnapshot: vi.fn(() => snapshot),
       connect: vi.fn().mockResolvedValue(snapshot),
       sendMessage: vi.fn().mockResolvedValue(snapshot),
+      startNewConversation: vi.fn().mockReturnValue(snapshot),
+      selectConversation: vi.fn().mockReturnValue(snapshot),
+      removeConversation: vi.fn().mockResolvedValue(snapshot),
       onStateChanged: vi.fn(() => listener)
     };
     const publish = vi.fn();
@@ -43,6 +49,9 @@ describe("chat IPC", () => {
     expect(handlers.has("chat:get-state")).toBe(true);
     expect(handlers.has("chat:connect")).toBe(true);
     expect(handlers.has("chat:send")).toBe(true);
+    expect(handlers.has("chat:new")).toBe(true);
+    expect(handlers.has("chat:select")).toBe(true);
+    expect(handlers.has("chat:remove")).toBe(true);
     await handlers.get("chat:send")?.({}, {
       text: "Explain",
       context: {
@@ -63,6 +72,14 @@ describe("chat IPC", () => {
       text: "bad",
       context: { readingSegment: 42 }
     })).toThrow(/上下文格式錯誤/);
+    await handlers.get("chat:new")?.({});
+    await handlers.get("chat:select")?.({}, "conversation-a");
+    await handlers.get("chat:remove")?.({}, "conversation-a");
+    expect(controller.startNewConversation).toHaveBeenCalledOnce();
+    expect(controller.selectConversation).toHaveBeenCalledWith("conversation-a");
+    expect(controller.removeConversation).toHaveBeenCalledWith("conversation-a");
+    expect(() => handlers.get("chat:select")?.({}, ""))
+      .toThrow(/對話識別碼/);
     expect(unsubscribe).toBe(listener);
   });
 });

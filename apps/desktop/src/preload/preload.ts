@@ -40,6 +40,12 @@ const desktopApi = Object.freeze({
     connect: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:connect"),
     sendMessage: (input: SendChatMessageInput): Promise<ChatSnapshot> =>
       ipcRenderer.invoke("chat:send", input),
+    startNewConversation: (): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:new"),
+    selectConversation: (conversationId: string): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:select", conversationId),
+    removeConversation: (conversationId: string): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:remove", conversationId),
     onStateChanged(listener: (snapshot: ChatSnapshot) => void) {
       const wrapped = (
         _event: Electron.IpcRendererEvent,

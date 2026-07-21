@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import type {
   AiUsageAllowance,
@@ -11,10 +12,18 @@ import type {
   CodexAppServerClient,
   CodexNotification
 } from "./codex-app-server-client";
+import type {
+  ChatConversationStore,
+  StoredChatConversation,
+  StoredChatState
+} from "./chat-conversation-store";
 
 interface ChatControllerOptions {
   createClient(): CodexAppServerClient;
   workingDirectory: string;
+  conversationStore?: ChatConversationStore;
+  createConversationId?(): string;
+  now?(): number;
 }
 
 const isolationConfig = Object.freeze({
@@ -25,6 +34,14 @@ const isolationConfig = Object.freeze({
   "features.memories": false,
   web_search: "disabled"
 });
+
+const developerInstructions = [
+  "You are the AI Conversation Panel in an English-learning EPUB reader.",
+  "Answer in the language used by the user unless they ask otherwise.",
+  "Use only the explicitly provided reading segment and prior conversation.",
+  "Never claim knowledge of text outside the provided reading segment.",
+  "Do not run tools, read files, write files, or use the network."
+].join(" ");
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -150,7 +167,9 @@ export function composeCodexInput(input: SendChatMessageInput): string {
 export class ChatController {
   readonly #options: ChatControllerOptions;
   readonly #events = new EventEmitter();
-  readonly #messages: ChatMessage[] = [];
+  #conversations: StoredChatConversation[] = [];
+  #activeConversationId: string | null = null;
+  #messages: ChatMessage[] = [];
   #client: CodexAppServerClient | undefined;
   #unsubscribeNotification: (() => void) | undefined;
   #unsubscribeExit: (() => void) | undefined;
@@ -158,12 +177,31 @@ export class ChatController {
   #connectionDetail = "尚未連線 Codex。";
   #account: ChatSnapshot["account"] = null;
   #threadId: string | null = null;
+  #resumedThreadId: string | null = null;
   #activeTurnId: string | null = null;
+  #managementBusy = false;
+  #conversationError: string | null = null;
   #allowance = unavailableAllowance("尚未取得 AI 使用額度。");
   #connectPromise: Promise<ChatSnapshot> | undefined;
 
   constructor(options: ChatControllerOptions) {
     this.#options = options;
+    try {
+      const stored = options.conversationStore?.load();
+      if (stored) {
+        this.#conversations = stored.conversations;
+        const selected = stored.selectedConversationId
+          ? this.#conversations.find(
+              (conversation) => conversation.id === stored.selectedConversationId
+            )
+          : undefined;
+        if (selected) this.#activateConversation(selected);
+      }
+    } catch (error) {
+      this.#conversationError = error instanceof Error
+        ? error.message
+        : "無法讀取本機 AI 對話紀錄。";
+    }
   }
 
   getSnapshot(): ChatSnapshot {
@@ -174,13 +212,110 @@ export class ChatController {
       threadId: this.#threadId,
       activeTurnId: this.#activeTurnId,
       allowance: structuredClone(this.#allowance),
-      messages: structuredClone(this.#messages)
+      messages: structuredClone(this.#messages),
+      conversations: this.#conversations
+        .map(({ id, title, createdAt, updatedAt, source }) => ({
+          id,
+          title,
+          createdAt,
+          updatedAt,
+          source: source ? { ...source } : null
+        }))
+        .sort((left, right) => right.updatedAt - left.updatedAt),
+      activeConversationId: this.#activeConversationId,
+      managementBusy: this.#managementBusy,
+      conversationError: this.#conversationError
     };
   }
 
   onStateChanged(listener: (snapshot: ChatSnapshot) => void): () => void {
     this.#events.on("state", listener);
     return () => this.#events.off("state", listener);
+  }
+
+  startNewConversation(): ChatSnapshot {
+    this.#assertManagementAvailable();
+    this.#activeConversationId = null;
+    this.#threadId = null;
+    this.#resumedThreadId = null;
+    this.#messages = [];
+    this.#persist();
+    this.#emit();
+    return this.getSnapshot();
+  }
+
+  selectConversation(conversationId: string): ChatSnapshot {
+    this.#assertManagementAvailable();
+    const conversation = this.#conversations.find(
+      (candidate) => candidate.id === conversationId
+    );
+    if (!conversation) throw new Error("找不到這筆 AI 對話。");
+    this.#activateConversation(conversation);
+    this.#persist();
+    this.#emit();
+    return this.getSnapshot();
+  }
+
+  async removeConversation(conversationId: string): Promise<ChatSnapshot> {
+    this.#assertManagementAvailable();
+    const conversation = this.#conversations.find(
+      (candidate) => candidate.id === conversationId
+    );
+    if (!conversation) throw new Error("找不到這筆 AI 對話。");
+    if (this.#connection !== "ready" || !this.#client) await this.connect();
+    if (this.#connection !== "ready" || !this.#client) {
+      throw new Error(this.#connectionDetail);
+    }
+
+    this.#managementBusy = true;
+    this.#emit();
+    let archived = false;
+    const previous = {
+      conversations: this.#conversations,
+      activeConversationId: this.#activeConversationId,
+      threadId: this.#threadId,
+      resumedThreadId: this.#resumedThreadId,
+      messages: this.#messages
+    };
+    try {
+      await this.#client.request("thread/archive", {
+        threadId: conversation.threadId
+      });
+      archived = true;
+      this.#conversations = this.#conversations.filter(
+        (candidate) => candidate.id !== conversationId
+      );
+      if (this.#activeConversationId === conversationId) {
+        this.#activeConversationId = null;
+        this.#threadId = null;
+        this.#resumedThreadId = null;
+        this.#messages = [];
+      }
+      this.#persist();
+    } catch (error) {
+      if (archived) {
+        this.#conversations = previous.conversations;
+        this.#activeConversationId = previous.activeConversationId;
+        this.#threadId = previous.threadId;
+        this.#resumedThreadId = previous.resumedThreadId;
+        this.#messages = previous.messages;
+        try {
+          await this.#client.request("thread/unarchive", {
+            threadId: conversation.threadId
+          });
+        } catch {
+          // Keep the local record visible when cross-system rollback is incomplete.
+        }
+      }
+      this.#conversationError = error instanceof Error
+        ? error.message
+        : "無法移除 AI 對話。";
+      throw error;
+    } finally {
+      this.#managementBusy = false;
+      this.#emit();
+    }
+    return this.getSnapshot();
   }
 
   connect(): Promise<ChatSnapshot> {
@@ -262,7 +397,21 @@ export class ChatController {
     this.#emit();
 
     try {
-      if (!this.#threadId) {
+      if (this.#threadId && this.#resumedThreadId !== this.#threadId) {
+        const resumed = await client.request("thread/resume", {
+          threadId: this.#threadId,
+          cwd: this.#options.workingDirectory,
+          approvalPolicy: "never",
+          sandbox: "read-only",
+          config: isolationConfig,
+          developerInstructions
+        });
+        const resumedThreadId = threadIdFrom(resumed);
+        if (resumedThreadId !== this.#threadId) {
+          throw new Error("Codex 無法恢復這筆 AI 對話。");
+        }
+        this.#resumedThreadId = resumedThreadId;
+      } else if (!this.#threadId) {
         const threadResponse = await client.request("thread/start", {
           cwd: this.#options.workingDirectory,
           approvalPolicy: "never",
@@ -271,17 +420,24 @@ export class ChatController {
           config: isolationConfig,
           environments: [],
           selectedCapabilityRoots: [],
-          developerInstructions: [
-            "You are the AI Conversation Panel in an English-learning EPUB reader.",
-            "Answer in the language used by the user unless they ask otherwise.",
-            "Use only the explicitly provided reading segment and prior conversation.",
-            "Never claim knowledge of text outside the provided reading segment.",
-            "Do not run tools, read files, write files, or use the network."
-          ].join(" ")
+          developerInstructions
         });
         const threadId = threadIdFrom(threadResponse);
         if (!threadId) throw new Error("Codex 未回傳對話識別碼。");
         this.#threadId = threadId;
+        this.#resumedThreadId = threadId;
+        const timestamp = this.#now();
+        const conversation: StoredChatConversation = {
+          id: this.#createConversationId(),
+          threadId,
+          title: this.#titleFrom(text),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          source: this.#sourceFrom(input),
+          messages: []
+        };
+        this.#conversations.push(conversation);
+        this.#activateConversation(conversation, true);
       }
 
       const userMessage: ChatMessage = {
@@ -292,6 +448,8 @@ export class ChatController {
         status: "completed"
       };
       this.#messages.push(userMessage);
+      this.#touchActiveConversation(input);
+      this.#persist();
       this.#emit();
       const response = await client.request("turn/start", {
         threadId: this.#threadId,
@@ -305,6 +463,7 @@ export class ChatController {
       if (!turnId) throw new Error("Codex 未回傳回答識別碼。");
       userMessage.turnId = turnId;
       if (this.#activeTurnId === "starting") this.#activeTurnId = turnId;
+      this.#persist();
       this.#emit();
       return this.getSnapshot();
     } catch (error) {
@@ -368,6 +527,8 @@ export class ChatController {
       }
       message.text += params.delta;
       message.status = "streaming";
+      this.#touchActiveConversation();
+      this.#tryPersist();
       this.#emit();
       return;
     }
@@ -396,6 +557,8 @@ export class ChatController {
         message.text = completedItem.text;
         message.status = "completed";
       }
+      this.#touchActiveConversation();
+      this.#tryPersist();
       this.#emit();
       return;
     }
@@ -415,6 +578,8 @@ export class ChatController {
           ? params.turn.error.message
           : "AI 回覆未完成。";
       }
+      this.#touchActiveConversation();
+      this.#tryPersist();
       this.#emit();
     }
   }
@@ -427,6 +592,89 @@ export class ChatController {
 
   #emit(): void {
     this.#events.emit("state", this.getSnapshot());
+  }
+
+  #assertManagementAvailable(): void {
+    if (this.#activeTurnId || this.#managementBusy) {
+      throw new Error("請等待目前的 AI 回覆完成。");
+    }
+  }
+
+  #activateConversation(
+    conversation: StoredChatConversation,
+    alreadyResumed = false
+  ): void {
+    this.#activeConversationId = conversation.id;
+    this.#threadId = conversation.threadId;
+    this.#resumedThreadId = alreadyResumed ? conversation.threadId : null;
+    this.#messages = conversation.messages;
+  }
+
+  #activeConversation(): StoredChatConversation | undefined {
+    return this.#activeConversationId
+      ? this.#conversations.find(
+          (conversation) => conversation.id === this.#activeConversationId
+        )
+      : undefined;
+  }
+
+  #touchActiveConversation(input?: SendChatMessageInput): void {
+    const conversation = this.#activeConversation();
+    if (!conversation) return;
+    conversation.updatedAt = this.#now();
+    if (input) conversation.source = this.#sourceFrom(input);
+  }
+
+  #sourceFrom(input: SendChatMessageInput) {
+    const bookTitle = input.context?.bookTitle?.trim();
+    const chapterTitle = input.context?.chapterTitle?.trim();
+    return bookTitle || chapterTitle
+      ? {
+          ...(bookTitle ? { bookTitle } : {}),
+          ...(chapterTitle ? { chapterTitle } : {})
+        }
+      : null;
+  }
+
+  #titleFrom(text: string): string {
+    return text.replace(/\s+/g, " ").trim().slice(0, 60) || "新對話";
+  }
+
+  #createConversationId(): string {
+    return this.#options.createConversationId?.() ?? randomUUID();
+  }
+
+  #now(): number {
+    return this.#options.now?.() ?? Date.now();
+  }
+
+  #storedState(): StoredChatState {
+    return {
+      version: 1,
+      selectedConversationId: this.#activeConversationId,
+      conversations: this.#conversations
+    };
+  }
+
+  #persist(): void {
+    if (!this.#options.conversationStore) return;
+    try {
+      this.#options.conversationStore.save(this.#storedState());
+      this.#conversationError = null;
+    } catch (error) {
+      this.#conversationError = error instanceof Error
+        ? error.message
+        : "無法保存本機 AI 對話紀錄。";
+      throw error;
+    }
+  }
+
+  #tryPersist(): void {
+    try {
+      this.#persist();
+    } catch {
+      // The snapshot exposes the persistence error without crashing notification flow.
+    }
   }
 
   async #loadAllowance(client: CodexAppServerClient): Promise<void> {

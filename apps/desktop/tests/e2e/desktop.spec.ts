@@ -19,6 +19,8 @@ test("launches the secure Electron reading shell", async () => {
       page.getByRole("heading", { name: "導入 EPUB 開始閱讀" })
     ).toBeVisible();
     await expect(page.getByLabel("AI 助教")).toBeVisible();
+    await expect(page.getByRole("button", { name: "新對話" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "對話紀錄" })).toBeVisible();
     await expect(page.getByRole("button", { name: "設定" })).toBeVisible();
     await expect(page.getByLabel("Codex 狀態")).toBeVisible();
 
@@ -38,6 +40,9 @@ test("launches the secure Electron reading shell", async () => {
               getState: unknown;
               connect: unknown;
               sendMessage: unknown;
+              startNewConversation: unknown;
+              selectConversation: unknown;
+              removeConversation: unknown;
               onStateChanged: unknown;
             };
           };
@@ -54,6 +59,9 @@ test("launches the secure Electron reading shell", async () => {
         hasChatState: typeof desktop?.chat.getState,
         hasChatConnect: typeof desktop?.chat.connect,
         hasChatSend: typeof desktop?.chat.sendMessage,
+        hasChatNew: typeof desktop?.chat.startNewConversation,
+        hasChatSelect: typeof desktop?.chat.selectConversation,
+        hasChatRemove: typeof desktop?.chat.removeConversation,
         hasChatSubscription: typeof desktop?.chat.onStateChanged,
         chatKeys: Object.keys(desktop?.chat ?? {}).sort(),
         hasNodeRequire: typeof (window as Window & { require?: unknown }).require
@@ -70,13 +78,19 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasChatState).toBe("function");
     expect(security.hasChatConnect).toBe("function");
     expect(security.hasChatSend).toBe("function");
+    expect(security.hasChatNew).toBe("function");
+    expect(security.hasChatSelect).toBe("function");
+    expect(security.hasChatRemove).toBe("function");
     expect(security.hasChatSubscription).toBe("function");
     expect(security.chatKeys).toEqual([
       "connect",
       "getState",
       "onStateChanged",
+      "removeConversation",
+      "selectConversation",
+      "startNewConversation",
       "sendMessage"
-    ]);
+    ].sort());
     expect(security.hasNodeRequire).toBe("undefined");
 
     const dataImageLoads = await page.evaluate(async () => {

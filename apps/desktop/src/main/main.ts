@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { ChatController } from "./chat-controller";
+import { LocalChatConversationStore } from "./chat-conversation-store";
 import { registerChatIpc } from "./chat-ipc";
 import { SpawnedCodexAppServerClient } from "./codex-app-server-client";
 import { registerLibraryIpc } from "./library-ipc";
@@ -51,10 +52,14 @@ app.whenReady().then(() => {
       : join(app.getPath("userData"), "library");
   registerLibraryIpc(ipcMain, dialog, new LocalBookLibrary(libraryPath));
   const runtimePath = join(app.getPath("userData"), "codex-runtime");
+  const conversationPath = process.env.NODE_ENV === "test"
+    ? join(app.getPath("temp"), `lingoshelf-chat-test-${process.pid}`)
+    : join(app.getPath("userData"), "chat");
   mkdirSync(runtimePath, { recursive: true });
   chatController = new ChatController({
     createClient: () => new SpawnedCodexAppServerClient(),
-    workingDirectory: runtimePath
+    workingDirectory: runtimePath,
+    conversationStore: new LocalChatConversationStore(conversationPath)
   });
   unsubscribeChatState = registerChatIpc(
     ipcMain,
