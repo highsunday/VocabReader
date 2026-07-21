@@ -13,6 +13,8 @@ import { registerChatIpc } from "./chat-ipc";
 import { SpawnedCodexAppServerClient } from "./codex-app-server-client";
 import { registerLibraryIpc } from "./library-ipc";
 import { LocalBookLibrary } from "./library-service";
+import { registerLearningLibraryIpc } from "./learning-library-ipc";
+import { LocalLearningLibrary } from "./learning-library-service";
 import { registerSettingsIpc } from "./settings-ipc";
 import { LocalSettingsStore } from "./settings-store";
 
@@ -58,7 +60,14 @@ app.whenReady().then(() => {
     process.env.NODE_ENV === "test"
       ? join(app.getPath("temp"), `lingoshelf-library-test-${process.pid}`)
       : join(app.getPath("userData"), "library");
-  registerLibraryIpc(ipcMain, dialog, new LocalBookLibrary(libraryPath));
+  const bookLibrary = new LocalBookLibrary(libraryPath);
+  registerLibraryIpc(ipcMain, dialog, bookLibrary);
+  const learningPath = process.env.NODE_ENV === "test"
+    ? join(app.getPath("temp"), `lingoshelf-learning-test-${process.pid}`, "learning.sqlite")
+    : join(app.getPath("userData"), "learning-library", "learning.sqlite");
+  registerLearningLibraryIpc(ipcMain, new LocalLearningLibrary(learningPath, {
+    isBookAvailable: (bookId) => bookLibrary.hasBook(bookId)
+  }));
   const settingsPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-settings-test-${process.pid}`)
     : join(app.getPath("userData"), "settings");

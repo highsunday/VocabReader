@@ -42,7 +42,7 @@ status: draft
 | Phase | Name | Suggested doc type | Related doc | Status |
 |---|---|---|---|---|
 | P1 | 拆分可擴充的桌面工作區邊界 | RXX | R01-desktop-workspace-boundaries | [x] Completed |
-| P2 | 建立本機生詞庫與來源卡片基礎 | FXX | — | [ ] Not started |
+| P2 | 建立本機生詞庫與來源卡片基礎 | FXX | F19-local-learning-library | [x] Completed |
 | P3 | 產生結構化 AI 學習項目提案 | FXX | — | [ ] Not started |
 | P4 | 確認並安全套用新增／更新提案 | FXX | — | [ ] Not started |
 
@@ -90,7 +90,12 @@ desktop typecheck and production build all passed. Q01-02 remains the next pendi
 
 **Related doc**: —
 
-**Status**: `[ ] Not started`
+**Status**: `[x] Completed`
+
+**Completion evidence**: F19 delivers the userData SQLite migration, narrow Electron
+contracts, idempotent annotation fallback, persisted list/detail/edit/archive UI and
+retained deleted-book source snapshots. Full project tests, typecheck and production
+build passed.
 
 ---
 

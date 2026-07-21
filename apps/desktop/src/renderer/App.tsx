@@ -26,6 +26,12 @@ import type {
   ReadingRange
 } from "../shared/library-contracts";
 import type {
+  LearningDesktopApi,
+  LearningItem,
+  LearningListStatus,
+  UpdateLearningItemInput
+} from "../shared/learning-contracts";
+import type {
   AppSettings,
   ExplanationLanguage,
   SettingsDesktopApi
@@ -47,7 +53,7 @@ import { LearningLibraryWorkspace } from "./workspace/LearningLibraryWorkspace";
 import { PrimaryNavigation } from "./workspace/PrimaryNavigation";
 import { ReadingWorkspace } from "./workspace/ReadingWorkspace";
 
-type WorkspaceMode = "overview" | "reader" | "review";
+type WorkspaceMode = "overview" | "reader" | "learning";
 
 const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
 const COLLAPSED_PANEL_WIDTH = 48;
@@ -83,6 +89,7 @@ const initialChatSnapshot: ChatSnapshot = {
 
 function desktopBridge(): {
   library?: LibraryDesktopApi;
+  learning?: LearningDesktopApi;
   settings?: SettingsDesktopApi;
   chat?: ChatDesktopApi;
 } | undefined {
@@ -90,6 +97,7 @@ function desktopBridge(): {
     window as unknown as {
       readerDesktop?: {
         library?: LibraryDesktopApi;
+        learning?: LearningDesktopApi;
         settings?: SettingsDesktopApi;
         chat?: ChatDesktopApi;
       };
@@ -99,6 +107,10 @@ function desktopBridge(): {
 
 function desktopLibrary(): LibraryDesktopApi | undefined {
   return desktopBridge()?.library;
+}
+
+function desktopLearning(): LearningDesktopApi | undefined {
+  return desktopBridge()?.learning;
 }
 
 function desktopChat(): ChatDesktopApi | undefined {
@@ -186,6 +198,12 @@ export function App() {
   const [readingRange, setReadingRange] = useState<ReadingRange>();
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [isAnnotationMode, setIsAnnotationMode] = useState(false);
+  const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
+  const [learningStatus, setLearningStatus] = useState<LearningListStatus>("active");
+  const [selectedLearningItem, setSelectedLearningItem] = useState<LearningItem>();
+  const [isLearningLoading, setIsLearningLoading] = useState(false);
+  const [learningError, setLearningError] = useState("");
+  const [learningNotice, setLearningNotice] = useState("");
   const [rangeMenu, setRangeMenu] = useState<{
     x: number;
     y: number;
@@ -287,6 +305,10 @@ export function App() {
       })
       .catch(() => setLibraryError("無法讀取本機書庫，請重新開啟應用程式。"));
   }, []);
+
+  useEffect(() => {
+    void loadLearningItems(learningStatus);
+  }, [learningStatus]);
 
   useEffect(() => {
     const chat = desktopChat();
@@ -675,6 +697,87 @@ export function App() {
     }).catch(() => {
       setLibraryError("無法保存標記；本次標記仍可暫時使用。");
     });
+  }
+
+  async function loadLearningItems(status = learningStatus) {
+    const learning = desktopLearning();
+    if (!learning) return;
+    setIsLearningLoading(true);
+    setLearningError("");
+    try {
+      const items = await learning.listItems({ status });
+      setLearningItems(items);
+      setSelectedLearningItem((current) =>
+        current ? items.find((item) => item.id === current.id) : items[0]
+      );
+    } catch (error) {
+      setLearningError(error instanceof Error ? error.message : "無法讀取生詞庫。");
+    } finally {
+      setIsLearningLoading(false);
+    }
+  }
+
+  function sourceSentenceForAnnotation(annotation: Annotation): string {
+    const text = articleRef.current?.textContent ?? annotation.text;
+    const before = text.slice(0, annotation.start);
+    const after = text.slice(annotation.end);
+    const start = Math.max(
+      before.lastIndexOf(".") + 1,
+      before.lastIndexOf("!") + 1,
+      before.lastIndexOf("?") + 1,
+      before.lastIndexOf("\n") + 1
+    );
+    const ending = after.search(/[.!?\n]/);
+    const end = ending < 0 ? text.length : annotation.end + ending + 1;
+    return text.slice(start, end).trim() || annotation.text;
+  }
+
+  async function addAnnotationToLearningLibrary(annotationId: string) {
+    const learning = desktopLearning();
+    const annotation = annotations.find((candidate) => candidate.id === annotationId);
+    if (!learning || !annotation || !selectedBook || !activeChapter) return;
+    setLearningError("");
+    try {
+      const result = await learning.createDraft({
+        bookId: selectedBook.id,
+        bookTitle: selectedBook.title,
+        chapterId: activeChapter.id,
+        chapterTitle: activeChapter.title,
+        annotation,
+        sourceSentence: sourceSentenceForAnnotation(annotation)
+      });
+      setLearningNotice(result.created ? "已加入生詞庫，待 AI 整理。" : "這個標記已在生詞庫中。");
+      await loadLearningItems("active");
+    } catch (error) {
+      setLearningError(error instanceof Error ? error.message : "無法加入生詞庫。");
+    } finally {
+      setRangeMenu(undefined);
+    }
+  }
+
+  async function saveLearningItem(input: UpdateLearningItemInput) {
+    const learning = desktopLearning();
+    if (!learning) return;
+    try {
+      const saved = await learning.updateItem(input);
+      setLearningNotice("學習項目已儲存。");
+      await loadLearningItems(learningStatus);
+      setSelectedLearningItem(saved);
+    } catch (error) {
+      setLearningError(error instanceof Error ? error.message : "無法儲存學習項目。");
+    }
+  }
+
+  async function archiveLearningItem(itemId: string) {
+    const learning = desktopLearning();
+    if (!learning) return;
+    try {
+      await learning.archiveItem(itemId);
+      setLearningNotice("學習項目已封存。");
+      await loadLearningItems(learningStatus);
+    } catch (error) {
+      setLearningError(error instanceof Error ? error.message : "無法封存學習項目。");
+    }
   }
 
   function createAnnotation(selected: { start: number; end: number; text: string }) {
@@ -1186,15 +1289,17 @@ export function App() {
               <div className="sidebar-footer">
                 <nav>
                   <button
-                    className={mode === "review" ? "nav-item active" : "nav-item"}
+                    className={mode === "learning" ? "nav-item active" : "nav-item"}
                     onClick={() => {
                       saveCurrentReaderPosition();
-                      setMode("review");
+                      setMode("learning");
+                      setLearningNotice("");
+                      void loadLearningItems(learningStatus);
                     }}
                   >
                     <span>↻</span>
-                    Anki 複習
-                    <em>10</em>
+                    生詞庫
+                    <em>{learningItems.length}</em>
                   </button>
                 </nav>
 
@@ -1519,6 +1624,15 @@ export function App() {
                         <button
                           role="menuitem"
                           type="button"
+                          onClick={() => void addAnnotationToLearningLibrary(rangeMenu.annotationId!)}
+                        >
+                          加入生詞庫
+                        </button>
+                      ) : null}
+                      {rangeMenu.annotationId ? (
+                        <button
+                          role="menuitem"
+                          type="button"
                           onClick={() => removeAnnotation(rangeMenu.annotationId!)}
                         >
                           移除標記
@@ -1530,7 +1644,22 @@ export function App() {
               ) : null}
             </section>
           ) : (
-            <LearningLibraryWorkspace />
+            <LearningLibraryWorkspace
+              items={learningItems}
+              status={learningStatus}
+              selectedItem={selectedLearningItem}
+              isLoading={isLearningLoading}
+              error={learningError}
+              notice={learningNotice}
+              onStatusChange={(status) => {
+                setLearningStatus(status);
+                setSelectedLearningItem(undefined);
+                setLearningNotice("");
+              }}
+              onSelect={setSelectedLearningItem}
+              onSave={(input) => void saveLearningItem(input)}
+              onArchive={(itemId) => void archiveLearningItem(itemId)}
+            />
           )}
         </ReadingWorkspace>
 

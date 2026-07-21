@@ -4,7 +4,7 @@ date: 2026-07-22
 title: 依 P01 建立 AI 學習項目與生詞庫
 uuid: ec8c9d89f8074d309825154d9bb108ef
 version: 1.0
-status: in_progress
+status: completed
 source_plan: documents/planning/P01-ai-learning-items-and-learning-library.md
 batch_limit: 4
 mode: sequential
@@ -218,12 +218,12 @@ depends_on: [Q01-01]
 unlock_condition: Q01-01 completed with a commit, and renderer regression tests plus production build pass
 auto_approve: true
 commit_required: true
-implemented_doc: —
-commit: —
+implemented_doc: documents/implements/F19-local-learning-library.md
+commit: pending-orchestrator
 worker_session: codex 2026-07-22 01:07 CST
-worker_log: Dispatched after Q01-01 commit 0701a3b and unlock verification: full desktop 129 tests, typecheck and production build passed.
-handoff_summary: —
-communication_entries: [L002, L005, L006, L007, L023]
+worker_log: F19 auto-approved; RED confirmed missing repository and hard-coded Anki placeholder. GREEN: focused 75 tests, desktop 138 tests, full project 141 tests, typecheck and production build passed. SQLite migration, typed IPC, fallback, edit/archive and deleted-book snapshots are complete; no Q01-03 work started.
+handoff_summary: Q01-02 completed pending commit hash. F19 implements `node:sqlite` under userData with migration 1; sources retain snapshots after book deletion and expose availability. Renderer renamed Anki placeholder to 生詞庫 and supports real zero/list/detail/edit/archive plus annotation fallback. Full project test/typecheck/build green. Q01-03 can start only in a fresh worker after this commit is verified.
+communication_entries: [L002, L005, L006, L007, L023, L024, L025, L026, L027, L028, L029, L030]
 archive_refs: []
 
 ### Requirements
@@ -239,10 +239,10 @@ archive_refs: []
 
 ### Acceptance criteria
 
-- [ ] 生詞庫第一次開啟顯示真實 0 筆，不再顯示硬編碼的 10。
-- [ ] 從一個標記加入待整理項目後，卡片顯示正確書名、章節、標記文字與原句；同一標記再加入不增加筆數。
-- [ ] 編輯與封存能保存；重啟後項目、來源及封存狀態仍存在。
-- [ ] 刪除來源書籍後，依 intake 決策驗證學習項目與來源呈現。
+- [x] 生詞庫第一次開啟顯示真實 0 筆，不再顯示硬編碼的 10。
+- [x] 從一個標記加入待整理項目後，卡片顯示正確書名、章節、標記文字與原句；同一標記再加入不增加筆數。
+- [x] 編輯與封存能保存；重啟後項目、來源及封存狀態仍存在。
+- [x] 刪除來源書籍後，依 intake 決策驗證學習項目與來源呈現。
 
 ### Stop conditions
 
@@ -258,15 +258,16 @@ None.
 
 questions: []
 need_user_decision: []
-ledger_entries: [L002, L005, L006, L007]
+ledger_entries: [L002, L005, L006, L007, L023, L024, L025, L026, L027, L028, L029, L030]
 archive_refs: []
 
 ### Agent Handoff Summary
 
-- Current state: pending and clarified
-- Decisions: local SQLite, source snapshots, fallback draft, edit/archive, no hard delete
-- Tests: persistence, idempotent source, restart, archive and deleted-book snapshot
-- Risks: Electron packaging and migration correctness
+- Current state: completed; actual item commit is pending orchestrator verification
+- Documents: `documents/implements/F19-local-learning-library.md`
+- Decisions: local SQLite migration, source snapshots, fallback draft, edit/archive, no hard delete
+- Tests: RED then focused 75 / desktop 138 / full project 141, typecheck and build green
+- Risks: no known blocker; future AI proposals and scheduling remain Q01-03/Q01-04 scope
 
 ## Q01-03 產生結構化 AI 學習項目提案
 
@@ -422,6 +423,13 @@ archive_refs: []
 | L021 | 2026-07-22 01:04 | Q01-01 | codex -> queue | completed | R01 updated and Q01-01 marked completed with pending-orchestrator commit field | — |
 | L022 | 2026-07-22 01:07 | Q01-01 | orchestrator -> queue | acceptance | Verified item commit 0701a3b and Q01-02 unlock evidence | — |
 | L023 | 2026-07-22 01:07 | Q01-02 | orchestrator -> codex | dispatch | Dispatch Q01-02 through ddd-start, ddd-doc and ddd-tdd | — |
+| L024 | 2026-07-22 01:09 | Q01-02 | codex -> queue | status | Worker start: preflight and dependency unlock verified | — |
+| L025 | 2026-07-22 01:09 | Q01-02 | codex -> queue | ddd-start | Classified as clear FXX; intake resolves architecture scope | — |
+| L026 | 2026-07-22 01:09 | Q01-02 | codex -> queue | ddd-doc | F19 auto-approved: explicit, low-risk and testable | — |
+| L027 | 2026-07-22 01:12 | Q01-02 | codex -> queue | tdd-red | F19 tests correctly failed for the missing repository and Anki placeholder | — |
+| L028 | 2026-07-22 01:20 | Q01-02 | codex -> queue | tdd-green | SQLite, IPC and renderer implementation passed focused and full verification | — |
+| L029 | 2026-07-22 01:20 | Q01-02 | codex -> queue | handoff | F19, P01 and module docs updated; ready for scoped item commit | — |
+| L030 | 2026-07-22 01:20 | Q01-02 | codex -> queue | completed | Q01-02 complete pending orchestrator commit-hash substitution; notification suppressed | — |
 
 ### Active Entries
 
@@ -568,6 +576,91 @@ Handle only Q01-02. Execute `ddd-start → ddd-doc → ddd-tdd`, create one FXX 
 
 **Follow-up**
 - Do not start Q01-03.
+
+#### L024 — 2026-07-22 01:09 — Q01-02 — codex -> queue — status
+
+**Message**
+Worker start preflight passed. `git status --short` was empty before this worker's
+first document update. Q01 has `intake_grill_status: completed` and
+`ready_for_execution: true`; Q01-02 is `in_progress` and `clarified`. Dependency
+Q01-01 is completed at `0701a3b`; L022 records its 129 desktop tests, desktop
+typecheck and production build, satisfying the declared unlock condition.
+
+**Follow-up**
+- Execute only Q01-02 through ddd-start, ddd-doc and strict RED/GREEN.
+
+#### L025 — 2026-07-22 01:09 — Q01-02 — codex -> queue — ddd-start
+
+**Message**
+ddd-start classifies Q01-02 as FXX: it adds a new persisted Learning Library while
+integrating existing Electron, book-library and annotation boundaries. `CONTEXT.md`,
+the completed centralized intake, relevant module documents, contracts, IPC, service,
+Renderer code and tests were reviewed. The intake already resolves the required
+architecture decisions (local `node:sqlite`, explicit migration, narrow IPC, snapshot
+retention after book deletion, edit/archive only), so no further grill-with-docs is
+needed. The next document is F19.
+
+**Follow-up**
+- Review F19 for low-risk, testable auto-approval before adding production code.
+
+#### L026 — 2026-07-22 01:09 — Q01-02 — codex -> queue — ddd-doc
+
+**Message**
+Created `documents/implements/F19-local-learning-library.md`. It specifies the
+authorized `node:sqlite` migration, typed Main/Preload/Renderer contract, separated
+item/source snapshot model, annotation fallback, list/detail/edit/archive behavior,
+idempotency and deleted-book availability. All six acceptance rules map to TC1–TC6.
+The completed intake explicitly authorizes the data model and migration; F19 has no
+open product decision, is low-risk within the desktop boundary and can be tested
+without AI or external services. It is therefore auto-approved under Q01-02.
+
+**Follow-up**
+- Add the TC1–TC6 RED tests before any production implementation.
+
+#### L027 — 2026-07-22 01:12 — Q01-02 — codex -> queue — tdd-red
+
+**Message**
+Added F19 tests before production implementation and ran:
+`npm test -- learning-library-service.test.ts learning-library-workspace.test.tsx`.
+The repository suite failed because `./learning-library-service` did not exist; the
+workspace test failed because the page still exposed 「Anki 式間隔複習」 and hard-coded
+「今日待複習 10」 instead of 生詞庫 zero state. Both failures directly evidenced missing
+authorized behavior, not an environment error.
+
+**Follow-up**
+- Implement F19 repository, bridge and Renderer behavior, then run the focused suite.
+
+#### L028 — 2026-07-22 01:20 — Q01-02 — codex -> queue — tdd-green
+
+**Message**
+F19 GREEN verification passed. `node:sqlite` migration 1 provides separated items and
+sources with unique annotation provenance; Main/Preload/Renderer expose only the five
+typed learning operations. The renderer has real 生詞庫 zero/list/detail/edit/archive
+behavior and annotation fallback. Source snapshots survive book deletion and read as
+unavailable. Focused verification passed 6 files / 75 tests; desktop passed 15 files /
+138 tests; the full project passed server 3 + desktop 138 tests, typecheck and production
+build. No native dependency, remote API, AI proposal, merge or scheduling work was added.
+
+**Follow-up**
+- Update F19/P01/module docs and close Q01-02 with the scoped commit.
+
+#### L029 — 2026-07-22 01:20 — Q01-02 — codex -> queue — handoff
+
+**Message**
+F19 implementation record, P01 Phase 2 and learning-library/book-library module documents
+are aligned. Q01-02 is completed with `commit: pending-orchestrator` to avoid the circular
+hash update. The next item remains Q01-03 and requires a new worker after this commit is
+verified.
+
+**Follow-up**
+- Stage only Q01-02 artifacts and create its one required commit.
+
+#### L030 — 2026-07-22 01:20 — Q01-02 — codex -> queue — completed
+
+**Message**
+Q01-02 is complete and ready for scoped commit verification. Per-item ddd-tdd completion
+notification is suppressed by Q01; no email was sent because the queue has no configured
+sender or recipient. Q01-03 was not started.
 
 ## 6. Queue execution rules
 

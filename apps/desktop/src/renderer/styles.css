@@ -1533,6 +1533,142 @@ h1 {
   font-size: 13px;
 }
 
+.learning-library-panel {
+  width: min(980px, 100%);
+  padding: 28px 0 52px;
+}
+
+.learning-library-panel > p {
+  max-width: 620px;
+  color: #697069;
+  line-height: 1.7;
+}
+
+.learning-library-toolbar,
+.learning-library-toolbar > div,
+.learning-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.learning-library-toolbar {
+  justify-content: space-between;
+  margin: 26px 0 16px;
+}
+
+.learning-library-toolbar button,
+.learning-item-actions button {
+  padding: 7px 11px;
+  border: 1px solid #d7d0c2;
+  border-radius: 8px;
+  background: #fbfaf6;
+  cursor: pointer;
+}
+
+.learning-library-toolbar button.active,
+.learning-item-actions button:first-child {
+  border-color: #365e47;
+  color: #fff;
+  background: #365e47;
+}
+
+.learning-library-empty,
+.learning-item-detail,
+.learning-source-card {
+  border: 1px solid #ded8cb;
+  border-radius: 14px;
+  background: #fbfaf6;
+}
+
+.learning-library-empty {
+  min-height: 160px;
+  padding: 38px;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  color: #697069;
+  text-align: center;
+}
+
+.learning-library-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 320px) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.learning-item-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.learning-item-card {
+  padding: 13px;
+  border: 1px solid #ded8cb;
+  border-radius: 12px;
+  display: grid;
+  gap: 4px;
+  color: #384239;
+  background: #fbfaf6;
+  text-align: left;
+  cursor: pointer;
+}
+
+.learning-item-card.active,
+.learning-item-card:hover {
+  border-color: #8ba08d;
+  background: #edf3ea;
+}
+
+.learning-item-card span,
+.learning-item-card small,
+.learning-source-card span {
+  color: #697069;
+  font-size: 12px;
+}
+
+.learning-item-detail {
+  padding: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.learning-item-detail h2,
+.learning-item-detail h3 {
+  margin: 0;
+}
+
+.learning-item-detail label {
+  display: grid;
+  gap: 5px;
+  color: #596359;
+  font-size: 13px;
+}
+
+.learning-item-detail input,
+.learning-item-detail textarea,
+.learning-item-detail select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #d7d0c2;
+  border-radius: 7px;
+  color: #253127;
+  background: #fff;
+}
+
+.learning-item-detail textarea { min-height: 60px; resize: vertical; }
+
+.learning-source-card {
+  margin-top: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 5px;
+}
+
+.learning-source-card p { margin: 0; color: #596359; line-height: 1.55; }
+.learning-library-notice { color: #2f6944 !important; }
+
 .assistant-panel {
   position: relative;
   min-width: 0;

@@ -567,6 +567,10 @@ export class LocalBookLibrary {
     });
   }
 
+  async hasBook(bookId: string): Promise<boolean> {
+    return (await this.listBooks()).some((book) => book.id === bookId);
+  }
+
   async #saveBooks(books: LibraryBook[]): Promise<void> {
     const temporaryIndex = `${this.#indexPath}.next`;
     await writeFile(temporaryIndex, `${JSON.stringify(books, null, 2)}\n`, "utf8");

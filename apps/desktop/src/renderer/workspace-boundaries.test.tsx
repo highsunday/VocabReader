@@ -16,6 +16,6 @@ it("exposes and composes the four Renderer workspace boundaries", () => {
   expect(screen.getByLabelText("主要導覽")).toBeInTheDocument();
   expect(screen.getByLabelText("AI 助教")).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: /anki 複習/i }));
-  expect(screen.getByRole("heading", { name: "Anki 式間隔複習" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /生詞庫/i }));
+  expect(screen.getByRole("heading", { name: "生詞庫" })).toBeInTheDocument();
 });

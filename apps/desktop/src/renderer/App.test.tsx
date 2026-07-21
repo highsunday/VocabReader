@@ -32,7 +32,8 @@ const books: LibraryBook[] = [
 
 function installLibraryApi(
   storedBooks: LibraryBook[] = books,
-  chat?: Partial<ChatDesktopApi>
+  chat?: Partial<ChatDesktopApi>,
+  learning?: Record<string, unknown>
 ) {
   const importBook = vi.fn();
   const deleteBook = vi.fn().mockResolvedValue(undefined);
@@ -97,7 +98,8 @@ function installLibraryApi(
         saveAnnotations
       },
       settings: { get: getSettings, save: saveSettings },
-      ...(chat ? { chat } : {})
+      ...(chat ? { chat } : {}),
+      ...(learning ? { learning } : {})
     }
   });
   return {
@@ -591,7 +593,7 @@ describe("App", () => {
       .toBe("<reading-segment>Content</reading-segment>");
   });
 
-  it("keeps chapter practice separate from spaced review", () => {
+  it("keeps chapter practice separate from the Learning Library", () => {
     render(<App />);
 
     expect(
@@ -599,15 +601,15 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("章末選擇題", { selector: ".flow-tags span" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Anki 複習/ }))
+    expect(screen.getByRole("button", { name: /生詞庫/ }))
       .toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Anki 複習/ }));
+    fireEvent.click(screen.getByRole("button", { name: /生詞庫/ }));
 
     expect(
-      screen.getByRole("heading", { name: "Anki 式間隔複習" })
+      screen.getByRole("heading", { name: "生詞庫" })
     ).toBeInTheDocument();
-    expect(screen.getByText(/跨書籍與章節產生填空、造句/))
+    expect(screen.getByText(/保存從閱讀標記建立的學習項目/))
       .toBeInTheDocument();
   });
 
@@ -616,7 +618,7 @@ describe("App", () => {
 
     expect(screen.queryByRole("button", { name: /書籍總覽/ }))
       .not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Anki 複習/ }))
+    expect(screen.getByRole("button", { name: /生詞庫/ }))
       .toBeInTheDocument();
     expect(screen.queryByText("章節機制")).not.toBeInTheDocument();
     expect(screen.queryByText("閱讀與劃線")).not.toBeInTheDocument();
@@ -1775,6 +1777,85 @@ describe("App", () => {
     expect(screen.getByRole("button", {
       name: "開啟標記模式，目前章節 0 個標記"
     })).toBeInTheDocument();
+  });
+
+  it("creates an idempotent source-linked draft, then edits and archives it from 生詞庫", async () => {
+    const chapterText = "He learned one useful word today.";
+    const sourceAnnotation = {
+      id: "annotation-1",
+      start: chapterText.indexOf("word"),
+      end: chapterText.indexOf("word") + "word".length,
+      text: "word"
+    };
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterAnnotations: { "one-1": [sourceAnnotation] }
+    };
+    let items: Array<Record<string, unknown>> = [];
+    const listItems = vi.fn(({ status }: { status: "active" | "archived" }) =>
+      Promise.resolve(items.filter((item) => status === "active"
+        ? item.status === "pending_ai"
+        : item.status === "archived"))
+    );
+    const createDraft = vi.fn((input: {
+      bookId: string; bookTitle: string; chapterId: string; chapterTitle: string;
+      annotation: typeof sourceAnnotation; sourceSentence: string;
+    }) => {
+      const existing = items[0];
+      if (existing) return Promise.resolve({ item: existing, created: false });
+      const item = {
+        id: "item-1", displayForm: "word", canonicalForm: "word", itemType: "word",
+        partOfSpeech: null, contextualMeaning: "", conciseExplanation: "", cefr: null,
+        pronunciation: null, collocationNotes: null, status: "pending_ai",
+        createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+        sources: [{ ...input.annotation, annotationId: input.annotation.id,
+          annotationText: input.annotation.text, startOffset: input.annotation.start,
+          endOffset: input.annotation.end, bookId: input.bookId, bookTitle: input.bookTitle,
+          chapterId: input.chapterId, chapterTitle: input.chapterTitle,
+          sourceSentence: input.sourceSentence, bookAvailable: true,
+          createdAt: "2026-01-01T00:00:00.000Z" }]
+      };
+      items = [item];
+      return Promise.resolve({ item, created: true });
+    });
+    const updateItem = vi.fn((input: Record<string, unknown>) => {
+      items = items.map((item) => ({ ...item, ...input }));
+      return Promise.resolve(items[0]);
+    });
+    const archiveItem = vi.fn(() => {
+      items = items.map((item) => ({ ...item, status: "archived" }));
+      return Promise.resolve(items[0]);
+    });
+    const { getChapterContent } = installLibraryApi([rangedBook], undefined, {
+      listItems, createDraft, updateItem, archiveItem, getItem: vi.fn()
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one", chapterId: "one-1", title: "Opening", fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening 章節內容");
+    await waitFor(() => expect(article.querySelector("mark[data-annotation-id]")).toBeInTheDocument());
+    const mark = article.querySelector("mark[data-annotation-id]") as HTMLElement;
+    fireEvent.contextMenu(mark, { clientX: 140, clientY: 190 });
+    fireEvent.click(screen.getByRole("menuitem", { name: "加入生詞庫" }));
+    await waitFor(() => expect(createDraft).toHaveBeenCalledWith(expect.objectContaining({
+      bookId: "book-one", chapterTitle: "Opening", annotation: sourceAnnotation,
+      sourceSentence: chapterText
+    })));
+    fireEvent.click(screen.getByRole("button", { name: /生詞庫/ }));
+    expect(await screen.findByText("待 AI 整理")).toBeInTheDocument();
+    expect(screen.getByText(chapterText)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("本文語義"), { target: { value: "詞彙" } });
+    fireEvent.change(screen.getByLabelText("簡明解釋"), { target: { value: "一個單字" } });
+    fireEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+    await waitFor(() => expect(updateItem).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "封存項目" }));
+    await waitFor(() => expect(archiveItem).toHaveBeenCalledWith("item-1"));
+    fireEvent.click(screen.getByRole("button", { name: "已封存" }));
+    expect(await screen.findByText("已封存")).toBeInTheDocument();
   });
 
   it("refreshes AI context after annotation changes while ordinary follow-ups remain normal", async () => {
