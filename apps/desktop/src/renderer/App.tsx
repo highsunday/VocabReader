@@ -959,6 +959,7 @@ export function App() {
     const shouldProvideReadingSegment = Boolean(
       readingSegmentKey &&
       (extras.intent === "explainAnnotations" ||
+        extras.intent === "practiceReading" ||
         readingSegmentKey !== lastProvidedReadingSegmentRef.current)
     );
     const context = segment
@@ -1003,6 +1004,13 @@ export function App() {
   async function explainAnnotations() {
     await sendChatMessage("講解標記內容", {
       intent: "explainAnnotations",
+      explanationLanguage: settings.explanationLanguage
+    });
+  }
+
+  async function practiceReading() {
+    await sendChatMessage("開始閱讀測驗", {
+      intent: "practiceReading",
       explanationLanguage: settings.explanationLanguage
     });
   }
@@ -1707,6 +1715,20 @@ export function App() {
                           <path d="M14.25 11.25l.55 1.7 1.7.55-1.7.55-.55 1.7-.55-1.7-1.7-.55 1.7-.55.55-1.7Z" />
                         </svg>
                         <span>解釋標記</span>
+                      </button>
+                      <button
+                        className="annotation-analysis-preset reading-practice-preset"
+                        type="button"
+                        onClick={() => void practiceReading()}
+                        disabled={chatSnapshot.connection !== "ready" ||
+                          Boolean(chatSnapshot.activeTurnId) ||
+                          chatSnapshot.managementBusy || isConversationActionPending}
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 18 18">
+                          <path d="M4 3.25h10v11.5H4z" />
+                          <path d="M6.5 6.25h5M6.5 9h5M6.5 11.75h2.75" />
+                        </svg>
+                        <span>閱讀測驗</span>
                       </button>
                     </div>
                   ) : null}

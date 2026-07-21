@@ -13,7 +13,9 @@ related_implements:
   - F12-resizable-ai-conversation-panel
   - F13-persistent-annotations-and-ai-analysis
   - F16-invoke-annotation-explanation-skill
+  - F17-reading-segment-comprehension-quiz
   - B03-load-only-bundled-annotation-skill
+  - B04-use-language-setting-for-reading-quiz
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -42,9 +44,10 @@ related_implements:
 - 每筆對話保存產品對話 id、Codex thread id、標題、時間、來源摘要及顯示訊息；重啟恢復上次查看的對話。
 - 延續過去對話時使用 `thread/resume` 恢復相同 thread；移除時使用 `thread/archive`，本機保存失敗會嘗試 `thread/unarchive` 回滾。
 - 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
-- START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」每次都附上當下區段。
+- START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」與「閱讀測驗」每次都附上當下區段。
 - 預設解析意圖由 Main process 明確注入 App 內建並安裝到 user data 的 `explain-reader-annotations` skill；skill 提供選擇式教學小節、本文用法 CEFR 與複習表，一般輸入仍是正常多輪問答。
-- 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；只影響後續標記解析。
+- 閱讀頁提供「閱讀測驗」預設動作；Main process 依區段英文詞數要求 3 至 10 題四選一閱讀理解題及 1 至 3 題問答題，題面使用目前講解語言。第一輪不揭露答案、解析或參考回答；使用者可在同一對話輸入選項，並以英文完整句回答問答題後繼續批改。
+- 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；影響後續標記解析及閱讀測驗題面，Part B 的英文作答要求不變。
 - assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy。
 - 同一 thread 不允許並行 turn，包含第一次 thread 尚在建立的時間窗。
 - 回覆中可使用 `turn/interrupt` 停止目前 turn；若 thread／turn 尚在建立，會先等待真實識別碼再中斷。
@@ -105,7 +108,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 訂閱並呈現 `ChatSnapshot`，不自行模擬已連線、帳戶或額度資料。
 - 從目前模式、選取書籍、章節與 `extractReadingSegment()` 組裝 `SendChatMessageInput`。
 - 以 `bookId + chapterId + start + end + annotation revision` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
-- 將一般訊息與型別化 `explainAnnotations` 意圖分開；前者不附 skill，後者每次提供當下區段、講解語言及固定 repo skill。
+- 將一般訊息、型別化 `explainAnnotations` 與 `practiceReading` 意圖分開；兩個預設意圖每次都提供當下區段與講解語言，只有解析意圖附上固定 repo skill。
 - 空閱讀區段只送出一般問題，不使用整章 fallback。
 - 顯示處理中、需要登入、連線失敗與額度不可用狀態。
 - 在提問框呈現模型選擇、鍵盤操作提示與停止按鈕；回覆中狀態顯示於訊息流，IME composition Enter 不觸發送出。
@@ -142,8 +145,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - `context.bookTitle`：可選，目前書籍名稱。
 - `context.chapterTitle`：可選，目前章節名稱。
 - `context.readingSegment`：可選，只能來自 `extractReadingSegment()` 的非空輸出。
-- `intent`：可選且目前只接受 `explainAnnotations`，由產品預設動作使用。
-- `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja`。
+- `intent`：可選且只接受 `explainAnnotations | practiceReading`，由產品預設動作使用。
+- `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja`；供標記解析與閱讀測驗題面共用。
 
 ## 5. Connection and Allowance Flow
 
@@ -167,11 +170,11 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 
 1. Renderer 驗證 Codex ready、輸入非空且沒有 active turn。
 2. 閱讀模式以 START／END 裁切目前非空區段，安全插入區段內標記，並以書籍、章節、邊界及標記 revision 組成區段識別。
-3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時，普通追問只送使用者問題。預設標記解析每次提供當下區段；其他模式或空區段不附 EPUB 原文。
+3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時，普通追問只送使用者問題。預設標記解析與區段練習每次提供當下區段；其他模式或空區段不附 EPUB 原文。
 4. Controller 在任何 await 前先進入 starting，封鎖第二個並行 send 及對話管理操作。
 5. 空白新對話以固定的唯讀、無工具設定、目前選定模型及 App 內嵌的唯一標記解析 skill instructions 建立 thread，再建立本機產品對話；過去對話以 `thread/resume` 恢復時載入相同 instructions。
 6. Controller 保存畫面用的純使用者問題，另把本次實際收到的有限閱讀 context 組成 Codex input，並更新該對話的最近來源摘要。
-7. 一般 `turn/start` 只含 text input，已載入 skill 的 marker gate 不會套用；標記解析另含 `$explain-reader-annotations` 與指向 App user data 內固定 `SKILL.md` 的型別化 skill input。講解語言以每次 turn 的動態參數提供，因此新 thread 與恢復的既有 thread 行為一致。
+7. 一般與區段練習的 `turn/start` 只含 text input，已載入 skill 的 marker gate 不會套用；區段練習由 Main 依去除 XML 標籤後的英文詞數組成 3 至 10 題選擇題及 1 至 3 題問答題，整份題面使用本次講解語言，Part B 則固定要求完整英文句輸出。標記解析另含 `$explain-reader-annotations` 與指向 App user data 內固定 `SKILL.md` 的型別化 skill input。講解語言以每次 turn 的動態參數提供，因此新 thread 與恢復的既有 thread 行為一致。
 8. `turn/start` 使用目前選定模型及其預設推理強度；成功後 Renderer 才把本次區段識別記為已提供，bridge 拒絕時保留待提供狀態。
 9. 後續 delta／completed notification 更新同一 assistant 訊息並持久保存；使用者可用停止按鈕中斷目前 turn，turn completed 後解除 busy，才能追問、切換、新建、移除對話或切換模型。
 
@@ -212,16 +215,16 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、重啟 streaming 正規化與損壞資料隔離 |
-| `apps/desktop/src/main/chat-controller.test.ts` | initialize、帳戶／額度、模型目錄與選擇、turn 中斷、多輪串流、全域對話建立／切換／恢復／移除、唯一 App skill instructions、skill turn input、四種講解語言、skill 教學契約、失敗回滾、並行保護與 process close |
+| `apps/desktop/src/main/chat-controller.test.ts` | initialize、帳戶／額度、模型目錄與選擇、turn 中斷、多輪串流、全域對話建立／切換／恢復／移除、唯一 App skill instructions、skill turn input、解析與測驗的四種講解語言、動態選擇／問答題數與英文輸出契約、失敗回滾、並行保護與 process close |
 | `apps/desktop/src/main/bundled-skill.test.ts` | 乾淨安裝、相同內容略過與舊版 skill 原子更新 |
-| `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
-| `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、bridge send、閱讀區段裁切與去重、全域對話管理、安全 Markdown／GFM 與串流占位 |
+| `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 與預設意圖白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
+| `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、bridge send、閱讀區段裁切／去重／區段練習與語言傳值、全域對話管理、安全 Markdown／GFM 與串流占位 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、AI 面板實際調寬與摺疊恢復、對話管理入口、九項 chat bridge 白名單與 Node 隔離 |
 
 最近驗證（2026-07-21）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：119/119 passed。
+- Desktop Vitest：131/131 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -236,7 +239,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - 不提供推理強度或 API key 設定；設定視窗目前只包含講解語言。
 - 不提供內嵌 Codex／ChatGPT 登入或帳戶切換。
 - Markdown 程式碼區塊目前不提供語法高亮。
-- 尚未實作區段練習、生詞庫、AI 分類結構化保存與 Anki 式複習流程。
+- 區段練習目前只用 Markdown 對話呈現，不保存結構化題目、選項、問答回答、答案、分數或作答歷史；生詞庫、AI 分類結構化保存與 Anki 式複習流程尚未實作。
 - 本機 GUI 環境必須能找到已安裝的 `codex` 可執行檔。
 
 ## 11. Related Documents
@@ -253,6 +256,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/F12-resizable-ai-conversation-panel.md`
 - `documents/implements/F13-persistent-annotations-and-ai-analysis.md`
 - `documents/implements/F16-invoke-annotation-explanation-skill.md`
+- `documents/implements/F17-reading-segment-comprehension-quiz.md`
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
+- `documents/implements/B04-use-language-setting-for-reading-quiz.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

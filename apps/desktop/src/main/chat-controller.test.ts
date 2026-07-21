@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ChatController, composeCodexInput } from "./chat-controller";
+import {
+  ChatController,
+  composeCodexInput,
+  readingQuizOpenQuestionCount,
+  readingQuizQuestionCount
+} from "./chat-controller";
 import { SpawnedCodexAppServerClient } from "./codex-app-server-client";
 import type {
   ChatConversationStore,
@@ -255,6 +260,14 @@ describe("ChatController", () => {
     await controller.sendMessage({ text: "What does this mean?" });
     await waitUntil(() => controller.getSnapshot().activeTurnId === null);
     await controller.sendMessage({
+      text: "開始閱讀測驗",
+      intent: "practiceReading",
+      context: {
+        readingSegment: "<reading-segment>A short passage.</reading-segment>"
+      }
+    });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+    await controller.sendMessage({
       text: "講解標記內容",
       intent: "explainAnnotations",
       explanationLanguage: "zh-TW",
@@ -290,11 +303,19 @@ describe("ChatController", () => {
       "features.apps": false
     });
     const ordinaryInput = turnStarts[0]?.params?.input;
-    const explanationInput = turnStarts[1]?.params?.input;
+    const practiceInput = turnStarts[1]?.params?.input;
+    const explanationInput = turnStarts[2]?.params?.input;
     expect(ordinaryInput).toEqual([
       expect.objectContaining({ type: "text" })
     ]);
     expect(JSON.stringify(ordinaryInput)).not.toContain("explain-reader-annotations");
+    expect(practiceInput).toEqual([
+      expect.objectContaining({
+        type: "text",
+        text: expect.stringContaining("reading comprehension quiz")
+      })
+    ]);
+    expect(JSON.stringify(practiceInput)).not.toContain("explain-reader-annotations");
     expect(explanationInput).toEqual([
       expect.objectContaining({
         type: "text",
@@ -726,6 +747,29 @@ describe("composeCodexInput", () => {
     expect(result).not.toContain("區段解析規則");
   });
 
+  it.each([
+    ["source", "Use the same language as the current reading segment"],
+    ["zh-TW", "Traditional Chinese"],
+    ["en", "English"],
+    ["ja", "Japanese"]
+  ] as const)("uses %s as the reading quiz language while keeping English output", (
+    explanationLanguage,
+    expectedLanguage
+  ) => {
+    const result = composeCodexInput({
+      text: "開始閱讀測驗",
+      intent: "practiceReading",
+      explanationLanguage,
+      context: {
+        readingSegment: "<reading-segment>A short passage.</reading-segment>"
+      }
+    });
+
+    expect(result).toContain(`Quiz language: ${expectedLanguage}`);
+    expect(result).toContain("complete English sentences");
+    expect(result).toContain("Do not provide sample answers");
+  });
+
   it("asks for a no-annotation response and supports source language", () => {
     const result = composeCodexInput({
       text: "講解標記內容",
@@ -736,6 +780,49 @@ describe("composeCodexInput", () => {
 
     expect(result).toContain("The current reading segment contains no reader annotations");
     expect(result).toContain("Use the same language as the current reading segment");
+  });
+
+  it.each([
+    [50, 3, 1],
+    [300, 3, 1],
+    [301, 4, 2],
+    [600, 6, 2],
+    [601, 7, 3],
+    [1_001, 10, 3]
+  ])("uses %i passage words to request %i multiple-choice and %i open questions", (
+    wordCount,
+    expectedChoiceCount,
+    expectedOpenCount
+  ) => {
+    const words = Array.from({ length: wordCount }, () => "word").join(" ");
+    const segment = `<reading-segment><reader-annotation id="A1">${words}</reader-annotation></reading-segment>`;
+
+    expect(readingQuizQuestionCount(segment)).toBe(expectedChoiceCount);
+    expect(readingQuizOpenQuestionCount(segment)).toBe(expectedOpenCount);
+  });
+
+  it("requests a length-based reading comprehension quiz without revealing answers", () => {
+    const words = Array.from({ length: 301 }, () => "word").join(" ");
+    const result = composeCodexInput({
+      text: "開始閱讀測驗",
+      intent: "practiceReading",
+      context: {
+        readingSegment: `<reading-segment>${words}</reading-segment>`
+      }
+    });
+
+    expect(result).toContain("exactly 4");
+    expect(result).toContain("exactly 2 short-answer questions");
+    expect(result).toContain("English");
+    expect(result).toContain("A, B, C, and D");
+    expect(result).toContain("one best answer");
+    expect(result).toContain("reading comprehension");
+    expect(result).toContain("Do not reveal the correct answers");
+    expect(result).toContain("complete English sentences");
+    expect(result).toContain("summarize, explain, infer, or paraphrase");
+    expect(result).toContain("Do not provide sample answers");
+    expect(result).toContain("1A 2C 3B");
+    expect(result).toContain("Do not use or infer content outside");
   });
 });
 

@@ -204,13 +204,38 @@ export function composeCodexInput(input: SendChatMessageInput): string {
     "",
     `使用者問題：${text}`
   ];
-  if (input.intent !== "explainAnnotations") return base.join("\n");
   const language = {
     source: "Use the same language as the current reading segment",
     "zh-TW": "Traditional Chinese",
     en: "English",
     ja: "Japanese"
   }[input.explanationLanguage ?? "source"];
+  if (input.intent === "practiceReading") {
+    const questionCount = readingQuizQuestionCount(
+      context?.readingSegment ?? ""
+    );
+    const openQuestionCount = readingQuizOpenQuestionCount(
+      context?.readingSegment ?? ""
+    );
+    return [
+      ...base,
+      "",
+      "Create a reading comprehension quiz using only the current reading segment.",
+      `Quiz language: ${language}. Use this language for every heading, question, multiple-choice option, short-answer prompt, and answer instruction.`,
+      "Organize the quiz into Part A: Multiple Choice and Part B: Short Answer.",
+      `Generate exactly ${questionCount} questions. Give each question four options labeled A, B, C, and D, with exactly one best answer.`,
+      "Focus on reading comprehension such as the main idea, stated details, inference, author purpose, or meaning in context. Do not make isolated vocabulary recall the main task.",
+      `Then generate exactly ${openQuestionCount} short-answer questions in the quiz language.`,
+      "Use short-answer prompts that ask the learner to summarize, explain, infer, or paraphrase ideas from the passage.",
+      "Require the learner to answer the short-answer questions in complete English sentences so they practice English output.",
+      "Treat reader-annotation tags only as reader markup. Test the whole reading segment equally; annotations are not required and must not narrow the quiz scope.",
+      "Do not use or infer content outside the current reading segment.",
+      "Do not reveal the correct answers or explanations in this first response.",
+      "Do not provide sample answers for the short-answer questions in this first response.",
+      "After the questions, invite the learner to answer Part A in a compact format such as 1A 2C 3B, and Part B in complete English sentences."
+    ].join("\n");
+  }
+  if (input.intent !== "explainAnnotations") return base.join("\n");
   const hasAnnotations = Boolean(
     context?.readingSegment?.includes("<reader-annotation ")
   );
@@ -223,6 +248,23 @@ export function composeCodexInput(input: SendChatMessageInput): string {
       ? ["The current reading segment contains no reader annotations."]
       : [])
   ].join("\n");
+}
+
+export function readingQuizQuestionCount(readingSegment: string): number {
+  const wordCount = readingSegmentWordCount(readingSegment);
+  return Math.max(3, Math.min(10, Math.ceil(wordCount / 100)));
+}
+
+export function readingQuizOpenQuestionCount(readingSegment: string): number {
+  const wordCount = readingSegmentWordCount(readingSegment);
+  return Math.max(1, Math.min(3, Math.ceil(wordCount / 300)));
+}
+
+function readingSegmentWordCount(readingSegment: string): number {
+  const passageText = readingSegment.replace(/<[^>]+>/g, " ");
+  return passageText.match(
+    /[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g
+  )?.length ?? 0;
 }
 
 function composeTurnInput(

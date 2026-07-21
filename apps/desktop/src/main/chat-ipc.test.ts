@@ -76,6 +76,18 @@ describe("chat IPC", () => {
         readingSegment: "inside"
       }
     });
+    await handlers.get("chat:send")?.({}, {
+      text: "開始閱讀測驗",
+      intent: "practiceReading",
+      explanationLanguage: "ja",
+      context: { readingSegment: "inside" }
+    });
+    expect(controller.sendMessage).toHaveBeenCalledWith({
+      text: "開始閱讀測驗",
+      intent: "practiceReading",
+      explanationLanguage: "ja",
+      context: { readingSegment: "inside" }
+    });
     expect(() => handlers.get("chat:send")?.({}, {
       text: "bad",
       context: { readingSegment: 42 }

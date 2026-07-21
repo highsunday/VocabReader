@@ -17,17 +17,22 @@ function parseSendInput(value: unknown): SendChatMessageInput {
   if (!isObject(value) || typeof value.text !== "string") {
     throw new Error("AI 訊息格式錯誤。");
   }
-  if (value.intent !== undefined && value.intent !== "explainAnnotations") {
+  if (value.intent !== undefined &&
+    value.intent !== "explainAnnotations" &&
+    value.intent !== "practiceReading") {
     throw new Error("AI 訊息格式錯誤。");
   }
   if (value.explanationLanguage !== undefined &&
     !isExplanationLanguage(value.explanationLanguage)) {
     throw new Error("AI 訊息格式錯誤。");
   }
+  const intent = value.intent === "explainAnnotations"
+    ? "explainAnnotations" as const
+    : value.intent === "practiceReading"
+      ? "practiceReading" as const
+      : undefined;
   const extras = {
-    ...(value.intent === "explainAnnotations"
-      ? { intent: "explainAnnotations" as const }
-      : {}),
+    ...(intent ? { intent } : {}),
     ...(isExplanationLanguage(value.explanationLanguage)
       ? { explanationLanguage: value.explanationLanguage }
       : {})

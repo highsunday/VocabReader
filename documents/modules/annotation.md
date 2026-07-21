@@ -8,14 +8,16 @@ related_implements:
   - F14-sticky-annotation-tool
   - F15-polish-annotation-tool-ui
   - F16-invoke-annotation-explanation-skill
+  - F17-reading-segment-comprehension-quiz
   - B03-load-only-bundled-annotation-skill
+  - B04-use-language-setting-for-reading-quiz
 ---
 
 # 持久標記與 AI 標記解析模組
 
 ## 1. Purpose
 
-本模組讓使用者在 EPUB 章節原文上建立持久的**標記（Annotation）**，並在右側目前選取的 AI 對話中，以預設動作「講解標記內容」要求 AI 解讀。標記代表使用者主動指出的困難文字；START／END **範圍標籤（Range Marker）**只界定 AI 可讀的上下文邊界，兩者是不同領域概念。
+本模組讓使用者在 EPUB 章節原文上建立持久的**標記（Annotation）**，並在右側目前選取的 AI 對話中，以預設動作「講解標記內容」要求 AI 解讀，或以「閱讀測驗」進行**區段練習**。標記代表使用者主動指出的困難文字；START／END **範圍標籤（Range Marker）**只界定 AI 可讀的上下文邊界，兩者是不同領域概念。
 
 AI 只取得 START／END 內的原文與標記交集。一般提問維持正常多輪問答；只有預設動作會要求 AI 自動判斷單字、片語或句子，並依該類型順序分組說明。
 
@@ -34,8 +36,9 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 - 以 `<reading-segment>` 包住閱讀區段，並以 `<reader-annotation id="A1">…</reader-annotation>` 依原語序標出區段內標記。
 - START／END 或標記新增、移除後，下一則 AI 訊息會取得最新版本；一般未變追問不重傳相同上下文。
 - 「講解標記內容」每次都附上當下區段，避免先前一般問答的上下文去重使解析意圖看不到標記。
+- 「閱讀測驗」每次也附上當下區段，依區段英文詞數要求 3 至 10 題四選一閱讀理解題及 1 至 3 題問答題；題面使用目前講解語言，不要求已有標記，第一輪不揭露答案、解析或參考回答。
 - AI 解析明確呼叫 App 內建並安裝到 user data 的 `explain-reader-annotations` skill，固定依單字、片語、句子分組，同組依原文位置排列，並依標記本文用法提供 CEFR 與複習表；分類只存在於 AI 回覆，不回寫標記。
-- 全域講解語言可選原文語言、繁體中文、English 或日本語，預設為原文語言並持久保存。
+- 全域講解語言可選原文語言、繁體中文、English 或日本語，預設為原文語言並持久保存；後續標記解析及閱讀測驗題面共用這項設定。
 
 ## 3. Domain Data and Invariants
 
@@ -84,9 +87,9 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 <reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation> to admit <reader-annotation id="A2">that the plan had failed.</reader-annotation></reading-segment>
 ```
 
-Renderer 以書籍、章節、START、END、標記 revision 與序列化區段建立上下文版本。普通訊息成功送出後，相同版本的普通追問可省略 context；保存或 bridge 送出失敗時不可把版本誤記為已提供。「講解標記內容」是顯式解析動作，因此即使版本未變也會重新附上當下區段。
+Renderer 以書籍、章節、START、END、標記 revision 與序列化區段建立上下文版本。普通訊息成功送出後，相同版本的普通追問可省略 context；保存或 bridge 送出失敗時不可把版本誤記為已提供。「講解標記內容」與「閱讀測驗」都是顯式預設動作，因此即使版本未變也會重新附上當下區段。
 
-## 6. Trusted Analysis Intent
+## 6. Trusted Preset Intents
 
 Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解語言，不能提供任意系統 prompt 或 skill 路徑。Main process 以 `$explain-reader-annotations` 文字標記及型別化 skill input 明確注入 App 安裝在 user data 的固定 skill。該 skill 的解析規則為：
 
@@ -99,13 +102,15 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 - 沒有標籤時明確回覆目前沒有標記內容。
 - 依 `source | zh-TW | en | ja` 決定本次講解語言。
 
+Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受限講解語言。Main process 忽略閱讀器 XML 標籤後計算英文詞數，以 `ceil(wordCount / 100)` 產生 3 至 10 題 A–D 四選一，再以 `ceil(wordCount / 300)` 產生 1 至 3 題問答題。標題、題目、選項、問答題與作答說明依 `source | zh-TW | en | ja` 使用原文語言、繁體中文、English 或日本語；Part B 始終要求使用者以英文完整句進行摘要、解釋、推論或重述。第一輪不揭露答案、解析或參考回答。這個意圖不注入標記解析 skill，且標記只作為閱讀器邊界資訊，不改變出題範圍。
+
 一般輸入沒有此 intent，即使上下文含標籤也只是正常 AI 問答。預設動作沿用目前右側 AI 對話及 Codex thread；空白對話仍在送出時才建立。
 
 ## 7. Settings Boundary
 
 講解語言是全域應用程式偏好，不屬於單本書、單章或單一 AI 對話。Main process 的 `LocalSettingsStore` 把受限設定保存到 Electron user data 的 `settings/settings.json`，先寫 `.next` 再原子替換。缺少、損壞或未知值一律回退為 `source`。
 
-設定只影響之後的「講解標記內容」動作，不修改介面語言、EPUB 原文、一般自由問答或既有 AI 回覆。
+設定只影響之後的「講解標記內容」與「閱讀測驗」題面，不修改介面語言、EPUB 原文、一般自由問答、既有 AI 回覆或 Part B 的英文作答要求。
 
 ## 8. Key Files
 
@@ -119,7 +124,7 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 | `apps/desktop/src/shared/settings-contracts.ts` | 講解語言及設定 API 型別 |
 | `apps/desktop/src/main/settings-store.ts` | 全域偏好載入、降級與原子保存 |
 | `apps/desktop/src/main/settings-ipc.ts` | 設定值 IPC 驗證 |
-| `apps/desktop/src/main/chat-controller.ts` | 唯一 App skill instructions、marker gate 與可信任標記解析 input 組成 |
+| `apps/desktop/src/main/chat-controller.ts` | 唯一 App skill instructions、marker gate、可信任標記解析與區段練習 input 組成 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析 workflow、動態講解語言、CEFR 與複習表規則 |
 | `apps/desktop/src/main/bundled-skill.ts` | 將 build 內嵌的 skill 安裝／更新到其他電腦的 user data runtime |
 | `apps/desktop/src/renderer/styles.css` | 標記模式、原文標示與設定視窗樣式 |
@@ -129,14 +134,14 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/renderer/reading-range.test.ts` | 選取 offset、反向與空白正規化、重疊、revision、安全標籤與邊界裁切 |
-| `apps/desktop/src/renderer/App.test.tsx` | 固定小工具、章節標記總數、模式、連續建立、切章隔離、右鍵建立／移除、靜默重疊、上下文刷新／去重、預設解析及語言設定 |
+| `apps/desktop/src/renderer/App.test.tsx` | 固定小工具、章節標記總數、模式、連續建立、切章隔離、右鍵建立／移除、靜默重疊、上下文刷新／去重、預設解析、區段練習及語言設定 |
 | `apps/desktop/src/main/library-service.test.ts` | 跨章保存、移除、舊索引相容、無效與重疊資料 |
 | `apps/desktop/src/main/library-ipc.test.ts` | 標記 IPC 路由與輸入驗證 |
 | `apps/desktop/src/main/settings-store.test.ts` | 預設、保存、損壞／未知值降級 |
 | `apps/desktop/src/main/settings-ipc.test.ts` | 設定 IPC 路由與 enum 驗證 |
-| `apps/desktop/src/main/chat-controller.test.ts` | 一般 context、唯一 App skill 載入與其他 skills 隔離、既有 thread 恢復、空標記、四種講解語言與 skill 教學契約 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 一般 context、唯一 App skill 載入與其他 skills 隔離、既有 thread 恢復、空標記、解析與測驗的四種講解語言、動態選擇／問答題數與英文輸出 prompt 契約 |
 | `apps/desktop/src/main/bundled-skill.test.ts` | App 內建 skill 的首次安裝、無變更略過與升級替換 |
-| `apps/desktop/src/main/chat-ipc.test.ts` | 可信任 intent 與講解語言白名單 |
+| `apps/desktop/src/main/chat-ipc.test.ts` | 標記解析／區段練習 intent 與講解語言白名單 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | preload 白名單、設定選項與 Electron 啟動回歸 |
 
 ## 10. Constraints and Follow-up
@@ -157,6 +162,8 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 - `documents/implements/F14-sticky-annotation-tool.md`
 - `documents/implements/F15-polish-annotation-tool-ui.md`
 - `documents/implements/F16-invoke-annotation-explanation-skill.md`
+- `documents/implements/F17-reading-segment-comprehension-quiz.md`
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
+- `documents/implements/B04-use-language-setting-for-reading-quiz.md`
 
-變更標記資料、不重疊規則、Selection offset、AI 序列化、解析 intent 或講解語言時，必須同步更新本文件與 F13 實作紀錄。
+變更標記資料、不重疊規則、Selection offset、AI 序列化、預設 intent 或講解語言時，必須同步更新本文件與相關 FXX 實作紀錄。

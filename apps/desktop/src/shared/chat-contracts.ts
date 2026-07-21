@@ -45,7 +45,7 @@ export interface ChatContext {
 export interface SendChatMessageInput {
   text: string;
   context?: ChatContext;
-  intent?: "explainAnnotations";
+  intent?: "explainAnnotations" | "practiceReading";
   explanationLanguage?: "source" | "zh-TW" | "en" | "ja";
 }
 

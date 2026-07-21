@@ -1884,7 +1884,7 @@ describe("App", () => {
     });
   });
 
-  it("uses the selected explanation language for the annotation analysis preset", async () => {
+  it("uses the selected explanation language for annotation analysis and reading quiz presets", async () => {
     const chapterText = "He was reluctant.";
     const rangedBook: LibraryBook = {
       ...books[0],
@@ -1936,6 +1936,19 @@ describe("App", () => {
         readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation>.</reading-segment>'
       }
     }));
+
+    fireEvent.click(screen.getByRole("button", { name: "閱讀測驗" }));
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      text: "開始閱讀測驗",
+      intent: "practiceReading",
+      explanationLanguage: "ja",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation>.</reading-segment>'
+      }
+    }));
   });
 
   it("keeps annotation analysis available without annotations", async () => {
@@ -1979,6 +1992,54 @@ describe("App", () => {
         bookTitle: "The First Book",
         chapterTitle: "Opening",
         readingSegment: "<reading-segment>Nothing is marked.</reading-segment>"
+      }
+    }));
+  });
+
+  it("starts a reading comprehension quiz from the current range without annotations", async () => {
+    const chapterText = "Nothing is marked, but the passage can still be tested.";
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: chapterText.length } }
+    };
+    const snapshot = initialReadySnapshot();
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    const { getChapterContent } = installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "First question" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
+
+    const preset = screen.getByRole("button", { name: "閱讀測驗" });
+    expect(preset).toBeEnabled();
+    fireEvent.click(preset);
+
+    await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(2, {
+      text: "開始閱讀測驗",
+      intent: "practiceReading",
+      explanationLanguage: "source",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: `<reading-segment>${chapterText}</reading-segment>`
       }
     }));
   });
