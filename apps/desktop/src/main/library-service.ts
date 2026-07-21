@@ -36,6 +36,12 @@ interface ParsedEpub {
   chapters: BookChapter[];
 }
 
+interface NavigationLink {
+  title: string;
+  href: string;
+  depth: number;
+}
+
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
@@ -109,8 +115,22 @@ function chapterId(href: string): string {
   return createHash("sha256").update(href).digest("hex").slice(0, 16);
 }
 
-function linksFromNavigationList(value: unknown): Array<{ title: string; href: string }> {
-  const links: Array<{ title: string; href: string }> = [];
+function fragmentFromHref(href: string): string | null {
+  const separator = href.indexOf("#");
+  if (separator < 0 || separator === href.length - 1) return null;
+  const fragment = href.slice(separator + 1);
+  try {
+    return decodeURIComponent(fragment);
+  } catch {
+    return fragment;
+  }
+}
+
+function linksFromNavigationList(
+  value: unknown,
+  depth = 0
+): NavigationLink[] {
+  const links: NavigationLink[] = [];
   const record = asRecord(value);
   for (const item of asArray(record.li)) {
     const itemRecord = asRecord(item);
@@ -118,13 +138,13 @@ function linksFromNavigationList(value: unknown): Array<{ title: string; href: s
     const anchor = asRecord(anchors[0]);
     const href = attribute(anchor, "href");
     const title = textValue(anchor);
-    if (href && title) links.push({ title, href });
-    links.push(...linksFromNavigationList(itemRecord.ol));
+    if (href && title) links.push({ title, href, depth });
+    links.push(...linksFromNavigationList(itemRecord.ol, depth + 1));
   }
   return links;
 }
 
-function navigationLinks(document: unknown): Array<{ title: string; href: string }> {
+function navigationLinks(document: unknown): NavigationLink[] {
   const html = asRecord(asRecord(document).html);
   const body = asRecord(html.body);
   const candidates = asArray(body.nav).map(asRecord);
@@ -134,16 +154,16 @@ function navigationLinks(document: unknown): Array<{ title: string; href: string
   return toc ? linksFromNavigationList(toc.ol) : [];
 }
 
-function ncxLinks(value: unknown): Array<{ title: string; href: string }> {
-  const links: Array<{ title: string; href: string }> = [];
+function ncxLinks(value: unknown, depth = 0): NavigationLink[] {
+  const links: NavigationLink[] = [];
   const record = asRecord(value);
   for (const point of asArray(record.navPoint)) {
     const pointRecord = asRecord(point);
     const content = asRecord(pointRecord.content);
     const href = attribute(content, "src");
     const title = textValue(asRecord(pointRecord.navLabel).text);
-    if (href && title) links.push({ title, href });
-    links.push(...ncxLinks(pointRecord));
+    if (href && title) links.push({ title, href, depth });
+    links.push(...ncxLinks(pointRecord, depth + 1));
   }
   return links;
 }
@@ -156,7 +176,8 @@ const readableTags = new Set([
   "p", "h1", "h2", "h3", "h4", "h5", "h6", "div", "span", "em",
   "strong", "b", "i", "u", "s", "blockquote", "pre", "code", "ul",
   "ol", "li", "dl", "dt", "dd", "table", "thead", "tbody", "tfoot",
-  "tr", "th", "td", "hr", "br", "figure", "figcaption", "sup", "sub"
+  "tr", "th", "td", "hr", "br", "figure", "figcaption", "sup", "sub",
+  "section", "article"
 ]);
 
 const discardedTags = new Set([
@@ -252,6 +273,10 @@ async function sanitizeChapterHtml(
         continue;
       }
       const allowedAttributes: string[] = [];
+      const id = String(attributes["@_id"] ?? "");
+      if (id && !/[\u0000-\u001f\u007f]/.test(id)) {
+        allowedAttributes.push(`id="${escapeHtmlAttribute(id)}"`);
+      }
       if (name === "ol" && /^\d+$/.test(String(attributes["@_start"] ?? ""))) {
         allowedAttributes.push(`start="${attributes["@_start"]}"`);
       }
@@ -300,7 +325,14 @@ function distinctChapters(chapters: BookChapter[]): BookChapter[] {
       seen.add(chapter.id);
       return true;
     })
-    .map((chapter, order) => ({ ...chapter, order }));
+    .map((chapter, order) => ({
+      ...chapter,
+      order,
+      depth: Number.isInteger(chapter.depth) && chapter.depth >= 0
+        ? chapter.depth
+        : 0,
+      fragment: typeof chapter.fragment === "string" ? chapter.fragment : null
+    }));
 }
 
 async function requiredTextFile(zip: JSZip, path: string, label: string) {
@@ -376,7 +408,7 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
   const navigationItem = manifestItems.find((item) =>
     item.properties.split(/\s+/).includes("nav")
   );
-  let links: Array<{ title: string; href: string }> = [];
+  let links: NavigationLink[] = [];
   if (navigationItem) {
     const navigationPath = resolveArchivePath(packageDirectory, navigationItem.href);
     links = navigationLinks(xmlParser.parse(await requiredTextFile(zip, navigationPath, "navigation document")));
@@ -393,16 +425,25 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
   if (!links.length) {
     links = spineItems.map((item) => ({
       title: basename(item.href, posix.extname(item.href)).replace(/[-_]+/g, " "),
-      href: item.href
+      href: item.href,
+      depth: 0
     }));
   }
 
-  const chapters = distinctChapters(links.map<BookChapter>((link, order) => ({
-    id: chapterId(resolveArchivePath(packageDirectory, link.href)),
-    title: link.title,
-    order,
-    href: resolveArchivePath(packageDirectory, link.href)
-  })));
+  const chapters = distinctChapters(links.map<BookChapter>((link, order) => {
+    const href = resolveArchivePath(packageDirectory, link.href);
+    const fragment = fragmentFromHref(link.href);
+    return {
+      id: chapterId(
+        link.depth === 0 ? href : `${href}#${fragment ?? `toc-${order}`}`
+      ),
+      title: link.title,
+      order,
+      href,
+      depth: link.depth,
+      fragment
+    };
+  }));
   if (!chapters.length) throw new Error("EPUB 沒有可閱讀的章節");
 
   return { title, author, coverDataUrl, chapters };
@@ -432,7 +473,23 @@ export class LocalBookLibrary {
     await this.#ensureLibrary();
     const contents = await readFile(this.#indexPath, "utf8");
     const books = JSON.parse(contents) as LibraryBook[];
-    return books.map((book) => {
+    let migrated = false;
+    const booksWithHierarchy = await Promise.all(books.map(async (book) => {
+      const needsMigration = book.chapters.some((chapter) =>
+        !("depth" in chapter) || !("fragment" in chapter)
+      );
+      if (!needsMigration) return book;
+      try {
+        const epubPath = join(this.#booksPath, book.id, "book.epub");
+        const parsed = await parseEpub(await readFile(epubPath));
+        migrated = true;
+        return { ...book, chapters: parsed.chapters };
+      } catch {
+        return book;
+      }
+    }));
+    if (migrated) await this.#saveBooks(booksWithHierarchy);
+    return booksWithHierarchy.map((book) => {
       const chapters = distinctChapters(book.chapters);
       return {
         ...book,
@@ -526,6 +583,7 @@ export class LocalBookLibrary {
       bookId: book.id,
       chapterId: chapter.id,
       title: chapter.title,
+      fragment: chapter.fragment,
       contentHtml
     };
   }

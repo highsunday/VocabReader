@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import type {
   BookView,
   ChapterContent,
@@ -140,6 +141,15 @@ export function App() {
     const progress = selectedBook.readingState.chapterId === chapterContent.chapterId
       ? selectedBook.readingState.scrollProgress
       : 0;
+    if (progress === 0 && chapterContent.fragment) {
+      const target = Array.from(
+        contentRef.current.querySelectorAll<HTMLElement>("[id]")
+      ).find((element) => element.id === chapterContent.fragment);
+      if (target && typeof target.scrollIntoView === "function") {
+        target.scrollIntoView({ block: "start" });
+        return;
+      }
+    }
     contentRef.current.scrollTop = maximum * progress;
   }, [chapterContent, selectedBookId]);
 
@@ -493,15 +503,27 @@ export function App() {
                     <h2>章節</h2>
                   </div>
                   <ol>
-                    {selectedBook.chapters.map((chapter) => (
-                      <li key={`${chapter.id}-${chapter.order}`}>
+                    {selectedBook.chapters.map((chapter) => {
+                      const depth = Math.max(0, chapter.depth ?? 0);
+                      return (
+                      <li
+                        className={depth > 0 ? "subchapter" : undefined}
+                        data-depth={depth}
+                        key={`${chapter.id}-${chapter.order}`}
+                        style={{ "--chapter-depth": Math.min(depth, 4) } as CSSProperties}
+                      >
                         <button type="button" onClick={() => openChapter(chapter.id)}>
-                          <span>{String(chapter.order + 1).padStart(2, "0")}</span>
+                          <span>
+                            {depth > 0
+                              ? "↳ 子章節"
+                              : String(chapter.order + 1).padStart(2, "0")}
+                          </span>
                           <strong>{chapter.title}</strong>
-                          <em>開始閱讀 →</em>
+                          <em>{depth > 0 ? "閱讀此節 →" : "開始閱讀 →"}</em>
                         </button>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ol>
                 </div>
               </section>

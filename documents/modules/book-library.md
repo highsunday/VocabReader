@@ -8,6 +8,7 @@ related_implements:
   - F02-chapter-reading-resume
   - F03-simplify-sidebar-navigation
   - F04-delete-library-book
+  - B01-preserve-epub-chapter-hierarchy
 ---
 
 # 書籍與本機書庫模組
@@ -32,6 +33,7 @@ related_implements:
 
 - 透過 Electron 原生檔案選擇器導入 .epub。
 - 解析標準 EPUB 2 與 EPUB 3 的書名、作者、封面及章節順序。
+- 保留 EPUB 目錄的章節／子章節層級與 fragment；同一 XHTML 中的子章節不會被誤判為重複項目。
 - 將 EPUB 原始檔與書庫索引保存於 Electron user data 目錄。
 - 重新開啟應用程式後載入既有書庫。
 - 以 EPUB 完整內容 SHA-256 去重；相同內容不重複導入，同名不同內容可並存。
@@ -43,6 +45,8 @@ related_implements:
 - 每本書保存最後所在畫面、章節與相對捲動位置，切換書籍或重新啟動後可恢復。
 - 封面以 Data URL 經安全 preload bridge 傳給 renderer。
 - 長章節清單只捲動中央內容，左右欄保持在視窗內。
+- 書籍總覽以縮排、字級、標記及操作文字區分子章節；開啟子章節時定位到書內 fragment。
+- 舊版索引缺少目錄層級時，會從已保存的 EPUB 自動補回並持久化，不需重新導入。
 
 章節內容採安全 allowlist，而非完整瀏覽器方式重現 EPUB；自訂 CSS、字型、SVG、影音與複雜互動內容目前不保證呈現。
 
@@ -114,6 +118,8 @@ related_implements:
 | title | EPUB 3 navigation、EPUB 2 NCX 或 spine fallback 取得的章節名稱 |
 | order | 章節在書籍總覽中的穩定顯示順序 |
 | href | EPUB archive 內已正規化的章節路徑，供後續章節載入使用 |
+| depth | EPUB navigation／NCX 中的目錄深度；頂層為 0 |
+| fragment | 章節在 XHTML 中的錨點；沒有錨點時為 null |
 
 ### ImportBookResult
 
@@ -125,6 +131,7 @@ related_implements:
 
 - bookId／chapterId：對應已導入書籍與章節。
 - title：章節目錄標題。
+- fragment：需要定位的 XHTML 錨點；頂層或無錨點章節可為 null。
 - contentHtml：由 main process 產生的安全閱讀 HTML，只保留 allowlist 元素與屬性；書內點陣圖片轉為 Data URL。
 
 ## 6. Data and State Flow
@@ -133,9 +140,10 @@ related_implements:
 
 1. Main process 在正式環境使用 app.getPath("userData")/library 建立 LocalBookLibrary。
 2. Renderer mount 後透過 preload 呼叫 listBooks()。
-3. Main process 讀取 index.json，依 order 排序每本書的章節後回傳。
-4. Renderer 顯示書籍清單，並預設選取第一本書。
-5. 若第一本書上次停在 reader，載入保存章節並在本文呈現後恢復相對捲動位置；否則顯示總覽。
+3. Main process 讀取 index.json；若舊章節缺少 depth／fragment，從保存的 EPUB 重新解析並更新索引。
+4. Main process 依 order 排序每本書的章節後回傳。
+5. Renderer 顯示書籍清單，並預設選取第一本書。
+6. 若第一本書上次停在 reader，載入保存章節並在本文呈現後恢復相對捲動位置；否則顯示總覽。
 
 ### EPUB import
 
@@ -155,7 +163,7 @@ related_implements:
 4. Renderer 經 preload 呼叫 library:chapter，只傳遞 bookId 與 chapterId。
 5. LocalBookLibrary 驗證書籍與章節後，從保存的 book.epub 讀取 chapter href。
 6. Main process 移除腳本、事件、表單、嵌入與外部資源，只保留常見閱讀結構；安全書內圖片轉為 Data URL。
-7. Renderer 顯示章節內容，並依 readingState.scrollProgress 恢復中央捲動位置。
+7. Renderer 顯示章節內容，並依 readingState.scrollProgress 恢復中央捲動位置；從子章節入口開啟且沒有較後保存位置時，定位至該 fragment。
 8. 捲動採 300ms 防抖保存；切換書籍、章節或返回總覽前立即保存。
 9. LocalBookLibrary 串行寫入狀態並原子替換 index.json，避免快速操作互相覆蓋。
 
@@ -173,6 +181,7 @@ related_implements:
 - 從 META-INF/container.xml 取得 package document 路徑。
 - EPUB 3 優先使用帶有 nav property 的 navigation document。
 - EPUB 2 使用 spine toc 指向的 NCX，或第一個 NCX media type 項目。
+- navigation document 的巢狀 `<ol>` 與 NCX 的巢狀 `navPoint` 會依深度遞迴解析；同檔案不同 fragment 會保留為不同閱讀入口。
 - 如果沒有 navigation／NCX 連結，依 spine manifest 順序建立 fallback 章節。
 - EPUB 3 封面使用 manifest cover-image property；EPUB 2 使用 metadata cover id。
 - archive href 會移除 fragment、嘗試 percent decoding、正規化，並拒絕絕對路徑與 ../ traversal。
@@ -218,6 +227,7 @@ related_implements:
 - 書籍總覽過長時只能捲動中央 .content；左側書庫和右側 AI 面板維持在 viewport 內。
 - 導入失敗不得在索引留下半完成書籍。
 - EPUB 原始 XHTML 不可直接注入 renderer；章節輸出必須維持 allowlist 與外部資源封鎖。
+- 子章節定位只允許在安全閱讀元素上保留經驗證及 escaping 的 `id`，不得因此放寬其他 EPUB 屬性。
 - 閱讀位置使用 0–1 相對值並限制於有效範圍；不存在的書籍或章節不得改寫狀態。
 - 快速連續的閱讀狀態寫入必須串行，最後一筆操作為最終狀態。
 - 刪除請求只接受索引中存在的 bookId；renderer 不得提供檔案路徑，刪除失敗時不得先從畫面移除書籍。
@@ -226,17 +236,18 @@ related_implements:
 
 | Test file | Coverage |
 |---|---|
-| apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、章節安全內容與圖片、閱讀狀態持久化、不存在書籍／章節與錯誤回滾 |
+| apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、章節階層與舊索引遷移、fragment 定位、安全內容與圖片、閱讀狀態持久化、不存在書籍／章節與錯誤回滾 |
 | apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、刪除、章節與閱讀狀態 handler，以及取消導入與刪除輸入驗證 |
-| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除確認／取消／成功／失敗與相鄰選取、空書庫、章節閱讀及閱讀位置恢復 |
+| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除、空書庫、主／子章節階層呈現、章節閱讀及閱讀位置恢復 |
 | apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge（含刪除 API）、章節／狀態 API、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
 
 最近驗證（2026-07-21）：
 
-- Desktop Vitest：27/27 passed。
+- Server Vitest：3/3 passed。
+- Desktop Vitest：30/30 passed。
 - Electron Playwright：2/2 passed。
-- Desktop TypeScript typecheck：passed。
-- Desktop production build：passed。
+- 全專案 TypeScript typecheck：passed。
+- 全專案 production build：passed。
 
 ## 12. Known Limitations and Technical Debt
 
@@ -258,5 +269,6 @@ related_implements:
 - documents/implements/F02-chapter-reading-resume.md
 - documents/implements/F03-simplify-sidebar-navigation.md
 - documents/implements/F04-delete-library-book.md
+- documents/implements/B01-preserve-epub-chapter-hierarchy.md
 
 更新本模組行為、資料格式、IPC、儲存路徑或 EPUB 解析規則時，必須同步更新本文件與相關 FXX／RXX／BXX 實作紀錄。

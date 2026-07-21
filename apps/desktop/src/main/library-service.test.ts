@@ -7,6 +7,13 @@ import type { LibraryBook } from "../shared/library-contracts";
 import { LocalBookLibrary } from "./library-service";
 
 const temporaryDirectories: string[] = [];
+type BookChapterWithLegacyFields = Omit<
+  LibraryBook["chapters"][number],
+  "depth" | "fragment"
+> & {
+  depth?: number;
+  fragment?: string | null;
+};
 
 async function createTemporaryDirectory() {
   const directory = await mkdtemp(join(tmpdir(), "lingoshelf-library-test-"));
@@ -26,7 +33,7 @@ afterEach(async () => {
 async function createEpub3(
   path: string,
   chapterText = "Chapter one",
-  includeDuplicateNavigationEntry = false
+  includeNestedNavigationEntry = false
 ) {
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
@@ -59,14 +66,18 @@ async function createEpub3(
     "OEBPS/nav.xhtml",
     `<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
       <body><nav epub:type="toc"><ol>
-        <li><a href="chapter1.xhtml">Getting Started</a></li>
-        ${includeDuplicateNavigationEntry
-          ? '<li><a href="chapter1.xhtml#exercise">Getting Started Exercise</a></li>'
-          : ""}
+        <li><a href="chapter1.xhtml">Getting Started</a>
+          ${includeNestedNavigationEntry
+            ? '<ol><li><a href="chapter1.xhtml#exercise">Getting Started Exercise</a></li></ol>'
+            : ""}
+        </li>
         <li><a href="chapter2.xhtml">Useful Patterns</a></li>
       </ol></nav></body></html>`
   );
-  zip.file("OEBPS/chapter1.xhtml", `<html><body>${chapterText}</body></html>`);
+  zip.file(
+    "OEBPS/chapter1.xhtml",
+    `<html><body>${chapterText}<section id="exercise">Practice</section></body></html>`
+  );
   zip.file("OEBPS/chapter2.xhtml", "<html><body>Chapter two</body></html>");
   zip.file("OEBPS/cover.png", Uint8Array.from([137, 80, 78, 71]));
   await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
@@ -96,9 +107,16 @@ async function createEpub2(path: string) {
   );
   zip.file(
     "OPS/toc.ncx",
-    `<ncx><navMap><navPoint id="intro"><navLabel><text>Introduction</text></navLabel><content src="intro.xhtml"/></navPoint></navMap></ncx>`
+    `<ncx><navMap>
+      <navPoint id="intro"><navLabel><text>Introduction</text></navLabel><content src="intro.xhtml#intro"/>
+        <navPoint id="diagnostic"><navLabel><text>Diagnostic</text></navLabel><content src="intro.xhtml#diagnostic"/></navPoint>
+      </navPoint>
+    </navMap></ncx>`
   );
-  zip.file("OPS/intro.xhtml", "<html><body>Welcome</body></html>");
+  zip.file(
+    "OPS/intro.xhtml",
+    '<html><body><h1 id="intro">Welcome</h1><section id="diagnostic">Check</section></body></html>'
+  );
   zip.file("OPS/images/cover.jpg", Uint8Array.from([255, 216, 255]));
   await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
 }
@@ -120,8 +138,8 @@ describe("LocalBookLibrary", () => {
       progressPercent: 0,
       lastChapterId: null,
       chapters: [
-        { title: "Getting Started", order: 0 },
-        { title: "Useful Patterns", order: 1 }
+        { title: "Getting Started", order: 0, depth: 0, fragment: null },
+        { title: "Useful Patterns", order: 1, depth: 0, fragment: null }
       ]
     });
     expect(result.book.coverDataUrl).toMatch(/^data:image\/png;base64,/);
@@ -133,7 +151,7 @@ describe("LocalBookLibrary", () => {
     expect(reloaded).toEqual([result.book]);
   });
 
-  it("collapses navigation entries that point to the same chapter file", async () => {
+  it("preserves nested EPUB 3 entries that point to a fragment in the same chapter file", async () => {
     const root = await createTemporaryDirectory();
     const epubPath = join(root, "duplicate-navigation.epub");
     await createEpub3(epubPath, "Chapter one", true);
@@ -143,8 +161,15 @@ describe("LocalBookLibrary", () => {
 
     if (result.status === "cancelled") throw new Error("unexpected cancellation");
     expect(result.book.chapters).toEqual([
-      expect.objectContaining({ title: "Getting Started", order: 0 }),
-      expect.objectContaining({ title: "Useful Patterns", order: 1 })
+      expect.objectContaining({
+        title: "Getting Started", order: 0, depth: 0, fragment: null
+      }),
+      expect.objectContaining({
+        title: "Getting Started Exercise", order: 1, depth: 1, fragment: "exercise"
+      }),
+      expect.objectContaining({
+        title: "Useful Patterns", order: 2, depth: 0, fragment: null
+      })
     ]);
     expect(new Set(result.book.chapters.map((chapter) => chapter.id)).size)
       .toBe(result.book.chapters.length);
@@ -162,8 +187,58 @@ describe("LocalBookLibrary", () => {
     expect(result.book.author).toBe("Old Author");
     expect(result.book.coverDataUrl).toMatch(/^data:image\/jpeg;base64,/);
     expect(result.book.chapters).toEqual([
-      expect.objectContaining({ title: "Introduction", order: 0 })
+      expect.objectContaining({
+        title: "Introduction", order: 0, depth: 0, fragment: "intro"
+      }),
+      expect.objectContaining({
+        title: "Diagnostic", order: 1, depth: 1, fragment: "diagnostic"
+      })
     ]);
+    expect(result.book.chapters[0].id).not.toBe(result.book.chapters[1].id);
+  });
+
+  it("rebuilds missing hierarchy metadata for books imported with an old index", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "legacy-index.epub");
+    await createEpub3(epubPath, "Chapter one", true);
+    const libraryPath = join(root, "library");
+    const imported = await new LocalBookLibrary(libraryPath).importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+
+    const indexPath = join(libraryPath, "index.json");
+    const persisted = JSON.parse(await readFile(indexPath, "utf8")) as LibraryBook[];
+    persisted[0].readingState = {
+      view: "reader",
+      chapterId: persisted[0].chapters[0].id,
+      scrollProgress: 0.4
+    };
+    persisted[0].lastChapterId = persisted[0].chapters[0].id;
+    const legacyChapters = persisted[0].chapters
+      .filter((chapter) => (chapter as BookChapterWithLegacyFields).depth !== 1)
+      .map((chapter) => {
+        const legacy = { ...chapter } as BookChapterWithLegacyFields;
+        delete legacy.depth;
+        delete legacy.fragment;
+        return legacy;
+      });
+    (persisted[0] as unknown as { chapters: BookChapterWithLegacyFields[] })
+      .chapters = legacyChapters;
+    await writeFile(indexPath, `${JSON.stringify(persisted, null, 2)}\n`);
+
+    const [reloaded] = await new LocalBookLibrary(libraryPath).listBooks();
+
+    expect(reloaded.chapters.map((chapter) => chapter.title)).toEqual([
+      "Getting Started",
+      "Getting Started Exercise",
+      "Useful Patterns"
+    ]);
+    expect(reloaded.readingState).toEqual({
+      view: "reader",
+      chapterId: imported.book.chapters[0].id,
+      scrollProgress: 0.4
+    });
+    const migrated = JSON.parse(await readFile(indexPath, "utf8")) as LibraryBook[];
+    expect(migrated[0].chapters[1]).toMatchObject({ depth: 1, fragment: "exercise" });
   });
 
   it("returns the existing book for identical content but permits same-title revisions", async () => {
@@ -248,6 +323,30 @@ describe("LocalBookLibrary", () => {
     expect(chapter.contentHtml).toContain("Keep this paragraph.");
     expect(chapter.contentHtml).toMatch(/src="data:image\/png;base64,/);
     expect(chapter.contentHtml).not.toMatch(/script|onclick|form|input|https:\/\//i);
+  });
+
+  it("returns a subchapter fragment and preserves its safe target id", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "fragment.epub");
+    await createEpub3(epubPath, "Chapter one", true);
+    const library = new LocalBookLibrary(join(root, "library"));
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    const subchapter = imported.book.chapters.find(
+      (chapter) => chapter.title === "Getting Started Exercise"
+    );
+    expect(subchapter).toBeDefined();
+
+    const content = await library.getChapterContent(
+      imported.book.id,
+      subchapter!.id
+    );
+
+    expect(content).toMatchObject({
+      title: "Getting Started Exercise",
+      fragment: "exercise"
+    });
+    expect(content.contentHtml).toContain('id="exercise"');
   });
 
   it("persists each book reading view, chapter and relative position", async () => {

@@ -18,6 +18,7 @@ interface ReaderDesktopApi {
       bookId: string;
       chapterId: string;
       title: string;
+      fragment: string | null;
       contentHtml: string;
     }>;
     saveReadingState(input: {
@@ -46,6 +47,8 @@ interface DesktopLibraryBook {
     title: string;
     order: number;
     href: string;
+    depth: number;
+    fragment: string | null;
   }>;
 }
 

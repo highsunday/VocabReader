@@ -492,6 +492,10 @@ button {
   border-bottom: 1px solid #d8d3c7;
 }
 
+.chapter-list li.subchapter {
+  border-bottom-color: rgb(216 211 199 / 68%);
+}
+
 .chapter-list button {
   width: 100%;
   padding: 17px 8px;
@@ -503,6 +507,12 @@ button {
   text-align: left;
   background: transparent;
   cursor: pointer;
+}
+
+.chapter-list li.subchapter button {
+  padding-block: 12px;
+  padding-left: calc(8px + var(--chapter-depth, 1) * 24px);
+  background: rgb(250 248 242 / 45%);
 }
 
 .chapter-list button:hover {
@@ -518,6 +528,20 @@ button {
 .chapter-list button > strong {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 16px;
+}
+
+.chapter-list li.subchapter button > strong {
+  color: #4f554d;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.chapter-list li.subchapter button > span {
+  color: #7c927f;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 750;
 }
 
 .chapter-list button > em {
@@ -699,6 +723,10 @@ button {
 .chapter-content h4 {
   margin: 1.55em 0 0.65em;
   line-height: 1.25;
+}
+
+.chapter-content [id] {
+  scroll-margin-top: 92px;
 }
 
 .chapter-content > :first-child {

@@ -13,8 +13,8 @@ const books: LibraryBook[] = [
     lastChapterId: "one-2",
     readingState: { view: "overview", chapterId: null, scrollProgress: 0 },
     chapters: [
-      { id: "one-1", title: "Opening", order: 0, href: "one.xhtml" },
-      { id: "one-2", title: "A New Road", order: 1, href: "two.xhtml" }
+      { id: "one-1", title: "Opening", order: 0, href: "one.xhtml", depth: 0, fragment: null },
+      { id: "one-2", title: "A New Road", order: 1, href: "two.xhtml", depth: 0, fragment: null }
     ]
   },
   {
@@ -25,7 +25,7 @@ const books: LibraryBook[] = [
     progressPercent: 0,
     lastChapterId: null,
     readingState: { view: "overview", chapterId: null, scrollProgress: 0 },
-    chapters: [{ id: "two-1", title: "Beginnings", order: 0, href: "begin.xhtml" }]
+    chapters: [{ id: "two-1", title: "Beginnings", order: 0, href: "begin.xhtml", depth: 0, fragment: null }]
   }
 ];
 
@@ -146,6 +146,41 @@ describe("App", () => {
       .toBeInTheDocument();
   });
 
+  it("visually distinguishes subchapters in the book overview", async () => {
+    const hierarchicalBook = {
+      ...books[0],
+      chapters: [
+        {
+          id: "chapter-one",
+          title: "Chapter 1 The American Sound",
+          order: 0,
+          href: "chapter-one.xhtml",
+          depth: 0,
+          fragment: "chapter-one"
+        },
+        {
+          id: "pure-sound",
+          title: "Pure Sound",
+          order: 1,
+          href: "chapter-one.xhtml",
+          depth: 1,
+          fragment: "pure-sound"
+        }
+      ]
+    } as LibraryBook;
+    installLibraryApi([hierarchicalBook]);
+    render(<App />);
+
+    const subchapterTitle = await screen.findByText("Pure Sound");
+    const subchapterRow = subchapterTitle.closest("li");
+    expect(subchapterRow).toHaveClass("subchapter");
+    expect(subchapterRow).toHaveAttribute("data-depth", "1");
+    expect(subchapterRow).toHaveTextContent("子章節");
+    expect(subchapterRow).toHaveTextContent("閱讀此節 →");
+    expect(screen.getByText("Chapter 1 The American Sound").closest("li"))
+      .not.toHaveClass("subchapter");
+  });
+
   it("imports an EPUB through the desktop library and selects it", async () => {
     const { importBook } = installLibraryApi();
     importBook.mockResolvedValue({
@@ -158,7 +193,7 @@ describe("App", () => {
         progressPercent: 0,
         lastChapterId: null,
         readingState: { view: "overview", chapterId: null, scrollProgress: 0 },
-        chapters: [{ id: "new-1", title: "First Chapter", order: 0, href: "first.xhtml" }]
+        chapters: [{ id: "new-1", title: "First Chapter", order: 0, href: "first.xhtml", depth: 0, fragment: null }]
       }
     });
     render(<App />);
@@ -283,9 +318,9 @@ describe("App", () => {
       lastChapterId: null,
       readingState: { view: "overview", chapterId: null, scrollProgress: 0 },
       chapters: [
-        { id: "shared", title: "Introduction", order: 0, href: "intro.xhtml" },
-        { id: "shared", title: "Introduction exercise", order: 1, href: "intro.xhtml" },
-        { id: "chapter-one", title: "Chapter One", order: 2, href: "one.xhtml" }
+        { id: "shared", title: "Introduction", order: 0, href: "intro.xhtml", depth: 0, fragment: null },
+        { id: "shared", title: "Introduction exercise", order: 1, href: "intro.xhtml", depth: 1, fragment: "exercise" },
+        { id: "chapter-one", title: "Chapter One", order: 2, href: "one.xhtml", depth: 0, fragment: null }
       ]
     };
     const { getChapterContent } = installLibraryApi([bookWithDuplicateNavigationEntries]);

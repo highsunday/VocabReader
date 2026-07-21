@@ -3,6 +3,8 @@ export interface BookChapter {
   title: string;
   order: number;
   href: string;
+  depth: number;
+  fragment: string | null;
 }
 
 export type BookView = "overview" | "reader";
@@ -28,6 +30,7 @@ export interface ChapterContent {
   bookId: string;
   chapterId: string;
   title: string;
+  fragment: string | null;
   contentHtml: string;
 }
 
