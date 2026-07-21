@@ -158,4 +158,6 @@ git diff --check
 
 ### Notes
 
+- 本文件的「問答題固定英文」屬當時決策；B05 已依使用者後續回報覆蓋，現行行為改為題面、問答題回答與批改共同遵守講解語言。詳見 `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`。
+
 - 本修正不擴張 Renderer 權限、IPC method 或 Codex 工具能力。

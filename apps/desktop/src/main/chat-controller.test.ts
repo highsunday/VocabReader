@@ -777,7 +777,7 @@ describe("composeCodexInput", () => {
     ["zh-TW", "Traditional Chinese"],
     ["en", "English"],
     ["ja", "Japanese"]
-  ] as const)("uses %s as the reading quiz language while keeping English output", (
+  ] as const)("uses %s for both the reading quiz and open-ended answers", (
     explanationLanguage,
     expectedLanguage
   ) => {
@@ -786,13 +786,15 @@ describe("composeCodexInput", () => {
       intent: "practiceReading",
       explanationLanguage,
       context: {
-        readingSegment: "<reading-segment>A short passage.</reading-segment>"
+        readingSegment: "<reading-segment>這是一段中文文章。</reading-segment>"
       }
     });
 
     expect(result).toContain(`Quiz language: ${expectedLanguage}`);
+    expect(result).toContain(
+      `Answer language for open-ended questions: ${expectedLanguage}`
+    );
     expect(result).toContain("$practice-reading-comprehension");
-    expect(result).toContain("Answer language for open-ended questions: English");
     expect(result).toContain("Do not impose a sentence-count requirement");
   });
 
@@ -820,7 +822,9 @@ describe("composeCodexInput", () => {
 
     expect(result).toContain("$practice-reading-comprehension");
     expect(result).toContain("Quiz language:");
-    expect(result).toContain("Answer language for open-ended questions: English");
+    expect(result).toContain(
+      "Answer language for open-ended questions: Use the same language as the current reading segment"
+    );
     expect(result).toContain("Do not use or infer content outside");
     expect(result).not.toContain("exactly 4");
     expect(result).not.toContain("3 to 10");

@@ -227,7 +227,7 @@ export function composeCodexInput(input: SendChatMessageInput): string {
       ...base,
       "",
       `Quiz language: ${language}.`,
-      "Answer language for open-ended questions: English.",
+      `Answer language for open-ended questions: ${language}.`,
       "Do not impose a sentence-count requirement on open-ended answers.",
       "Do not use or infer content outside the current reading segment.",
       "Use the App-provided practice-reading-comprehension workflow for quiz creation and later grading."

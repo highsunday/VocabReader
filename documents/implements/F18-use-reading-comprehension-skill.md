@@ -3,7 +3,7 @@ author: Codex
 date: 2026-07-21
 title: 以 App 內建 skill 執行閱讀理解測驗與批改
 uuid: 02fa21fd8ee34f358789aa44b36ee013
-version: 1.0.0
+version: 1.1.0
 status: implemented
 ---
 
@@ -11,15 +11,15 @@ status: implemented
 
 ## 1. Feature Overview
 
-把既有「閱讀測驗」預設動作的教學 prompt 收斂為 App 內建 `practice-reading-comprehension` skill。使用者點擊後，Main Process 明確注入固定 marker 與安裝在 Electron user data runtime 的型別化 skill input，根據目前 START／END **閱讀區段**先估計 CEFR，再產生 8 至 12 題選擇題及 1 至 3 題英文輸出問答題。
+把既有「閱讀測驗」預設動作的教學 prompt 收斂為 App 內建 `practice-reading-comprehension` skill。使用者點擊後，Main Process 明確注入固定 marker 與安裝在 Electron user data runtime 的型別化 skill input，根據目前 START／END **閱讀區段**先估計 CEFR，再產生 8 至 12 題選擇題及 1 至 3 題問答題。
 
-測驗題面沿用全域**講解語言**；題面使用繁體中文、日本語或原文語言時，英文詞句、引文與必要語言分析仍保留英文。Part B 的使用者回答固定使用英文。使用者在同一 **AI 對話**提交答案後，skill 延續逐題批改、英文寫作修正與 final review workflow。
+測驗題面、問答題預期作答語言與後續批改沿用全域**講解語言**；直接引用閱讀區段時保留原文。使用者在同一 **AI 對話**提交答案後，skill 延續逐題批改、寫作修正與 final review workflow。
 
 ## 2. Requirements (User Story)
 
 - **As a** 閱讀英文 EPUB 的學習者
 - **I want** 由一致且可版本管理的閱讀理解 skill 出題並批改
-- **So that** 我能依文章難度檢查理解、練習英文輸出，並得到具體可複習的回饋
+- **So that** 我能依文章難度檢查理解、練習書面輸出，並得到具體可複習的回饋
 
 ## 3. Acceptance Criteria
 
@@ -49,8 +49,8 @@ status: implemented
   - **Given** 講解語言分別為 `source | zh-TW | en | ja`
   - **When** Main Process 組成閱讀測驗 turn
   - **Then** skill 的題目、選項、CEFR 說明、作答指示與後續批改使用原文語言、繁體中文、English 或日本語
-  - **And** 英文文章原文、必要引文、英文修正版本與學習用英文詞句保持英文
-  - **And** Part B 始終要求使用者用英文作答，不限制句數
+  - **And** 問答題本文、回答要求、修正版本、自然版本與寫作評估使用相同講解語言
+  - **And** 直接引用閱讀區段時保持原文，問答題不限制句數
 
 - **Scenario 5：提交答案後提供完整批改**
   - **Given** 同一 AI 對話已由此 skill 產生尚待作答的測驗
@@ -59,7 +59,7 @@ status: implemented
   - **And** 錯誤選擇題得到正解、正解原因、所選答案錯因、文章證據、重要詞語及可遷移作答策略
   - **And** 每題問答檢查切題程度、文法、詞彙、拼字與用字，提供貼近原意修正版、較自然版本及一個可學習句型
   - **And** 不因回答長短本身扣評，並保留使用者原意與個人語氣
-  - **And** 全部可辨識答案批改後提供選擇題分數、閱讀理解評估、英文寫作評估、修正表、3 至 5 個複習重點及一項實用建議
+  - **And** 全部可辨識答案批改後提供選擇題分數、閱讀理解評估、書面表達評估、修正表、3 至 5 個複習重點及一項實用建議
 
 - **Scenario 6：一般對話與標記解析隔離**
   - **Given** 使用者進行一般提問或點擊「解釋標記」
@@ -78,7 +78,7 @@ status: implemented
 | TC3 | Developer instructions | 兩份內嵌 skill | 新建或恢復 thread | 只載入兩份 App skills 與各自 marker gate | Critical |
 | TC4 | 閱讀測驗 skill input | `practiceReading` | 啟動 turn | text 含 marker、區段與語言，skill item 名稱／路徑正確 | Critical |
 | TC5 | 三種 turn 隔離 | 一般／解析／測驗 | 啟動 turn | input 分別為無 skill／解析 skill／測驗 skill | Critical |
-| TC6 | 四種題面語言 | 四種合法設定 | 組成測驗 input | 語言映射正確，Part B 仍為英文且不限制句數 | Critical |
+| TC6 | 四種題面與回答語言 | 四種合法設定 | 組成測驗 input | Quiz 與 Answer language 映射相同，問答題不限制句數 | Critical |
 | TC7 | 題數新規則 | 不同長度與複雜度區段 | 套用 skill | 選擇題 8–12、問答題 1–3，不再要求舊 3–10 公式 | High |
 | TC8 | 安裝包回歸 | production build | 啟動 Electron | runtime 同時存在並可讀兩份 App skills | High |
 
@@ -93,7 +93,7 @@ status: implemented
 ## 6. Assumptions and Non-goals
 
 - 使用者已確認以新 prompt 的 8–12 題覆蓋 F17 原有 3–10 題規則；實際題數由 AI 依閱讀區段長度與複雜度判斷。
-- 問答題維持 1–3 題，使用者自行決定回答長度；不再要求「完整句數量」或任何句數上下限，但答案仍須使用英文。
+- 問答題維持 1–3 題，使用者自行決定回答長度；不再要求「完整句數量」或任何句數上下限，答案使用本次講解語言。
 - 題面與批改語言沿用既有講解語言設定，不新增測驗專屬語言欄位。
 - 第一版仍以 Markdown 多輪對話呈現；不保存結構化題目、正解、分數或作答歷史。
 - 不呼叫工具、讀取區段外內容、建立學習項目或更新 Anki 式複習排程。
@@ -106,8 +106,8 @@ Implemented
 
 ### Implementation Summary
 
-- 新增 repo 版控的 App 內建 `practice-reading-comprehension` skill 與 UI metadata；skill 定義 CEFR 難度評估、8–12 題混合選擇題、1–3 題英文輸出問答題、逐題批改、英文寫作修正及 final review。
-- 題面、CEFR 理由、作答說明與批改依 `source | zh-TW | en | ja` 使用原文語言、繁體中文、English 或日本語；英文文章、引文、修正版、自然版與學習詞句保留英文。
+- 新增 repo 版控的 App 內建 `practice-reading-comprehension` skill 與 UI metadata；skill 定義 CEFR 難度評估、8–12 題混合選擇題、1–3 題問答題、逐題批改、寫作修正及 final review。
+- 題面、CEFR 理由、作答說明、問答題回答與批改依 `source | zh-TW | en | ja` 使用原文語言、繁體中文、English 或日本語；直接引文保留原文。
 - Main Process 在點擊「閱讀測驗」的 turn 加入 `$practice-reading-comprehension` marker、目前閱讀區段、講解語言與型別化 skill input；Renderer 仍只傳受限 intent 與 enum，不能指定 prompt 或 skill 路徑。
 - Electron 啟動時把第二份 skill 從 bundle 原子安裝或更新到 user data runtime；共用安裝核心支援兩個固定 App skill 名稱。
 - 新建與恢復的 Codex thread 都內嵌兩份 App skill instructions，其他 skill catalogs、plugins、apps、memories 與 web search 維持停用。marker gate 只啟用對應預設 workflow；閱讀測驗答案可在同一 AI 對話延續批改。
@@ -115,7 +115,7 @@ Implemented
 
 ### Test Coverage
 
-- TC1：`reading-comprehension-skill.test.ts` 驗證 frontmatter、CEFR、題數、題型、錯題解析、英文雙版本修正、final review、語言及不信任原文契約。
+- TC1：`reading-comprehension-skill.test.ts` 驗證 frontmatter、CEFR、題數、題型、錯題解析、雙版本修正、final review、語言及不信任原文契約。
 - TC2：`bundled-skill.test.ts` 驗證第二份 skill 的 installed／unchanged／updated 與固定 runtime 路徑。
 - TC3、TC4、TC5、TC6：`chat-controller.test.ts` 驗證兩份 developer instructions、新建／恢復 thread、三種 turn 隔離、固定 marker／型別化 input 與四種語言映射。
 - TC7：skill rubric 測試驗證 8–12／1–3 範圍並確認 Main input 不再包含舊精確題數；繁體中文 forward test 實際產生 10 題選擇題與 2 題問答題。
@@ -154,7 +154,7 @@ Implemented
 | App 原子安裝第二個受信任 skill | Pass | installer 單元測試與 Electron E2E runtime 檔案驗證 |
 | 點擊閱讀測驗明確呼叫固定 skill | Pass | controller turn input 測試驗證 marker、區段、語言、名稱與路徑 |
 | 先估 CEFR，再建立 8–12／1–3 混合題型 | Pass | skill rubric 測試與繁體中文 forward test |
-| 題面及批改遵守四種講解語言，Part B 英文且不限制句數 | Pass | 四種 prompt 參數測試、skill 語言契約與 forward test |
+| 題面、回答及批改遵守四種講解語言且不限制句數 | Pass | 四種 prompt 參數測試與 skill 語言契約 |
 | 提交答案後完整批改與 final review | Pass | skill rubric 自動測試與兩回合 forward test |
 | 一般、標記解析、閱讀測驗及其他 skills 維持隔離 | Pass | 三種 turn input、developer instructions 與 isolation config 測試 |
 
@@ -167,7 +167,7 @@ Implemented
 | TC3 | Pass | `injects only the matching App skill for each preset action` 與 resume 回歸 |
 | TC4 | Pass | 同一 controller 測試驗證 `$practice-reading-comprehension` 及固定 skill item |
 | TC5 | Pass | 一般／解析／測驗三個 `turn/start.input` 斷言 |
-| TC6 | Pass | `uses %s as the reading quiz language while keeping English output` 四組參數 |
+| TC6 | Pass | `uses %s for both the reading quiz and open-ended answers` 四組參數 |
 | TC7 | Pass | skill rubric、lean Main input 斷言與 forward test |
 | TC8 | Pass | `launches the secure Electron reading shell` runtime skill 驗證 |
 
@@ -195,6 +195,7 @@ git diff --check
 - 後續答案 turn 不重送 skill item；同一 thread 已載入完整 instructions，developer marker gate 允許只對先前由此 skill 產生的測驗延續評量，並排除不相關訊息。
 - installer 原本只服務標記 skill；實作時抽出私有共用原子安裝核心，兩個公開入口仍固定名稱，未擴張 Renderer 權限。
 - forward test 以繁體中文題面實際產生 B2、10 題選擇題與 2 題英文問答；後續答案得到逐題批改、英文雙版本修正、8/10 與 final review，未發現 rubric 缺口。
+- 上述 forward test 是 B05 前的歷史驗證；目前問答題與回答語言已改為與講解語言一致。
 
 ### Deferred Items
 
@@ -205,3 +206,4 @@ git diff --check
 
 - 本功能延伸既有區段練習，不建立新的領域名稱或資料保存邊界。
 - 沒有發現需要立即另開 RXX 的新架構問題；既有 `App.tsx` 協調責任偏重仍由 annotation 模組限制清單追蹤。
+- B05 覆蓋本文件原先「Part B 固定英文」的決策；詳見 `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`。

@@ -3,7 +3,7 @@ author: Codex
 date: 2026-07-21
 title: 新增閱讀區段理解測驗預設功能
 uuid: 676df7a68eb74607a14550108a03e954
-version: 1.4.0
+version: 1.5.0
 status: implemented
 ---
 
@@ -13,13 +13,13 @@ status: implemented
 
 在閱讀頁的 AI 對話面板中，於既有「解釋標記」旁提供「閱讀測驗」預設動作。使用者點擊後，系統只把目前 START／END 界定的**閱讀區段**交給 Codex AI 執行層，由 App 內建閱讀理解 skill 依區段長度與複雜度產生 8 至 12 題選擇題及 1 至 3 題問答題；題面語言遵循全域講解語言設定。
 
-第一輪只顯示題目，不揭露答案、解析或問答題參考回答。使用者可在同一個 AI 對話中回答選擇題，並以英文完整句回答問答題，再利用既有多輪對話取得批改、英文表達建議與解釋。這是**區段練習**，不要求區段內已有標記，也不建立或更新 Anki 式間隔複習資料。
+第一輪只顯示題目，不揭露答案、解析或問答題參考回答。使用者可在同一個 AI 對話中回答選擇題與問答題，再利用既有多輪對話取得批改、表達建議與解釋；題面、預期作答語言及批改都遵守目前講解語言。這是**區段練習**，不要求區段內已有標記，也不建立或更新 Anki 式間隔複習資料。
 
 ## 2. Requirements (User Story)
 
 - **As a** 閱讀英文 EPUB 的學習者
 - **I want** 對目前 START／END 閱讀區段立即產生符合講解語言設定的選擇題與問答題
-- **So that** 我能檢查閱讀理解，並用英文完整表達答案以練習輸出
+- **So that** 我能檢查閱讀理解，並用目前設定語言完整表達答案以練習輸出
 
 ## 3. Acceptance Criteria
 
@@ -45,9 +45,9 @@ status: implemented
   - **And** 每題包含 A、B、C、D 四個選項且只有一個最佳答案
   - **And** 題目優先測驗主旨、細節、推論、作者意圖或上下文，而不是孤立字義
   - **And** 另依長度與複雜度產生 1 至 3 題問答題
-  - **And** 問答題要求使用者用英文完整句回答，重點是摘要、解釋、推論或以自己的話重述
+  - **And** 問答題要求使用者以目前講解語言回答，重點是摘要、解釋、推論或以自己的話重述
   - **And** 第一輪不得顯示正確答案、解析或問答題參考回答
-  - **And** 邀請使用者以題號加選項回答選擇題，並用英文完整句回答問答題
+  - **And** 邀請使用者以題號加選項回答選擇題，並以目前講解語言回答問答題
 
 - **Scenario 4：標記不是前置條件**
   - **Given** 閱讀區段不含任何 `<reader-annotation>`
@@ -68,7 +68,7 @@ status: implemented
 | TC1 | 顯示測驗預設動作 | 閱讀頁且 Codex ready | 呈現 AI 對話面板 | 顯示可用的「閱讀測驗」按鈕 | Critical |
 | TC2 | 送出目前區段 | 相同區段已被一般訊息提供過 | 點擊「閱讀測驗」 | 仍送出 `practiceReading` 與最新 `readingSegment` | Critical |
 | TC3 | 動態題數邊界 | 不同長度與複雜度區段 | skill 產生測驗 | 選擇題遵守 8–12 題、問答題遵守 1–3 題 | Critical |
-| TC4 | 混合測驗格式契約 | `practiceReading` 含非空區段與講解語言 | 組成 Codex 輸入 | 題面使用設定語言，含動態選擇題、1–3 題問答、英文完整句輸出、延後揭露答案與參考回答要求 | Critical |
+| TC4 | 混合測驗格式契約 | `practiceReading` 含非空區段與講解語言 | 組成 Codex 輸入 | 題面與回答使用設定語言，含動態選擇題、1–3 題問答、延後揭露答案與參考回答要求 | Critical |
 | TC5 | 無標記仍可測驗 | 區段沒有 `<reader-annotation>` | 點擊「閱讀測驗」 | 正常送出區段與 `practiceReading` | High |
 | TC6 | IPC 意圖白名單 | Renderer 傳入 `practiceReading` | IPC 驗證輸入 | 接受此意圖；其他任意意圖仍拒絕 | Critical |
 | TC7 | 既有行為隔離 | 一般訊息或 `explainAnnotations` | 組成 turn input | 一般訊息不套用測驗規則；解析意圖仍使用原 skill | High |
@@ -84,7 +84,7 @@ status: implemented
 ## 6. Assumptions and Non-goals
 
 - 選擇題數由 skill 依閱讀區段長度與複雜度決定，限制於 8–12 題；問答題限制於 1–3 題；本版不提供設定。
-- 標題、題目、選項、問答題與作答說明沿用全域講解語言設定；問答題仍要求使用者以英文完整句作答。後續批改由一般 AI 對話自然承接，本版不新增測驗專屬語言設定。
+- 標題、題目、選項、問答題、作答說明、預期回答與後續批改沿用全域講解語言設定；直接引文保留原文。本版不新增測驗專屬語言設定。
 - 不保存答案、分數、作答歷史或區段練習完成狀態。
 - 不影響學習項目、回答評估、複習排程與到期項目。
 - 不以滑鼠暫時反白選取作為測驗範圍。
@@ -99,9 +99,9 @@ Implemented
 
 - AI 對話面板新增「閱讀測驗」預設按鈕，與「解釋標記」共用連線、回覆中及對話管理中的停用規則。
 - Renderer 以白名單 `practiceReading` 意圖送出當下 START／END 閱讀區段與講解語言；即使同一區段已提供過也會重新附上最新版本。
-- Main Process 以固定 `$practice-reading-comprehension` marker 與型別化 skill input 呼叫 App 內建閱讀理解 workflow；skill 依區段長度與複雜度決定 8–12 題選擇題及 1–3 題英文問答題。
-- Codex 輸入把測驗分成 Part A 選擇題與 Part B 問答題；問答題要求使用者用英文完整句摘要、解釋、推論或重述段落內容。
-- Main Process 將 `source | zh-TW | en | ja` 映射為原文語言、繁體中文、English 或日本語，整份題面使用該語言；Part B 英文輸出要求獨立保留。
+- Main Process 以固定 `$practice-reading-comprehension` marker 與型別化 skill input 呼叫 App 內建閱讀理解 workflow；skill 依區段長度與複雜度決定 8–12 題選擇題及 1–3 題問答題。
+- Codex 輸入把測驗分成選擇題與問答題；問答題要求使用者以目前講解語言摘要、解釋、推論或重述段落內容。
+- Main Process 將 `source | zh-TW | en | ja` 映射為原文語言、繁體中文、English 或日本語，題面、問答題作答要求與批改共用該語言；直接引文保留原文。
 - 第一輪不顯示選擇題答案、解析或問答題參考回答，並邀請使用者在同一 AI 對話提交兩部分答案。
 - 區段練習不注入標記解析 skill；使用者可沿用既有 AI 對話輸入答案並取得後續批改。
 - 閱讀理解 skill 會在出題前估計 CEFR，平衡主旨、細節、上下文詞彙、推論、作者態度／目的、改寫及有用的文法題；後續答案 turn 延續逐題批改與 final review。
@@ -109,7 +109,7 @@ Implemented
 ### Test Coverage
 
 - TC1、TC2、TC5：`App.test.tsx` 驗證閱讀頁按鈕、無標記可用、相同區段再次送出、`practiceReading` payload 與目前講解語言。
-- TC3、TC4、TC7：閱讀理解 skill 與 `chat-controller.test.ts` 驗證 8–12 題選擇題、1–3 題問答題、四種題面語言、英文輸出、後續批改與兩個 skills 隔離。
+- TC3、TC4、TC7：閱讀理解 skill 與 `chat-controller.test.ts` 驗證 8–12 題選擇題、1–3 題問答題、四種題面與回答語言、後續批改與兩個 skills 隔離。
 - TC6：`chat-ipc.test.ts` 驗證 `practiceReading` 白名單並維持任意 intent 拒絕。
 
 ### Changed Files
@@ -152,7 +152,7 @@ Implemented
 | 依長度與複雜度產生 8–12 題選擇題 | Pass | skill rubric 自動測試與繁體中文 forward test（10 題） |
 | 依長度與複雜度產生 1–3 題問答題 | Pass | skill rubric 自動測試與繁體中文 forward test（2 題） |
 | 每題使用題面語言的 A–D、單一最佳答案且以閱讀理解為主 | Pass | skill rubric 自動測試與 forward test |
-| 問答題要求以英文作答且不限制句數 | Pass | skill rubric 自動測試與 forward test |
+| 問答題依講解語言作答且不限制句數 | Pass | skill rubric 自動測試與 controller 語言映射測試 |
 | 第一輪不顯示答案、解析、參考回答或提示 | Pass | skill rubric 自動測試與 forward test |
 | 無標記仍可測驗且標記不縮小範圍 | Pass | 無標記 Renderer 測試與 Main prompt 契約測試 |
 | 一般問答、標記解析 skill 與間隔複習維持隔離 | Pass | turn input 隔離測試；未新增學習／排程資料路徑 |
@@ -164,7 +164,7 @@ Implemented
 | TC1 | Pass | `starts a reading comprehension quiz from the current range without annotations` |
 | TC2 | Pass | 同一測試先送一般問題，再驗證測驗仍含完整 context |
 | TC3 | Pass | `practice-reading-comprehension skill` rubric 測試與實際 forward test |
-| TC4 | Pass | `delegates the adaptive quiz and grading workflow to the reading skill`，含語言與英文輸出契約 |
+| TC4 | Pass | `delegates the adaptive quiz and grading workflow to the reading skill`，含題面與回答語言契約 |
 | TC5 | Pass | 無標記閱讀區段的 Renderer payload 測試 |
 | TC6 | Pass | chat IPC 結構化 context 與 intent 白名單測試 |
 | TC7 | Pass | 一般、`practiceReading`、`explainAnnotations` 三種 turn input 隔離測試 |
@@ -190,6 +190,7 @@ git diff --check
 - 使用者在 red phase 後調整需求：題數不固定為三題，改為每 100 個英文詞約一題、向上取整，最少三題、最多十題。
 - 使用者追加英文輸出目標：同一次測驗另含 1–3 題問答題；依先前的長度原則採每 300 詞約一題，並要求使用者以英文完整句回答。
 - 使用者追加一致性要求：閱讀測驗題面沿用講解語言設定；Part B 仍固定要求英文完整句，以保留英文輸出目標。
+- 使用者後續回報中文原文仍被要求英文作答；B05 覆蓋上述固定英文決策，問答題與回答改為遵守講解語言。
 - 使用者後續提供完整 tutor prompt，並明確選擇以 8–12 題覆蓋原本 3–10 題規則；出題及後續批改移至 `practice-reading-comprehension` skill。
 - 完整型別檢查發現 IPC 驗證後的 intent 在物件展開時被推導成一般字串；以明確列舉收斂修正，未改變 runtime 白名單行為。
 - Electron E2E 第一次在受限沙箱內無法啟動程序；取得桌面執行權限後相同測試 2/2 通過，確認不是功能回歸。
@@ -205,3 +206,4 @@ git diff --check
 - 本功能不得被命名或實作成 Anki 式間隔複習。
 - 既有 `App.tsx` 同時協調閱讀範圍、標記與 AI 預設動作的耦合仍存在，已記錄於 annotation 模組的後續限制；本次沒有擴張權限或新增資料保存邊界。
 - 完整 skill 化與批改 workflow 見 `documents/implements/F18-use-reading-comprehension-skill.md`。
+- 問答題語言一致性修正見 `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`。

@@ -12,6 +12,7 @@ related_implements:
   - B03-load-only-bundled-annotation-skill
   - B04-use-language-setting-for-reading-quiz
   - F18-use-reading-comprehension-skill
+  - B05-use-quiz-language-for-open-ended-answers
 ---
 
 # 持久標記與 AI 標記解析模組
@@ -37,9 +38,9 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 - 以 `<reading-segment>` 包住閱讀區段，並以 `<reader-annotation id="A1">…</reader-annotation>` 依原語序標出區段內標記。
 - START／END 或標記新增、移除後，下一則 AI 訊息會取得最新版本；一般未變追問不重傳相同上下文。
 - 「講解標記內容」每次都附上當下區段，避免先前一般問答的上下文去重使解析意圖看不到標記。
-- 「閱讀測驗」每次也附上當下區段，明確呼叫 App 內建閱讀理解 skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題英文輸出問答題；題面使用目前講解語言，不要求已有標記，第一輪不揭露答案、解析或提示。
+- 「閱讀測驗」每次也附上當下區段，明確呼叫 App 內建閱讀理解 skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題問答題；題面、問答題回答與批改使用目前講解語言，不要求已有標記，第一輪不揭露答案、解析或提示。
 - AI 解析明確呼叫 App 內建並安裝到 user data 的 `explain-reader-annotations` skill，固定依單字、片語、句子分組，同組依原文位置排列，並依標記本文用法提供 CEFR 與複習表；分類只存在於 AI 回覆，不回寫標記。
-- 全域講解語言可選原文語言、繁體中文、English 或日本語，預設為原文語言並持久保存；後續標記解析及閱讀測驗題面共用這項設定。
+- 全域講解語言可選原文語言、繁體中文、English 或日本語，預設為原文語言並持久保存；後續標記解析、閱讀測驗題面、問答題回答要求及批改共用這項設定。
 
 ## 3. Domain Data and Invariants
 
@@ -103,7 +104,7 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 - 沒有標籤時明確回覆目前沒有標記內容。
 - 依 `source | zh-TW | en | ja` 決定本次講解語言。
 
-Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受限講解語言。Main process 加入 `$practice-reading-comprehension` marker 及指向 App user data 固定路徑的型別化 skill input。skill 先估計 CEFR，再依區段長度與複雜度產生 8 至 12 題 A–D 四選一及 1 至 3 題問答題，並在後續答案 turn 逐題批改與提供 final review。標題、題目、選項、問答題、作答說明及批改依 `source | zh-TW | en | ja` 使用原文語言、繁體中文、English 或日本語；英文原文、修正版本與學習詞句維持英文，Part B 始終要求使用者以英文作答且不限制句數。第一輪不揭露答案、解析、參考回答或提示。這個意圖不注入標記解析 skill，且標記只作為閱讀器邊界資訊，不改變出題範圍。
+Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受限講解語言。Main process 加入 `$practice-reading-comprehension` marker 及指向 App user data 固定路徑的型別化 skill input。skill 先估計 CEFR，再依區段長度與複雜度產生 8 至 12 題 A–D 四選一及 1 至 3 題問答題，並在後續答案 turn 逐題批改與提供 final review。標題、題目、選項、問答題、作答說明、問答題預期回答及批改依 `source | zh-TW | en | ja` 使用原文語言、繁體中文、English 或日本語；直接引用閱讀區段時保留原文，問答題不限制句數。第一輪不揭露答案、解析、參考回答或提示。這個意圖不注入標記解析 skill，且標記只作為閱讀器邊界資訊，不改變出題範圍。
 
 一般輸入沒有此 intent，即使上下文含標籤也只是正常 AI 問答。預設動作沿用目前右側 AI 對話及 Codex thread；空白對話仍在送出時才建立。
 
@@ -111,7 +112,7 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 
 講解語言是全域應用程式偏好，不屬於單本書、單章或單一 AI 對話。Main process 的 `LocalSettingsStore` 把受限設定保存到 Electron user data 的 `settings/settings.json`，先寫 `.next` 再原子替換。缺少、損壞或未知值一律回退為 `source`。
 
-設定只影響之後的「講解標記內容」與「閱讀測驗」題面，不修改介面語言、EPUB 原文、一般自由問答、既有 AI 回覆或 Part B 的英文作答要求。
+設定只影響之後的「講解標記內容」以及「閱讀測驗」的題面、問答題回答要求與批改，不修改介面語言、EPUB 原文、一般自由問答或既有 AI 回覆。
 
 ## 8. Key Files
 
@@ -127,7 +128,7 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 | `apps/desktop/src/main/settings-ipc.ts` | 設定值 IPC 驗證 |
 | `apps/desktop/src/main/chat-controller.ts` | 兩個 App skills 的 instructions、marker gate、可信任標記解析與區段練習 input 組成 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析 workflow、動態講解語言、CEFR 與複習表規則 |
-| `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀測驗 CEFR、8–12／1–3 題、批改、英文修正與 final review workflow |
+| `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀測驗 CEFR、8–12／1–3 題、指定語言批改與 final review workflow |
 | `apps/desktop/src/main/bundled-skill.ts` | 將 build 內嵌的 skill 安裝／更新到其他電腦的 user data runtime |
 | `apps/desktop/src/renderer/styles.css` | 標記模式、原文標示與設定視窗樣式 |
 
@@ -169,5 +170,6 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
 - `documents/implements/B04-use-language-setting-for-reading-quiz.md`
 - `documents/implements/F18-use-reading-comprehension-skill.md`
+- `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`
 
 變更標記資料、不重疊規則、Selection offset、AI 序列化、預設 intent 或講解語言時，必須同步更新本文件與相關 FXX 實作紀錄。

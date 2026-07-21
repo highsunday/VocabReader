@@ -17,6 +17,7 @@ related_implements:
   - B03-load-only-bundled-annotation-skill
   - B04-use-language-setting-for-reading-quiz
   - F18-use-reading-comprehension-skill
+  - B05-use-quiz-language-for-open-ended-answers
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -47,8 +48,8 @@ related_implements:
 - 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
 - START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」與「閱讀測驗」每次都附上當下區段。
 - 預設解析意圖由 Main process 明確注入 App 內建並安裝到 user data 的 `explain-reader-annotations` skill；skill 提供選擇式教學小節、本文用法 CEFR 與複習表，一般輸入仍是正常多輪問答。
-- 閱讀頁提供「閱讀測驗」預設動作；Main process 明確呼叫 App 內建 `practice-reading-comprehension` skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題英文輸出問答題，題面使用目前講解語言。第一輪不揭露答案、解析或提示；使用者可在同一對話提交答案，取得逐題批改、英文修正、分數與 final review。
-- 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；影響後續標記解析及閱讀測驗題面，Part B 的英文作答要求不變。
+- 閱讀頁提供「閱讀測驗」預設動作；Main process 明確呼叫 App 內建 `practice-reading-comprehension` skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題問答題，題面、問答題回答與批改使用目前講解語言。第一輪不揭露答案、解析或提示；使用者可在同一對話提交答案，取得逐題批改、表達修正、分數與 final review。
+- 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；影響後續標記解析，以及閱讀測驗的題面、問答題回答要求與批改。
 - assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy。
 - 同一 thread 不允許並行 turn，包含第一次 thread 尚在建立的時間窗。
 - 回覆中可使用 `turn/interrupt` 停止目前 turn；若 thread／turn 尚在建立，會先等待真實識別碼再中斷。
@@ -175,7 +176,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 4. Controller 在任何 await 前先進入 starting，封鎖第二個並行 send 及對話管理操作。
 5. 空白新對話以固定的唯讀、無工具設定、目前選定模型及 App 內嵌的唯一標記解析 skill instructions 建立 thread，再建立本機產品對話；過去對話以 `thread/resume` 恢復時載入相同 instructions。
 6. Controller 保存畫面用的純使用者問題，另把本次實際收到的有限閱讀 context 組成 Codex input，並更新該對話的最近來源摘要。
-7. 一般 `turn/start` 只有 text input。標記解析含 `$explain-reader-annotations` 與固定標記 skill input；區段練習含 `$practice-reading-comprehension` 與固定閱讀 skill input。閱讀 skill 依長度與複雜度產生 8–12 題選擇題及 1–3 題英文輸出問答題，題面與批改使用本次講解語言，並在同一 AI 對話後續答案 turn 延續評量 workflow。講解語言以每次預設 turn 的動態參數提供，因此新 thread 與恢復的既有 thread 行為一致。
+7. 一般 `turn/start` 只有 text input。標記解析含 `$explain-reader-annotations` 與固定標記 skill input；區段練習含 `$practice-reading-comprehension` 與固定閱讀 skill input。閱讀 skill 依長度與複雜度產生 8–12 題選擇題及 1–3 題問答題，題面、問答題回答要求與批改使用本次講解語言，直接引文保留原文，並在同一 AI 對話後續答案 turn 延續評量 workflow。講解語言以每次預設 turn 的動態參數提供，因此新 thread 與恢復的既有 thread 行為一致。
 8. `turn/start` 使用目前選定模型及其預設推理強度；成功後 Renderer 才把本次區段識別記為已提供，bridge 拒絕時保留待提供狀態。
 9. 後續 delta／completed notification 更新同一 assistant 訊息並持久保存；使用者可用停止按鈕中斷目前 turn，turn completed 後解除 busy，才能追問、切換、新建、移除對話或切換模型。
 
@@ -200,7 +201,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/main/codex-app-server-client.ts` | Codex 子程序、JSONL transport、request timeout 與 account 解析 |
 | `apps/desktop/src/main/chat-controller.ts` | 連線、額度、模型目錄、thread／turn、中斷、串流訊息與 context 組裝 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析的語言學習 workflow、CEFR 判斷、選擇式說明與複習表契約 |
-| `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀理解 CEFR、出題、後續批改、英文修正與 final review 契約 |
+| `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀理解 CEFR、出題、指定語言批改與 final review 契約 |
 | `apps/desktop/src/main/bundled-skill.ts` | 把 App bundle 內建 skill 安裝／原子更新到 user data runtime |
 | `apps/desktop/src/main/chat-conversation-store.ts` | 全域對話資料驗證、載入、原子保存與重啟正規化 |
 | `apps/desktop/src/main/chat-ipc.ts` | chat IPC 白名單與輸入驗證 |
@@ -263,5 +264,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
 - `documents/implements/B04-use-language-setting-for-reading-quiz.md`
 - `documents/implements/F18-use-reading-comprehension-skill.md`
+- `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。
