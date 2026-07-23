@@ -639,6 +639,28 @@ describe("App", () => {
     expect(screen.queryByText("Anki 式間隔複習")).not.toBeInTheDocument();
   });
 
+  it("orders reader chat presets as explanation, card creation, then practice", async () => {
+    installLibraryApi();
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+
+    const readerPresetBar = screen.getByLabelText("提問快捷功能");
+    expect(Array.from(readerPresetBar.querySelectorAll("button")).map(
+      (button) => button.textContent?.trim()
+    )).toEqual(["解釋標記", "新增卡片", "閱讀測驗"]);
+
+    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
+    await screen.findByRole("heading", { name: "生詞庫" });
+
+    const libraryPresetBar = screen.getByLabelText("提問快捷功能");
+    expect(Array.from(libraryPresetBar.querySelectorAll("button")).map(
+      (button) => button.textContent?.trim()
+    )).toEqual(["新增卡片"]);
+  });
+
   it("starts learning-card creation and opens invitation and draft actions", async () => {
     const batch: LearningItemDraftBatch = {
       id: "batch-1",
@@ -694,7 +716,7 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("詢問目前內容"), {
       target: { value: "bank,\nlook into" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "新增學習卡片" }));
+    fireEvent.click(screen.getByRole("button", { name: "新增卡片" }));
     await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(1, {
       text: "新增學習卡片：bank、look into",
       intent: "createLearningItems",

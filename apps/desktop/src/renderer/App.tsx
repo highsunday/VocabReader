@@ -1838,43 +1838,26 @@ export function App() {
                   {mode === "reader" || mode === "learning-library" ? (
                     <div className="chat-preset-bar" aria-label="提問快捷功能">
                       {mode === "reader" ? (
-                        <>
-                          <button
-                            className="annotation-analysis-preset"
-                            type="button"
-                            onClick={() => void explainAnnotations()}
-                            disabled={chatSnapshot.connection !== "ready" ||
-                              Boolean(chatSnapshot.activeTurnId) ||
-                              chatSnapshot.managementBusy ||
-                              isConversationActionPending}
-                          >
-                            <svg aria-hidden="true" viewBox="0 0 18 18">
-                              <path d="M9 2.25l1.15 3.6L13.75 7l-3.6 1.15L9 11.75 7.85 8.15 4.25 7l3.6-1.15L9 2.25Z" />
-                              <path d="M14.25 11.25l.55 1.7 1.7.55-1.7.55-.55 1.7-.55-1.7-1.7-.55 1.7-.55.55-1.7Z" />
-                            </svg>
-                            <span>解釋標記</span>
-                          </button>
-                          <button
-                            className="annotation-analysis-preset reading-practice-preset"
-                            type="button"
-                            onClick={() => void practiceReading()}
-                            disabled={chatSnapshot.connection !== "ready" ||
-                              Boolean(chatSnapshot.activeTurnId) ||
-                              chatSnapshot.managementBusy ||
-                              isConversationActionPending}
-                          >
-                            <svg aria-hidden="true" viewBox="0 0 18 18">
-                              <path d="M4 3.25h10v11.5H4z" />
-                              <path d="M6.5 6.25h5M6.5 9h5M6.5 11.75h2.75" />
-                            </svg>
-                            <span>閱讀測驗</span>
-                          </button>
-                        </>
+                        <button
+                          className="annotation-analysis-preset"
+                          type="button"
+                          onClick={() => void explainAnnotations()}
+                          disabled={chatSnapshot.connection !== "ready" ||
+                            Boolean(chatSnapshot.activeTurnId) ||
+                            chatSnapshot.managementBusy ||
+                            isConversationActionPending}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 18 18">
+                            <path d="M9 2.25l1.15 3.6L13.75 7l-3.6 1.15L9 11.75 7.85 8.15 4.25 7l3.6-1.15L9 2.25Z" />
+                            <path d="M14.25 11.25l.55 1.7 1.7.55-1.7.55-.55 1.7-.55-1.7-1.7-.55 1.7-.55.55-1.7Z" />
+                          </svg>
+                          <span>解釋標記</span>
+                        </button>
                       ) : null}
                       <button
                         className="annotation-analysis-preset learning-item-create-preset"
                         type="button"
-                        aria-label="新增學習卡片"
+                        aria-label="新增卡片"
                         onClick={() => void createLearningItems()}
                         disabled={chatSnapshot.connection !== "ready" ||
                           Boolean(chatSnapshot.activeTurnId) ||
@@ -1885,8 +1868,25 @@ export function App() {
                           <rect x="3" y="3.25" width="9.5" height="11.5" rx="1.5" />
                           <path d="M7.75 6.25v5M5.25 8.75h5M13.75 6.25h1.5v8.5H6.5" />
                         </svg>
-                        <span>新增學習卡片</span>
+                        <span>新增卡片</span>
                       </button>
+                      {mode === "reader" ? (
+                        <button
+                          className="annotation-analysis-preset reading-practice-preset"
+                          type="button"
+                          onClick={() => void practiceReading()}
+                          disabled={chatSnapshot.connection !== "ready" ||
+                            Boolean(chatSnapshot.activeTurnId) ||
+                            chatSnapshot.managementBusy ||
+                            isConversationActionPending}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 18 18">
+                            <path d="M4 3.25h10v11.5H4z" />
+                            <path d="M6.5 6.25h5M6.5 9h5M6.5 11.75h2.75" />
+                          </svg>
+                          <span>閱讀測驗</span>
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
 

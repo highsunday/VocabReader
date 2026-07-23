@@ -21,6 +21,7 @@ related_implements:
   - F19-local-learning-library-page
   - F21-ai-assisted-learning-item-creation
   - B07-preserve-clarified-learning-item-targets
+  - F24-reorder-reader-chat-presets
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -52,6 +53,7 @@ related_implements:
 - 延續過去對話時使用 `thread/resume` 恢復相同 thread；移除時使用 `thread/archive`，本機保存失敗會嘗試 `thread/unarchive` 回滾。
 - 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
 - START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」與「閱讀測驗」每次都附上當下區段。
+- 閱讀頁的提問快捷功能依學習流程與鍵盤瀏覽順序排列為「解釋標記」、「新增卡片」、「閱讀測驗」；生詞庫頁只顯示「新增卡片」。
 - 預設解析意圖由 Main process 明確注入 App 內建並安裝到 user data 的 `explain-reader-annotations` skill；skill 提供選擇式教學小節、本文用法 CEFR 與複習表，一般輸入仍是正常多輪問答。
 - 閱讀頁提供「閱讀測驗」預設動作；Main process 明確呼叫 App 內建 `practice-reading-comprehension` skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題問答題，題面、問答題回答與批改使用目前講解語言。第一輪不揭露答案、解析或提示；使用者可在同一對話提交答案，取得逐題批改、表達修正、分數與 final review。
 - 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；影響後續標記解析，以及閱讀測驗的題面、問答題回答要求與批改。
