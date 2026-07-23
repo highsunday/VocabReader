@@ -2,9 +2,11 @@
 title: AI 輔助學習項目建立模組
 module: learning-item-creation
 status: active
-last_updated: 2026-07-23
+last_updated: 2026-07-24
 related_implements:
   - F21-ai-assisted-learning-item-creation
+  - B06-use-explanation-language-for-learning-cards
+  - B07-preserve-clarified-learning-item-targets
 ---
 
 # AI 輔助學習項目建立模組
@@ -38,12 +40,29 @@ related_implements:
 - 沒有目標時，skill 只詢問要加入什麼。建立請求保存在 user message；
   使用者的下一個直接回答會延續 creation intent，先查候選後再呼叫 skill。
 - 已知標題但語義不明時，下一個回答作為該標題的 `senseHint`，同樣重新查候選。
+- target、拼字或單字／片語邊界需要澄清時，skill 在問題後附上
+  `learning-item-request` typed targets。附件不顯示原始 JSON，並保存在最後一個
+  assistant message；使用者回答「都加」「是」等上下文式內容時，Controller 優先沿用
+  這組 targets，再把回答附加為 `senseHint`。
+- structured targets 缺席或為空時，使用者直接回答的逗號／換行清單仍作為新標題；
+  程式不從 AI 可見文字猜測 targets，也不把含空格的片語任意拆成多個單字。
 - `explain-reader-annotations` 在複習表後輸出 `learning-item-invitation`。
   Renderer 顯示「加入生詞庫」，預設一次加入全部 word／phrase targets。
 - sentence annotation 不加入，也不拆成句中所有單字；空 targets 接受後進入上述澄清。
 - 閱讀區段只供即時判斷，不保存到草稿或正式學習項目。
 
-## 4. Trust Boundaries
+## 4. Explanation Language
+
+- 建立流程沿用全域**講解語言**設定，不新增卡片專用設定。
+- 設定為 `source` 時，以每個 requested target title 本身的語言為準：英文使用英文、
+  繁體中文使用繁體中文、日文使用日文。同一批草稿可以逐張使用不同語言，閱讀區段的
+  語言不得覆蓋這項判斷。
+- 設定為 `zh-TW`、`en` 或 `ja` 時，批次內每張草稿分別固定使用繁體中文、英文或日文。
+- 所選語言套用到釋義、用法說明與例句翻譯；title、IPA、英文例句及其他需保留原貌的
+  內容不被強制翻譯。
+- 結構化 `sense` 維持簡短英文語義識別，確保既有候選查詢與語義去重契約不變。
+
+## 5. Trust Boundaries
 
 - Renderer 只能傳 typed intent、最多 50 個 title／senseHint，不能指定 SQL、資料庫路徑、
   skill 路徑、Codex method 或任意查詢。
@@ -55,7 +74,7 @@ related_implements:
 - 一般問答不會啟用 creation skill；隔離 turn 禁用工具、網路、plugins、apps、
   memories 與 skill discovery。
 
-## 5. Persistence and UI
+## 6. Persistence and UI
 
 對話 store 使用 version 2 保存 message attachments：
 
@@ -72,7 +91,7 @@ version 1 對話可讀取並在下次保存時遷移。草稿編輯、included�
 `react-markdown`、GFM 與 `skipHtml`。沒有 included 草稿時提交停用；Escape、遮罩及
 明確關閉按鈕只關閉 modal，不改變草稿狀態。
 
-## 6. Key Files
+## 7. Key Files
 
 | File | Responsibility |
 |---|---|
@@ -87,19 +106,19 @@ version 1 對話可讀取並在下次保存時遷移。草稿編輯、included�
 | `apps/desktop/src/renderer/LearningItemDraftDialog.tsx` | 批次按鈕、編輯／排除／還原／提交 modal |
 | `apps/desktop/src/renderer/App.tsx` | 閱讀／生詞庫入口、invitation 與 modal 整合 |
 
-## 7. Tests
+## 8. Tests
 
 - `learning-library-service.test.ts`：exact normalized query 與交易新增。
 - `learning-item-artifacts.test.ts`：三種 fenced artifact 的嚴格驗證。
 - `learning-item-duplicate-classifier.test.ts`：單次有限候選 AI recheck。
 - `chat-controller.test.ts`：skill routing、候選範圍、持久澄清、草稿生命週期、重查、
-  還原與不可重複提交。
+  還原、不可重複提交，以及 source／固定講解語言映射。
 - `chat-conversation-store.test.ts`：version 1→2 與批次持久化。
 - `chat-ipc.test.ts`：intent、targets 與 mutation 邊界。
 - `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI 與三種入口。
 - `desktop.spec.ts`：production skill 安裝與 preload bridge 白名單。
 
-## 8. Non-goals
+## 9. Non-goals
 
 不支援 sentence 卡片、來源追溯、完整生詞庫 AI 搜尋、任意 AI 資料庫工具、自動提交、
 間隔複習、匯入／匯出、同步或跨裝置資料。

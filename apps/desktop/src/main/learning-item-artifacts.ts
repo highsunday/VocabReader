@@ -12,6 +12,7 @@ interface ParsedLearningItemArtifacts {
   text: string;
   batch?: LearningItemDraftBatch;
   invitation?: { targets: LearningItemTarget[] };
+  request?: { targets: LearningItemTarget[] };
   error?: string;
 }
 
@@ -117,7 +118,8 @@ export function learningItemBatchFromUnknown(
 export function learningItemInvitationFromUnknown(
   value: unknown
 ): { targets: LearningItemTarget[] } {
-  if (!isObject(value) || !Array.isArray(value.targets)) {
+  if (!isObject(value) || !Array.isArray(value.targets) ||
+    value.targets.length > 50) {
     throw new Error("加入生詞庫邀請格式錯誤");
   }
   return {
@@ -159,14 +161,17 @@ export function parseLearningItemArtifacts(
     sourceText,
     "learning-item-invitation"
   );
+  const requestBlock = extractSingleBlock(sourceText, "learning-item-request");
   const text = sourceText
     .replace(blockPattern("learning-item-result"), "")
     .replace(blockPattern("learning-item-invitation"), "")
+    .replace(blockPattern("learning-item-request"), "")
     .trim();
   const parsed: ParsedLearningItemArtifacts = { text };
 
   try {
-    if (resultBlock.count > 1 || invitationBlock.count > 1) {
+    if (resultBlock.count > 1 || invitationBlock.count > 1 ||
+      requestBlock.count > 1) {
       throw new Error("學習項目草稿格式錯誤");
     }
     if (resultBlock.raw !== undefined) {
@@ -180,9 +185,15 @@ export function parseLearningItemArtifacts(
         JSON.parse(invitationBlock.raw)
       );
     }
+    if (requestBlock.raw !== undefined) {
+      parsed.request = learningItemInvitationFromUnknown(
+        JSON.parse(requestBlock.raw)
+      );
+    }
   } catch (error) {
     parsed.batch = undefined;
     parsed.invitation = undefined;
+    parsed.request = undefined;
     parsed.error = error instanceof Error
       ? error.message
       : "學習項目草稿格式錯誤";

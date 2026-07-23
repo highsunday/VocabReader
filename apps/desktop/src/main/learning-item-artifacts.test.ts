@@ -82,6 +82,44 @@ describe("parseLearningItemArtifacts", () => {
     ]);
   });
 
+  it("extracts clarified creation targets without rendering raw JSON", () => {
+    const result = parseLearningItemArtifacts([
+      "要把 apple 和 banana 都加入嗎？",
+      "```learning-item-request",
+      JSON.stringify({
+        targets: [
+          { title: "apple" },
+          { title: "banana" }
+        ]
+      }),
+      "```"
+    ].join("\n"));
+
+    expect(result.text).toBe("要把 apple 和 banana 都加入嗎？");
+    expect(result.request?.targets).toEqual([
+      { title: "apple" },
+      { title: "banana" }
+    ]);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("rejects a clarification request with more than 50 targets", () => {
+    const result = parseLearningItemArtifacts([
+      "要加入這些內容嗎？",
+      "```learning-item-request",
+      JSON.stringify({
+        targets: Array.from(
+          { length: 51 },
+          (_, index) => ({ title: `word-${index}` })
+        )
+      }),
+      "```"
+    ].join("\n"));
+
+    expect(result.request).toBeUndefined();
+    expect(result.error).toMatch(/加入生詞庫邀請格式錯誤/);
+  });
+
   it("validates one submission recheck decision for every draft", () => {
     expect(parseLearningItemRecheck([
       "```learning-item-recheck",

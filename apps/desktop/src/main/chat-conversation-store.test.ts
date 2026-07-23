@@ -125,6 +125,9 @@ describe("LocalChatConversationStore", () => {
       existing: [],
       trashed: []
     };
+    message.learningItemRequest = {
+      targets: [{ title: "apple" }, { title: "banana" }]
+    };
 
     store.save(migrated);
     const reloaded = store.load();
@@ -132,6 +135,8 @@ describe("LocalChatConversationStore", () => {
     expect(reloaded.version).toBe(2);
     expect(reloaded.conversations[0]?.messages[0]?.learningItemBatch)
       .toEqual(message.learningItemBatch);
+    expect(reloaded.conversations[0]?.messages[0]?.learningItemRequest)
+      .toEqual(message.learningItemRequest);
     expect(JSON.parse(await readFile(path, "utf8")).version).toBe(2);
   });
 });

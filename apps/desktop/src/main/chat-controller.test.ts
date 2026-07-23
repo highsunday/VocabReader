@@ -764,6 +764,222 @@ describe("ChatController", () => {
     controller.close();
   });
 
+  it("uses structured targets from a clarification before interpreting a contextual answer", async () => {
+    const answer = (prompt: string) => {
+      if (prompt.includes("Requested learning-item targets: [].")) {
+        return [
+          "要把 `apple` 和 `banana` 都新增為學習卡片嗎？",
+          "```learning-item-request",
+          JSON.stringify({
+            targets: [{ title: "apple" }, { title: "banana" }]
+          }),
+          "```"
+        ].join("\n");
+      }
+      if (prompt.includes('"title":"apple"') &&
+        prompt.includes('"title":"banana"')) {
+        return [
+          "已準備兩張草稿。",
+          "```learning-item-result",
+          JSON.stringify({
+            drafts: [{
+              title: "apple",
+              itemType: "word",
+              cefr: "A1",
+              sense: "a round fruit",
+              markdownContent: "## Meaning\nA round fruit."
+            }, {
+              title: "banana",
+              itemType: "word",
+              cefr: "A1",
+              sense: "a long curved fruit",
+              markdownContent: "## Meaning\nA long curved fruit."
+            }],
+            existing: [],
+            trashed: []
+          }),
+          "```"
+        ].join("\n");
+      }
+      return "「apple」是蘋果，「banana」是香蕉。";
+    };
+    const candidateQueries: string[][] = [];
+    const { controller } = managedFixture(
+      new MemoryChatConversationStore(),
+      { answer },
+      {
+        findLearningItemCandidates: async (titles) => {
+          candidateQueries.push(titles);
+          return [];
+        }
+      }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({ text: "apple banana" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+    await controller.sendMessage({
+      text: "新增學習卡片",
+      intent: "createLearningItems",
+      learningItemTargets: []
+    });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+    await controller.sendMessage({ text: "都加" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    expect(candidateQueries).toContainEqual(["apple", "banana"]);
+    const assistant = controller.getSnapshot().messages.findLast(
+      (message) => message.role === "assistant"
+    );
+    expect(assistant?.artifactError).toBeUndefined();
+    expect(assistant?.learningItemBatch?.drafts.map(({ title }) => title))
+      .toEqual(["apple", "banana"]);
+    expect(controller.getSnapshot().messages.findLast(
+      (message) => message.role === "user"
+    )?.learningItemRequest?.targets)
+      .toEqual([
+        { title: "apple", senseHint: "都加" },
+        { title: "banana", senseHint: "都加" }
+      ]);
+    controller.close();
+  });
+
+  it("uses the last completed assistant clarification when a turn produced multiple messages", async () => {
+    const store = new MemoryChatConversationStore({
+      version: 2,
+      selectedConversationId: "conversation-a",
+      conversations: [{
+        id: "conversation-a",
+        threadId: "thread-a",
+        title: "Add cards",
+        createdAt: 10,
+        updatedAt: 20,
+        source: null,
+        messages: [{
+          id: "user-a",
+          turnId: "turn-a",
+          role: "user",
+          text: "新增學習卡片",
+          status: "completed",
+          learningItemRequest: { targets: [] }
+        }, {
+          id: "assistant-a",
+          turnId: "turn-a",
+          role: "assistant",
+          text: "目前還沒有直接提供目標。",
+          status: "completed"
+        }, {
+          id: "assistant-b",
+          turnId: "turn-a",
+          role: "assistant",
+          text: "要把 apple 和 banana 都加入嗎？",
+          status: "completed",
+          learningItemRequest: {
+            targets: [{ title: "apple" }, { title: "banana" }]
+          }
+        }]
+      }]
+    });
+    const candidateQueries: string[][] = [];
+    const { controller } = managedFixture(
+      store,
+      {
+        answer: [
+          "已準備兩張草稿。",
+          "```learning-item-result",
+          JSON.stringify({
+            drafts: [{
+              title: "apple",
+              itemType: "word",
+              cefr: "A1",
+              sense: "a round fruit",
+              markdownContent: "## Meaning\nA round fruit."
+            }, {
+              title: "banana",
+              itemType: "word",
+              cefr: "A1",
+              sense: "a long curved fruit",
+              markdownContent: "## Meaning\nA long curved fruit."
+            }],
+            existing: [],
+            trashed: []
+          }),
+          "```"
+        ].join("\n")
+      },
+      {
+        findLearningItemCandidates: async (titles) => {
+          candidateQueries.push(titles);
+          return [];
+        }
+      }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({ text: "都加" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    expect(candidateQueries).toEqual([["apple", "banana"]]);
+    expect(controller.getSnapshot().messages.findLast(
+      (message) => message.role === "assistant"
+    )?.learningItemBatch?.drafts.map(({ title }) => title))
+      .toEqual(["apple", "banana"]);
+    controller.close();
+  });
+
+  it("keeps a known target and appends the user's sense clarification", async () => {
+    const store = new MemoryChatConversationStore({
+      version: 2,
+      selectedConversationId: "conversation-a",
+      conversations: [{
+        id: "conversation-a",
+        threadId: "thread-a",
+        title: "Add bank",
+        createdAt: 10,
+        updatedAt: 20,
+        source: null,
+        messages: [{
+          id: "user-a",
+          turnId: "turn-a",
+          role: "user",
+          text: "新增 bank",
+          status: "completed",
+          learningItemRequest: {
+            targets: [{ title: "bank" }]
+          }
+        }, {
+          id: "assistant-a",
+          turnId: "turn-a",
+          role: "assistant",
+          text: "你指的是哪一個語義？",
+          status: "completed"
+        }]
+      }]
+    });
+    const candidateQueries: string[][] = [];
+    const { controller } = managedFixture(
+      store,
+      { answer: "了解，我會使用河岸語義。" },
+      {
+        findLearningItemCandidates: async (titles) => {
+          candidateQueries.push(titles);
+          return [];
+        }
+      }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({ text: "河岸的意思" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    expect(candidateQueries).toEqual([["bank"]]);
+    expect(controller.getSnapshot().messages.findLast(
+      (message) => message.role === "user"
+    )?.learningItemRequest?.targets)
+      .toEqual([{ title: "bank", senseHint: "河岸的意思" }]);
+    controller.close();
+  });
+
   it("edits, excludes, restores and transactionally submits a pending learning-item batch once", async () => {
     const store = new MemoryChatConversationStore({
       version: 2,
@@ -1176,6 +1392,63 @@ describe("composeCodexInput", () => {
     expect(result).not.toContain("區段解析規則");
   });
 
+  it("uses each learning-item target language when the card setting is source", () => {
+    const result = composeCodexInput({
+      text: "新增學習卡片",
+      intent: "createLearningItems",
+      explanationLanguage: "source",
+      learningItemTargets: [
+        { title: "reluctant" },
+        { title: "躊躇" },
+        { title: "ためらう" }
+      ],
+      context: {
+        readingSegment: "<reading-segment>這是一段中文內容。</reading-segment>"
+      }
+    });
+
+    expect(result).toContain(
+      "For each learning item, use the language of that requested target title"
+    );
+    expect(result).toContain("English targets use English");
+    expect(result).toContain(
+      "Traditional Chinese targets use Traditional Chinese"
+    );
+    expect(result).toContain("Japanese targets use Japanese");
+    expect(result).toContain(
+      "A mixed-language batch may use a different explanation language for each card"
+    );
+    expect(result).not.toContain(
+      "Explanation language: Use the same language as the current reading segment"
+    );
+  });
+
+  it.each([
+    ["zh-TW", "Traditional Chinese"],
+    ["en", "English"],
+    ["ja", "Japanese"]
+  ] as const)("uses fixed %s for every learning card", (
+    explanationLanguage,
+    expectedLanguage
+  ) => {
+    const result = composeCodexInput({
+      text: "新增學習卡片",
+      intent: "createLearningItems",
+      explanationLanguage,
+      learningItemTargets: [
+        { title: "reluctant" },
+        { title: "ためらう" }
+      ]
+    });
+
+    expect(result).toContain(
+      `Explanation language for every learning item: ${expectedLanguage}`
+    );
+    expect(result).not.toContain(
+      "use the language of that requested target title"
+    );
+  });
+
   it.each([
     ["source", "Use the same language as the current reading segment"],
     ["zh-TW", "Traditional Chinese"],
@@ -1232,6 +1505,36 @@ describe("composeCodexInput", () => {
     expect(result).toContain("Do not use or infer content outside");
     expect(result).not.toContain("exactly 4");
     expect(result).not.toContain("3 to 10");
+  });
+});
+
+describe("create-learning-items skill", () => {
+  it("defines per-target source language and fixed-language batch behavior", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain(
+      "infer the explanation language separately from each requested target title"
+    );
+    expect(skill).toContain(
+      "English targets use English, Traditional Chinese targets use Traditional Chinese, and Japanese targets use Japanese"
+    );
+    expect(skill).toContain(
+      "When the App requests a fixed language, use that language for every draft in the batch"
+    );
+    expect(skill).toContain(
+      "Keep `sense` as a short English semantic identifier"
+    );
+  });
+
+  it("returns structured targets whenever it asks a creation clarification", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain(
+      "End every clarification response with exactly one fenced `learning-item-request`"
+    );
+    expect(skill).toContain(
+      "contextual answer itself as a new card title"
+    );
   });
 });
 

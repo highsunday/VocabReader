@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-07-23
+last_updated: 2026-07-24
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -20,6 +20,7 @@ related_implements:
   - B05-use-quiz-language-for-open-ended-answers
   - F19-local-learning-library-page
   - F21-ai-assisted-learning-item-creation
+  - B07-preserve-clarified-learning-item-targets
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -68,6 +69,9 @@ related_implements:
   typed `createLearningItems` 入口；AI 訊息可附 invitation、持久草稿批次與錯誤狀態。
 - 學習項目建立澄清狀態保存在 user message；重新啟動後的下一個直接回答仍會先查
   exact-title 候選，再延續固定 creation skill。
+- creation skill 的 target 澄清也可在最後一個 assistant message 保存 typed
+  `learningItemRequest`。下一則「都加／是」等上下文式回答優先沿用這組 targets；
+  structured targets 缺席時才把回答解析成新標題。
 
 ## 3. Module Boundary
 
@@ -144,7 +148,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 | `allowance` | 五小時／每週額度、載入階段與細節 |
 | `threadId` | 目前 AI 對話對應的 Codex thread id；空白新對話時為 null |
 | `activeTurnId` | 目前回答識別碼；建立中使用內部 starting 狀態，閒置時為 null |
-| `messages` | 訊息狀態，以及可選 learning request／invitation／draft batch／artifact error |
+| `messages` | 訊息狀態，以及可選 learning request／invitation／draft batch／artifact error；learning request 可附在 user creation turn 或 assistant clarification |
 | `conversations` | 依最近更新排序的全域對話摘要，不包含完整訊息複本 |
 | `activeConversationId` | 目前選取的產品對話 id；空白新對話時為 null |
 | `managementBusy` | 封存等管理操作是否進行中 |

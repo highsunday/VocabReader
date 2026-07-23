@@ -282,6 +282,14 @@ export function composeCodexInput(
   }
   if (input.intent === "createLearningItems") {
     const targets = input.learningItemTargets ?? [];
+    const creationLanguage = input.explanationLanguage === "source" ||
+      input.explanationLanguage === undefined
+      ? [
+          "For each learning item, use the language of that requested target title.",
+          "English targets use English; Traditional Chinese targets use Traditional Chinese; Japanese targets use Japanese.",
+          "A mixed-language batch may use a different explanation language for each card."
+        ].join(" ")
+      : `Explanation language for every learning item: ${language}.`;
     const candidates = learningItemCandidates.map((candidate) => ({
       itemId: candidate.id,
       title: candidate.title,
@@ -293,7 +301,10 @@ export function composeCodexInput(
       "$create-learning-items",
       ...base,
       "",
-      `Explanation language: ${language}.`,
+      ...(input.explanationLanguage === "source" ||
+        input.explanationLanguage === undefined
+        ? [`Explanation language: ${creationLanguage}`]
+        : [creationLanguage]),
       `Requested learning-item targets: ${JSON.stringify(targets)}.`,
       "The App selected the following candidates using exact normalized title lookup:",
       `<learning-item-candidates>${JSON.stringify(candidates)}</learning-item-candidates>`,
@@ -1103,6 +1114,9 @@ export class ChatController {
       if (artifacts.invitation) {
         message.learningItemInvitation = artifacts.invitation;
       }
+      if (artifacts.request) {
+        message.learningItemRequest = artifacts.request;
+      }
       if (artifacts.error) message.artifactError = artifacts.error;
       this.#touchActiveConversation();
       this.#tryPersist();
@@ -1198,7 +1212,7 @@ export class ChatController {
       ? this.#messages[lastUserIndex]?.learningItemRequest
       : undefined;
     const response = lastUserIndex >= 0
-      ? this.#messages.slice(lastUserIndex + 1).find(
+      ? this.#messages.slice(lastUserIndex + 1).findLast(
           (message) => message.role === "assistant"
         )
       : undefined;
@@ -1206,8 +1220,12 @@ export class ChatController {
       response.learningItemBatch || response.artifactError) {
       return input;
     }
-    const targets = request.targets.length > 0
-      ? request.targets.map((target) => ({
+    const clarifiedTargets = response.learningItemRequest?.targets ?? [];
+    const requestedTargets = clarifiedTargets.length > 0
+      ? clarifiedTargets
+      : request.targets;
+    const targets = requestedTargets.length > 0
+      ? requestedTargets.map((target) => ({
           title: target.title,
           senseHint: [target.senseHint, input.text.trim()]
             .filter(Boolean)
