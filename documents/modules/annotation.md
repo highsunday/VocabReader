@@ -100,7 +100,7 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 - 只把 `<reader-annotation>` 內文字視為標記。
 - 自動判斷單字、片語、句子，固定依此順序分組，同組依原文順序排列。
 - 句子可說明句型、文法與上下文語意。
-- 每個標記依本文用法提供約略 CEFR；Meaning、Context、Grammar、Vocabulary、Examples、Synonyms、Common collocations、Pronunciation、Common mistakes、Easy paraphrase 等小節只在有助理解時使用。
+- 每個標記依本文用法提供約略 CEFR；Meaning、Context、Grammar、Vocabulary、Examples、Synonyms、Common collocations、Pronunciation、Common mistakes、Easy paraphrase 等小節只在有助理解時使用；採用 Examples 時必須提供 3–5 個彼此不同、完整且自然的例句，不得只給 1 或 2 句。
 - 回覆最後提供本次講解語言的精簡複習表。
 - 不翻譯整段、不自行選取未標記文字。
 - 沒有標籤時明確回覆目前沒有標記內容。

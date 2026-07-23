@@ -840,5 +840,13 @@ describe("explain-reader-annotations skill", () => {
     expect(skill).toContain("Marked item | Simple meaning | CEFR level | Useful note");
     expect(skill).toContain("Use the requested explanation language for headings");
     expect(skill).toContain("Do not include every section mechanically");
+    expect(skill).toContain(
+      "give 3–5 distinct, natural, complete example sentences"
+    );
+    expect(skill).toContain("Never provide only 1 or 2 examples");
+    expect(skill).toContain(
+      "Before finalizing, count the sentences in every Examples section"
+    );
+    expect(skill).not.toContain("give 2–3 natural examples");
   });
 });

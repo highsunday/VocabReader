@@ -28,14 +28,15 @@ If there are no `<reader-annotation>` elements, briefly say in the requested exp
    - Context — explain why it is used here.
    - Grammar — explain relevant structure.
    - Vocabulary — define other difficult language needed for understanding.
-   - Examples — give 2–3 natural examples when examples add value.
+   - Examples — when examples add value, give 3–5 distinct, natural, complete example sentences. Never provide only 1 or 2 examples.
    - Synonyms — give useful alternatives and important differences.
    - Common collocations — show common word combinations.
    - Pronunciation — give IPA and a practical tip when pronunciation may be difficult.
    - Common mistakes — warn about likely learner errors.
    - Easy paraphrase — restate a difficult sentence or idea more simply.
 5. Do not include every section mechanically. Omit sections that do not help with that item.
-6. End with a compact review table containing the requested-language equivalents of these columns: `Marked item | Simple meaning | CEFR level | Useful note`.
+6. Before finalizing, count the sentences in every Examples section. Each included Examples section must contain 3–5 examples; if it has fewer than 3, add examples before responding.
+7. End with a compact review table containing the requested-language equivalents of these columns: `Marked item | Simple meaning | CEFR level | Useful note`.
 
 ## Language and Style
 
