@@ -83,6 +83,8 @@ describe("LearningLibraryWorkspace", () => {
     render(<LearningLibraryWorkspace api={learning} />);
 
     expect(await screen.findByRole("button", { name: /bank/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /垃圾桶/ }).querySelector("svg"))
+      .toBeInTheDocument();
     const scrollRegion = screen.getByTestId("learning-library-scroll-region");
     expect(scrollRegion).not.toContainElement(
       screen.getByLabelText("生詞庫查詢與篩選")

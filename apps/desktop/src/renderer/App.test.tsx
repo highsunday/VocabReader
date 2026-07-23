@@ -643,7 +643,9 @@ describe("App", () => {
 
     expect(screen.queryByRole("button", { name: /書籍總覽/ }))
       .not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /生詞庫/ }))
+    expect(screen.getByRole("button", { name: /生詞庫/ }).querySelector("svg"))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "設定" }).querySelector("svg"))
       .toBeInTheDocument();
     expect(screen.queryByText("章節機制")).not.toBeInTheDocument();
     expect(screen.queryByText("閱讀與劃線")).not.toBeInTheDocument();

@@ -6,6 +6,7 @@ import {
   useRef,
   useState
 } from "react";
+import { Search, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type {
@@ -407,7 +408,11 @@ export function LearningLibraryWorkspace({
                 className="trash-entry-button"
                 onClick={() => setView("trashed")}
               >
-                <span className="trash-entry-icon" aria-hidden="true">♲</span>
+                <Trash2
+                  className="trash-entry-icon"
+                  aria-hidden="true"
+                  strokeWidth={1.8}
+                />
                 垃圾桶
                 <span className="trash-entry-count">{counts.trashed}</span>
               </button>
@@ -427,7 +432,7 @@ export function LearningLibraryWorkspace({
               <label className="learning-search">
                 <span>搜尋標題</span>
                 <span className="learning-search-field">
-                  <span aria-hidden="true">⌕</span>
+                  <Search aria-hidden="true" strokeWidth={1.8} />
                   <input
                     type="search"
                     aria-label="搜尋卡片標題"
@@ -512,7 +517,11 @@ export function LearningLibraryWorkspace({
 
           {!isLoading && !items.length ? (
             <div className="learning-library-empty">
-              <span aria-hidden="true">{view === "trashed" ? "♲" : "⌕"}</span>
+              <span className="learning-empty-icon" aria-hidden="true">
+                {view === "trashed"
+                  ? <Trash2 strokeWidth={1.7} />
+                  : <Search strokeWidth={1.7} />}
+              </span>
               <strong>
                 {view === "trashed"
                   ? "垃圾桶是空的"

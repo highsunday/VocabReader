@@ -8,6 +8,10 @@ import {
   useState
 } from "react";
 import type { CSSProperties } from "react";
+import {
+  LibraryBig,
+  Settings as SettingsIcon
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type {
@@ -1227,7 +1231,11 @@ export function App() {
                       setMode("learning-library");
                     }}
                   >
-                    <span>▤</span>
+                    <LibraryBig
+                      className="sidebar-action-icon"
+                      aria-hidden="true"
+                      strokeWidth={1.8}
+                    />
                     生詞庫
                     <em>{learningCounts.active}</em>
                   </button>
@@ -1238,7 +1246,11 @@ export function App() {
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}
                 >
-                  <span aria-hidden="true">⚙</span>
+                  <SettingsIcon
+                    className="sidebar-action-icon"
+                    aria-hidden="true"
+                    strokeWidth={1.8}
+                  />
                   設定
                 </button>
 

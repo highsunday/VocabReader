@@ -329,6 +329,13 @@ button {
   font-size: 14px;
 }
 
+.sidebar-action-icon {
+  width: 18px;
+  height: 18px;
+  justify-self: center;
+  color: #607067;
+}
+
 .nav-item:hover,
 .nav-item.active {
   background: #dde6da;
@@ -371,11 +378,12 @@ button {
   background: #dde6da;
 }
 
-.settings-button span {
-  width: 24px;
+.settings-button .sidebar-action-icon {
+  width: 18px;
+  height: 18px;
+  margin-inline: 3px;
+  flex: 0 0 auto;
   color: #647169;
-  text-align: center;
-  font-size: 17px;
 }
 
 .codex-account-card {
@@ -1121,8 +1129,10 @@ button {
 }
 
 .learning-library-sticky {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 2;
+  align-self: stretch;
   flex: 0 0 auto;
   border-bottom: 1px solid rgb(205 199 185 / 88%);
   background:
@@ -1197,9 +1207,10 @@ button {
 }
 
 .trash-entry-button .trash-entry-icon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
   color: #708074;
-  font-size: 16px;
-  line-height: 1;
 }
 
 .trash-entry-button .trash-entry-count {
@@ -1289,17 +1300,16 @@ button {
   display: block;
 }
 
-.learning-search-field > span {
+.learning-search-field > svg {
   position: absolute;
   top: 50%;
   left: 12px;
   z-index: 1;
+  width: 18px;
+  height: 18px;
   color: #758079;
-  font-size: 22px;
-  font-weight: 400;
-  line-height: 1;
   pointer-events: none;
-  transform: translateY(-54%);
+  transform: translateY(-50%);
 }
 
 .learning-search-field input {
@@ -1492,9 +1502,14 @@ button {
   background: rgb(255 253 247 / 55%);
 }
 
-.learning-library-empty > span {
+.learning-library-empty > .learning-empty-icon {
   color: #829087;
-  font-size: 28px;
+}
+
+.learning-empty-icon svg {
+  width: 30px;
+  height: 30px;
+  display: block;
 }
 
 .learning-library-empty strong {
