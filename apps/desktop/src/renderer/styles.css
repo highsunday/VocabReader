@@ -3021,51 +3021,8 @@ h1 {
   font-size: 22px;
 }
 
-.learning-item-draft-fields {
-  margin-top: 14px;
-  display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) minmax(100px, 0.7fr) minmax(90px, 0.6fr);
-  gap: 10px;
-}
-
-.learning-item-draft-fields label:last-child {
-  grid-column: 1 / -1;
-}
-
-.learning-item-draft-fields label,
-.learning-item-draft-markdown {
-  display: grid;
-  gap: 5px;
-  color: #667169;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.learning-item-draft-fields input,
-.learning-item-draft-fields select,
-.learning-item-draft-markdown textarea {
-  width: 100%;
-  padding: 9px 10px;
-  border: 1px solid #cbc8bf;
-  border-radius: 9px;
-  color: #354139;
-  background: #fff;
-}
-
-.learning-item-draft-markdown {
-  margin-top: 10px;
-}
-
-.learning-item-draft-markdown textarea {
-  min-height: 150px;
-  resize: vertical;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .learning-item-draft-preview {
-  margin: 10px 0;
+  margin-top: 14px;
   padding: 12px;
   border: 1px dashed #c7cec6;
   border-radius: 10px;
@@ -3126,13 +3083,6 @@ h1 {
     padding-inline: 14px;
   }
 
-  .learning-item-draft-fields {
-    grid-template-columns: 1fr;
-  }
-
-  .learning-item-draft-fields label:last-child {
-    grid-column: auto;
-  }
 }
 
 .chat-form {

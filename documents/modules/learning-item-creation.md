@@ -5,6 +5,7 @@ status: active
 last_updated: 2026-07-24
 related_implements:
   - F21-ai-assisted-learning-item-creation
+  - F22-read-only-learning-item-draft-preview
   - B06-use-explanation-language-for-learning-cards
   - B07-preserve-clarified-learning-item-targets
 ---
@@ -15,7 +16,7 @@ related_implements:
 
 本模組讓讀者從閱讀頁或生詞庫頁的 AI 對話面板，建立單字與片語的
 **學習項目草稿批次**。本機程式先用完整標題查出有限候選，AI 只比較這些候選的語義，
-再產生可編輯、排除、恢復及明確提交的草稿。正式資料只有在使用者按下提交後，才以
+再產生可唯讀預覽、排除、恢復及明確提交的草稿。正式資料只有在使用者按下提交後，才以
 單一 SQLite 交易寫入生詞庫。
 
 ## 2. Product Flow
@@ -27,9 +28,9 @@ related_implements:
    id／title／sense／status／Markdown，負責語義去重、必要澄清及草稿內容。
 4. Main 驗證 fenced `learning-item-result`；回傳的草稿標題與 match id 必須落在該
    turn 的受信任範圍。
-5. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，使用者可編輯 Markdown 與
-   結構化欄位，或把草稿排除／恢復。
-6. 提交時重新以編輯後標題查候選。若有候選，以一次隔離 Codex turn 執行
+5. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要與安全
+   渲染的 Markdown 預覽；使用者可把草稿排除／恢復，但不可編輯草稿內容。
+6. 提交時重新以草稿標題查候選。若有候選，以一次隔離 Codex turn 執行
    `learning-item-recheck` 語義分類；不逐卡啟動 AI，也不提供完整生詞庫。
 7. 新發現的 active／trashed 重複分別顯示為已存在／垃圾桶；其他 included 草稿由
    `createItemsAtomically()` 在單一 `BEGIN IMMEDIATE` 交易中新增。
@@ -83,13 +84,14 @@ related_implements:
 - `learningItemBatch`
 - `artifactError`
 
-version 1 對話可讀取並在下次保存時遷移。草稿編輯、included／excluded、候選 match、
+version 1 對話可讀取並在下次保存時遷移。草稿內容、included／excluded、候選 match、
 提交時間及 created item ids 都附著於原 assistant message。移除整筆對話會移除草稿，
 但不影響已提交的正式項目。
 
 中央 `LearningItemDraftDialog` 固定 header／footer，只有卡片區垂直捲動；Markdown 使用
-`react-markdown`、GFM 與 `skipHtml`。沒有 included 草稿時提交停用；Escape、遮罩及
-明確關閉按鈕只關閉 modal，不改變草稿狀態。
+`react-markdown`、GFM 與 `skipHtml`。確認浮層沒有標題、類型、CEFR、語義或原始
+Markdown 的編輯控制；沒有 included 草稿時提交停用。Escape、遮罩及明確關閉按鈕只
+關閉 modal，不改變草稿狀態。
 
 ## 7. Key Files
 
@@ -103,7 +105,7 @@ version 1 對話可讀取並在下次保存時遷移。草稿編輯、included�
 | `apps/desktop/src/main/chat-controller.ts` | workflow、turn scope、持久批次 mutation／submit |
 | `apps/desktop/src/main/chat-conversation-store.ts` | version 1→2 與 attachments 持久化 |
 | `apps/desktop/src/main/chat-ipc.ts` | creation intent 與草稿操作 IPC 驗證 |
-| `apps/desktop/src/renderer/LearningItemDraftDialog.tsx` | 批次按鈕、編輯／排除／還原／提交 modal |
+| `apps/desktop/src/renderer/LearningItemDraftDialog.tsx` | 批次按鈕、唯讀預覽／排除／還原／提交 modal |
 | `apps/desktop/src/renderer/App.tsx` | 閱讀／生詞庫入口、invitation 與 modal 整合 |
 
 ## 8. Tests

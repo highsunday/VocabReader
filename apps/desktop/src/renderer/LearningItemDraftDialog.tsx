@@ -6,13 +6,9 @@ import type {
   ChatSnapshot
 } from "../shared/chat-contracts";
 import type {
-  CefrLevel,
   LearningItemDraft,
-  LearningItemDraftBatch,
-  LearningItemType
+  LearningItemDraftBatch
 } from "../shared/learning-contracts";
-
-const cefrLevels: CefrLevel[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
 export function LearningItemBatchAction({
   batch,
@@ -40,7 +36,7 @@ export function LearningItemBatchAction({
   );
 }
 
-function DraftEditor({
+function DraftPreview({
   batchId,
   draft,
   api,
@@ -53,9 +49,6 @@ function DraftEditor({
   onMutate(operation: () => Promise<ChatSnapshot>): void;
   disabled: boolean;
 }) {
-  const [edit, setEdit] = useState(draft);
-  useEffect(() => setEdit(draft), [draft]);
-
   return (
     <article className={`learning-item-draft ${draft.state}`}>
       <div className="learning-item-draft-heading">
@@ -82,102 +75,12 @@ function DraftEditor({
         </button>
       </div>
 
-      <div className="learning-item-draft-fields">
-        <label>
-          標題
-          <input
-            aria-label={`${draft.title} 標題`}
-            value={edit.title}
-            disabled={disabled}
-            onChange={(event) => setEdit({
-              ...edit,
-              title: event.target.value
-            })}
-          />
-        </label>
-        <label>
-          類型
-          <select
-            aria-label={`${draft.title} 類型`}
-            value={edit.itemType}
-            disabled={disabled}
-            onChange={(event) => setEdit({
-              ...edit,
-              itemType: event.target.value as LearningItemType
-            })}
-          >
-            <option value="word">單字</option>
-            <option value="phrase">片語</option>
-          </select>
-        </label>
-        <label>
-          CEFR
-          <select
-            aria-label={`${draft.title} CEFR`}
-            value={edit.cefr}
-            disabled={disabled}
-            onChange={(event) => setEdit({
-              ...edit,
-              cefr: event.target.value as CefrLevel
-            })}
-          >
-            {cefrLevels.map((level) => (
-              <option value={level} key={level}>{level}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          語義
-          <input
-            aria-label={`${draft.title} 語義`}
-            value={edit.sense}
-            disabled={disabled}
-            onChange={(event) => setEdit({
-              ...edit,
-              sense: event.target.value
-            })}
-          />
-        </label>
-      </div>
-
-      <label className="learning-item-draft-markdown">
-        Markdown 內容
-        <textarea
-          aria-label={`${draft.title} Markdown 內容`}
-          value={edit.markdownContent}
-          disabled={disabled}
-          rows={10}
-          onChange={(event) => setEdit({
-            ...edit,
-            markdownContent: event.target.value
-          })}
-        />
-      </label>
       <div className="learning-item-draft-preview">
         <span>預覽</span>
         <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
-          {edit.markdownContent}
+          {draft.markdownContent}
         </ReactMarkdown>
       </div>
-      <button
-        type="button"
-        className="secondary-action"
-        disabled={disabled}
-        aria-label={`儲存 ${draft.title} 的修改`}
-        onClick={() => {
-          onMutate(() => api.updateLearningItemDraft({
-            batchId,
-            draftId: draft.id,
-            title: edit.title,
-            itemType: edit.itemType,
-            cefr: edit.cefr,
-            sense: edit.sense,
-            markdownContent: edit.markdownContent
-          }));
-        }}
-      >
-        儲存修改
-      </button>
     </article>
   );
 }
@@ -290,7 +193,7 @@ export function LearningItemDraftDialog({
             </section>
           ) : null}
           {batch.drafts.map((draft) => (
-            <DraftEditor
+            <DraftPreview
               key={draft.id}
               batchId={batch.id}
               draft={draft}

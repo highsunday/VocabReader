@@ -79,7 +79,7 @@ describe("LearningItemDraftDialog", () => {
     expect(screen.getByText(/已新增 1 張/)).toBeInTheDocument();
   });
 
-  it("edits, excludes, restores, submits and restores trash through typed chat actions", async () => {
+  it("shows read-only previews while preserving exclude, restore and submit actions", async () => {
     const chat = api();
     const changed = vi.fn();
     render(
@@ -95,24 +95,18 @@ describe("LearningItemDraftDialog", () => {
       .toBeInTheDocument();
     expect(screen.getByText("已存在")).toBeInTheDocument();
     expect(screen.getByText("已在垃圾桶")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("reluctant 標題"), {
-      target: { value: "reluctantly" }
-    });
-    fireEvent.click(screen.getByRole("button", {
+    expect(screen.getByText("不情願。")).toBeInTheDocument();
+    expect(screen.getByText("視為理所當然。")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByText("Markdown 內容")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", {
       name: "儲存 reluctant 的修改"
-    }));
-    expect(chat.updateLearningItemDraft).toHaveBeenCalledWith(
-      expect.objectContaining({
-        batchId: "batch-a",
-        draftId: "draft-a",
-        title: "reluctantly"
-      })
-    );
+    })).not.toBeInTheDocument();
 
-    await waitFor(() => expect(screen.getByRole("button", {
+    expect(screen.getByRole("button", {
       name: "排除 reluctant"
-    })).toBeEnabled());
+    })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", {
       name: "排除 reluctant"
     }));
@@ -139,5 +133,6 @@ describe("LearningItemDraftDialog", () => {
     })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "提交學習卡片" }));
     expect(chat.submitLearningItemBatch).toHaveBeenCalledWith("batch-a");
+    expect(chat.updateLearningItemDraft).not.toHaveBeenCalled();
   });
 });

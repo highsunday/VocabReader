@@ -715,7 +715,7 @@ describe("App", () => {
     }));
     expect(screen.getByRole("dialog", { name: "確認學習卡片" }))
       .toBeInTheDocument();
-    expect(screen.getByDisplayValue("look into")).toBeInTheDocument();
+    expect(screen.getByText("look into")).toBeInTheDocument();
   });
 
   it("asks the creation skill what to add when an explanation invitation is empty", async () => {
