@@ -97,7 +97,9 @@ function installLibraryApi(
     })
   );
   const getSettings = vi.fn().mockResolvedValue({
-    explanationLanguage: "source"
+    explanationLanguage: "source",
+    aiConversationFontSize: 13,
+    ebookContentFontSize: 19
   });
   const saveSettings = vi.fn((settings) => Promise.resolve(settings));
   const learning = {
@@ -201,7 +203,7 @@ function initialReadySnapshot(): ChatSnapshot {
 }
 
 describe("App", () => {
-  it("renders model and composer controls without exposing the Codex email", async () => {
+  it("shows the Codex account email in settings without exposing it in the sidebar", async () => {
     const snapshot = {
       connection: "ready" as const,
       connectionDetail: "Codex 已連線。",
@@ -268,6 +270,8 @@ describe("App", () => {
     expect(document.querySelector(".allowance-track")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "設定" }));
     expect(screen.getByRole("dialog", { name: "設定" })).toBeInTheDocument();
+    expect(screen.getByText("Codex 帳戶")).toBeInTheDocument();
+    expect(screen.getByText("reader@example.com")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "關閉設定" }));
 
     expect(screen.getByLabelText("AI 模型")).toHaveValue("gpt-default");
@@ -296,6 +300,46 @@ describe("App", () => {
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
       text: "這句話的文法是什麼？"
+    }));
+  });
+
+  it("previews and saves independent conversation and ebook font sizes", async () => {
+    const snapshot = initialReadySnapshot();
+    const { saveSettings } = installLibraryApi(books, {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage: vi.fn().mockResolvedValue(snapshot),
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    const conversationSize = screen.getByRole("slider", {
+      name: "AI 對話文字大小"
+    });
+    const ebookSize = screen.getByRole("slider", {
+      name: "電子書內文字大小"
+    });
+    expect(conversationSize).toHaveAttribute("min", "12");
+    expect(conversationSize).toHaveAttribute("max", "24");
+    expect(conversationSize).toHaveValue("13");
+    expect(ebookSize).toHaveAttribute("min", "16");
+    expect(ebookSize).toHaveAttribute("max", "32");
+    expect(ebookSize).toHaveValue("19");
+
+    fireEvent.change(conversationSize, { target: { value: "18" } });
+    fireEvent.change(ebookSize, { target: { value: "24" } });
+
+    expect(screen.getByText("18px")).toBeInTheDocument();
+    expect(screen.getByText("24px")).toBeInTheDocument();
+    expect(document.querySelector(".workspace")).toHaveStyle({
+      "--ai-conversation-font-size": "18px",
+      "--ebook-content-font-size": "24px"
+    });
+    await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
+      explanationLanguage: "source",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24
     }));
   });
 
@@ -692,7 +736,7 @@ describe("App", () => {
         id: "assistant-batch",
         turnId: "turn-batch",
         role: "assistant",
-        text: "已準備好學習卡片。",
+        text: "已準備好卡片。",
         status: "completed",
         learningItemBatch: batch
       }]
@@ -718,7 +762,7 @@ describe("App", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "新增卡片" }));
     await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(1, {
-      text: "新增學習卡片：bank、look into",
+      text: "新增卡片：bank、look into",
       intent: "createLearningItems",
       explanationLanguage: "source",
       learningItemTargets: [{ title: "bank" }, { title: "look into" }]
@@ -726,16 +770,16 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "加入生詞庫" }));
     await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(2, {
-      text: "新增學習卡片：bank",
+      text: "新增卡片：bank",
       intent: "createLearningItems",
       explanationLanguage: "source",
       learningItemTargets: [{ title: "bank", senseHint: "river bank" }]
     }));
 
     fireEvent.click(screen.getByRole("button", {
-      name: "1 張學習卡片待確認"
+      name: "1 張卡片待確認"
     }));
-    expect(screen.getByRole("dialog", { name: "確認學習卡片" }))
+    expect(screen.getByRole("dialog", { name: "確認卡片" }))
       .toBeInTheDocument();
     expect(screen.getByText("look into")).toBeInTheDocument();
   });
@@ -763,7 +807,7 @@ describe("App", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "加入生詞庫" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
-      text: "新增學習卡片",
+      text: "新增卡片",
       intent: "createLearningItems",
       explanationLanguage: "source"
     }));
@@ -2075,7 +2119,9 @@ describe("App", () => {
       target: { value: "ja" }
     });
     await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({
-      explanationLanguage: "ja"
+      explanationLanguage: "ja",
+      aiConversationFontSize: 13,
+      ebookContentFontSize: 19
     }));
     fireEvent.click(screen.getByRole("button", { name: "關閉設定" }));
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
@@ -2190,7 +2236,11 @@ describe("App", () => {
 
     const preset = screen.getByRole("button", { name: "閱讀測驗" });
     expect(preset).toBeEnabled();
+    expect(preset).toHaveClass("reading-practice-preset");
     fireEvent.click(preset);
+
+    expect(screen.queryByRole("dialog", { name: "閱讀測驗試卷" }))
+      .not.toBeInTheDocument();
 
     await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(2, {
       text: "開始閱讀測驗",
@@ -2202,6 +2252,87 @@ describe("App", () => {
         readingSegment: `<reading-segment>${chapterText}</reading-segment>`
       }
     }));
+  });
+
+  it("expands and folds the reading paper inside its AI message", async () => {
+    const chapterText = "The rain stopped when Anna reached the old bridge.";
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: chapterText.length } }
+    };
+    const quiz = {
+      version: 1,
+      kind: "quiz",
+      quizId: "quiz-bridge",
+      title: "The Old Bridge",
+      cefr: "B1",
+      difficultySummary: "注意事件順序。",
+      multipleChoice: [{
+        id: "mc-1",
+        number: 1,
+        prompt: "雨何時停了？",
+        options: {
+          A: "Anna 到橋上時",
+          B: "Anna 回家時",
+          C: "天黑時",
+          D: "故事開始前"
+        }
+      }],
+      openEnded: [{
+        id: "open-1",
+        number: 2,
+        prompt: "描述這個場景。"
+      }]
+    };
+    const snapshot: ChatSnapshot = {
+      ...initialReadySnapshot(),
+      messages: [{
+        id: "assistant-quiz",
+        turnId: "turn-quiz",
+        role: "assistant",
+        text: `試卷已準備好。\n\n\`\`\`reading-practice-quiz\n${JSON.stringify(quiz)}\n\`\`\``,
+        status: "completed"
+      }]
+    };
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    const { getChapterContent } = installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening 章節內容");
+
+    expect(screen.queryByRole("region", { name: "The Old Bridge" }))
+      .not.toBeInTheDocument();
+    const paperArtifact = await screen.findByRole("button", {
+      name: "開啟試卷：The Old Bridge"
+    });
+    const assistantMessage = paperArtifact.closest("article");
+    expect(paperArtifact).toHaveTextContent("2 題");
+    fireEvent.click(paperArtifact);
+
+    const paper = screen.getByRole("region", { name: "The Old Bridge" });
+    expect(assistantMessage).toContainElement(paper);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(article).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "收起試卷" }));
+    expect(screen.queryByRole("region", { name: "The Old Bridge" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("button", {
+      name: "開啟試卷：The Old Bridge"
+    })).toBeInTheDocument();
   });
 
   it("turns annotation mode off when switching chapters", async () => {

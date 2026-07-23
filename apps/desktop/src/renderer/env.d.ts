@@ -2,6 +2,7 @@
 
 import type { ChatDesktopApi } from "../shared/chat-contracts";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
+import type { SettingsDesktopApi } from "../shared/settings-contracts";
 
 declare global {
 interface ReaderDesktopApi {
@@ -48,12 +49,7 @@ interface ReaderDesktopApi {
     }): Promise<DesktopLibraryBook>;
   };
   learning: LearningDesktopApi;
-  settings: {
-    get(): Promise<{ explanationLanguage: "source" | "zh-TW" | "en" | "ja" }>;
-    save(settings: {
-      explanationLanguage: "source" | "zh-TW" | "en" | "ja";
-    }): Promise<{ explanationLanguage: "source" | "zh-TW" | "en" | "ja" }>;
-  };
+  settings: SettingsDesktopApi;
   chat: ChatDesktopApi;
 }
 

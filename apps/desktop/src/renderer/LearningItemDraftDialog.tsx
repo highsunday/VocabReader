@@ -21,7 +21,7 @@ export function LearningItemBatchAction({
   const duplicate = batch.existing.length + batch.trashed.length;
   const label = batch.status === "submitted"
     ? `已新增 ${created} 張${duplicate ? `，已存在 ${duplicate} 張` : ""}`
-    : `${batch.drafts.length} 張學習卡片待確認`;
+    : `${batch.drafts.length} 張卡片待確認`;
   return (
     <button
       className={`learning-item-batch-action ${batch.status}`}
@@ -119,7 +119,7 @@ export function LearningItemDraftDialog({
     } catch (mutationError) {
       setError(mutationError instanceof Error
         ? mutationError.message
-        : "學習卡片操作失敗。");
+        : "卡片操作失敗。");
     } finally {
       setBusy(false);
     }
@@ -140,17 +140,17 @@ export function LearningItemDraftDialog({
       >
         <header>
           <div>
-            <span className="eyebrow">Learning cards</span>
-            <h2 id="learning-item-draft-dialog-title">確認學習卡片</h2>
+            <span className="eyebrow">Cards</span>
+            <h2 id="learning-item-draft-dialog-title">確認卡片</h2>
             <p>
               {submitted
-                ? `已新增 ${batch.createdItemIds?.length ?? 0} 張學習卡片。`
+                ? `已新增 ${batch.createdItemIds?.length ?? 0} 張卡片。`
                 : `${includedCount} 張將會提交，${batch.drafts.length - includedCount} 張已排除。`}
             </p>
           </div>
           <button
             type="button"
-            aria-label="關閉確認學習卡片"
+            aria-label="關閉確認卡片"
             autoFocus
             onClick={onClose}
           >
@@ -215,7 +215,7 @@ export function LearningItemDraftDialog({
               onClick={() => void mutate(() =>
                 api.submitLearningItemBatch(batch.id))}
             >
-              {busy ? "提交中…" : "提交學習卡片"}
+              {busy ? "提交中…" : "提交卡片"}
             </button>
           ) : null}
         </footer>

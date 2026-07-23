@@ -1,4 +1,6 @@
 import {
+  isAiConversationFontSize,
+  isEbookContentFontSize,
   isExplanationLanguage,
   type AppSettings
 } from "../shared/settings-contracts";
@@ -22,12 +24,20 @@ export function registerSettingsIpc(
   ipc.handle("settings:get", () => store.load());
   ipc.handle("settings:save", (_event, rawSettings) => {
     if (!rawSettings || typeof rawSettings !== "object") {
-      throw new Error("講解語言設定格式錯誤");
+      throw new Error("應用程式設定格式錯誤");
     }
     const settings = rawSettings as Partial<AppSettings>;
-    if (!isExplanationLanguage(settings.explanationLanguage)) {
-      throw new Error("講解語言設定格式錯誤");
+    if (
+      !isExplanationLanguage(settings.explanationLanguage) ||
+      !isAiConversationFontSize(settings.aiConversationFontSize) ||
+      !isEbookContentFontSize(settings.ebookContentFontSize)
+    ) {
+      throw new Error("應用程式設定格式錯誤");
     }
-    return store.save({ explanationLanguage: settings.explanationLanguage });
+    return store.save({
+      explanationLanguage: settings.explanationLanguage,
+      aiConversationFontSize: settings.aiConversationFontSize,
+      ebookContentFontSize: settings.ebookContentFontSize
+    });
   });
 }

@@ -30,10 +30,12 @@ import type {
   ReadingRange
 } from "../shared/library-contracts";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
-import type {
-  AppSettings,
-  ExplanationLanguage,
-  SettingsDesktopApi
+import {
+  AI_CONVERSATION_FONT_SIZE,
+  EBOOK_CONTENT_FONT_SIZE,
+  type AppSettings,
+  type ExplanationLanguage,
+  type SettingsDesktopApi
 } from "../shared/settings-contracts";
 import {
   advanceReadingRange,
@@ -52,6 +54,8 @@ import {
   LearningItemBatchAction,
   LearningItemDraftDialog
 } from "./LearningItemDraftDialog";
+import { ReadingPracticePaper } from "./ReadingPracticePaper";
+import { readingPracticeArtifacts } from "./reading-practice-artifact";
 
 type WorkspaceMode = "overview" | "reader" | "learning-library";
 
@@ -142,6 +146,9 @@ function resetLabel(timestamp: number | undefined) {
 }
 
 function ChatMessageContent({ text }: { text: string }) {
+  const visibleText = text
+    .replace(/```reading-practice-(?:quiz|grade)\s*\n[\s\S]*?\n```/g, "")
+    .trim();
   return (
     <div className="message-content">
       <ReactMarkdown
@@ -158,7 +165,7 @@ function ChatMessageContent({ text }: { text: string }) {
           )
         }}
       >
-        {text || "…"}
+        {visibleText || (text ? "試卷內容已顯示在中央。" : "…")}
       </ReactMarkdown>
     </div>
   );
@@ -217,13 +224,17 @@ export function App() {
   const [isModelActionPending, setIsModelActionPending] = useState(false);
   const [isStopPending, setIsStopPending] = useState(false);
   const [settings, setSettings] = useState<AppSettings>({
-    explanationLanguage: "source"
+    explanationLanguage: "source",
+    aiConversationFontSize: AI_CONVERSATION_FONT_SIZE.default,
+    ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
   const [learningCounts, setLearningCounts] = useState({ active: 0, trashed: 0 });
   const [openLearningItemBatchId, setOpenLearningItemBatchId] =
+    useState<string>();
+  const [expandedReadingPracticeQuizId, setExpandedReadingPracticeQuizId] =
     useState<string>();
   const [learningLibraryRevision, setLearningLibraryRevision] = useState(0);
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -234,6 +245,9 @@ export function App() {
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const annotationCounterRef = useRef(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const settingsSaveTimerRef =
+    useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const settingsSaveRevisionRef = useRef(0);
   const chapterStartRef = useRef<{
     bookId: string;
     chapterId: string;
@@ -249,6 +263,10 @@ export function App() {
       .map((message) => message.learningItemBatch)
       .find((batch) => batch?.id === openLearningItemBatchId),
     [chatSnapshot.messages, openLearningItemBatchId]
+  );
+  const readingPractice = useMemo(
+    () => readingPracticeArtifacts(chatSnapshot.messages),
+    [chatSnapshot.messages]
   );
   const rangeBoundariesOverlap = readingRange
     ? Math.abs(markerTops.start - markerTops.end) < 28
@@ -374,6 +392,12 @@ export function App() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => () => {
+    if (settingsSaveTimerRef.current) {
+      clearTimeout(settingsSaveTimerRef.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -749,20 +773,51 @@ export function App() {
     setRangeMenu(undefined);
   }
 
-  async function saveExplanationLanguage(value: ExplanationLanguage) {
+  async function persistSettings(next: AppSettings) {
     const api = desktopSettings();
+    const revision = ++settingsSaveRevisionRef.current;
     setIsSettingsSaving(true);
     setSettingsError("");
     try {
-      const saved = api
-        ? await api.save({ explanationLanguage: value })
-        : { explanationLanguage: value };
-      setSettings(saved);
+      const saved = api ? await api.save(next) : next;
+      if (revision === settingsSaveRevisionRef.current) {
+        setSettings(saved);
+      }
     } catch {
-      setSettingsError("無法保存講解語言，請再試一次。");
+      if (revision === settingsSaveRevisionRef.current) {
+        setSettingsError("無法保存設定，請再試一次。");
+      }
     } finally {
-      setIsSettingsSaving(false);
+      if (revision === settingsSaveRevisionRef.current) {
+        setIsSettingsSaving(false);
+      }
     }
+  }
+
+  function saveExplanationLanguage(value: ExplanationLanguage) {
+    if (settingsSaveTimerRef.current) {
+      clearTimeout(settingsSaveTimerRef.current);
+      settingsSaveTimerRef.current = undefined;
+    }
+    const next = { ...settings, explanationLanguage: value };
+    setSettings(next);
+    void persistSettings(next);
+  }
+
+  function previewFontSize(
+    field: "aiConversationFontSize" | "ebookContentFontSize",
+    value: number
+  ) {
+    const next = { ...settings, [field]: value };
+    settingsSaveRevisionRef.current += 1;
+    setSettings(next);
+    if (settingsSaveTimerRef.current) {
+      clearTimeout(settingsSaveTimerRef.current);
+    }
+    settingsSaveTimerRef.current = setTimeout(() => {
+      settingsSaveTimerRef.current = undefined;
+      void persistSettings(next);
+    }, 180);
   }
 
   function rangeWithOffset(
@@ -992,7 +1047,7 @@ export function App() {
   ) {
     const chat = desktopChat();
     if (!text || !chat || chatSnapshot.connection !== "ready" ||
-      chatSnapshot.activeTurnId || chatSnapshot.managementBusy) return;
+      chatSnapshot.activeTurnId || chatSnapshot.managementBusy) return false;
 
     const chapterText = articleRef.current?.textContent ?? "";
     const segment = mode === "reader" && readingRange && articleRef.current
@@ -1041,8 +1096,10 @@ export function App() {
         lastProvidedReadingSegmentRef.current = readingSegmentKey;
       }
       setChatSnapshot(snapshot);
+      return true;
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "無法送出訊息。");
+      return false;
     }
   }
 
@@ -1062,7 +1119,8 @@ export function App() {
   }
 
   async function practiceReading() {
-    await sendChatMessage("開始閱讀測驗", {
+    setExpandedReadingPracticeQuizId(undefined);
+    return sendChatMessage("開始閱讀測驗", {
       intent: "practiceReading",
       explanationLanguage: settings.explanationLanguage
     });
@@ -1088,7 +1146,7 @@ export function App() {
     const titles = targets.map((target) => target.title);
     if (draft.trim()) setDraft("");
     await sendChatMessage(
-      titles.length ? `新增學習卡片：${titles.join("、")}` : "新增學習卡片",
+      titles.length ? `新增卡片：${titles.join("、")}` : "新增卡片",
       {
         intent: "createLearningItems",
         explanationLanguage: settings.explanationLanguage,
@@ -1225,7 +1283,10 @@ export function App() {
         style={{
           "--right-sidebar-width": `${
             isRightSidebarCollapsed ? COLLAPSED_PANEL_WIDTH : assistantPanelWidth
-          }px`
+          }px`,
+          "--ai-conversation-font-size":
+            `${settings.aiConversationFontSize}px`,
+          "--ebook-content-font-size": `${settings.ebookContentFontSize}px`
         } as CSSProperties}
       >
         <aside
@@ -1792,41 +1853,62 @@ export function App() {
                         <p>Codex 只會收到你明確選取的閱讀區段。</p>
                       </div>
                     ) : null}
-                    {chatSnapshot.messages.map((message) => (
-                      <article
-                        aria-label={message.role === "assistant" ? "AI 回覆" : "使用者訊息"}
-                        className={"message " + message.role}
-                        key={message.id}
-                      >
-                        <ChatMessageContent text={message.text} />
-                        {message.learningItemInvitation ? (
-                          <button
-                            className="learning-library-invitation-action"
-                            type="button"
-                            onClick={() => acceptLearningItemInvitation(
-                              message.learningItemInvitation!.targets
-                            )}
-                            disabled={chatSnapshot.connection !== "ready" ||
-                              Boolean(chatSnapshot.activeTurnId) ||
-                              chatSnapshot.managementBusy ||
-                              isConversationActionPending}
-                          >
-                            加入生詞庫
-                          </button>
-                        ) : null}
-                        {message.learningItemBatch ? (
-                          <LearningItemBatchAction
-                            batch={message.learningItemBatch}
-                            onOpen={setOpenLearningItemBatchId}
-                          />
-                        ) : null}
-                        {message.artifactError ? (
-                          <p className="learning-item-artifact-error" role="alert">
-                            {message.artifactError}
-                          </p>
-                        ) : null}
-                      </article>
-                    ))}
+                    {chatSnapshot.messages.map((message) => {
+                      const messagePractice = readingPracticeArtifacts([message]);
+                      const messageQuiz = messagePractice.quiz;
+                      const isCurrentQuiz = Boolean(
+                        messageQuiz &&
+                        messageQuiz.quizId === readingPractice.quiz?.quizId
+                      );
+                      return (
+                        <article
+                          aria-label={message.role === "assistant" ? "AI 回覆" : "使用者訊息"}
+                          className={"message " + message.role}
+                          key={message.id}
+                        >
+                          <ChatMessageContent text={message.text} />
+                          {isCurrentQuiz && messageQuiz ? (
+                            <ReadingPracticePaper
+                              open={expandedReadingPracticeQuizId === messageQuiz.quizId}
+                              messages={chatSnapshot.messages}
+                              onOpen={() => setExpandedReadingPracticeQuizId(
+                                messageQuiz.quizId
+                              )}
+                              onClose={() => setExpandedReadingPracticeQuizId(
+                                undefined
+                              )}
+                              onSubmit={(text) => sendChatMessage(text)}
+                            />
+                          ) : null}
+                          {message.learningItemInvitation ? (
+                            <button
+                              className="learning-library-invitation-action"
+                              type="button"
+                              onClick={() => acceptLearningItemInvitation(
+                                message.learningItemInvitation!.targets
+                              )}
+                              disabled={chatSnapshot.connection !== "ready" ||
+                                Boolean(chatSnapshot.activeTurnId) ||
+                                chatSnapshot.managementBusy ||
+                                isConversationActionPending}
+                            >
+                              加入生詞庫
+                            </button>
+                          ) : null}
+                          {message.learningItemBatch ? (
+                            <LearningItemBatchAction
+                              batch={message.learningItemBatch}
+                              onOpen={setOpenLearningItemBatchId}
+                            />
+                          ) : null}
+                          {message.artifactError ? (
+                            <p className="learning-item-artifact-error" role="alert">
+                              {message.artifactError}
+                            </p>
+                          ) : null}
+                        </article>
+                      );
+                    })}
                     {chatSnapshot.activeTurnId ? (
                       <div className="chat-reply-status" role="status">
                         <span aria-hidden="true" />
@@ -2038,22 +2120,95 @@ export function App() {
                 ×
               </button>
             </div>
-            <label htmlFor="explanation-language">講解語言</label>
-            <select
-              id="explanation-language"
-              aria-label="講解語言"
-              value={settings.explanationLanguage}
-              disabled={isSettingsSaving}
-              onChange={(event) => void saveExplanationLanguage(
-                event.target.value as ExplanationLanguage
-              )}
-            >
-              <option value="source">原文語言（預設）</option>
-              <option value="zh-TW">繁體中文</option>
-              <option value="en">English</option>
-              <option value="ja">日本語</option>
-            </select>
-            <p>只影響之後的「講解標記內容」，不改變一般問答或既有回覆。</p>
+            <div className="settings-control codex-account-setting">
+              <div className="settings-control-heading">
+                <span className="settings-control-label">Codex 帳戶</span>
+                <span className="codex-connection-label">
+                  {connectionLabel(chatSnapshot.connection)}
+                </span>
+              </div>
+              <div
+                className="settings-account-value"
+                aria-label="Codex 帳戶信箱"
+              >
+                <span
+                  className={`codex-status-dot ${chatSnapshot.connection}`}
+                  aria-hidden="true"
+                />
+                <strong>
+                  {chatSnapshot.account?.email ?? "未提供信箱資訊"}
+                </strong>
+              </div>
+              <p>使用目前 Codex 登入的帳戶；此處僅供確認。</p>
+            </div>
+            <div className="settings-control">
+              <label htmlFor="explanation-language">講解語言</label>
+              <select
+                id="explanation-language"
+                aria-label="講解語言"
+                value={settings.explanationLanguage}
+                disabled={isSettingsSaving}
+                onChange={(event) => saveExplanationLanguage(
+                  event.target.value as ExplanationLanguage
+                )}
+              >
+                <option value="source">原文語言（預設）</option>
+                <option value="zh-TW">繁體中文</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+              </select>
+              <p>
+                影響之後的標記講解與閱讀測驗，不改變一般問答或既有回覆。
+              </p>
+            </div>
+            <div className="settings-control font-size-setting">
+              <div className="settings-control-heading">
+                <label htmlFor="ai-conversation-font-size">
+                  AI 對話文字大小
+                </label>
+                <output htmlFor="ai-conversation-font-size">
+                  {settings.aiConversationFontSize}px
+                </output>
+              </div>
+              <input
+                id="ai-conversation-font-size"
+                type="range"
+                min={AI_CONVERSATION_FONT_SIZE.min}
+                max={AI_CONVERSATION_FONT_SIZE.max}
+                step="1"
+                value={settings.aiConversationFontSize}
+                aria-valuetext={`${settings.aiConversationFontSize}px`}
+                onChange={(event) => previewFontSize(
+                  "aiConversationFontSize",
+                  Number(event.target.value)
+                )}
+              />
+              <p>只調整使用者訊息與 AI 回覆正文。</p>
+            </div>
+            <div className="settings-control font-size-setting">
+              <div className="settings-control-heading">
+                <label htmlFor="ebook-content-font-size">
+                  電子書內文字大小
+                </label>
+                <output htmlFor="ebook-content-font-size">
+                  {settings.ebookContentFontSize}px
+                </output>
+              </div>
+              <input
+                id="ebook-content-font-size"
+                type="range"
+                min={EBOOK_CONTENT_FONT_SIZE.min}
+                max={EBOOK_CONTENT_FONT_SIZE.max}
+                step="1"
+                value={settings.ebookContentFontSize}
+                aria-valuetext={`${settings.ebookContentFontSize}px`}
+                onChange={(event) => previewFontSize(
+                  "ebookContentFontSize",
+                  Number(event.target.value)
+                )}
+              />
+              <p>只調整 EPUB 章節內容，不改變閱讀工具列。</p>
+            </div>
             {settingsError ? <small role="alert">{settingsError}</small> : null}
           </section>
         </div>

@@ -21,7 +21,9 @@ related_implements:
   - F19-local-learning-library-page
   - F21-ai-assisted-learning-item-creation
   - B07-preserve-clarified-learning-item-targets
+  - F23-interactive-reading-practice-paper
   - F24-reorder-reader-chat-presets
+  - F25-adjustable-reading-and-conversation-font-sizes
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -55,8 +57,9 @@ related_implements:
 - START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」與「閱讀測驗」每次都附上當下區段。
 - 閱讀頁的提問快捷功能依學習流程與鍵盤瀏覽順序排列為「解釋標記」、「新增卡片」、「閱讀測驗」；生詞庫頁只顯示「新增卡片」。
 - 預設解析意圖由 Main process 明確注入 App 內建並安裝到 user data 的 `explain-reader-annotations` skill；skill 提供選擇式教學小節、本文用法 CEFR 與複習表，一般輸入仍是正常多輪問答。
-- 閱讀頁提供「閱讀測驗」預設動作；Main process 明確呼叫 App 內建 `practice-reading-comprehension` skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題問答題，題面、問答題回答與批改使用目前講解語言。第一輪不揭露答案、解析或提示；使用者可在同一對話提交答案，取得逐題批改、表達修正、分數與 final review。
+- 閱讀頁提供「閱讀測驗」預設動作；Main process 明確呼叫 App 內建 `practice-reading-comprehension` skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題問答題。Renderer 驗證 AI 訊息中的固定 quiz artifact 後，在該訊息下方顯示可折疊試卷產物；點擊後直接在同一 AI 訊息內展開。試卷以 AI 對話欄自身寬度採單／雙欄自適應排版，提供進度條、48px 答案點擊區、問答輸入及一次提交；matching grade artifact 以易讀紅筆批註呈現逐題批改、分數與可展開的 final review。
 - 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；影響後續標記解析，以及閱讀測驗的題面、問答題回答要求與批改。
+- 設定入口可在 12–24px 間即時調整 AI 對話可閱讀內容；預設 13px，使用者訊息、AI 回覆、相對 Markdown 排版及區段練習試卷的題名、重點、題目、選項、問答輸入、批改與總結共用此設定。工具列、模型選擇、提問框，以及試卷進度、題號、CEFR 與操作控制不受影響。
 - assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy。
 - 同一 thread 不允許並行 turn，包含第一次 thread 尚在建立的時間窗。
 - 回覆中可使用 `turn/interrupt` 停止目前 turn；若 thread／turn 尚在建立，會先等待真實識別碼再中斷。
@@ -66,7 +69,7 @@ related_implements:
 - 左側窄欄狀態卡顯示 Codex、右上角連線標籤與上下排列的五小時／每週額度；不顯示信箱或含帳戶資料的「已連線」明細。
 - AI 回覆中狀態位於對話訊息流底部；提問框固定呈現「輸入你的疑問」與 Enter／Shift+Enter 提示，並避免輸入法組字期間 Enter 誤送。
 - AI 對話面板左邊界可用滑鼠拖曳或方向鍵調整寬度；展開寬度限制於 280–640px 並保護中央閱讀區，摺疊後展開會恢復本次工作階段的調整寬度。
-- 「設定」提供講解語言選擇；模型選擇仍直接位於 AI 對話提問框，不提供推理強度設定。
+- 「設定」提供講解語言、AI 對話文字大小與電子書內文字大小；模型選擇仍直接位於 AI 對話提問框，不提供推理強度設定。
 - 生詞庫工作區沿用同一套右側 AI 對話面板與全域對話生命週期，並與閱讀頁共同提供
   typed `createLearningItems` 入口；AI 訊息可附 invitation、持久草稿批次與錯誤狀態。
 - 學習項目建立澄清狀態保存在 user message；重新啟動後的下一個直接回答仍會先查
@@ -137,6 +140,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 以安全的 Markdown 元件呈現 user／assistant 訊息，並在串流尚無文字時保留「…」占位。
 - 在右側面板的對話內容與全域清單之間切換，顯示對話標題、最近來源及更新時間。
 - AI 回覆與範圍標籤狀態分離；送出或完成訊息不推進 START／END。
+- 只解析固定 `reading-practice-quiz`／`reading-practice-grade` fenced JSON；不完整串流、錯誤 schema、quiz id 不符或未覆蓋每題的結果不會改變試卷完成狀態。artifact 原文仍隨 AI 訊息保存，但不在窄側欄重複顯示。
 
 ## 4. Shared Data
 
@@ -229,11 +233,13 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/main/chat-ipc.ts` | chat IPC 白名單與輸入驗證 |
 | `apps/desktop/src/main/main.ts` | 建立 Controller、發布 snapshot、管理 app 關閉清理 |
 | `apps/desktop/src/preload/preload.ts` | 暴露窄化的 `readerDesktop.chat` |
-| `apps/desktop/src/renderer/App.tsx` | AI 對話面板、閱讀區段 context 與左側狀態卡 |
+| `apps/desktop/src/renderer/App.tsx` | AI 對話面板、閱讀區段 context、試卷入口與左側狀態卡 |
+| `apps/desktop/src/renderer/ReadingPracticePaper.tsx` | AI 訊息內可折疊試卷、作答狀態與紅筆批改呈現 |
+| `apps/desktop/src/renderer/reading-practice-artifact.ts` | 試卷 artifact schema 驗證與答案格式化 |
 | `apps/desktop/src/renderer/styles.css` | 對話與窄欄狀態卡樣式 |
-| `apps/desktop/src/shared/settings-contracts.ts` | 講解語言與設定 bridge 型別 |
-| `apps/desktop/src/main/settings-store.ts` | 全域講解語言載入、降級與原子保存 |
-| `apps/desktop/src/main/settings-ipc.ts` | 講解語言 IPC 白名單與輸入驗證 |
+| `apps/desktop/src/shared/settings-contracts.ts` | 講解語言、兩項字體大小、允許範圍與設定 bridge 型別 |
+| `apps/desktop/src/main/settings-store.ts` | 全域偏好逐欄載入、降級、串行與原子保存 |
+| `apps/desktop/src/main/settings-ipc.ts` | 講解語言及字體大小 IPC 白名單與範圍驗證 |
 
 ## 9. Testing Notes
 
@@ -244,14 +250,16 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill 的 CEFR、8–12／1–3 題、混合題型、批改、語言與 final review 契約 |
 | `apps/desktop/src/main/bundled-skill.test.ts` | 三份 App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 與預設意圖白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
-| `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、bridge send、閱讀區段裁切／去重／區段練習與語言傳值、全域對話管理、安全 Markdown／GFM 與串流占位 |
+| `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、字體大小即時預覽與保存、bridge send、閱讀區段裁切／去重／區段練習與語言傳值、全域對話管理、安全 Markdown／GFM 與串流占位 |
+| `apps/desktop/src/renderer/ReadingPracticePaper.test.tsx` | 專用試卷作答、提交、鎖定、關閉與紅筆批改 |
+| `apps/desktop/src/renderer/reading-practice-artifact.test.ts` | 試卷／批改 artifact 驗證、串流容錯與提交格式 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、三份 runtime skills、13 項 chat bridge 白名單與 Node 隔離 |
 
-最近驗證（2026-07-21）：
+最近驗證（2026-07-24）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：159/159 passed。
-- Electron Playwright：本次受執行環境阻擋 Electron process launch，未進入斷言。
+- Desktop Vitest：185/185 passed。
+- Electron Playwright：最終完整案例 2/2 passed；先前一次既有生詞庫 sticky toolbar 精確像素斷言偶發 2px 差異，單案例重跑 3/3 passed，未修改產品碼或測試。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
 - 真實本機 Codex：帳戶連線成功；使用者手動確認五小時與每週額度可取得。
@@ -262,11 +270,10 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - 對話只保存在本機，不提供帳戶或跨裝置同步。
 - 模型選擇不為每筆 AI 對話個別保存，重新啟動時回到 Codex 模型目錄的 server default。
 - AI 對話面板的調整寬度只保留於目前工作階段，重新啟動後回到 360px。
-- 不提供推理強度或 API key 設定；設定視窗目前只包含講解語言。
+- 不提供推理強度、API key、字型、行高、主題或每筆 AI 對話個別字體設定。
 - 不提供內嵌 Codex／ChatGPT 登入或帳戶切換。
 - Markdown 程式碼區塊目前不提供語法高亮。
-- 區段練習目前只用 Markdown 對話呈現，不保存結構化題目、選項、問答回答、答案、
-  分數或作答歷史；AI 已能建立學習項目草稿，但 Anki 式複習流程尚未實作。
+- 區段練習的未提交答案不做跨啟動保存，也沒有獨立題庫、成績資料表或歷史趨勢；AI 已能建立學習項目草稿，但 Anki 式複習流程尚未實作。
 - 本機 GUI 環境必須能找到已安裝的 `codex` 可執行檔。
 
 ## 11. Related Documents
@@ -292,5 +299,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/B04-use-language-setting-for-reading-quiz.md`
 - `documents/implements/F18-use-reading-comprehension-skill.md`
 - `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`
+- `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

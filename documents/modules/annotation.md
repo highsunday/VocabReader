@@ -13,6 +13,7 @@ related_implements:
   - B04-use-language-setting-for-reading-quiz
   - F18-use-reading-comprehension-skill
   - B05-use-quiz-language-for-open-ended-answers
+  - F25-adjustable-reading-and-conversation-font-sizes
 ---
 
 # 持久標記與 AI 標記解析模組
@@ -112,9 +113,9 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 
 ## 7. Settings Boundary
 
-講解語言是全域應用程式偏好，不屬於單本書、單章或單一 AI 對話。Main process 的 `LocalSettingsStore` 把受限設定保存到 Electron user data 的 `settings/settings.json`，先寫 `.next` 再原子替換。缺少、損壞或未知值一律回退為 `source`。
+講解語言、AI 對話文字大小與電子書內文字大小都是全域應用程式偏好，不屬於單本書、單章或單一 AI 對話。Main process 的 `LocalSettingsStore` 把受限設定保存到 Electron user data 的 `settings/settings.json`，串行寫入 `.next` 再原子替換。每個欄位獨立驗證與降級：講解語言預設為 `source`，AI 對話預設 13px，電子書內文預設 19px，因此舊版設定可以保留既有語言並取得新欄位預設值。
 
-設定只影響之後的「講解標記內容」以及「閱讀測驗」的題面、問答題回答要求與批改，不修改介面語言、EPUB 原文、一般自由問答或既有 AI 回覆。
+講解語言只影響之後的「講解標記內容」以及「閱讀測驗」的題面、問答題回答要求與批改。兩項字體偏好只影響 AI 對話訊息正文與 EPUB 章節內容的呈現；三者都不修改介面語言、EPUB 原文或既有 AI 回覆內容。
 
 ## 8. Key Files
 
@@ -125,9 +126,9 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 | `apps/desktop/src/main/library-ipc.ts` | `library:save-annotations` 窄化 IPC |
 | `apps/desktop/src/renderer/reading-range.ts` | Selection offset、重疊判斷、原文標示與安全 AI 序列化 |
 | `apps/desktop/src/renderer/App.tsx` | 標記模式、右鍵操作、狀態、AI context revision 與預設動作 |
-| `apps/desktop/src/shared/settings-contracts.ts` | 講解語言及設定 API 型別 |
+| `apps/desktop/src/shared/settings-contracts.ts` | 講解語言、字體大小範圍及設定 API 型別 |
 | `apps/desktop/src/main/settings-store.ts` | 全域偏好載入、降級與原子保存 |
-| `apps/desktop/src/main/settings-ipc.ts` | 設定值 IPC 驗證 |
+| `apps/desktop/src/main/settings-ipc.ts` | 設定值 IPC enum、整數與範圍驗證 |
 | `apps/desktop/src/main/chat-controller.ts` | 兩個 App skills 的 instructions、marker gate、可信任標記解析與區段練習 input 組成 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析 workflow、動態講解語言、CEFR 與複習表規則 |
 | `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀測驗 CEFR、8–12／1–3 題、指定語言批改與 final review workflow |
@@ -142,8 +143,8 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 | `apps/desktop/src/renderer/App.test.tsx` | 固定小工具、章節標記總數、模式、連續建立、切章隔離、右鍵建立／移除、靜默重疊、上下文刷新／去重、預設解析、區段練習及語言設定 |
 | `apps/desktop/src/main/library-service.test.ts` | 跨章保存、移除、舊索引相容、無效與重疊資料 |
 | `apps/desktop/src/main/library-ipc.test.ts` | 標記 IPC 路由與輸入驗證 |
-| `apps/desktop/src/main/settings-store.test.ts` | 預設、保存、損壞／未知值降級 |
-| `apps/desktop/src/main/settings-ipc.test.ts` | 設定 IPC 路由與 enum 驗證 |
+| `apps/desktop/src/main/settings-store.test.ts` | 預設、保存、舊檔相容與逐欄損壞／未知值降級 |
+| `apps/desktop/src/main/settings-ipc.test.ts` | 設定 IPC 路由、enum、整數與範圍驗證 |
 | `apps/desktop/src/main/chat-controller.test.ts` | 一般 context、兩個 App skills 載入與其他 skills 隔離、既有 thread 恢復、空標記、四種講解語言與型別化 skill input 契約 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀理解 skill 的 CEFR、題型、題數、批改、語言與 final review rubric |
 | `apps/desktop/src/main/bundled-skill.test.ts` | 兩份 App 內建 skills 的首次安裝、無變更略過與升級替換 |
@@ -176,5 +177,6 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - `documents/implements/B04-use-language-setting-for-reading-quiz.md`
 - `documents/implements/F18-use-reading-comprehension-skill.md`
 - `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`
+- `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
 
 變更標記資料、不重疊規則、Selection offset、AI 序列化、預設 intent 或講解語言時，必須同步更新本文件與相關 FXX 實作紀錄。

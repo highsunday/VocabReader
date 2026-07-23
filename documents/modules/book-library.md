@@ -2,7 +2,7 @@
 title: 書籍與本機書庫模組
 module: book-library
 status: active
-last_updated: 2026-07-21
+last_updated: 2026-07-24
 related_implements:
   - F01-epub-book-library
   - F02-chapter-reading-resume
@@ -14,6 +14,7 @@ related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - B01-preserve-epub-chapter-hierarchy
   - B02-persist-range-marker-on-drag-release
+  - F25-adjustable-reading-and-conversation-font-sizes
 ---
 
 # 書籍與本機書庫模組
@@ -55,6 +56,7 @@ related_implements:
 - 長章節清單只捲動中央內容，左右欄保持在視窗內。
 - 書籍總覽以縮排、字級、標記及操作文字區分子章節；開啟子章節時定位到書內 fragment。
 - 舊版索引缺少目錄層級時，會從已保存的 EPUB 自動補回並持久化，不需重新導入。
+- 設定視窗可在 16–32px 間即時調整所有 EPUB 章節內文，預設 19px；設定跨書籍保存，但不改變閱讀工具列、範圍標籤或 EPUB 原始內容。
 
 章節內容採安全 allowlist，而非完整瀏覽器方式重現 EPUB；自訂 CSS、字型、SVG、影音與複雜互動內容目前不保證呈現。
 
@@ -85,6 +87,7 @@ related_implements:
 - 載入並保存目前 session 的書籍清單、選取狀態與閱讀位置。
 - 依章節初始化、顯示、調整及推進範圍標籤，並提供只擷取目前閱讀區段的共用邏輯。
 - 顯示書籍縮圖、書籍總覽、章節清單、安全章節內容、載入與錯誤訊息。
+- 以全域電子書內文字體大小偏好呈現安全章節內容，標題等 EPUB 內容沿用相對字級。
 - 在書籍總覽提供刪除入口與確認對話框；刪除成功後依原清單位置選取下一本、前一本或顯示空書庫。
 - 側欄以書籍項目作為書籍總覽入口，保留獨立的 Anki 複習入口，不顯示章節機制說明卡片。
 - 不解析 EPUB，也不直接讀寫書庫檔案。
@@ -102,6 +105,8 @@ related_implements:
 | apps/desktop/src/renderer/reading-range.ts | 閱讀區段初始化、裁切、自動推進、DOM 文字 offset 與範圍標籤定位 |
 | apps/desktop/src/renderer/styles.css | 書庫／總覽／章節排版與中央獨立捲動的三欄版面 |
 | apps/desktop/src/renderer/index.html | renderer CSP；允許本機與 Data URL 封面圖片 |
+| apps/desktop/src/shared/settings-contracts.ts | 電子書內文字體範圍與全域設定型別 |
+| apps/desktop/src/main/settings-store.ts | 字體偏好舊檔相容、逐欄降級與本機保存 |
 
 ## 5. Domain Data
 
@@ -265,7 +270,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 |---|---|
 | apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、章節階層與舊索引遷移、fragment 定位、安全內容與圖片、閱讀狀態及每章範圍持久化、不存在書籍／章節與錯誤回滾 |
 | apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、刪除、章節、閱讀狀態與閱讀區段 handler，以及輸入驗證 |
-| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除、章節閱讀、閱讀位置恢復、範圍標籤拖曳／功能選單／防交叉／推進 |
+| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除、章節閱讀、電子書內文字體設定、閱讀位置恢復、範圍標籤拖曳／功能選單／防交叉／推進 |
 | apps/desktop/src/renderer/reading-range.test.ts | 約 800 字初始化、短章、嚴格裁切、等長推進、章末停止、DOM 文字位置與標記資料獨立性 |
 | apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge（含刪除與閱讀區段 API）、章節／狀態 API、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
 
@@ -302,6 +307,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - documents/implements/F13-persistent-annotations-and-ai-analysis.md
 - documents/implements/B01-preserve-epub-chapter-hierarchy.md
 - documents/implements/B02-persist-range-marker-on-drag-release.md
+- documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md
 - documents/modules/reading-range.md
 - documents/modules/annotation.md
 

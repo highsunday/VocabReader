@@ -356,6 +356,91 @@ test("launches the secure Electron reading shell", async () => {
     ]);
     await language.selectOption("ja");
     await expect(language).toHaveValue("ja");
+
+    const conversationFontSize = page.getByRole("slider", {
+      name: "AI 對話文字大小"
+    });
+    const ebookFontSize = page.getByRole("slider", {
+      name: "電子書內文字大小"
+    });
+    await expect(conversationFontSize).toHaveAttribute("min", "12");
+    await expect(conversationFontSize).toHaveAttribute("max", "24");
+    await expect(conversationFontSize).toHaveValue("13");
+    await expect(ebookFontSize).toHaveAttribute("min", "16");
+    await expect(ebookFontSize).toHaveAttribute("max", "32");
+    await expect(ebookFontSize).toHaveValue("19");
+    await conversationFontSize.fill("18");
+    await ebookFontSize.fill("24");
+    await expect(page.getByText("18px", { exact: true })).toBeVisible();
+    await expect(page.getByText("24px", { exact: true })).toBeVisible();
+    await expect.poll(() => page.locator(".workspace").evaluate((element) => ({
+      conversation: getComputedStyle(element)
+        .getPropertyValue("--ai-conversation-font-size").trim(),
+      ebook: getComputedStyle(element)
+        .getPropertyValue("--ebook-content-font-size").trim()
+    }))).toEqual({ conversation: "18px", ebook: "24px" });
+    await expect.poll(() => page.locator(".workspace").evaluate((workspace) => {
+      const message = document.createElement("div");
+      message.className = "message-content";
+      const chapter = document.createElement("article");
+      chapter.className = "chapter-content";
+      const paper = document.createElement("section");
+      paper.className = "reading-practice-paper";
+      const paperHeading = document.createElement("div");
+      paperHeading.className = "reading-practice-paper-heading";
+      const paperTitle = document.createElement("h2");
+      paperTitle.textContent = "Reading practice";
+      paperHeading.append(paperTitle);
+      const question = document.createElement("div");
+      question.className = "paper-question-prompt";
+      const questionText = document.createElement("p");
+      questionText.textContent = "Why did Anna stop?";
+      question.append(questionText);
+      const option = document.createElement("label");
+      option.className = "paper-option";
+      const optionText = document.createElement("em");
+      optionText.textContent = "She saw an old friend.";
+      option.append(optionText);
+      const answerQuestion = document.createElement("div");
+      answerQuestion.className = "paper-question open-ended";
+      const answer = document.createElement("textarea");
+      answerQuestion.append(answer);
+      const feedback = document.createElement("div");
+      feedback.className = "red-pen-note";
+      const feedbackText = document.createElement("p");
+      feedbackText.textContent = "Use evidence from the passage.";
+      feedback.append(feedbackText);
+      paper.append(paperHeading, question, option, answerQuestion, feedback);
+      workspace.append(message, chapter, paper);
+      const result = {
+        conversation: getComputedStyle(message).fontSize,
+        ebook: getComputedStyle(chapter).fontSize,
+        paperTitle: getComputedStyle(paperTitle).fontSize,
+        paperQuestion: getComputedStyle(questionText).fontSize,
+        paperOption: getComputedStyle(optionText).fontSize,
+        paperAnswer: getComputedStyle(answer).fontSize,
+        paperFeedback: getComputedStyle(feedbackText).fontSize
+      };
+      message.remove();
+      chapter.remove();
+      paper.remove();
+      return result;
+    })).toEqual({
+      conversation: "18px",
+      ebook: "24px",
+      paperTitle: "24.84px",
+      paperQuestion: "19.44px",
+      paperOption: "18px",
+      paperAnswer: "18px",
+      paperFeedback: "16.56px"
+    });
+    await expect.poll(() => page.evaluate(() =>
+      window.readerDesktop?.settings.get()
+    )).toEqual({
+      explanationLanguage: "ja",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24
+    });
     await page.getByRole("button", { name: "關閉設定" }).click();
 
     const dataImageLoads = await page.evaluate(async () => {

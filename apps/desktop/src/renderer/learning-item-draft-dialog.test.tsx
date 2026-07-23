@@ -62,7 +62,7 @@ describe("LearningItemDraftDialog", () => {
     );
 
     fireEvent.click(screen.getByRole("button", {
-      name: "2 張學習卡片待確認"
+      name: "2 張卡片待確認"
     }));
     expect(open).toHaveBeenCalledWith("batch-a");
 
@@ -91,7 +91,7 @@ describe("LearningItemDraftDialog", () => {
       />
     );
 
-    expect(screen.getByRole("dialog", { name: "確認學習卡片" }))
+    expect(screen.getByRole("dialog", { name: "確認卡片" }))
       .toBeInTheDocument();
     expect(screen.getByText("已存在")).toBeInTheDocument();
     expect(screen.getByText("已在垃圾桶")).toBeInTheDocument();
@@ -129,9 +129,9 @@ describe("LearningItemDraftDialog", () => {
       .toHaveBeenCalledWith("batch-a", "item-happy");
 
     await waitFor(() => expect(screen.getByRole("button", {
-      name: "提交學習卡片"
+      name: "提交卡片"
     })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "提交學習卡片" }));
+    fireEvent.click(screen.getByRole("button", { name: "提交卡片" }));
     expect(chat.submitLearningItemBatch).toHaveBeenCalledWith("batch-a");
     expect(chat.updateLearningItemDraft).not.toHaveBeenCalled();
   });

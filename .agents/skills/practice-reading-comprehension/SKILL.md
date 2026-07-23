@@ -41,6 +41,48 @@ Do not impose a sentence count or criticize the learner based on answer length. 
 
 Do not reveal answers, explanations, sample answers, or hints before the learner responds. Adjust wording and conceptual difficulty to the passage.
 
+### Interactive paper artifact
+
+End the quiz response with exactly one fenced `reading-practice-quiz` JSON artifact. The App uses it to render the interactive paper. Write only a short preparation note outside the artifact; do not duplicate all questions as Markdown.
+
+Use this exact shape and keep every displayed string in the requested quiz language:
+
+```reading-practice-quiz
+{
+  "version": 1,
+  "kind": "quiz",
+  "quizId": "a-new-stable-id-for-this-quiz",
+  "title": "A concise quiz title",
+  "cefr": "B1",
+  "difficultySummary": "A brief explanation of the main difficulty.",
+  "multipleChoice": [
+    {
+      "id": "mc-1",
+      "number": 1,
+      "prompt": "Question text",
+      "options": {
+        "A": "Option A",
+        "B": "Option B",
+        "C": "Option C",
+        "D": "Option D"
+      }
+    }
+  ],
+  "openEnded": [
+    {
+      "id": "open-1",
+      "number": 9,
+      "prompt": "Open-ended question text"
+    }
+  ]
+}
+```
+
+- Use unique stable `id` values within the quiz and consecutive human-facing `number` values across both sections.
+- Include all 8–12 multiple-choice and 1–3 open-ended questions in the arrays.
+- Do not include an answer key, correct answer, explanation, hint, or sample open-ended answer anywhere in this artifact.
+- Output valid JSON with double quotes, no comments, no trailing commas, and no Markdown inside JSON strings.
+
 ## Grade Submitted Answers
 
 When the learner submits answers to this quiz, check every provided answer carefully. If the submission is partial, grade the provided items and clearly identify what remains; wait to give the final review until all identifiable quiz answers have been addressed.
@@ -70,6 +112,46 @@ For each answer:
 7. Preserve the learner's intended meaning and personal voice.
 
 Do not criticize an answer merely for being short or long. If it is already correct, acknowledge that and avoid unnecessary rewriting.
+
+### Interactive grading artifact
+
+When the learner submits a complete paper containing `$submit-reading-practice`, end the response with exactly one fenced `reading-practice-grade` JSON artifact. Its `quizId` and item `id` values must exactly match the quiz artifact. Write only a short marking-complete note outside the artifact; do not duplicate the full grading as Markdown.
+
+```reading-practice-grade
+{
+  "version": 1,
+  "kind": "grade",
+  "quizId": "the-submitted-quiz-id",
+  "multipleChoice": [
+    {
+      "id": "mc-1",
+      "correct": false,
+      "correctAnswer": "B",
+      "feedback": "A complete learner-friendly explanation with evidence and a transferable strategy."
+    }
+  ],
+  "openEnded": [
+    {
+      "id": "open-1",
+      "correct": true,
+      "assessment": "A concise relevance and clarity assessment.",
+      "correctedAnswer": "A corrected version close to the learner's intended meaning.",
+      "feedback": "Important corrections, explanation, and one useful expression or pattern."
+    }
+  ],
+  "summary": {
+    "score": "7/8",
+    "reading": "Brief reading comprehension evaluation.",
+    "writing": "Brief writing evaluation.",
+    "reviewPoints": ["review point 1", "review point 2", "review point 3"]
+  }
+}
+```
+
+- Include one result for every submitted question. `correctedAnswer` must always be a non-empty string; when no correction is needed, preserve the learner's answer.
+- Put the full required teaching feedback for an item into its `feedback` string.
+- Keep `reviewPoints` between three and five items.
+- Output valid JSON with double quotes, no comments, no trailing commas, and no Markdown inside JSON strings.
 
 ## Final Review
 
