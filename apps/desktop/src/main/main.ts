@@ -2,9 +2,11 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import annotationExplanationSkillMarkdown from "../../../../.agents/skills/explain-reader-annotations/SKILL.md";
+import learningItemCreationSkillMarkdown from "../../../../.agents/skills/create-learning-items/SKILL.md";
 import readingComprehensionSkillMarkdown from "../../../../.agents/skills/practice-reading-comprehension/SKILL.md";
 import {
   installBundledAnnotationSkill,
+  installBundledLearningItemCreationSkill,
   installBundledReadingComprehensionSkill
 } from "./bundled-skill";
 import { ChatController } from "./chat-controller";
@@ -15,6 +17,7 @@ import { registerLibraryIpc } from "./library-ipc";
 import { LocalBookLibrary } from "./library-service";
 import { registerLearningLibraryIpc } from "./learning-library-ipc";
 import { LocalLearningLibrary } from "./learning-library-service";
+import { classifyLearningItemDuplicatesWithCodex } from "./learning-item-duplicate-classifier";
 import { registerSettingsIpc } from "./settings-ipc";
 import { LocalSettingsStore } from "./settings-store";
 
@@ -64,10 +67,8 @@ app.whenReady().then(() => {
   const learningLibraryPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-learning-test-${process.pid}`, "learning-items.sqlite")
     : join(app.getPath("userData"), "learning-library", "learning-items.sqlite");
-  registerLearningLibraryIpc(
-    ipcMain,
-    new LocalLearningLibrary(learningLibraryPath)
-  );
+  const learningLibrary = new LocalLearningLibrary(learningLibraryPath);
+  registerLearningLibraryIpc(ipcMain, learningLibrary);
   const settingsPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-settings-test-${process.pid}`)
     : join(app.getPath("userData"), "settings");
@@ -85,6 +86,10 @@ app.whenReady().then(() => {
     runtimePath,
     readingComprehensionSkillMarkdown
   );
+  const learningItemCreationSkill = installBundledLearningItemCreationSkill(
+    runtimePath,
+    learningItemCreationSkillMarkdown
+  );
   chatController = new ChatController({
     createClient: () => new SpawnedCodexAppServerClient(),
     workingDirectory: runtimePath,
@@ -92,6 +97,22 @@ app.whenReady().then(() => {
     annotationExplanationSkillInstructions: annotationExplanationSkillMarkdown,
     readingComprehensionSkillPath: readingComprehensionSkill.path,
     readingComprehensionSkillInstructions: readingComprehensionSkillMarkdown,
+    learningItemCreationSkillPath: learningItemCreationSkill.path,
+    learningItemCreationSkillInstructions: learningItemCreationSkillMarkdown,
+    findLearningItemCandidates: (titles) =>
+      learningLibrary.findDuplicateCandidates(titles),
+    createLearningItemsAtomically: (inputs) =>
+      learningLibrary.createItemsAtomically(inputs),
+    restoreLearningItem: (itemId) => learningLibrary.restoreItem(itemId),
+    classifyLearningItemDuplicates: (drafts, candidates) =>
+      classifyLearningItemDuplicatesWithCodex({
+        createClient: () => new SpawnedCodexAppServerClient(),
+        workingDirectory: runtimePath,
+        skillPath: learningItemCreationSkill.path,
+        skillInstructions: learningItemCreationSkillMarkdown,
+        drafts,
+        candidates
+      }),
     conversationStore: new LocalChatConversationStore(conversationPath)
   });
   unsubscribeChatState = registerChatIpc(

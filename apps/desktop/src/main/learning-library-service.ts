@@ -393,6 +393,28 @@ export class LocalLearningLibrary {
     return itemFromRow(row);
   }
 
+  async findDuplicateCandidates(titles: string[]): Promise<LearningItem[]> {
+    if (!Array.isArray(titles)) throw new Error("候選標題格式錯誤");
+    const normalizedTitles = [...new Set(titles.map((title) =>
+      requiredText(title, "候選標題").toLocaleLowerCase()
+    ))];
+    if (normalizedTitles.length === 0) return [];
+    const order = new Map(normalizedTitles.map((title, index) => [title, index]));
+    const placeholders = normalizedTitles.map(() => "?").join(", ");
+    const rows = this.#open().prepare(`
+      SELECT * FROM learning_items
+      WHERE LOWER(TRIM(title)) IN (${placeholders})
+    `).all(...normalizedTitles) as unknown as LearningItemRow[];
+    return rows
+      .map(itemFromRow)
+      .sort((left, right) => {
+        const titleOrder = (order.get(left.title.trim().toLocaleLowerCase()) ?? 0) -
+          (order.get(right.title.trim().toLocaleLowerCase()) ?? 0);
+        return titleOrder || left.sense.localeCompare(right.sense) ||
+          left.id.localeCompare(right.id);
+      });
+  }
+
   async createItem(input: CreateLearningItemInput): Promise<LearningItem> {
     const item = validateCreate(input);
     const id = randomUUID();
@@ -413,6 +435,46 @@ export class LocalLearningLibrary {
       now
     );
     return this.getItem(id);
+  }
+
+  async createItemsAtomically(
+    inputs: CreateLearningItemInput[]
+  ): Promise<LearningItem[]> {
+    if (!Array.isArray(inputs) || inputs.length === 0) {
+      throw new Error("學習項目批次格式錯誤");
+    }
+    const items = inputs.map(validateCreate);
+    const database = this.#open();
+    const insert = database.prepare(`
+      INSERT INTO learning_items (
+        id, title, item_type, cefr, sense, markdown_content, status,
+        created_at, updated_at, trashed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
+    `);
+    const created: Array<{ id: string; item: CreateLearningItemInput }> = [];
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      for (const item of items) {
+        const id = randomUUID();
+        const now = new Date().toISOString();
+        insert.run(
+          id,
+          item.title,
+          item.itemType,
+          item.cefr,
+          item.sense,
+          item.markdownContent,
+          now,
+          now
+        );
+        created.push({ id, item });
+      }
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+    return Promise.all(created.map(({ id }) => this.getItem(id)));
   }
 
   async updateItem(input: UpdateLearningItemInput): Promise<LearningItem> {

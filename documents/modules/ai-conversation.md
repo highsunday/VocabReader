@@ -19,6 +19,7 @@ related_implements:
   - F18-use-reading-comprehension-skill
   - B05-use-quiz-language-for-open-ended-answers
   - F19-local-learning-library-page
+  - F21-ai-assisted-learning-item-creation
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -63,8 +64,10 @@ related_implements:
 - AI 回覆中狀態位於對話訊息流底部；提問框固定呈現「輸入你的疑問」與 Enter／Shift+Enter 提示，並避免輸入法組字期間 Enter 誤送。
 - AI 對話面板左邊界可用滑鼠拖曳或方向鍵調整寬度；展開寬度限制於 280–640px 並保護中央閱讀區，摺疊後展開會恢復本次工作階段的調整寬度。
 - 「設定」提供講解語言選擇；模型選擇仍直接位於 AI 對話提問框，不提供推理強度設定。
-- 生詞庫工作區沿用同一套右側 AI 對話面板與全域對話生命週期；目前仍是一般對話，
-  不附加學習項目資料，也不提供生詞庫查詢或寫入 intent。
+- 生詞庫工作區沿用同一套右側 AI 對話面板與全域對話生命週期，並與閱讀頁共同提供
+  typed `createLearningItems` 入口；AI 訊息可附 invitation、持久草稿批次與錯誤狀態。
+- 學習項目建立澄清狀態保存在 user message；重新啟動後的下一個直接回答仍會先查
+  exact-title 候選，再延續固定 creation skill。
 
 ## 3. Module Boundary
 
@@ -105,19 +108,22 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 
 ### Electron IPC and Preload
 
-- `chat:get-state`、`chat:connect`、`chat:send`、`chat:new`、`chat:select`、`chat:remove`、`chat:select-model` 與 `chat:stop` 是唯一 Renderer 可呼叫的 AI IPC。
+- Renderer 除既有對話 IPC 外，只能使用四個 typed 草稿能力：
+  `chat:update-learning-item-draft`、`chat:set-learning-item-draft-state`、
+  `chat:submit-learning-item-batch`、`chat:restore-learning-item-match`。
 - `chat:state-changed` 只向 Renderer 發送完整型別化 snapshot。
 - Preload 將這些能力收斂於 `window.readerDesktop.chat`。
 - Renderer 不能指定任意 Codex method、工作目錄、approval、sandbox、process 或工具設定。
-- `window.readerDesktop.learning` 是獨立的本機資料 bridge，不屬於 chat IPC；
-  AI 對話輸入、snapshot 與 trusted intent 都不包含學習項目讀寫能力。
+- `window.readerDesktop.learning` 仍是獨立的本機資料 bridge。AI 不取得這個 bridge；
+  creation workflow 只由 Main Controller 委派 exact-title query、atomic create 與 restore。
 
 ### Renderer
 
 - 訂閱並呈現 `ChatSnapshot`，不自行模擬已連線、帳戶或額度資料。
 - 從目前模式、選取書籍、章節與 `extractReadingSegment()` 組裝 `SendChatMessageInput`。
 - 以 `bookId + chapterId + start + end + annotation revision` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
-- 將一般訊息、型別化 `explainAnnotations` 與 `practiceReading` 意圖分開；兩個預設意圖每次都提供當下區段與講解語言，並各自附上固定 App skill；一般訊息不附 skill。
+- 將一般訊息與三種 typed intent 分開；`explainAnnotations`、`practiceReading`、
+  `createLearningItems` 各自附固定 App skill，一般訊息不附 skill。
 - 空閱讀區段只送出一般問題，不使用整章 fallback。
 - 顯示處理中、需要登入、連線失敗與額度不可用狀態。
 - 在提問框呈現模型選擇、鍵盤操作提示與停止按鈕；回覆中狀態顯示於訊息流，IME composition Enter 不觸發送出。
@@ -138,7 +144,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 | `allowance` | 五小時／每週額度、載入階段與細節 |
 | `threadId` | 目前 AI 對話對應的 Codex thread id；空白新對話時為 null |
 | `activeTurnId` | 目前回答識別碼；建立中使用內部 starting 狀態，閒置時為 null |
-| `messages` | 目前 AI 對話的 user／assistant 訊息及 streaming／completed／failed 狀態 |
+| `messages` | 訊息狀態，以及可選 learning request／invitation／draft batch／artifact error |
 | `conversations` | 依最近更新排序的全域對話摘要，不包含完整訊息複本 |
 | `activeConversationId` | 目前選取的產品對話 id；空白新對話時為 null |
 | `managementBusy` | 封存等管理操作是否進行中 |
@@ -154,8 +160,9 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - `context.bookTitle`：可選，目前書籍名稱。
 - `context.chapterTitle`：可選，目前章節名稱。
 - `context.readingSegment`：可選，只能來自 `extractReadingSegment()` 的非空輸出。
-- `intent`：可選且只接受 `explainAnnotations | practiceReading`，由產品預設動作使用。
+- `intent`：可選且只接受 `explainAnnotations | practiceReading | createLearningItems`。
 - `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja`；供標記解析與閱讀測驗題面共用。
+- `learningItemTargets`：只允許 creation intent 使用，最多 50 個 title／senseHint。
 
 ## 5. Connection and Allowance Flow
 
@@ -207,6 +214,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/shared/chat-contracts.ts` | Main／Preload／Renderer 共用的帳戶、額度、模型、訊息、snapshot 與 context 型別 |
 | `apps/desktop/src/main/codex-app-server-client.ts` | Codex 子程序、JSONL transport、request timeout 與 account 解析 |
 | `apps/desktop/src/main/chat-controller.ts` | 連線、額度、模型目錄、thread／turn、中斷、串流訊息與 context 組裝 |
+| `apps/desktop/src/main/learning-item-artifacts.ts` | creation message attachments 與 recheck 結果驗證 |
+| `apps/desktop/src/main/learning-item-duplicate-classifier.ts` | 提交前有限候選的隔離 AI 語義分類 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析的語言學習 workflow、CEFR 判斷、選擇式說明與複習表契約 |
 | `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀理解 CEFR、出題、指定語言批改與 final review 契約 |
 | `apps/desktop/src/main/bundled-skill.ts` | 把 App bundle 內建 skill 安裝／原子更新到 user data runtime |
@@ -225,18 +234,18 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、重啟 streaming 正規化與損壞資料隔離 |
-| `apps/desktop/src/main/chat-controller.test.ts` | initialize、帳戶／額度、模型目錄與選擇、turn 中斷、多輪串流、全域對話建立／切換／恢復／移除、兩個 App skill instructions、各自的 turn input、四種講解語言、失敗回滾、並行保護與 process close |
+| `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、三個 skills、creation 候選範圍、持久澄清與批次生命週期 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill 的 CEFR、8–12／1–3 題、混合題型、批改、語言與 final review 契約 |
-| `apps/desktop/src/main/bundled-skill.test.ts` | 兩份 App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
+| `apps/desktop/src/main/bundled-skill.test.ts` | 三份 App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 與預設意圖白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
 | `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、bridge send、閱讀區段裁切／去重／區段練習與語言傳值、全域對話管理、安全 Markdown／GFM 與串流占位 |
-| `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、AI 面板實際調寬與摺疊恢復、對話管理入口、九項 chat bridge 白名單與 Node 隔離 |
+| `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、三份 runtime skills、13 項 chat bridge 白名單與 Node 隔離 |
 
 最近驗證（2026-07-21）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：128/128 passed。
-- Electron Playwright：2/2 passed。
+- Desktop Vitest：159/159 passed。
+- Electron Playwright：本次受執行環境阻擋 Electron process launch，未進入斷言。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
 - 真實本機 Codex：帳戶連線成功；使用者手動確認五小時與每週額度可取得。
@@ -250,7 +259,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - 不提供推理強度或 API key 設定；設定視窗目前只包含講解語言。
 - 不提供內嵌 Codex／ChatGPT 登入或帳戶切換。
 - Markdown 程式碼區塊目前不提供語法高亮。
-- 區段練習目前只用 Markdown 對話呈現，不保存結構化題目、選項、問答回答、答案、分數或作答歷史；生詞庫已能獨立保存與編輯項目，但 AI 建立／查詢、從標記沉澱及 Anki 式複習流程尚未實作。
+- 區段練習目前只用 Markdown 對話呈現，不保存結構化題目、選項、問答回答、答案、
+  分數或作答歷史；AI 已能建立學習項目草稿，但 Anki 式複習流程尚未實作。
 - 本機 GUI 環境必須能找到已安裝的 `codex` 可執行檔。
 
 ## 11. Related Documents

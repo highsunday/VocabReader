@@ -1,3 +1,8 @@
+import type {
+  LearningItemDraftBatch,
+  UpdateLearningItemDraftInput
+} from "./learning-contracts";
+
 export type ConnectionPhase =
   | "disconnected"
   | "connecting"
@@ -16,6 +21,14 @@ export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
   status: "streaming" | "completed" | "failed";
+  learningItemBatch?: LearningItemDraftBatch;
+  learningItemInvitation?: {
+    targets: LearningItemTarget[];
+  };
+  learningItemRequest?: {
+    targets: LearningItemTarget[];
+  };
+  artifactError?: string;
 }
 
 export interface AiUsageAllowanceWindow {
@@ -42,11 +55,17 @@ export interface ChatContext {
   readingSegment?: string;
 }
 
+export interface LearningItemTarget {
+  title: string;
+  senseHint?: string;
+}
+
 export interface SendChatMessageInput {
   text: string;
   context?: ChatContext;
-  intent?: "explainAnnotations" | "practiceReading";
+  intent?: "explainAnnotations" | "practiceReading" | "createLearningItems";
   explanationLanguage?: "source" | "zh-TW" | "en" | "ja";
+  learningItemTargets?: LearningItemTarget[];
 }
 
 export interface ChatConversationSummary {
@@ -84,5 +103,18 @@ export interface ChatDesktopApi {
   removeConversation(conversationId: string): Promise<ChatSnapshot>;
   selectModel(modelId: string): Promise<ChatSnapshot>;
   stopResponse(): Promise<ChatSnapshot>;
+  updateLearningItemDraft(
+    input: UpdateLearningItemDraftInput
+  ): Promise<ChatSnapshot>;
+  setLearningItemDraftState(
+    batchId: string,
+    draftId: string,
+    state: "included" | "excluded"
+  ): Promise<ChatSnapshot>;
+  submitLearningItemBatch(batchId: string): Promise<ChatSnapshot>;
+  restoreLearningItemMatch(
+    batchId: string,
+    itemId: string
+  ): Promise<ChatSnapshot>;
   onStateChanged(listener: (snapshot: ChatSnapshot) => void): () => void;
 }

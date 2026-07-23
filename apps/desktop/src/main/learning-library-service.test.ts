@@ -140,4 +140,78 @@ describe("LocalLearningLibrary", () => {
     await expect(library.emptyTrash()).resolves.toEqual({ deleted: 0 });
     await expect(library.getItem(item.id)).rejects.toThrow(/找不到/);
   });
+
+  it("finds only exact normalized title candidates across active and trash", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const happy = (await library.listItems({
+      status: "active",
+      search: "happy",
+      sort: "recent"
+    }))[0];
+    await library.trashItem(happy.id);
+
+    const candidates = await library.findDuplicateCandidates([
+      " BANK ",
+      "Happy",
+      "banking"
+    ]);
+
+    expect(candidates.map((item) => ({
+      title: item.title,
+      sense: item.sense,
+      status: item.status
+    }))).toEqual([
+      {
+        title: "bank",
+        sense: "financial institution",
+        status: "active"
+      },
+      {
+        title: "bank",
+        sense: "side of a river",
+        status: "active"
+      },
+      {
+        title: "happy",
+        sense: "feeling pleasure",
+        status: "trashed"
+      }
+    ]);
+  });
+
+  it("creates a validated batch atomically", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const before = await library.listItems({ status: "active", sort: "recent" });
+    const valid = {
+      title: "meticulous",
+      itemType: "word" as const,
+      cefr: "C1" as const,
+      sense: "very careful and precise",
+      markdownContent: "## Meaning\n一絲不苟。\n\n## Examples\n1. She is meticulous."
+    };
+
+    await expect(library.createItemsAtomically([
+      valid,
+      { ...valid, title: "" }
+    ])).rejects.toThrow(/標題/);
+    await expect(
+      library.listItems({ status: "active", sort: "recent" })
+    ).resolves.toHaveLength(before.length);
+
+    const created = await library.createItemsAtomically([
+      valid,
+      {
+        ...valid,
+        title: "look into",
+        itemType: "phrase",
+        cefr: "B1",
+        sense: "investigate"
+      }
+    ]);
+    expect(created.map((item) => item.title))
+      .toEqual(["meticulous", "look into"]);
+    await expect(
+      library.listItems({ status: "active", sort: "recent" })
+    ).resolves.toHaveLength(before.length + 2);
+  });
 });

@@ -32,6 +32,14 @@ test("launches the secure Electron reading shell", async () => {
     expect(installedReadingSkill)
       .toContain("name: practice-reading-comprehension");
     expect(installedReadingSkill).toContain("8–12");
+    const installedLearningItemSkill = readFileSync(join(
+      userDataPath,
+      "codex-runtime/.agents/skills/create-learning-items/SKILL.md"
+    ), "utf8");
+    expect(installedLearningItemSkill)
+      .toContain("name: create-learning-items");
+    expect(installedLearningItemSkill)
+      .toContain("learning-item-result");
     await expect(page).toHaveTitle("LingoShelf");
     await expect(
       page.getByRole("heading", { name: "導入 EPUB 開始閱讀" })
@@ -184,6 +192,10 @@ test("launches the secure Electron reading shell", async () => {
               removeConversation: unknown;
               selectModel: unknown;
               stopResponse: unknown;
+              updateLearningItemDraft: unknown;
+              setLearningItemDraftState: unknown;
+              submitLearningItemBatch: unknown;
+              restoreLearningItemMatch: unknown;
               onStateChanged: unknown;
             };
           };
@@ -216,6 +228,10 @@ test("launches the secure Electron reading shell", async () => {
         hasChatRemove: typeof desktop?.chat.removeConversation,
         hasChatSelectModel: typeof desktop?.chat.selectModel,
         hasChatStop: typeof desktop?.chat.stopResponse,
+        hasChatDraftUpdate: typeof desktop?.chat.updateLearningItemDraft,
+        hasChatDraftState: typeof desktop?.chat.setLearningItemDraftState,
+        hasChatBatchSubmit: typeof desktop?.chat.submitLearningItemBatch,
+        hasChatMatchRestore: typeof desktop?.chat.restoreLearningItemMatch,
         hasChatSubscription: typeof desktop?.chat.onStateChanged,
         chatKeys: Object.keys(desktop?.chat ?? {}).sort(),
         hasNodeRequire: typeof (window as Window & { require?: unknown }).require
@@ -255,6 +271,10 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasChatRemove).toBe("function");
     expect(security.hasChatSelectModel).toBe("function");
     expect(security.hasChatStop).toBe("function");
+    expect(security.hasChatDraftUpdate).toBe("function");
+    expect(security.hasChatDraftState).toBe("function");
+    expect(security.hasChatBatchSubmit).toBe("function");
+    expect(security.hasChatMatchRestore).toBe("function");
     expect(security.hasChatSubscription).toBe("function");
     expect(security.chatKeys).toEqual([
       "connect",
@@ -263,9 +283,13 @@ test("launches the secure Electron reading shell", async () => {
       "removeConversation",
       "selectModel",
       "selectConversation",
+      "setLearningItemDraftState",
       "startNewConversation",
       "stopResponse",
-      "sendMessage"
+      "sendMessage",
+      "submitLearningItemBatch",
+      "restoreLearningItemMatch",
+      "updateLearningItemDraft"
     ].sort());
     expect(security.hasNodeRequire).toBe("undefined");
 

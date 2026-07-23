@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Learning Cards"
+  short_description: "Create deduplicated learning-item drafts"
+  default_prompt: "Use $create-learning-items to create learning-card drafts from these words or phrases."

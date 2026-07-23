@@ -71,7 +71,7 @@ describe("LocalChatConversationStore", () => {
       .toEqual(["conversation-a", "conversation-b"]);
     expect(loaded.conversations[1]?.messages[0]?.status).toBe("failed");
     expect(JSON.parse(await readFile(join(directory, "conversations.json"), "utf8")))
-      .toMatchObject({ version: 1, selectedConversationId: "conversation-b" });
+      .toMatchObject({ version: 2, selectedConversationId: "conversation-b" });
   });
 
   it("rejects corrupt persisted data without overwriting the source file", async () => {
@@ -82,5 +82,56 @@ describe("LocalChatConversationStore", () => {
 
     expect(() => store.load()).toThrow(/對話紀錄/);
     expect(await readFile(path, "utf8")).toBe("{corrupt");
+  });
+
+  it("migrates version-one conversations and persists learning-item artifacts", async () => {
+    const directory = await temporaryDirectory();
+    const path = join(directory, "conversations.json");
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      selectedConversationId: "conversation-a",
+      conversations: [{
+        id: "conversation-a",
+        threadId: "thread-a",
+        title: "Add cards",
+        createdAt: 100,
+        updatedAt: 200,
+        source: null,
+        messages: [{
+          id: "assistant-a",
+          turnId: "turn-a",
+          role: "assistant",
+          text: "Ready",
+          status: "completed"
+        }]
+      }]
+    }), "utf8");
+    const store = new LocalChatConversationStore(directory);
+    const migrated = store.load();
+    const message = migrated.conversations[0]?.messages[0];
+    if (!message) throw new Error("missing fixture message");
+    message.learningItemBatch = {
+      id: "batch-1",
+      status: "pending",
+      drafts: [{
+        id: "draft-1",
+        title: "reluctant",
+        itemType: "word",
+        cefr: "B2",
+        sense: "unwilling",
+        markdownContent: "## Meaning\n不情願。",
+        state: "excluded"
+      }],
+      existing: [],
+      trashed: []
+    };
+
+    store.save(migrated);
+    const reloaded = store.load();
+
+    expect(reloaded.version).toBe(2);
+    expect(reloaded.conversations[0]?.messages[0]?.learningItemBatch)
+      .toEqual(message.learningItemBatch);
+    expect(JSON.parse(await readFile(path, "utf8")).version).toBe(2);
   });
 });

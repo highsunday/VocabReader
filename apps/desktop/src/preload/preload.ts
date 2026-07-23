@@ -16,6 +16,7 @@ import type {
   LearningDesktopApi,
   LearningItem,
   LearningItemListInput,
+  UpdateLearningItemDraftInput,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
 import type {
@@ -81,6 +82,30 @@ const desktopApi = Object.freeze({
     selectModel: (modelId: string): Promise<ChatSnapshot> =>
       ipcRenderer.invoke("chat:select-model", modelId),
     stopResponse: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:stop"),
+    updateLearningItemDraft: (
+      input: UpdateLearningItemDraftInput
+    ): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:update-learning-item-draft", input),
+    setLearningItemDraftState: (
+      batchId: string,
+      draftId: string,
+      state: "included" | "excluded"
+    ): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:set-learning-item-draft-state", {
+        batchId,
+        draftId,
+        state
+      }),
+    submitLearningItemBatch: (batchId: string): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:submit-learning-item-batch", batchId),
+    restoreLearningItemMatch: (
+      batchId: string,
+      itemId: string
+    ): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:restore-learning-item-match", {
+        batchId,
+        itemId
+      }),
     onStateChanged(listener: (snapshot: ChatSnapshot) => void) {
       const wrapped = (
         _event: Electron.IpcRendererEvent,

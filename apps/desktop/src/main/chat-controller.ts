@@ -10,6 +10,13 @@ import type {
   SendChatMessageInput
 } from "../shared/chat-contracts";
 import type {
+  CreateLearningItemInput,
+  LearningItem,
+  LearningItemDraft,
+  LearningItemDraftBatch,
+  UpdateLearningItemDraftInput
+} from "../shared/learning-contracts";
+import type {
   CodexAppServerClient,
   CodexNotification
 } from "./codex-app-server-client";
@@ -18,6 +25,9 @@ import type {
   StoredChatConversation,
   StoredChatState
 } from "./chat-conversation-store";
+import { parseLearningItemArtifacts } from "./learning-item-artifacts";
+import { learningItemBatchFromUnknown } from "./learning-item-artifacts";
+import type { LearningItemRecheckDecision } from "./learning-item-artifacts";
 
 interface ChatControllerOptions {
   createClient(): CodexAppServerClient;
@@ -26,6 +36,21 @@ interface ChatControllerOptions {
   annotationExplanationSkillInstructions: string;
   readingComprehensionSkillPath: string;
   readingComprehensionSkillInstructions: string;
+  learningItemCreationSkillPath?: string;
+  learningItemCreationSkillInstructions?: string;
+  findLearningItemCandidates?(titles: string[]): Promise<LearningItem[]>;
+  createLearningItemsAtomically?(
+    inputs: CreateLearningItemInput[]
+  ): Promise<LearningItem[]>;
+  restoreLearningItem?(itemId: string): Promise<LearningItem>;
+  areLearningItemSensesEquivalent?(
+    draft: LearningItemDraft,
+    candidate: LearningItem
+  ): Promise<boolean>;
+  classifyLearningItemDuplicates?(
+    drafts: LearningItemDraft[],
+    candidates: LearningItem[]
+  ): Promise<LearningItemRecheckDecision[]>;
   conversationStore?: ChatConversationStore;
   createConversationId?(): string;
   now?(): number;
@@ -42,7 +67,8 @@ const isolationConfig = Object.freeze({
 
 export function composeDeveloperInstructions(
   annotationExplanationSkillInstructions: string,
-  readingComprehensionSkillInstructions: string
+  readingComprehensionSkillInstructions: string,
+  learningItemCreationSkillInstructions?: string
 ): string {
   const annotationSkill = annotationExplanationSkillInstructions.trim();
   const readingSkill = readingComprehensionSkillInstructions.trim();
@@ -52,23 +78,41 @@ export function composeDeveloperInstructions(
   if (!readingSkill) {
     throw new Error("App 內建的閱讀理解 skill 內容不可為空。");
   }
-  return [
+  const creationSkill = learningItemCreationSkillInstructions?.trim();
+  const instructions = [
     "You are the AI Conversation Panel in an English-learning EPUB reader.",
     "Answer in the language used by the user unless they ask otherwise.",
     "Use only the explicitly provided reading segment and prior conversation.",
     "Never claim knowledge of text outside the provided reading segment.",
     "Do not run tools, read arbitrary files, write files, or use the network.",
-    "The only app-provided skills available are explain-reader-annotations and practice-reading-comprehension.",
+    `The only app-provided skills available are ${
+      creationSkill
+        ? "explain-reader-annotations, practice-reading-comprehension, and create-learning-items"
+        : "explain-reader-annotations and practice-reading-comprehension"
+    }.`,
     "Their complete instructions are already loaded below; do not discover, load, or use any other skill.",
     "Apply explain-reader-annotations only when the user input contains $explain-reader-annotations.",
     "Apply practice-reading-comprehension when the user input contains $practice-reading-comprehension. After this skill creates a quiz, continue using its assessment workflow when the user submits answers to that quiz in the same conversation, even without the marker. Do not apply it to unrelated turns.",
+    ...(creationSkill
+      ? [
+          "Apply create-learning-items when the user input contains $create-learning-items. Continue its clarification workflow only for the user's directly related answer in the same conversation. Do not apply it to unrelated turns."
+        ]
+      : []),
     "<app-provided-skill name=\"explain-reader-annotations\">",
     annotationSkill,
     "</app-provided-skill>",
     "<app-provided-skill name=\"practice-reading-comprehension\">",
     readingSkill,
-    "</app-provided-skill>"
-  ].join("\n");
+    "</app-provided-skill>",
+    ...(creationSkill
+      ? [
+          "<app-provided-skill name=\"create-learning-items\">",
+          creationSkill,
+          "</app-provided-skill>"
+        ]
+      : [])
+  ];
+  return instructions.join("\n");
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -196,7 +240,10 @@ function mergeAllowance(
   };
 }
 
-export function composeCodexInput(input: SendChatMessageInput): string {
+export function composeCodexInput(
+  input: SendChatMessageInput,
+  learningItemCandidates: LearningItem[] = []
+): string {
   const text = input.text.trim();
   const context = input.context;
   const contextLines = [
@@ -233,6 +280,29 @@ export function composeCodexInput(input: SendChatMessageInput): string {
       "Use the App-provided practice-reading-comprehension workflow for quiz creation and later grading."
     ].join("\n");
   }
+  if (input.intent === "createLearningItems") {
+    const targets = input.learningItemTargets ?? [];
+    const candidates = learningItemCandidates.map((candidate) => ({
+      itemId: candidate.id,
+      title: candidate.title,
+      sense: candidate.sense,
+      status: candidate.status,
+      markdownContent: candidate.markdownContent
+    }));
+    return [
+      "$create-learning-items",
+      ...base,
+      "",
+      `Explanation language: ${language}.`,
+      `Requested learning-item targets: ${JSON.stringify(targets)}.`,
+      "The App selected the following candidates using exact normalized title lookup:",
+      `<learning-item-candidates>${JSON.stringify(candidates)}</learning-item-candidates>`,
+      ...(targets.length === 0
+        ? ["No requested target was supplied. Ask the user what word or phrase to add."]
+        : []),
+      "Use only these candidates for duplicate comparison. Never request or infer other learning-library data."
+    ].join("\n");
+  }
   if (input.intent !== "explainAnnotations") return base.join("\n");
   const hasAnnotations = Boolean(
     context?.readingSegment?.includes("<reader-annotation ")
@@ -251,11 +321,13 @@ export function composeCodexInput(input: SendChatMessageInput): string {
 function composeTurnInput(
   input: SendChatMessageInput,
   annotationSkillPath: string,
-  readingSkillPath: string
+  readingSkillPath: string,
+  learningItemCreationSkillPath?: string,
+  learningItemCandidates: LearningItem[] = []
 ): Array<Record<string, unknown>> {
   const items: Array<Record<string, unknown>> = [{
     type: "text",
-    text: composeCodexInput(input),
+    text: composeCodexInput(input, learningItemCandidates),
     text_elements: []
   }];
   if (input.intent === "explainAnnotations") {
@@ -270,8 +342,60 @@ function composeTurnInput(
       name: "practice-reading-comprehension",
       path: readingSkillPath
     });
+  } else if (input.intent === "createLearningItems") {
+    if (!learningItemCreationSkillPath) {
+      throw new Error("App 內建的新增學習項目 skill 尚未設定。");
+    }
+    items.push({
+      type: "skill",
+      name: "create-learning-items",
+      path: learningItemCreationSkillPath
+    });
   }
   return items;
+}
+
+function normalizedLearningItemTitle(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function validateLearningItemBatchScope(
+  batch: LearningItemDraftBatch,
+  targets: string[],
+  candidates: LearningItem[]
+) {
+  const requested = new Set(targets.map(normalizedLearningItemTitle));
+  if (requested.size === 0) {
+    throw new Error("學習項目草稿沒有對應的請求目標。");
+  }
+  const covered = new Set<string>();
+  for (const draft of batch.drafts) {
+    const title = normalizedLearningItemTitle(draft.title);
+    if (!requested.has(title)) {
+      throw new Error("AI 回傳了未請求的學習項目草稿。");
+    }
+    covered.add(title);
+  }
+  const candidateById = new Map(
+    candidates.map((candidate) => [candidate.id, candidate])
+  );
+  const matchIds = new Set<string>();
+  for (const match of [...batch.existing, ...batch.trashed]) {
+    const candidate = candidateById.get(match.itemId);
+    if (!candidate || matchIds.has(match.itemId) ||
+      candidate.status !== match.status ||
+      normalizedLearningItemTitle(candidate.title) !==
+        normalizedLearningItemTitle(match.title) ||
+      candidate.sense.trim() !== match.sense.trim() ||
+      !requested.has(normalizedLearningItemTitle(match.title))) {
+      throw new Error("AI 回傳了不合法的學習項目候選。");
+    }
+    matchIds.add(match.itemId);
+    covered.add(normalizedLearningItemTitle(match.title));
+  }
+  if ([...requested].some((title) => !covered.has(title))) {
+    throw new Error("AI 未完整處理所有學習項目目標。");
+  }
 }
 
 export class ChatController {
@@ -301,12 +425,17 @@ export class ChatController {
   #turnReadyPromise: Promise<string | null> | undefined;
   #resolveTurnReady: ((turnId: string | null) => void) | undefined;
   #connectPromise: Promise<ChatSnapshot> | undefined;
+  readonly #learningItemTurnScopes = new Map<string, {
+    targets: string[];
+    candidates: LearningItem[];
+  }>();
 
   constructor(options: ChatControllerOptions) {
     this.#options = options;
     this.#developerInstructions = composeDeveloperInstructions(
       options.annotationExplanationSkillInstructions,
-      options.readingComprehensionSkillInstructions
+      options.readingComprehensionSkillInstructions,
+      options.learningItemCreationSkillInstructions
     );
     try {
       const stored = options.conversationStore?.load();
@@ -388,6 +517,188 @@ export class ChatController {
     if (!model) throw new Error("選取的 AI 模型目前不可用。");
     this.#selectedModelId = model.id;
     this.#emit();
+    return this.getSnapshot();
+  }
+
+  updateLearningItemDraft(input: UpdateLearningItemDraftInput): ChatSnapshot {
+    this.#assertManagementAvailable();
+    const batch = this.#pendingLearningItemBatch(input.batchId);
+    const index = batch.drafts.findIndex((draft) => draft.id === input.draftId);
+    if (index < 0) throw new Error("找不到學習項目草稿。");
+    const current = batch.drafts[index]!;
+    const validated = learningItemBatchFromUnknown({
+      id: batch.id,
+      status: batch.status,
+      drafts: [{
+        ...input,
+        id: current.id,
+        state: current.state
+      }],
+      existing: [],
+      trashed: []
+    }).drafts[0]!;
+    batch.drafts[index] = validated;
+    this.#touchActiveConversation();
+    this.#persist();
+    this.#emit();
+    return this.getSnapshot();
+  }
+
+  setLearningItemDraftState(
+    batchId: string,
+    draftId: string,
+    state: "included" | "excluded"
+  ): ChatSnapshot {
+    this.#assertManagementAvailable();
+    if (state !== "included" && state !== "excluded") {
+      throw new Error("學習項目草稿狀態格式錯誤。");
+    }
+    const batch = this.#pendingLearningItemBatch(batchId);
+    const draft = batch.drafts.find((candidate) => candidate.id === draftId);
+    if (!draft) throw new Error("找不到學習項目草稿。");
+    draft.state = state;
+    this.#touchActiveConversation();
+    this.#persist();
+    this.#emit();
+    return this.getSnapshot();
+  }
+
+  async restoreLearningItemMatch(
+    batchId: string,
+    itemId: string
+  ): Promise<ChatSnapshot> {
+    this.#assertManagementAvailable();
+    const batch = this.#learningItemBatch(batchId);
+    const matchIndex = batch.trashed.findIndex(
+      (candidate) => candidate.itemId === itemId
+    );
+    if (matchIndex < 0) throw new Error("找不到垃圾桶中的學習項目。");
+    if (!this.#options.restoreLearningItem) {
+      throw new Error("學習項目還原功能尚未設定。");
+    }
+    this.#managementBusy = true;
+    this.#emit();
+    try {
+      const restored = await this.#options.restoreLearningItem(itemId);
+      const original = batch.trashed[matchIndex]!;
+      batch.trashed.splice(matchIndex, 1);
+      batch.existing.push({
+        ...original,
+        title: restored.title,
+        sense: restored.sense,
+        status: "active"
+      });
+      this.#touchActiveConversation();
+      this.#persist();
+    } finally {
+      this.#managementBusy = false;
+      this.#emit();
+    }
+    return this.getSnapshot();
+  }
+
+  async submitLearningItemBatch(batchId: string): Promise<ChatSnapshot> {
+    this.#assertManagementAvailable();
+    const batch = this.#pendingLearningItemBatch(batchId);
+    const included = batch.drafts.filter((draft) => draft.state === "included");
+    if (included.length === 0) throw new Error("沒有可提交的學習項目草稿。");
+    if (!this.#options.findLearningItemCandidates ||
+      !this.#options.createLearningItemsAtomically) {
+      throw new Error("學習項目提交功能尚未設定。");
+    }
+    this.#managementBusy = true;
+    this.#emit();
+    try {
+      const candidates = await this.#options.findLearningItemCandidates(
+        included.map(({ title }) => title)
+      );
+      const toCreate: LearningItemDraft[] = [];
+      const existing = [...batch.existing];
+      const trashed = [...batch.trashed];
+      const decisions = candidates.length > 0 &&
+        this.#options.classifyLearningItemDuplicates
+        ? await this.#options.classifyLearningItemDuplicates(
+            included,
+            candidates
+          )
+        : undefined;
+      const decisionByDraftId = new Map(
+        decisions?.map((decision) => [decision.draftId, decision])
+      );
+      if (decisions && (decisionByDraftId.size !== included.length ||
+        decisions.length !== included.length ||
+        included.some((draft) => !decisionByDraftId.has(draft.id)))) {
+        throw new Error("AI 未完整分類所有學習項目草稿。");
+      }
+      for (const draft of included) {
+        const title = draft.title.trim().toLocaleLowerCase();
+        const sameTitle = candidates.filter(
+          (candidate) => candidate.title.trim().toLocaleLowerCase() === title
+        );
+        let duplicate: LearningItem | undefined;
+        const decision = decisionByDraftId.get(draft.id);
+        if (decision && decision.decision !== "create") {
+          duplicate = sameTitle.find(
+            (candidate) => candidate.id === decision.itemId &&
+              candidate.status === (
+                decision.decision === "existing" ? "active" : "trashed"
+              )
+          );
+          if (!duplicate) {
+            throw new Error("AI 回傳了不合法的學習項目候選判斷。");
+          }
+        } else if (!decisions) {
+          for (const candidate of sameTitle) {
+            const equivalent = this.#options.areLearningItemSensesEquivalent
+              ? await this.#options.areLearningItemSensesEquivalent(
+                  draft,
+                  candidate
+                )
+              : draft.sense.trim().toLocaleLowerCase() ===
+                candidate.sense.trim().toLocaleLowerCase();
+            if (equivalent) {
+              duplicate = candidate;
+              break;
+            }
+          }
+        }
+        if (!duplicate) {
+          toCreate.push(draft);
+          continue;
+        }
+        const match = {
+          itemId: duplicate.id,
+          title: duplicate.title,
+          sense: duplicate.sense,
+          status: duplicate.status
+        } as const;
+        const matches = duplicate.status === "active" ? existing : trashed;
+        if (!matches.some((candidate) => candidate.itemId === match.itemId)) {
+          matches.push(match);
+        }
+      }
+      const created = toCreate.length > 0
+        ? await this.#options.createLearningItemsAtomically(
+            toCreate.map((draft) => ({
+              title: draft.title,
+              itemType: draft.itemType,
+              cefr: draft.cefr,
+              sense: draft.sense,
+              markdownContent: draft.markdownContent
+            }))
+          )
+        : [];
+      batch.status = "submitted";
+      batch.submittedAt = this.#now();
+      batch.createdItemIds = created.map(({ id }) => id);
+      batch.existing = existing;
+      batch.trashed = trashed;
+      this.#touchActiveConversation();
+      this.#persist();
+    } finally {
+      this.#managementBusy = false;
+      this.#emit();
+    }
     return this.getSnapshot();
   }
 
@@ -554,11 +865,22 @@ export class ChatController {
   async sendMessage(input: SendChatMessageInput): Promise<ChatSnapshot> {
     const text = input.text.trim();
     if (!text) throw new Error("請輸入訊息。");
+    const requestInput = this.#continuedLearningItemInput({
+      ...input,
+      text
+    });
     if (this.#activeTurnId) throw new Error("請等待目前的 AI 回覆完成。");
     if (this.#connection !== "ready" || !this.#client) await this.connect();
     if (this.#connection !== "ready" || !this.#client) {
       throw new Error(this.#connectionDetail);
     }
+    const learningItemCandidates =
+      requestInput.intent === "createLearningItems" &&
+      requestInput.learningItemTargets?.length
+      ? await (this.#options.findLearningItemCandidates?.(
+          requestInput.learningItemTargets.map(({ title }) => title)
+        ) ?? Promise.resolve([]))
+      : [];
 
     const client = this.#client;
     this.#activeTurnId = "starting";
@@ -608,7 +930,7 @@ export class ChatController {
           title: this.#titleFrom(text),
           createdAt: timestamp,
           updatedAt: timestamp,
-          source: this.#sourceFrom(input),
+          source: this.#sourceFrom(requestInput),
           messages: []
         };
         this.#conversations.push(conversation);
@@ -620,24 +942,42 @@ export class ChatController {
         turnId: null,
         role: "user",
         text,
-        status: "completed"
+        status: "completed",
+        ...(requestInput.intent === "createLearningItems"
+          ? {
+              learningItemRequest: {
+                targets: structuredClone(
+                  requestInput.learningItemTargets ?? []
+                )
+              }
+            }
+          : {})
       };
       this.#messages.push(userMessage);
-      this.#touchActiveConversation(input);
+      this.#touchActiveConversation(requestInput);
       this.#persist();
       this.#emit();
       const response = await client.request("turn/start", {
         threadId: this.#threadId,
         ...this.#selectedModelSettings(),
         input: composeTurnInput(
-          { ...input, text },
+          requestInput,
           this.#options.annotationExplanationSkillPath,
-          this.#options.readingComprehensionSkillPath
+          this.#options.readingComprehensionSkillPath,
+          this.#options.learningItemCreationSkillPath,
+          learningItemCandidates
         )
       });
       const turnId = turnIdFrom(response);
       if (!turnId) throw new Error("Codex 未回傳回答識別碼。");
       userMessage.turnId = turnId;
+      if (requestInput.intent === "createLearningItems") {
+        this.#learningItemTurnScopes.set(turnId, {
+          targets: (requestInput.learningItemTargets ?? [])
+            .map(({ title }) => title),
+          candidates: learningItemCandidates
+        });
+      }
       if (this.#activeTurnId === "starting") this.#activeTurnId = turnId;
       this.#resolveTurnReady?.(turnId);
       this.#resolveTurnReady = undefined;
@@ -663,6 +1003,7 @@ export class ChatController {
     this.#connectionDetail = "Codex 連線已關閉。";
     this.#activeTurnId = null;
     this.#stopRequested = false;
+    this.#learningItemTurnScopes.clear();
   }
 
   #handleNotification(notification: CodexNotification): void {
@@ -725,20 +1066,44 @@ export class ChatController {
         id: string;
         text: string;
       };
+      const artifacts = parseLearningItemArtifacts(completedItem.text);
+      if (artifacts.batch) {
+        try {
+          const scope = this.#learningItemTurnScopes.get(params.turnId);
+          if (!scope) {
+            throw new Error("學習項目草稿缺少受信任的候選範圍。");
+          }
+          validateLearningItemBatchScope(
+            artifacts.batch,
+            scope.targets,
+            scope.candidates
+          );
+        } catch (error) {
+          artifacts.batch = undefined;
+          artifacts.error = error instanceof Error
+            ? error.message
+            : "學習項目草稿候選驗證失敗。";
+        }
+      }
       let message = this.#messages.find((item) => item.id === completedItem.id);
       if (!message) {
         message = {
           id: completedItem.id,
           turnId: params.turnId,
           role: "assistant",
-          text: completedItem.text,
+          text: artifacts.text,
           status: "completed"
         };
         this.#messages.push(message);
       } else {
-        message.text = completedItem.text;
+        message.text = artifacts.text;
         message.status = "completed";
       }
+      if (artifacts.batch) message.learningItemBatch = artifacts.batch;
+      if (artifacts.invitation) {
+        message.learningItemInvitation = artifacts.invitation;
+      }
+      if (artifacts.error) message.artifactError = artifacts.error;
       this.#touchActiveConversation();
       this.#tryPersist();
       this.#emit();
@@ -747,6 +1112,7 @@ export class ChatController {
 
     if (notification.method === "turn/completed" && isObject(params.turn) &&
       typeof params.turn.id === "string") {
+      this.#learningItemTurnScopes.delete(params.turn.id);
       const completed = params.turn.status === "completed";
       for (const message of this.#messages) {
         if (message.role === "assistant" && message.turnId === params.turn.id) {
@@ -803,6 +1169,63 @@ export class ChatController {
       : undefined;
   }
 
+  #pendingLearningItemBatch(batchId: string): LearningItemDraftBatch {
+    const batch = this.#learningItemBatch(batchId);
+    if (batch.status !== "pending") {
+      throw new Error("學習項目草稿批次已提交。");
+    }
+    return batch;
+  }
+
+  #learningItemBatch(batchId: string): LearningItemDraftBatch {
+    const id = typeof batchId === "string" ? batchId.trim() : "";
+    if (!id) throw new Error("學習項目草稿批次格式錯誤。");
+    for (const message of this.#messages) {
+      if (message.learningItemBatch?.id !== id) continue;
+      return message.learningItemBatch;
+    }
+    throw new Error("找不到學習項目草稿批次。");
+  }
+
+  #continuedLearningItemInput(
+    input: SendChatMessageInput
+  ): SendChatMessageInput {
+    if (input.intent) return input;
+    const lastUserIndex = this.#messages.findLastIndex(
+      (message) => message.role === "user"
+    );
+    const request = lastUserIndex >= 0
+      ? this.#messages[lastUserIndex]?.learningItemRequest
+      : undefined;
+    const response = lastUserIndex >= 0
+      ? this.#messages.slice(lastUserIndex + 1).find(
+          (message) => message.role === "assistant"
+        )
+      : undefined;
+    if (!request || !response || response.status !== "completed" ||
+      response.learningItemBatch || response.artifactError) {
+      return input;
+    }
+    const targets = request.targets.length > 0
+      ? request.targets.map((target) => ({
+          title: target.title,
+          senseHint: [target.senseHint, input.text.trim()]
+            .filter(Boolean)
+            .join(" — ")
+        }))
+      : [...new Set(
+          input.text
+            .split(/[\n,，]+/)
+            .map((title) => title.trim())
+            .filter(Boolean)
+        )].slice(0, 50).map((title) => ({ title }));
+    return {
+      ...input,
+      intent: "createLearningItems",
+      learningItemTargets: targets
+    };
+  }
+
   #touchActiveConversation(input?: SendChatMessageInput): void {
     const conversation = this.#activeConversation();
     if (!conversation) return;
@@ -835,7 +1258,7 @@ export class ChatController {
 
   #storedState(): StoredChatState {
     return {
-      version: 1,
+      version: 2,
       selectedConversationId: this.#activeConversationId,
       conversations: this.#conversations
     };

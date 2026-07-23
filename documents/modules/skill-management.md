@@ -6,6 +6,7 @@ last_updated: 2026-07-22
 related_implements:
   - F16-invoke-annotation-explanation-skill
   - F18-use-reading-comprehension-skill
+  - F21-ai-assisted-learning-item-creation
   - B03-load-only-bundled-annotation-skill
 ---
 
@@ -21,14 +22,15 @@ related_implements:
 
 狀態：**已實作，可在本機與 production build 使用**
 
-目前只管理兩份 App 內建 skills：
+目前管理三份 App 內建 skills：
 
 | Skill | 產品意圖 | Marker | 功能模組 |
 |---|---|---|---|
 | `explain-reader-annotations` | `explainAnnotations` | `$explain-reader-annotations` | [解釋標記模組](annotation-explanation.md) |
 | `practice-reading-comprehension` | `practiceReading` | `$practice-reading-comprehension` | [閱讀測驗模組](reading-comprehension-quiz.md) |
+| `create-learning-items` | `createLearningItems` | `$create-learning-items` | [學習項目建立模組](learning-item-creation.md) |
 
-兩份 skill 的完整 `SKILL.md` 都由 App bundle 提供。一般 AI 問答不注入 skill item，也不套用任一預設 workflow。
+三份 skill 的完整 `SKILL.md` 都由 App bundle 提供。一般 AI 問答不注入 skill item，也不套用任一預設 workflow。
 
 ## 3. Module Boundary and Responsibilities
 
@@ -37,7 +39,7 @@ related_implements:
 - 維護受信任 App skill 名單及固定 runtime 路徑。
 - 在 build 時把 repo 內的 `SKILL.md` 以文字資產內嵌到 Electron Main bundle。
 - 啟動 App 時安裝、略過相同版本或原子替換舊版 runtime skill。
-- 驗證兩份內嵌 skill 指令皆非空。
+- 驗證三份內嵌 skill 指令皆非空。
 - 把完整 skill 指令與 marker gate 組成 `developerInstructions`。
 - 在 `thread/start` 與 `thread/resume` 使用相同指令與隔離設定。
 - 依受限產品意圖，在 `turn/start.input` 加入正確的型別化 skill item。
@@ -46,14 +48,14 @@ related_implements:
 本模組不負責：
 
 - 決定 START／END **閱讀區段**、建立**標記**或序列化 EPUB 原文。
-- 定義區段解析的教學內容或閱讀測驗的出題與批改規則；這些規則分別由兩份 skill 擁有。
+- 定義標記解析、閱讀測驗或學習卡片建立的教學／輸出規則；這些規則由各自 skill 擁有。
 - 管理一般 AI 對話的訊息呈現、模型選擇、額度或對話持久化。
 - 提供第三方 skill 市集、使用者安裝、啟停、版本選擇或權限設定介面。
 
 ## 4. Skill Source and Runtime Lifecycle
 
 1. Repo 以 `.agents/skills/<skill-name>/SKILL.md` 保存可版本管理的完整教學契約；`agents/openai.yaml` 保存 UI metadata，但目前不安裝到 App runtime。
-2. Desktop build 使用 esbuild Markdown text loader，把兩份 `SKILL.md` 內嵌到 Electron Main bundle。
+2. Desktop build 使用 esbuild Markdown text loader，把三份 `SKILL.md` 內嵌到 Electron Main bundle。
 3. Electron Main 在 `app.whenReady()` 建立 `userData/codex-runtime`。
 4. `bundled-skill.ts` 把內容寫入 `.agents/skills/<skill-name>/SKILL.md`：
    - 目標不存在：`installed`
@@ -65,9 +67,9 @@ related_implements:
 
 ### Thread 層
 
-`composeDeveloperInstructions()` 內嵌兩份完整 skill，並聲明：
+`composeDeveloperInstructions()` 內嵌三份完整 skill，並聲明：
 
-- 只有這兩份 App skills 可用。
+- 只有這三份 App skills 可用。
 - 不得探索、載入或使用其他 skill。
 - 標記解析只在輸入含對應 marker 時啟用。
 - 閱讀測驗在 marker turn 建立題目後，同一 AI 對話中的相關答案 turn 可繼續使用批改 workflow；不相關 turn 不得套用。
@@ -82,12 +84,14 @@ related_implements:
 | 解釋標記 | `$explain-reader-annotations` | 固定名稱與固定安裝路徑的標記 skill |
 | 閱讀測驗 | `$practice-reading-comprehension` | 固定名稱與固定安裝路徑的閱讀 skill |
 | 閱讀測驗後續作答 | 通常無新 marker | 由同一 thread 已載入的評量 workflow 延續，不重新注入任意 skill |
+| 新增學習卡片 | `$create-learning-items` | 固定名稱與固定安裝路徑的建立 skill |
+| 建立 workflow 澄清回答 | Controller 重新加入 marker | 先查同標題候選，再延續固定建立 skill |
 
-Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避免兩份已載入指令在錯誤 turn 被誤用。
+Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避免已載入指令在錯誤 turn 被誤用。
 
 ## 6. Trust and Security Constraints
 
-- `SendChatMessageInput.intent` 只允許 `explainAnnotations | practiceReading`；IPC 會拒絕其他值。
+- `SendChatMessageInput.intent` 只允許 `explainAnnotations | practiceReading | createLearningItems`；IPC 會拒絕其他值。
 - Renderer 不可提供 skill path、skill markdown、developer instructions、工作目錄、sandbox、approval policy 或 Codex method。
 - Codex runtime 工作目錄固定在 Electron user data，不指向專案 repo 或使用者任意資料夾。
 - Skill 指令要求不執行工具、不讀寫檔案、不使用網路，並只使用產品明確提供的閱讀區段與既有對話。
@@ -100,11 +104,12 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 |---|---|
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 區段解析的完整 AI workflow |
 | `.agents/skills/practice-reading-comprehension/SKILL.md` | 區段練習的出題與批改 workflow |
+| `.agents/skills/create-learning-items/SKILL.md` | 有限候選去重、澄清、草稿與提交 recheck workflow |
 | `.agents/skills/*/agents/openai.yaml` | Repo 內 skill 顯示 metadata；目前不屬於 runtime 安裝內容 |
 | `apps/desktop/src/main/bundled-skill.ts` | 固定 skill 名單、runtime 路徑及原子安裝／更新 |
 | `apps/desktop/src/main/main.ts` | 內嵌 Markdown、啟動安裝並把路徑與指令交給 Controller |
 | `apps/desktop/src/main/chat-controller.ts` | developer instructions、marker gate、隔離設定與 turn skill item routing |
-| `apps/desktop/src/shared/chat-contracts.ts` | 兩種預設 intent 的共享型別 |
+| `apps/desktop/src/shared/chat-contracts.ts` | 三種預設 intent 與 message attachments 的共享型別 |
 | `apps/desktop/src/main/chat-ipc.ts` | intent 與講解語言的 IPC 白名單驗證 |
 | `apps/desktop/package.json` | esbuild Markdown text loader 與 desktop build／test 命令 |
 
@@ -112,15 +117,15 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 
 | Test file | Coverage |
 |---|---|
-| `apps/desktop/src/main/bundled-skill.test.ts` | 兩份 skills 的首次安裝、相同內容略過與舊版原子替換 |
-| `apps/desktop/src/main/chat-controller.test.ts` | 新建／恢復 thread 的完整 instructions、隔離 config、三種 turn routing 與兩份 skills 互斥 |
+| `apps/desktop/src/main/bundled-skill.test.ts` | 三份 skills 的首次安裝、相同內容略過與舊版原子替換 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 新建／恢復 thread 的完整 instructions、隔離 config、四種 turn routing 與三份 skills 互斥 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | intent 與語言 enum 白名單，拒絕任意輸入 |
-| `apps/desktop/tests/e2e/desktop.spec.ts` | production Electron 啟動後兩份 runtime `SKILL.md` 確實存在且內容正確 |
+| `apps/desktop/tests/e2e/desktop.spec.ts` | production Electron 啟動後三份 runtime `SKILL.md` 確實存在且內容正確 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill rubric 與 UI metadata |
 
 ## 9. Known Limitations and Follow-up
 
-- Skill 名單目前以 TypeScript union、兩個 installer 函式與 Controller options 明確列出；數量增加時會產生重複修改點，可另開 RXX 評估固定 registry。
+- Skill 名單目前以 TypeScript union、三個 installer 函式與 Controller options 明確列出；數量增加時會產生重複修改點，可另開 RXX 評估固定 registry。
 - 更新判斷使用完整文字比較，沒有獨立版本欄位、checksum manifest、遷移紀錄或安裝失敗 telemetry。
 - `agents/openai.yaml` 只受 repo 測試覆蓋，沒有隨 App 安裝到 runtime；目前 runtime 僅需要 `SKILL.md`。
 - 沒有使用者可見的 skill 清單、版本、健康狀態或重新安裝操作。
@@ -136,4 +141,4 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 - `documents/implements/F18-use-reading-comprehension-skill.md`
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
 
-變更 App skill 名單、bundle 來源、runtime 路徑、marker、developer instructions、隔離設定或 turn routing 時，必須同步更新本文件與兩個功能模組文件。
+變更 App skill 名單、bundle 來源、runtime 路徑、marker、developer instructions、隔離設定或 turn routing 時，必須同步更新本文件與相關功能模組文件。

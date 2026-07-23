@@ -2813,6 +2813,328 @@ h1 {
   opacity: 0.48;
 }
 
+.learning-item-create-preset {
+  border-color: #b9c8bb;
+  color: #31543d;
+  background: #f2f7ef;
+}
+
+.learning-library-invitation-action,
+.learning-item-batch-action {
+  width: 100%;
+  margin-top: 9px;
+  border: 1px solid #b8c5b9;
+  border-radius: 11px;
+  color: #2f523b;
+  background: #f1f6ef;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.learning-library-invitation-action {
+  padding: 9px 12px;
+}
+
+.learning-library-invitation-action:hover:not(:disabled),
+.learning-item-batch-action:hover {
+  border-color: #7f9a85;
+  background: #e7f0e4;
+}
+
+.learning-library-invitation-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.learning-item-batch-action {
+  padding: 10px 11px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 2px 8px;
+  text-align: left;
+}
+
+.learning-item-batch-action > span {
+  grid-row: 1 / 3;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #486c52;
+}
+
+.learning-item-batch-action strong {
+  min-width: 0;
+  font-size: 12px;
+}
+
+.learning-item-batch-action small {
+  color: #6e7d71;
+  font-size: 10px;
+}
+
+.learning-item-batch-action.submitted {
+  border-color: #d0d2ca;
+  color: #536057;
+  background: #f7f6f1;
+}
+
+.learning-item-artifact-error {
+  margin: 8px 0 0;
+  color: #93442f;
+  font-size: 11px;
+}
+
+.learning-item-draft-backdrop {
+  z-index: 30;
+}
+
+.learning-item-draft-dialog {
+  width: min(780px, 100%);
+  max-height: min(860px, calc(100vh - 48px));
+  border: 1px solid #c9c5b9;
+  border-radius: 19px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  color: #344038;
+  background: #fffdf8;
+  box-shadow: 0 28px 90px rgb(31 38 31 / 30%);
+}
+
+.learning-item-draft-dialog > header {
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid #ded9ce;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.learning-item-draft-dialog h2 {
+  margin: 3px 0 4px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 27px;
+  color: #294334;
+}
+
+.learning-item-draft-dialog header p {
+  margin: 0;
+  color: #69736c;
+  font-size: 13px;
+}
+
+.learning-item-draft-dialog header > button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d1cdc3;
+  border-radius: 10px;
+  flex: 0 0 auto;
+  background: #faf8f2;
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.learning-item-draft-scroll {
+  min-height: 0;
+  padding: 18px 22px;
+  display: grid;
+  gap: 15px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.learning-item-match-list,
+.learning-item-draft {
+  padding: 15px;
+  border: 1px solid #d7d4ca;
+  border-radius: 14px;
+  background: #fffefa;
+}
+
+.learning-item-match-list h3 {
+  margin: 0 0 10px;
+  color: #4a5b4f;
+  font-size: 13px;
+}
+
+.learning-item-match-list p {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.learning-item-match-list p + p,
+.learning-item-match-list > div + div {
+  margin-top: 9px;
+}
+
+.learning-item-match-list p span {
+  color: #737c76;
+  font-size: 12px;
+}
+
+.learning-item-match-list.trashed > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.learning-item-match-list button,
+.learning-item-draft-heading button {
+  padding: 7px 10px;
+  border: 1px solid #c8c6bc;
+  border-radius: 9px;
+  background: #f8f6f0;
+  cursor: pointer;
+}
+
+.learning-item-draft.excluded {
+  opacity: 0.67;
+  background: #f2f0e9;
+}
+
+.learning-item-draft-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.learning-item-draft-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.learning-item-draft-heading span,
+.learning-item-draft-heading small {
+  color: #758078;
+  font-size: 11px;
+}
+
+.learning-item-draft-heading strong {
+  color: #294334;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+}
+
+.learning-item-draft-fields {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) minmax(100px, 0.7fr) minmax(90px, 0.6fr);
+  gap: 10px;
+}
+
+.learning-item-draft-fields label:last-child {
+  grid-column: 1 / -1;
+}
+
+.learning-item-draft-fields label,
+.learning-item-draft-markdown {
+  display: grid;
+  gap: 5px;
+  color: #667169;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.learning-item-draft-fields input,
+.learning-item-draft-fields select,
+.learning-item-draft-markdown textarea {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #cbc8bf;
+  border-radius: 9px;
+  color: #354139;
+  background: #fff;
+}
+
+.learning-item-draft-markdown {
+  margin-top: 10px;
+}
+
+.learning-item-draft-markdown textarea {
+  min-height: 150px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.learning-item-draft-preview {
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px dashed #c7cec6;
+  border-radius: 10px;
+  background: #f6f8f3;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.learning-item-draft-preview > span {
+  color: #78847b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.learning-item-draft-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.learning-item-draft-dialog > footer {
+  padding: 13px 22px;
+  border-top: 1px solid #ded9ce;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  background: #faf8f2;
+}
+
+.learning-item-draft-dialog footer p,
+.learning-item-draft-dialog footer span {
+  margin: 0 auto 0 0;
+  color: #93442f;
+  font-size: 12px;
+}
+
+.learning-item-draft-dialog footer > button:not(.primary-action) {
+  padding: 10px 14px;
+  border: 1px solid #c9c5bb;
+  border-radius: 10px;
+  background: #fffefa;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .learning-item-draft-backdrop {
+    padding: 10px;
+  }
+
+  .learning-item-draft-dialog {
+    max-height: calc(100vh - 20px);
+  }
+
+  .learning-item-draft-dialog > header,
+  .learning-item-draft-scroll,
+  .learning-item-draft-dialog > footer {
+    padding-inline: 14px;
+  }
+
+  .learning-item-draft-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-item-draft-fields label:last-child {
+    grid-column: auto;
+  }
+}
+
 .chat-form {
   margin: 6px 14px 0;
   padding: 14px 12px 10px 16px;

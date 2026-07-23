@@ -6,6 +6,10 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { ChatMessage } from "../shared/chat-contracts";
+import {
+  learningItemBatchFromUnknown,
+  learningItemInvitationFromUnknown
+} from "./learning-item-artifacts";
 
 export interface StoredConversationSource {
   bookTitle?: string;
@@ -23,7 +27,7 @@ export interface StoredChatConversation {
 }
 
 export interface StoredChatState {
-  version: 1;
+  version: 1 | 2;
   selectedConversationId: string | null;
   conversations: StoredChatConversation[];
 }
@@ -34,7 +38,7 @@ export interface ChatConversationStore {
 }
 
 const emptyState = (): StoredChatState => ({
-  version: 1,
+  version: 2,
   selectedConversationId: null,
   conversations: []
 });
@@ -56,13 +60,35 @@ function parseMessage(value: unknown): ChatMessage {
     (status !== "streaming" && status !== "completed" && status !== "failed")) {
     throw new Error("本機 AI 對話紀錄格式錯誤。");
   }
-  return {
+  const message: ChatMessage = {
     id: value.id,
     turnId: value.turnId,
     role: value.role,
     text: value.text,
     status: status === "streaming" ? "failed" : status
   };
+  if (value.learningItemBatch !== undefined) {
+    message.learningItemBatch = learningItemBatchFromUnknown(
+      value.learningItemBatch
+    );
+  }
+  if (value.learningItemInvitation !== undefined) {
+    message.learningItemInvitation = learningItemInvitationFromUnknown(
+      value.learningItemInvitation
+    );
+  }
+  if (value.learningItemRequest !== undefined) {
+    message.learningItemRequest = learningItemInvitationFromUnknown(
+      value.learningItemRequest
+    );
+  }
+  if (value.artifactError !== undefined) {
+    if (typeof value.artifactError !== "string") {
+      throw new Error("本機 AI 對話紀錄格式錯誤。");
+    }
+    message.artifactError = value.artifactError;
+  }
+  return message;
 }
 
 function parseSource(value: unknown): StoredConversationSource | null {
@@ -103,14 +129,14 @@ function parseConversation(value: unknown): StoredChatConversation {
 }
 
 function parseState(value: unknown): StoredChatState {
-  if (!isObject(value) || value.version !== 1 ||
+  if (!isObject(value) || (value.version !== 1 && value.version !== 2) ||
     !(typeof value.selectedConversationId === "string" ||
       value.selectedConversationId === null) ||
     !Array.isArray(value.conversations)) {
     throw new Error("本機 AI 對話紀錄格式錯誤。");
   }
   return {
-    version: 1,
+    version: 2,
     selectedConversationId: value.selectedConversationId,
     conversations: value.conversations.map(parseConversation)
   };

@@ -7,6 +7,7 @@ related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - F16-invoke-annotation-explanation-skill
   - B03-load-only-bundled-annotation-skill
+  - F21-ai-assisted-learning-item-creation
 ---
 
 # 解釋標記與區段解析模組
@@ -29,7 +30,8 @@ related_implements:
 - Main Process 加入 `$explain-reader-annotations` marker、有限閱讀上下文與固定型別化 skill item。
 - Skill 只解釋 `<reader-annotation>` 內容，未標記文字只作為上下文。
 - 沒有標記時，以指定語言簡短告知目前區段沒有標記後停止。
-- 解析結果以一般 AI Markdown 訊息留在目前 AI 對話，不回寫標記，也尚未建立**學習項目**。
+- 解析結果以安全 Markdown 留在目前 AI 對話，不回寫標記；結尾另附結構化邀請，
+  讓使用者明確選擇是否把本次全部單字與片語送入學習項目草稿流程。
 
 ## 3. Inputs and Preconditions
 
@@ -61,7 +63,10 @@ related_implements:
 5. `composeCodexInput()` 加入 marker、有限上下文、語言指令；若沒有 annotation tag，另加入明確無標記提示。
 6. `turn/start.input` 包含 text item 及固定 `explain-reader-annotations` skill item。
 7. 已載入的 skill 按標記類型與原文順序建立教學回覆。
-8. 回覆經既有 AI 對話串流、Markdown 呈現與本機對話保存流程處理。
+8. Skill 在複習表後詢問是否加入生詞庫，並輸出只含 word／phrase 的
+   `learning-item-invitation`；sentence 不加入也不拆詞。
+9. Renderer 顯示「加入生詞庫」。接受後才啟動 `create-learning-items`；
+   空 targets 由建立 skill 詢問要加入什麼。
 
 執行解析不會移動 START／END、修改 EPUB、刪除標記、改寫既有回覆或更新間隔複習狀態。
 
@@ -76,6 +81,8 @@ Skill 必須：
 5. 採用 Examples 小節時，必須提供 3–5 個彼此不同、完整且自然的例句，不得只提供 1 或 2 句。
 6. 不機械性輸出所有小節，不翻譯或摘要整個閱讀區段，也不主動解釋未標記文字。
 7. 最後提供本次講解語言的精簡複習表：標記內容、簡單意思、CEFR 與實用提示。
+8. 以相同講解語言詢問是否加入全部單字與片語，並輸出可驗證 invitation；不得聲稱
+   已保存或自行提交。
 
 原始標記文字、IPA 及學習上需要保持原貌的例句可保留原文形式。
 
@@ -114,6 +121,7 @@ Skill 必須：
 | `apps/desktop/src/main/chat-ipc.ts` | intent、語言與 context 白名單驗證 |
 | `apps/desktop/src/main/chat-controller.ts` | marker、無標記提示、語言映射與固定 skill item |
 | `apps/desktop/src/main/bundled-skill.ts` | 標記解析 skill 的 runtime 安裝 |
+| `apps/desktop/src/main/learning-item-artifacts.ts` | invitation 結構驗證與原始 JSON 隱藏 |
 
 ## 9. Testing Notes
 
@@ -129,7 +137,7 @@ Skill 必須：
 ## 10. Known Limitations and Follow-up
 
 - AI 回覆仍是非結構化 Markdown；分類、CEFR 與複習表不能直接查詢或重用。
-- 尚未把解析內容轉成學習項目，也未提供逐項確認、編輯、合併或加入生詞庫的流程。
+- invitation 只帶標題與語義提示；正式卡片內容由獨立建立 skill 產生，不保存來源句。
 - 沒有解析結果版本、重新產生、比較或匯出功能。
 - 標記 skill rubric 目前與 Controller 契約測試放在同一測試檔，尚未拆成獨立 skill test。
 - Renderer `App.tsx` 同時協調標記、閱讀區段、設定與 AI preset，責任仍偏重。

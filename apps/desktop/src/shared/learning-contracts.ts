@@ -36,6 +36,33 @@ export interface UpdateLearningItemInput extends CreateLearningItemInput {
   itemId: string;
 }
 
+export interface LearningItemDraft extends CreateLearningItemInput {
+  id: string;
+  state: "included" | "excluded";
+}
+
+export interface LearningItemMatch {
+  itemId: string;
+  title: string;
+  sense: string;
+  status: "active" | "trashed";
+}
+
+export interface LearningItemDraftBatch {
+  id: string;
+  status: "pending" | "submitted";
+  drafts: LearningItemDraft[];
+  existing: LearningItemMatch[];
+  trashed: LearningItemMatch[];
+  submittedAt?: number;
+  createdItemIds?: string[];
+}
+
+export interface UpdateLearningItemDraftInput extends CreateLearningItemInput {
+  batchId: string;
+  draftId: string;
+}
+
 export interface LearningDesktopApi {
   listItems(input: LearningItemListInput): Promise<LearningItem[]>;
   getItem(itemId: string): Promise<LearningItem>;

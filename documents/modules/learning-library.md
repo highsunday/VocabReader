@@ -6,6 +6,7 @@ last_updated: 2026-07-23
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
+  - F21-ai-assisted-learning-item-creation
 ---
 
 # 本機生詞庫模組
@@ -16,8 +17,9 @@ related_implements:
 **學習項目（Learning Item）**。第一版支援查詢、篩選、排序、查看、Markdown 編輯、
 移入垃圾桶、個別還原與確認後永久清空，並以十筆一次性 mock data 建立可驗證的資料基礎。
 
-本模組不屬於 EPUB 書庫，也不實作 Anki 式複習排程。AI 助教目前只保留一般對話能力，
-不能查詢或改寫學習項目。
+本模組不屬於 EPUB 書庫，也不實作 Anki 式複習排程。AI 建立流程只能先取得程式以
+完整標題篩出的有限候選，並在使用者提交後透過 Main 的交易操作新增；AI 本身沒有
+SQLite、任意查詢或直接寫入能力。
 
 ## 2. Current Implementation Status
 
@@ -35,6 +37,8 @@ related_implements:
   清空才永久刪除。
 - 側欄顯示即時使用中數量。
 - 生詞庫標題、垃圾桶入口與查詢篩選固定於中央區頂部，只有結果清單獨立捲動。
+- 提供大小寫不敏感、trim 後完整標題相等的 active／trashed 候選查詢。
+- 提供多筆先完整驗證、再以單一 SQLite 交易新增的 `createItemsAtomically()`。
 
 ## 3. Module Boundary
 
@@ -48,7 +52,9 @@ related_implements:
 - 更新學習內容與時間戳。
 - 執行 `active → trashed → active` 狀態轉移。
 - 以交易永久清空全部垃圾桶項目。
-- 保留內部 `createItem()`，供 seed 與後續 AI／標記匯入功能使用。
+- 以 `findDuplicateCandidates()` 提供 deterministic exact-title 候選，不做語義判斷。
+- 以 `createItemsAtomically()` 提供草稿批次的全有或全無新增。
+- 保留內部 `createItem()` 供 seed 使用。
 
 Renderer 不知道資料庫路徑、schema 或 SQL。
 
@@ -65,6 +71,9 @@ Renderer 只能使用以下六個型別化操作：
 
 IPC 在呼叫 repository 前再次驗證跨程序資料。Preload 不暴露 create、任意 SQL、
 Node API 或通用 IPC。
+
+AI 建立批次的新增／還原由受限 `chat` IPC 呼叫 Main-owned Controller，再委派本
+repository；Renderer 仍拿不到一般 create API。
 
 ### Renderer
 
@@ -90,6 +99,8 @@ Node API 或通用 IPC。
 | `LearningItem` | id、標題、類型、CEFR、語義、Markdown、狀態與時間戳 |
 | `LearningItemListInput` | 狀態、可選搜尋／類型／CEFR，以及排序 |
 | `UpdateLearningItemInput` | item id 與可編輯的全部結構化／Markdown 欄位 |
+| `LearningItemDraft` | 尚未提交的 word／phrase 結構、Markdown 與 included／excluded |
+| `LearningItemDraftBatch` | drafts、active／trash matches 與提交結果 |
 
 標題不是唯一鍵。`sense` 明確標示目標語義，讓 `bank` 的金融機構與河岸能各自保存。
 
@@ -137,6 +148,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 |---|---|
 | `apps/desktop/src/shared/learning-contracts.ts` | Main／Preload／Renderer 共用型別 |
 | `apps/desktop/src/main/learning-library-service.ts` | SQLite、migration、seed、查詢與狀態轉移 |
+| `apps/desktop/src/main/learning-item-duplicate-classifier.ts` | 只對 exact-title 候選做 AI 語義重查 |
 | `apps/desktop/src/main/learning-library-ipc.ts` | 六個 IPC 白名單與 payload 驗證 |
 | `apps/desktop/src/preload/preload.ts` | `window.readerDesktop.learning` typed bridge |
 | `apps/desktop/src/renderer/LearningLibraryWorkspace.tsx` | 生詞庫、詳情、編輯與垃圾桶 UI |
@@ -147,25 +159,25 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 
 | Test file | Coverage |
 |---|---|
-| `learning-library-service.test.ts` | migration、一次性 seed、標題搜尋、複合篩選、持久編輯、垃圾桶 |
+| `learning-library-service.test.ts` | migration、seed、搜尋／篩選、exact-title 候選、atomic create、垃圾桶 |
 | `learning-library-ipc.test.ts` | 六個 IPC 白名單與惡意／錯誤 payload 拒絕 |
 | `learning-library-workspace.test.tsx` | 查詢控制、非捲動工具區、modal、安全 Markdown、編輯、刪除確認與垃圾桶 |
-| `App.test.tsx` | 入口、啟動數量、既有 AI 助教與未實作能力邊界 |
+| `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
 | `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情，以及捲到底後工具區位置不變 |
 
 最近驗證（2026-07-23）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：141/141 passed。
-- Electron Playwright：2/2 passed。
+- Desktop Vitest：159/159 passed。
+- Electron Playwright：本次受執行環境阻擋 Electron process launch，未進入斷言。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
 
 ## 10. Known Limitations and Follow-up
 
-- 沒有 UI 新增入口；內部 create 只供 seed 與後續整合。
-- AI 助教不能查詢、建立、修改或刪除學習項目。
-- 不從標記、區段解析或書籍來源建立項目，也未保存來源追溯資料。
+- AI 新增只支援單字與片語，不支援 sentence 或任意卡片類型。
+- AI workflow 不提供既有正式項目的編輯或刪除；這些仍由生詞庫詳情 UI 負責。
+- 從標記解析可建立項目，但刻意不保存書籍、章節、標記、原句或來源追溯資料。
 - 尚未實作到期判定、翻面、AI 出題、自評、間隔排程與複習歷史。
 - 不提供匯入、匯出、同步、封存、單筆永久刪除或復原已清空垃圾桶。
 
@@ -174,5 +186,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - `CONTEXT.md`
 - `documents/implements/F19-local-learning-library-page.md`
 - `documents/implements/F20-confirm-learning-item-trash.md`
+- `documents/implements/F21-ai-assisted-learning-item-creation.md`
 - `documents/modules/ai-conversation.md`
+- `documents/modules/learning-item-creation.md`
 - `documents/modules/book-library.md`

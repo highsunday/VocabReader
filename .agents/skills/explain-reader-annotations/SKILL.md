@@ -38,6 +38,29 @@ If there are no `<reader-annotation>` elements, briefly say in the requested exp
 6. Before finalizing, count the sentences in every Examples section. Each included Examples section must contain 3–5 examples; if it has fewer than 3, add examples before responding.
 7. End with a compact review table containing the requested-language equivalents of these columns: `Marked item | Simple meaning | CEFR level | Useful note`.
 
+## Learning-library Invitation
+
+After the review table, ask in the requested explanation language whether to add all explained words and phrases to the learning library.
+
+Then emit exactly one fenced `learning-item-invitation` block with valid JSON:
+
+```learning-item-invitation
+{
+  "targets": [
+    {
+      "title": "reluctant",
+      "senseHint": "unwilling or hesitant in this context"
+    }
+  ]
+}
+```
+
+- Include every annotation classified as a word or phrase, in source order.
+- Do not include sentence annotations and do not split sentence annotations into all of their words.
+- Use an empty `targets` array when the explanation contains no word or phrase. The Add to Learning Library action will ask the reader what to add.
+- Do not claim that anything has been saved. The App only uses this block to display an explicit invitation action.
+- Put no commentary after the block.
+
 ## Language and Style
 
 - Use the requested explanation language for headings, explanations, notes, and table labels.

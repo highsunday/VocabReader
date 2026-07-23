@@ -48,6 +48,10 @@ import {
   textOffsetAtPoint
 } from "./reading-range";
 import { LearningLibraryWorkspace } from "./LearningLibraryWorkspace";
+import {
+  LearningItemBatchAction,
+  LearningItemDraftDialog
+} from "./LearningItemDraftDialog";
 
 type WorkspaceMode = "overview" | "reader" | "learning-library";
 
@@ -219,6 +223,9 @@ export function App() {
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
   const [learningCounts, setLearningCounts] = useState({ active: 0, trashed: 0 });
+  const [openLearningItemBatchId, setOpenLearningItemBatchId] =
+    useState<string>();
+  const [learningLibraryRevision, setLearningLibraryRevision] = useState(0);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLElement>(null);
@@ -236,6 +243,12 @@ export function App() {
   const selectedBook = useMemo(
     () => books.find((book) => book.id === selectedBookId) ?? books[0],
     [books, selectedBookId]
+  );
+  const openLearningItemBatch = useMemo(
+    () => chatSnapshot.messages
+      .map((message) => message.learningItemBatch)
+      .find((batch) => batch?.id === openLearningItemBatchId),
+    [chatSnapshot.messages, openLearningItemBatchId]
   );
   const rangeBoundariesOverlap = readingRange
     ? Math.abs(markerTops.start - markerTops.end) < 28
@@ -974,7 +987,7 @@ export function App() {
     text: string,
     extras: Pick<
       SendChatMessageInput,
-      "intent" | "explanationLanguage"
+      "intent" | "explanationLanguage" | "learningItemTargets"
     > = {}
   ) {
     const chat = desktopChat();
@@ -999,6 +1012,7 @@ export function App() {
       readingSegmentKey &&
       (extras.intent === "explainAnnotations" ||
         extras.intent === "practiceReading" ||
+        extras.intent === "createLearningItems" ||
         readingSegmentKey !== lastProvidedReadingSegmentRef.current)
     );
     const context = segment
@@ -1052,6 +1066,46 @@ export function App() {
       intent: "practiceReading",
       explanationLanguage: settings.explanationLanguage
     });
+  }
+
+  function learningItemTargetsFromText(text: string) {
+    const seen = new Set<string>();
+    return text
+      .split(/[\n,，]+/)
+      .map((title) => title.trim())
+      .filter((title) => {
+        const key = title.toLocaleLowerCase();
+        if (!title || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((title) => ({ title }));
+  }
+
+  async function createLearningItems(
+    targets = learningItemTargetsFromText(draft)
+  ) {
+    const titles = targets.map((target) => target.title);
+    if (draft.trim()) setDraft("");
+    await sendChatMessage(
+      titles.length ? `新增學習卡片：${titles.join("、")}` : "新增學習卡片",
+      {
+        intent: "createLearningItems",
+        explanationLanguage: settings.explanationLanguage,
+        ...(targets.length ? { learningItemTargets: targets } : {})
+      }
+    );
+  }
+
+  function acceptLearningItemInvitation(
+    targets: SendChatMessageInput["learningItemTargets"]
+  ) {
+    void createLearningItems(targets ?? []);
+  }
+
+  function handleLearningItemSnapshot(snapshot: ChatSnapshot) {
+    setChatSnapshot(snapshot);
+    setLearningLibraryRevision((revision) => revision + 1);
   }
 
   async function startNewConversation() {
@@ -1585,6 +1639,7 @@ export function App() {
           ) : (
             desktopLearning() ? (
               <LearningLibraryWorkspace
+                key={learningLibraryRevision}
                 api={desktopLearning()!}
                 onCountsChange={setLearningCounts}
               />
@@ -1744,6 +1799,32 @@ export function App() {
                         key={message.id}
                       >
                         <ChatMessageContent text={message.text} />
+                        {message.learningItemInvitation ? (
+                          <button
+                            className="learning-library-invitation-action"
+                            type="button"
+                            onClick={() => acceptLearningItemInvitation(
+                              message.learningItemInvitation!.targets
+                            )}
+                            disabled={chatSnapshot.connection !== "ready" ||
+                              Boolean(chatSnapshot.activeTurnId) ||
+                              chatSnapshot.managementBusy ||
+                              isConversationActionPending}
+                          >
+                            加入生詞庫
+                          </button>
+                        ) : null}
+                        {message.learningItemBatch ? (
+                          <LearningItemBatchAction
+                            batch={message.learningItemBatch}
+                            onOpen={setOpenLearningItemBatchId}
+                          />
+                        ) : null}
+                        {message.artifactError ? (
+                          <p className="learning-item-artifact-error" role="alert">
+                            {message.artifactError}
+                          </p>
+                        ) : null}
                       </article>
                     ))}
                     {chatSnapshot.activeTurnId ? (
@@ -1754,35 +1835,57 @@ export function App() {
                     ) : null}
                   </div>
 
-                  {mode === "reader" ? (
+                  {mode === "reader" || mode === "learning-library" ? (
                     <div className="chat-preset-bar" aria-label="提問快捷功能">
+                      {mode === "reader" ? (
+                        <>
+                          <button
+                            className="annotation-analysis-preset"
+                            type="button"
+                            onClick={() => void explainAnnotations()}
+                            disabled={chatSnapshot.connection !== "ready" ||
+                              Boolean(chatSnapshot.activeTurnId) ||
+                              chatSnapshot.managementBusy ||
+                              isConversationActionPending}
+                          >
+                            <svg aria-hidden="true" viewBox="0 0 18 18">
+                              <path d="M9 2.25l1.15 3.6L13.75 7l-3.6 1.15L9 11.75 7.85 8.15 4.25 7l3.6-1.15L9 2.25Z" />
+                              <path d="M14.25 11.25l.55 1.7 1.7.55-1.7.55-.55 1.7-.55-1.7-1.7-.55 1.7-.55.55-1.7Z" />
+                            </svg>
+                            <span>解釋標記</span>
+                          </button>
+                          <button
+                            className="annotation-analysis-preset reading-practice-preset"
+                            type="button"
+                            onClick={() => void practiceReading()}
+                            disabled={chatSnapshot.connection !== "ready" ||
+                              Boolean(chatSnapshot.activeTurnId) ||
+                              chatSnapshot.managementBusy ||
+                              isConversationActionPending}
+                          >
+                            <svg aria-hidden="true" viewBox="0 0 18 18">
+                              <path d="M4 3.25h10v11.5H4z" />
+                              <path d="M6.5 6.25h5M6.5 9h5M6.5 11.75h2.75" />
+                            </svg>
+                            <span>閱讀測驗</span>
+                          </button>
+                        </>
+                      ) : null}
                       <button
-                        className="annotation-analysis-preset"
+                        className="annotation-analysis-preset learning-item-create-preset"
                         type="button"
-                        onClick={() => void explainAnnotations()}
+                        aria-label="新增學習卡片"
+                        onClick={() => void createLearningItems()}
                         disabled={chatSnapshot.connection !== "ready" ||
                           Boolean(chatSnapshot.activeTurnId) ||
-                          chatSnapshot.managementBusy || isConversationActionPending}
+                          chatSnapshot.managementBusy ||
+                          isConversationActionPending}
                       >
                         <svg aria-hidden="true" viewBox="0 0 18 18">
-                          <path d="M9 2.25l1.15 3.6L13.75 7l-3.6 1.15L9 11.75 7.85 8.15 4.25 7l3.6-1.15L9 2.25Z" />
-                          <path d="M14.25 11.25l.55 1.7 1.7.55-1.7.55-.55 1.7-.55-1.7-1.7-.55 1.7-.55.55-1.7Z" />
+                          <rect x="3" y="3.25" width="9.5" height="11.5" rx="1.5" />
+                          <path d="M7.75 6.25v5M5.25 8.75h5M13.75 6.25h1.5v8.5H6.5" />
                         </svg>
-                        <span>解釋標記</span>
-                      </button>
-                      <button
-                        className="annotation-analysis-preset reading-practice-preset"
-                        type="button"
-                        onClick={() => void practiceReading()}
-                        disabled={chatSnapshot.connection !== "ready" ||
-                          Boolean(chatSnapshot.activeTurnId) ||
-                          chatSnapshot.managementBusy || isConversationActionPending}
-                      >
-                        <svg aria-hidden="true" viewBox="0 0 18 18">
-                          <path d="M4 3.25h10v11.5H4z" />
-                          <path d="M6.5 6.25h5M6.5 9h5M6.5 11.75h2.75" />
-                        </svg>
-                        <span>閱讀測驗</span>
+                        <span>新增學習卡片</span>
                       </button>
                     </div>
                   ) : null}
@@ -1954,6 +2057,15 @@ export function App() {
             {settingsError ? <small role="alert">{settingsError}</small> : null}
           </section>
         </div>
+      ) : null}
+
+      {openLearningItemBatch && desktopChat() ? (
+        <LearningItemDraftDialog
+          batch={openLearningItemBatch}
+          api={desktopChat()!}
+          onClose={() => setOpenLearningItemBatchId(undefined)}
+          onSnapshot={handleLearningItemSnapshot}
+        />
       ) : null}
 
     </div>

@@ -4,7 +4,8 @@ import type { ChatDesktopApi, ChatSnapshot } from "../shared/chat-contracts";
 import type { LibraryBook } from "../shared/library-contracts";
 import type {
   LearningDesktopApi,
-  LearningItem
+  LearningItem,
+  LearningItemDraftBatch
 } from "../shared/learning-contracts";
 import { App } from "./App";
 
@@ -636,6 +637,114 @@ describe("App", () => {
       .toBeInTheDocument();
     expect(screen.getByLabelText("AI 助教")).toBeInTheDocument();
     expect(screen.queryByText("Anki 式間隔複習")).not.toBeInTheDocument();
+  });
+
+  it("starts learning-card creation and opens invitation and draft actions", async () => {
+    const batch: LearningItemDraftBatch = {
+      id: "batch-1",
+      status: "pending",
+      drafts: [{
+        id: "draft-1",
+        title: "look into",
+        itemType: "phrase",
+        cefr: "B1",
+        sense: "investigate",
+        markdownContent: "## Meaning\n調查",
+        state: "included"
+      }],
+      existing: [],
+      trashed: []
+    };
+    const snapshot: ChatSnapshot = {
+      ...initialReadySnapshot(),
+      messages: [{
+        id: "assistant-invitation",
+        turnId: "turn-invitation",
+        role: "assistant",
+        text: "要把這些單字和片語加入卡片庫嗎？",
+        status: "completed",
+        learningItemInvitation: {
+          targets: [{ title: "bank", senseHint: "river bank" }]
+        }
+      }, {
+        id: "assistant-batch",
+        turnId: "turn-batch",
+        role: "assistant",
+        text: "已準備好學習卡片。",
+        status: "completed",
+        learningItemBatch: batch
+      }]
+    };
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    installLibraryApi([], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      updateLearningItemDraft: vi.fn().mockResolvedValue(snapshot),
+      setLearningItemDraftState: vi.fn().mockResolvedValue(snapshot),
+      submitLearningItemBatch: vi.fn().mockResolvedValue(snapshot),
+      restoreLearningItemMatch: vi.fn().mockResolvedValue(snapshot),
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /生詞庫/ }));
+    await screen.findByRole("heading", { name: "生詞庫" });
+
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "bank,\nlook into" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "新增學習卡片" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(1, {
+      text: "新增學習卡片：bank、look into",
+      intent: "createLearningItems",
+      explanationLanguage: "source",
+      learningItemTargets: [{ title: "bank" }, { title: "look into" }]
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "加入生詞庫" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(2, {
+      text: "新增學習卡片：bank",
+      intent: "createLearningItems",
+      explanationLanguage: "source",
+      learningItemTargets: [{ title: "bank", senseHint: "river bank" }]
+    }));
+
+    fireEvent.click(screen.getByRole("button", {
+      name: "1 張學習卡片待確認"
+    }));
+    expect(screen.getByRole("dialog", { name: "確認學習卡片" }))
+      .toBeInTheDocument();
+    expect(screen.getByDisplayValue("look into")).toBeInTheDocument();
+  });
+
+  it("asks the creation skill what to add when an explanation invitation is empty", async () => {
+    const snapshot: ChatSnapshot = {
+      ...initialReadySnapshot(),
+      messages: [{
+        id: "assistant-empty-invitation",
+        turnId: "turn-invitation",
+        role: "assistant",
+        text: "這次沒有可直接加入的單字或片語。",
+        status: "completed",
+        learningItemInvitation: { targets: [] }
+      }]
+    };
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    installLibraryApi([], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "加入生詞庫" }));
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      text: "新增學習卡片",
+      intent: "createLearningItems",
+      explanationLanguage: "source"
+    }));
   });
 
   it("uses book selection as the only overview entry and omits the learning mechanism copy", () => {

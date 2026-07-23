@@ -38,6 +38,10 @@ describe("chat IPC", () => {
       removeConversation: vi.fn().mockResolvedValue(snapshot),
       selectModel: vi.fn().mockReturnValue(snapshot),
       stopResponse: vi.fn().mockResolvedValue(snapshot),
+      updateLearningItemDraft: vi.fn().mockReturnValue(snapshot),
+      setLearningItemDraftState: vi.fn().mockReturnValue(snapshot),
+      submitLearningItemBatch: vi.fn().mockResolvedValue(snapshot),
+      restoreLearningItemMatch: vi.fn().mockResolvedValue(snapshot),
       onStateChanged: vi.fn(() => listener)
     };
     const publish = vi.fn();
@@ -56,6 +60,10 @@ describe("chat IPC", () => {
     expect(handlers.has("chat:remove")).toBe(true);
     expect(handlers.has("chat:select-model")).toBe(true);
     expect(handlers.has("chat:stop")).toBe(true);
+    expect(handlers.has("chat:update-learning-item-draft")).toBe(true);
+    expect(handlers.has("chat:set-learning-item-draft-state")).toBe(true);
+    expect(handlers.has("chat:submit-learning-item-batch")).toBe(true);
+    expect(handlers.has("chat:restore-learning-item-match")).toBe(true);
     await handlers.get("chat:send")?.({}, {
       text: "Explain",
       intent: "explainAnnotations",
@@ -75,6 +83,24 @@ describe("chat IPC", () => {
         chapterTitle: "Chapter",
         readingSegment: "inside"
       }
+    });
+    await handlers.get("chat:send")?.({}, {
+      text: "新增 bank",
+      intent: "createLearningItems",
+      explanationLanguage: "zh-TW",
+      learningItemTargets: [{
+        title: "bank",
+        senseHint: "side of a river"
+      }]
+    });
+    expect(controller.sendMessage).toHaveBeenCalledWith({
+      text: "新增 bank",
+      intent: "createLearningItems",
+      explanationLanguage: "zh-TW",
+      learningItemTargets: [{
+        title: "bank",
+        senseHint: "side of a river"
+      }]
     });
     await handlers.get("chat:send")?.({}, {
       text: "開始閱讀測驗",
@@ -97,6 +123,37 @@ describe("chat IPC", () => {
       intent: "arbitrary-system-prompt",
       explanationLanguage: "klingon"
     })).toThrow(/AI 訊息格式錯誤/);
+    expect(() => handlers.get("chat:send")?.({}, {
+      text: "bad",
+      intent: "createLearningItems",
+      learningItemTargets: [{ title: "", arbitrary: "data" }]
+    })).toThrow(/AI 訊息格式錯誤/);
+    const draftInput = {
+      batchId: "batch-a",
+      draftId: "draft-a",
+      title: "reluctant",
+      itemType: "word",
+      cefr: "B2",
+      sense: "unwilling",
+      markdownContent: "## Meaning\n不情願。"
+    };
+    await handlers.get("chat:update-learning-item-draft")?.({}, draftInput);
+    await handlers.get("chat:set-learning-item-draft-state")?.({}, {
+      batchId: "batch-a",
+      draftId: "draft-a",
+      state: "excluded"
+    });
+    await handlers.get("chat:submit-learning-item-batch")?.({}, "batch-a");
+    await handlers.get("chat:restore-learning-item-match")?.(
+      {},
+      { batchId: "batch-a", itemId: "item-a" }
+    );
+    expect(controller.updateLearningItemDraft).toHaveBeenCalledWith(draftInput);
+    expect(controller.setLearningItemDraftState)
+      .toHaveBeenCalledWith("batch-a", "draft-a", "excluded");
+    expect(controller.submitLearningItemBatch).toHaveBeenCalledWith("batch-a");
+    expect(controller.restoreLearningItemMatch)
+      .toHaveBeenCalledWith("batch-a", "item-a");
     await handlers.get("chat:new")?.({});
     await handlers.get("chat:select")?.({}, "conversation-a");
     await handlers.get("chat:remove")?.({}, "conversation-a");

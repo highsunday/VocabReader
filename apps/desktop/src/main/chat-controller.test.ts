@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ChatController,
   composeCodexInput
@@ -10,6 +10,12 @@ import type {
   ChatConversationStore,
   StoredChatState
 } from "./chat-conversation-store";
+import type {
+  CreateLearningItemInput,
+  LearningItem,
+  LearningItemDraft
+} from "../shared/learning-contracts";
+import type { LearningItemRecheckDecision } from "./learning-item-artifacts";
 import { createFakeCodexAppServer } from "./fake-codex-app-server";
 
 const annotationExplanationSkillPath =
@@ -26,6 +32,24 @@ const readingComprehensionSkillInstructions = [
   "Create 8 to 12 multiple-choice questions.",
   "Provide a final review after grading."
 ].join("\n");
+const learningItemCreationSkillPath =
+  "/tmp/lingoshelf-codex-test/.agents/skills/create-learning-items/SKILL.md";
+const learningItemCreationSkillInstructions = readFileSync(resolve(
+  process.cwd(),
+  "../../.agents/skills/create-learning-items/SKILL.md"
+), "utf8");
+const bankCandidate = {
+  id: "item-bank-finance",
+  title: "bank",
+  itemType: "word" as const,
+  cefr: "A2" as const,
+  sense: "financial institution",
+  markdownContent: "## Meaning\n銀行",
+  status: "active" as const,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  trashedAt: null
+};
 
 class MemoryChatConversationStore implements ChatConversationStore {
   state: StoredChatState;
@@ -66,13 +90,31 @@ function fixture(options: Parameters<typeof createFakeCodexAppServer>[0] = {}) {
     annotationExplanationSkillPath,
     annotationExplanationSkillInstructions,
     readingComprehensionSkillPath,
-    readingComprehensionSkillInstructions
+    readingComprehensionSkillInstructions,
+    learningItemCreationSkillPath,
+    learningItemCreationSkillInstructions,
+    findLearningItemCandidates: async (titles: string[]) =>
+      titles.includes("bank") ? [bankCandidate] : []
   });
   return { fake, controller };
 }
 
-function managedFixture(store = new MemoryChatConversationStore()) {
-  const fake = createFakeCodexAppServer();
+function managedFixture(
+  store = new MemoryChatConversationStore(),
+  options: Parameters<typeof createFakeCodexAppServer>[0] = {},
+  learningOptions: {
+    findLearningItemCandidates?(titles: string[]): Promise<LearningItem[]>;
+    createLearningItemsAtomically?(
+      inputs: CreateLearningItemInput[]
+    ): Promise<LearningItem[]>;
+    restoreLearningItem?(itemId: string): Promise<LearningItem>;
+    classifyLearningItemDuplicates?(
+      drafts: LearningItemDraft[],
+      candidates: LearningItem[]
+    ): Promise<LearningItemRecheckDecision[]>;
+  } = {}
+) {
+  const fake = createFakeCodexAppServer(options);
   let conversationId = 0;
   let now = 1_000;
   const controller = new ChatController({
@@ -84,6 +126,15 @@ function managedFixture(store = new MemoryChatConversationStore()) {
     annotationExplanationSkillInstructions,
     readingComprehensionSkillPath,
     readingComprehensionSkillInstructions,
+    learningItemCreationSkillPath,
+    learningItemCreationSkillInstructions,
+    findLearningItemCandidates: learningOptions.findLearningItemCandidates ??
+      (async (titles: string[]) =>
+        titles.includes("bank") ? [bankCandidate] : []),
+    createLearningItemsAtomically: learningOptions.createLearningItemsAtomically,
+    restoreLearningItem: learningOptions.restoreLearningItem,
+    classifyLearningItemDuplicates:
+      learningOptions.classifyLearningItemDuplicates,
     conversationStore: store,
     createConversationId: () => `conversation-${++conversationId}`,
     now: () => ++now
@@ -285,6 +336,16 @@ describe("ChatController", () => {
         readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation>.</reading-segment>'
       }
     });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+    await controller.sendMessage({
+      text: "新增 bank 的河岸語義",
+      intent: "createLearningItems",
+      explanationLanguage: "zh-TW",
+      learningItemTargets: [{
+        title: "bank",
+        senseHint: "side of a river"
+      }]
+    });
 
     const turnStarts = fake.requests.filter(
       (request) => request.method === "turn/start"
@@ -297,6 +358,7 @@ describe("ChatController", () => {
     );
     expect(loadedInstructions).toContain("explain-reader-annotations");
     expect(loadedInstructions).toContain("practice-reading-comprehension");
+    expect(loadedInstructions).toContain("create-learning-items");
     expect(loadedInstructions).toContain(
       "Judge the item as used in this passage, not in isolation"
     );
@@ -307,7 +369,7 @@ describe("ChatController", () => {
     expect(loadedInstructions).toContain(
       "continue using its assessment workflow"
     );
-    expect(loadedInstructions.match(/<app-provided-skill /g)).toHaveLength(2);
+    expect(loadedInstructions.match(/<app-provided-skill /g)).toHaveLength(3);
     expect(loadedInstructions).not.toContain("Available skills:");
     expect(threadStart?.params?.config).toMatchObject({
       "skills.include_instructions": false,
@@ -318,6 +380,7 @@ describe("ChatController", () => {
     const ordinaryInput = turnStarts[0]?.params?.input;
     const practiceInput = turnStarts[1]?.params?.input;
     const explanationInput = turnStarts[2]?.params?.input;
+    const creationInput = turnStarts[3]?.params?.input;
     expect(ordinaryInput).toEqual([
       expect.objectContaining({ type: "text" })
     ]);
@@ -345,6 +408,19 @@ describe("ChatController", () => {
         path: "/tmp/lingoshelf-codex-test/.agents/skills/explain-reader-annotations/SKILL.md"
       }
     ]);
+    expect(creationInput).toEqual([
+      expect.objectContaining({
+        type: "text",
+        text: expect.stringContaining("$create-learning-items")
+      }),
+      {
+        type: "skill",
+        name: "create-learning-items",
+        path: learningItemCreationSkillPath
+      }
+    ]);
+    expect(JSON.stringify(creationInput)).toContain("financial institution");
+    expect(JSON.stringify(creationInput)).not.toContain("happy");
     controller.close();
   });
 
@@ -541,6 +617,334 @@ describe("ChatController", () => {
     });
     expect(controller.getSnapshot().conversations.map(({ id }) => id))
       .toEqual(["conversation-b", "conversation-a"]);
+    controller.close();
+  });
+
+  it("attaches a validated learning-item batch to the completed AI message and store", async () => {
+    const answer = [
+      "已整理完成，請確認。",
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "reluctant",
+          itemType: "word",
+          cefr: "B2",
+          sense: "unwilling or hesitant",
+          markdownContent: "## Meaning\n不情願。\n\n## Examples\n1. She was reluctant."
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```"
+    ].join("\n");
+    const store = new MemoryChatConversationStore();
+    const { controller } = managedFixture(store, { answer });
+    await controller.connect();
+
+    await controller.sendMessage({
+      text: "新增 reluctant",
+      intent: "createLearningItems",
+      explanationLanguage: "zh-TW",
+      learningItemTargets: [{ title: "reluctant" }]
+    });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    const assistant = controller.getSnapshot().messages.find(
+      (message) => message.role === "assistant"
+    );
+    expect(assistant?.text).toBe("已整理完成，請確認。");
+    expect(assistant?.learningItemBatch).toMatchObject({
+      status: "pending",
+      drafts: [{
+        title: "reluctant",
+        state: "included"
+      }]
+    });
+    expect(store.state.conversations[0]?.messages[1]?.learningItemBatch)
+      .toEqual(assistant?.learningItemBatch);
+    controller.close();
+  });
+
+  it("rejects learning-item matches that exact-title lookup did not supply", async () => {
+    const answer = [
+      "Already exists.",
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [],
+        existing: [{
+          itemId: "forged-item",
+          title: "bank",
+          sense: "financial institution",
+          status: "active"
+        }],
+        trashed: []
+      }),
+      "```"
+    ].join("\n");
+    const { controller } = fixture({ answer });
+    await controller.connect();
+    await controller.sendMessage({
+      text: "Add bank",
+      intent: "createLearningItems",
+      learningItemTargets: [{ title: "bank" }]
+    });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    const assistant = controller.getSnapshot().messages.find(
+      (message) => message.role === "assistant"
+    );
+    expect(assistant?.learningItemBatch).toBeUndefined();
+    expect(assistant?.artifactError).toMatch(/候選/);
+    controller.close();
+  });
+
+  it("continues a persisted creation clarification and queries candidates for the answer", async () => {
+    const answer = (prompt: string) => prompt.includes(
+      "Requested learning-item targets: []"
+    )
+      ? "What word or phrase would you like to add?"
+      : [
+          "This sense already exists.",
+          "```learning-item-result",
+          JSON.stringify({
+            drafts: [],
+            existing: [{
+              itemId: "item-bank-finance",
+              title: "bank",
+              sense: "financial institution",
+              status: "active"
+            }],
+            trashed: []
+          }),
+          "```"
+        ].join("\n");
+    const store = new MemoryChatConversationStore();
+    const first = managedFixture(store, {
+      answer
+    });
+    await first.controller.connect();
+    await first.controller.sendMessage({
+      text: "Add learning cards",
+      intent: "createLearningItems",
+      learningItemTargets: []
+    });
+    await waitUntil(() => first.controller.getSnapshot().activeTurnId === null);
+    first.controller.close();
+
+    const { fake, controller } = managedFixture(store, {
+      answer: (prompt) => prompt.includes(
+        "Requested learning-item targets: []"
+      )
+        ? "What word or phrase would you like to add?"
+        : answer(prompt)
+    });
+    await controller.connect();
+    await controller.sendMessage({ text: "bank" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    const secondTurn = fake.requests
+      .find((request) => request.method === "turn/start");
+    const secondInput = (
+      secondTurn?.params?.input as Array<{ text?: string }> | undefined
+    )?.[0]?.text;
+    expect(secondInput).toContain(
+      'Requested learning-item targets: [{"title":"bank"}].'
+    );
+    expect(secondInput).toContain("item-bank-finance");
+    expect(controller.getSnapshot().messages.findLast(
+      (message) => message.role === "assistant"
+    )?.learningItemBatch)
+      .toMatchObject({
+        existing: [{ itemId: "item-bank-finance" }]
+      });
+    expect(controller.getSnapshot().messages.findLast(
+      (message) => message.role === "user"
+    )?.learningItemRequest)
+      .toEqual({ targets: [{ title: "bank" }] });
+    controller.close();
+  });
+
+  it("edits, excludes, restores and transactionally submits a pending learning-item batch once", async () => {
+    const store = new MemoryChatConversationStore({
+      version: 2,
+      selectedConversationId: "conversation-a",
+      conversations: [{
+        id: "conversation-a",
+        threadId: "thread-a",
+        title: "Add cards",
+        createdAt: 10,
+        updatedAt: 20,
+        source: null,
+        messages: [{
+          id: "assistant-a",
+          turnId: "turn-a",
+          role: "assistant",
+          text: "Ready",
+          status: "completed",
+          learningItemBatch: {
+            id: "batch-a",
+            status: "pending",
+            drafts: [{
+              id: "draft-bank",
+              title: "bank",
+              itemType: "word",
+              cefr: "A2",
+              sense: "an organization that keeps and lends money",
+              markdownContent: "## Meaning\n銀行",
+              state: "included"
+            }, {
+              id: "draft-reluctant",
+              title: "reluctant",
+              itemType: "word",
+              cefr: "B2",
+              sense: "unwilling or hesitant",
+              markdownContent: "## Meaning\n不情願。",
+              state: "included"
+            }],
+            existing: [],
+            trashed: []
+          }
+        }]
+      }]
+    });
+    const created = {
+      ...bankCandidate,
+      id: "created-reluctant",
+      title: "reluctant",
+      cefr: "C1" as const,
+      sense: "unwilling or hesitant",
+      markdownContent: "## Meaning\n不願意。"
+    };
+    const submittedInputs: unknown[] = [];
+    const classifyLearningItemDuplicates = vi.fn().mockResolvedValue([{
+      draftId: "draft-bank",
+      decision: "existing",
+      itemId: "item-bank-finance"
+    }, {
+      draftId: "draft-reluctant",
+      decision: "create"
+    }]);
+    const { controller } = managedFixture(store, {}, {
+      findLearningItemCandidates: async () => [bankCandidate],
+      classifyLearningItemDuplicates,
+      createLearningItemsAtomically: async (inputs) => {
+        submittedInputs.push(...inputs);
+        return [created];
+      }
+    });
+
+    controller.updateLearningItemDraft({
+      batchId: "batch-a",
+      draftId: "draft-reluctant",
+      title: "reluctant",
+      itemType: "word",
+      cefr: "C1",
+      sense: "unwilling or hesitant",
+      markdownContent: "## Meaning\n不願意。"
+    });
+    controller.setLearningItemDraftState(
+      "batch-a",
+      "draft-reluctant",
+      "excluded"
+    );
+    controller.setLearningItemDraftState(
+      "batch-a",
+      "draft-reluctant",
+      "included"
+    );
+    const submitted = await controller.submitLearningItemBatch("batch-a");
+
+    expect(classifyLearningItemDuplicates).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "draft-bank",
+          sense: "an organization that keeps and lends money"
+        })
+      ]),
+      [bankCandidate]
+    );
+    expect(submittedInputs).toEqual([expect.objectContaining({
+      title: "reluctant",
+      cefr: "C1"
+    })]);
+    expect(submitted.messages[0]?.learningItemBatch).toMatchObject({
+      status: "submitted",
+      createdItemIds: ["created-reluctant"],
+      existing: [{
+        itemId: "item-bank-finance",
+        title: "bank",
+        status: "active"
+      }]
+    });
+    expect(store.state.conversations[0]?.messages[0]?.learningItemBatch)
+      .toEqual(submitted.messages[0]?.learningItemBatch);
+    await expect(controller.submitLearningItemBatch("batch-a"))
+      .rejects.toThrow(/已提交/);
+    controller.close();
+  });
+
+  it("restores a trashed duplicate through the batch and persists the updated match", async () => {
+    const trashedCandidate = {
+      ...bankCandidate,
+      id: "item-happy",
+      title: "happy",
+      sense: "feeling pleasure",
+      status: "trashed" as const,
+      trashedAt: "2026-01-02T00:00:00.000Z"
+    };
+    const store = new MemoryChatConversationStore({
+      version: 2,
+      selectedConversationId: "conversation-a",
+      conversations: [{
+        id: "conversation-a",
+        threadId: "thread-a",
+        title: "Restore card",
+        createdAt: 10,
+        updatedAt: 20,
+        source: null,
+        messages: [{
+          id: "assistant-a",
+          turnId: "turn-a",
+          role: "assistant",
+          text: "Found in trash",
+          status: "completed",
+          learningItemBatch: {
+            id: "batch-trash",
+            status: "submitted",
+            submittedAt: 30,
+            createdItemIds: [],
+            drafts: [],
+            existing: [],
+            trashed: [{
+              itemId: "item-happy",
+              title: "happy",
+              sense: "feeling pleasure",
+              status: "trashed"
+            }]
+          }
+        }]
+      }]
+    });
+    const { controller } = managedFixture(store, {}, {
+      restoreLearningItem: async () => ({
+        ...trashedCandidate,
+        status: "active",
+        trashedAt: null
+      })
+    });
+
+    const restored = await controller.restoreLearningItemMatch(
+      "batch-trash",
+      "item-happy"
+    );
+
+    expect(restored.messages[0]?.learningItemBatch).toMatchObject({
+      existing: [{
+        itemId: "item-happy",
+        status: "active"
+      }],
+      trashed: []
+    });
     controller.close();
   });
 
@@ -847,6 +1251,9 @@ describe("explain-reader-annotations skill", () => {
     expect(skill).toContain(
       "Before finalizing, count the sentences in every Examples section"
     );
+    expect(skill).toContain("whether to add all explained words and phrases");
+    expect(skill).toContain("learning-item-invitation");
+    expect(skill).toContain("Do not include sentence annotations");
     expect(skill).not.toContain("give 2–3 natural examples");
   });
 });
