@@ -74,17 +74,23 @@ function LearningItemDialog({
   const [draft, setDraft] = useState<UpdateLearningItemInput>();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
   const [pronunciationError, setPronunciationError] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const speechRequestRef = useRef(0);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !isSaving) onClose();
+      if (event.key !== "Escape" || isSaving) return;
+      if (isDeleteConfirming) {
+        setIsDeleteConfirming(false);
+        return;
+      }
+      onClose();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isSaving, onClose]);
+  }, [isDeleteConfirming, isSaving, onClose]);
 
   useEffect(() => () => {
     speechRequestRef.current += 1;
@@ -159,6 +165,7 @@ function LearningItemDialog({
       await onChanged({ ...item, status: "trashed" });
       onClose();
     } catch (cause) {
+      setIsDeleteConfirming(false);
       setError(cause instanceof Error ? cause.message : "無法刪除學習項目。");
     } finally {
       setIsSaving(false);
@@ -180,6 +187,7 @@ function LearningItemDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="learning-item-dialog-title"
+        aria-hidden={isDeleteConfirming}
         onMouseDown={ignoreInnerMouseDown}
       >
         <div className="learning-dialog-heading">
@@ -306,7 +314,7 @@ function LearningItemDialog({
               <button
                 type="button"
                 className="danger-outline-action"
-                onClick={() => void moveToTrash()}
+                onClick={() => setIsDeleteConfirming(true)}
                 disabled={isSaving}
               >
                 刪除
@@ -323,6 +331,45 @@ function LearningItemDialog({
           </>
         )}
       </section>
+
+      {isDeleteConfirming ? (
+        <div
+          className="dialog-backdrop learning-delete-confirm-backdrop"
+          onMouseDown={ignoreInnerMouseDown}
+        >
+          <section
+            className="delete-dialog learning-delete-confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-learning-item-title"
+            aria-describedby="delete-learning-item-description"
+          >
+            <span className="delete-dialog-icon" aria-hidden="true">!</span>
+            <h2 id="delete-learning-item-title">刪除「{item.title}」？</h2>
+            <p id="delete-learning-item-description">
+              這個學習項目會移到垃圾桶，之後仍可還原。
+            </p>
+            <div className="delete-dialog-actions">
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirming(false)}
+                disabled={isSaving}
+                autoFocus
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="danger-action"
+                onClick={() => void moveToTrash()}
+                disabled={isSaving}
+              >
+                {isSaving ? "移動中…" : "移到垃圾桶"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

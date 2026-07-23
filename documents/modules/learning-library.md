@@ -5,6 +5,7 @@ status: active
 last_updated: 2026-07-23
 related_implements:
   - F19-local-learning-library-page
+  - F20-confirm-learning-item-trash
 ---
 
 # 本機生詞庫模組
@@ -30,7 +31,8 @@ related_implements:
 - 類型與 CEFR 複合篩選，以及最近新增／字母順序排序。
 - 同標題不同語義以不同不可變 id 保存，不合併內容。
 - 置中詳情 modal、安全 Markdown、原文編輯與即時預覽。
-- 刪除先移入垃圾桶；垃圾桶可個別還原，只有確認清空才永久刪除。
+- 從詳情刪除前顯示置中確認視窗；確認後才移入垃圾桶。垃圾桶可個別還原，只有確認
+  清空才永久刪除。
 - 側欄顯示即時使用中數量。
 - 生詞庫標題、垃圾桶入口與查詢篩選固定於中央區頂部，只有結果清單獨立捲動。
 
@@ -73,7 +75,7 @@ Node API 或通用 IPC。
 - 固定工具區與獨立結果捲動區。
 - 詳情 modal、焦點回復、Escape／遮罩關閉。
 - Markdown 查看、編輯、預覽與錯誤狀態。
-- 刪除、還原、清空確認與側欄數量同步。
+- 單筆移入垃圾桶前的置中確認、還原、清空確認與側欄數量同步。
 
 `App` 只負責工作區切換、啟動時讀取數量，以及繼續呈現既有 AI 對話面板。
 
@@ -125,6 +127,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - 結果區顯示目前筆數及可用的清除篩選操作。
 - 卡片以類型、CEFR、標題與語義形成清楚層級，hover／focus 有一致回饋。
 - 詳情使用 `role="dialog"`、`aria-modal`、具名標題、關閉控制與觸發點焦點回復。
+- 詳情中的「刪除」先開啟具名 `alertdialog`；取消或 Escape 只關閉最上層確認視窗，
+  明確確認後才呼叫 `learning:trash`，並說明項目仍可還原。
 - Markdown 使用 `react-markdown`、GFM 與 `skipHtml`；連結不允許執行 JavaScript URL。
 
 ## 8. Key Files
@@ -145,14 +149,14 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 |---|---|
 | `learning-library-service.test.ts` | migration、一次性 seed、標題搜尋、複合篩選、持久編輯、垃圾桶 |
 | `learning-library-ipc.test.ts` | 六個 IPC 白名單與惡意／錯誤 payload 拒絕 |
-| `learning-library-workspace.test.tsx` | 查詢控制、非捲動工具區、modal、安全 Markdown、編輯與垃圾桶 |
+| `learning-library-workspace.test.tsx` | 查詢控制、非捲動工具區、modal、安全 Markdown、編輯、刪除確認與垃圾桶 |
 | `App.test.tsx` | 入口、啟動數量、既有 AI 助教與未實作能力邊界 |
 | `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情，以及捲到底後工具區位置不變 |
 
 最近驗證（2026-07-23）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：139/139 passed。
+- Desktop Vitest：141/141 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -169,5 +173,6 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 
 - `CONTEXT.md`
 - `documents/implements/F19-local-learning-library-page.md`
+- `documents/implements/F20-confirm-learning-item-trash.md`
 - `documents/modules/ai-conversation.md`
 - `documents/modules/book-library.md`

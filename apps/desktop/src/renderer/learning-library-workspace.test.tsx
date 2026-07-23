@@ -229,12 +229,38 @@ describe("LearningLibraryWorkspace", () => {
     ));
   });
 
-  it("moves cards to trash, restores individually, and confirms permanent empty", async () => {
+  it("confirms before moving a card to trash, then restores and empties trash", async () => {
     const learning = api();
     render(<LearningLibraryWorkspace api={learning} />);
     fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
     await screen.findByRole("dialog", { name: "bank" });
     fireEvent.click(screen.getByRole("button", { name: "刪除" }));
+
+    const deleteConfirmation = screen.getByRole("alertdialog", {
+      name: "刪除「bank」？"
+    });
+    expect(deleteConfirmation).toHaveTextContent("移到垃圾桶");
+    expect(deleteConfirmation).toHaveTextContent("仍可還原");
+    expect(learning.trashItem).not.toHaveBeenCalled();
+
+    fireEvent.click(within(deleteConfirmation).getByRole("button", { name: "取消" }));
+    expect(screen.queryByRole("alertdialog", {
+      name: "刪除「bank」？"
+    })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
+    expect(learning.trashItem).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "刪除" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog", {
+      name: "刪除「bank」？"
+    })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "刪除" }));
+    fireEvent.click(within(
+      screen.getByRole("alertdialog", { name: "刪除「bank」？" })
+    ).getByRole("button", { name: "移到垃圾桶" }));
     await waitFor(() => expect(learning.trashItem).toHaveBeenCalledWith("item-bank"));
 
     fireEvent.click(screen.getByRole("button", { name: /垃圾桶/ }));
@@ -253,5 +279,20 @@ describe("LearningLibraryWorkspace", () => {
       screen.getByRole("dialog", { name: "永久清空垃圾桶？" })
     ).getByRole("button", { name: "永久清空" }));
     await waitFor(() => expect(learning.emptyTrash).toHaveBeenCalledOnce());
+  });
+
+  it("keeps the detail open and reports an error when moving to trash fails", async () => {
+    const learning = api();
+    learning.trashItem.mockRejectedValueOnce(new Error("暫時無法移到垃圾桶"));
+    render(<LearningLibraryWorkspace api={learning} />);
+    fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "刪除" }));
+    fireEvent.click(within(
+      screen.getByRole("alertdialog", { name: "刪除「bank」？" })
+    ).getByRole("button", { name: "移到垃圾桶" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("暫時無法移到垃圾桶");
+    expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
+    expect(learning.trashItem).toHaveBeenCalledOnce();
   });
 });
