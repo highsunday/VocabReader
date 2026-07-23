@@ -2,6 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatDesktopApi, ChatSnapshot } from "../shared/chat-contracts";
 import type { LibraryBook } from "../shared/library-contracts";
+import type {
+  LearningDesktopApi,
+  LearningItem
+} from "../shared/learning-contracts";
 import { App } from "./App";
 
 const books: LibraryBook[] = [
@@ -29,6 +33,19 @@ const books: LibraryBook[] = [
     chapters: [{ id: "two-1", title: "Beginnings", order: 0, href: "begin.xhtml", depth: 0, fragment: null }]
   }
 ];
+
+const learningItems: LearningItem[] = [{
+  id: "learning-1",
+  title: "reluctant",
+  itemType: "word",
+  cefr: "B2",
+  sense: "unwilling or hesitant",
+  markdownContent: "## Meaning\n不情願。",
+  status: "active",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  trashedAt: null
+}];
 
 function installLibraryApi(
   storedBooks: LibraryBook[] = books,
@@ -82,6 +99,16 @@ function installLibraryApi(
     explanationLanguage: "source"
   });
   const saveSettings = vi.fn((settings) => Promise.resolve(settings));
+  const learning = {
+    listItems: vi.fn(async (input) =>
+      input.status === "active" ? learningItems : []
+    ),
+    getItem: vi.fn(async () => learningItems[0]),
+    updateItem: vi.fn(async (input) => ({ ...learningItems[0], ...input })),
+    trashItem: vi.fn(async () => ({ ...learningItems[0], status: "trashed" as const })),
+    restoreItem: vi.fn(async () => learningItems[0]),
+    emptyTrash: vi.fn(async () => ({ deleted: 0 }))
+  } satisfies LearningDesktopApi;
   Object.defineProperty(window, "readerDesktop", {
     configurable: true,
     value: {
@@ -96,6 +123,7 @@ function installLibraryApi(
         saveReadingRange,
         saveAnnotations
       },
+      learning,
       settings: { get: getSettings, save: saveSettings },
       ...(chat ? { chat } : {})
     }
@@ -108,7 +136,8 @@ function installLibraryApi(
     saveReadingRange,
     saveAnnotations,
     getSettings,
-    saveSettings
+    saveSettings,
+    learning
   };
 }
 
@@ -591,24 +620,22 @@ describe("App", () => {
       .toBe("<reading-segment>Content</reading-segment>");
   });
 
-  it("keeps chapter practice separate from spaced review", () => {
+  it("opens the persistent learning library while keeping the AI assistant", async () => {
+    installLibraryApi();
     render(<App />);
 
-    expect(
-      screen.getByRole("heading", { name: "導入 EPUB 開始閱讀" })
-    ).toBeInTheDocument();
-    expect(screen.getByText("章末選擇題", { selector: ".flow-tags span" }))
-      .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Anki 複習/ }))
+    await screen.findByRole("heading", { name: "The First Book" });
+    expect(await screen.findByRole("button", { name: /生詞庫 1/ }))
       .toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Anki 複習/ }));
+    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
 
-    expect(
-      screen.getByRole("heading", { name: "Anki 式間隔複習" })
-    ).toBeInTheDocument();
-    expect(screen.getByText(/跨書籍與章節產生填空、造句/))
+    expect(await screen.findByRole("heading", { name: "生詞庫" }))
       .toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /reluctant/ }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText("AI 助教")).toBeInTheDocument();
+    expect(screen.queryByText("Anki 式間隔複習")).not.toBeInTheDocument();
   });
 
   it("uses book selection as the only overview entry and omits the learning mechanism copy", () => {
@@ -616,7 +643,7 @@ describe("App", () => {
 
     expect(screen.queryByRole("button", { name: /書籍總覽/ }))
       .not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Anki 複習/ }))
+    expect(screen.getByRole("button", { name: /生詞庫/ }))
       .toBeInTheDocument();
     expect(screen.queryByText("章節機制")).not.toBeInTheDocument();
     expect(screen.queryByText("閱讀與劃線")).not.toBeInTheDocument();

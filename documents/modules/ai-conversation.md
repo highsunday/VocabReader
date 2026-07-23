@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-07-22
+last_updated: 2026-07-23
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -18,6 +18,7 @@ related_implements:
   - B04-use-language-setting-for-reading-quiz
   - F18-use-reading-comprehension-skill
   - B05-use-quiz-language-for-open-ended-answers
+  - F19-local-learning-library-page
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -62,6 +63,8 @@ related_implements:
 - AI 回覆中狀態位於對話訊息流底部；提問框固定呈現「輸入你的疑問」與 Enter／Shift+Enter 提示，並避免輸入法組字期間 Enter 誤送。
 - AI 對話面板左邊界可用滑鼠拖曳或方向鍵調整寬度；展開寬度限制於 280–640px 並保護中央閱讀區，摺疊後展開會恢復本次工作階段的調整寬度。
 - 「設定」提供講解語言選擇；模型選擇仍直接位於 AI 對話提問框，不提供推理強度設定。
+- 生詞庫工作區沿用同一套右側 AI 對話面板與全域對話生命週期；目前仍是一般對話，
+  不附加學習項目資料，也不提供生詞庫查詢或寫入 intent。
 
 ## 3. Module Boundary
 
@@ -106,6 +109,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - `chat:state-changed` 只向 Renderer 發送完整型別化 snapshot。
 - Preload 將這些能力收斂於 `window.readerDesktop.chat`。
 - Renderer 不能指定任意 Codex method、工作目錄、approval、sandbox、process 或工具設定。
+- `window.readerDesktop.learning` 是獨立的本機資料 bridge，不屬於 chat IPC；
+  AI 對話輸入、snapshot 與 trusted intent 都不包含學習項目讀寫能力。
 
 ### Renderer
 
@@ -245,7 +250,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - 不提供推理強度或 API key 設定；設定視窗目前只包含講解語言。
 - 不提供內嵌 Codex／ChatGPT 登入或帳戶切換。
 - Markdown 程式碼區塊目前不提供語法高亮。
-- 區段練習目前只用 Markdown 對話呈現，不保存結構化題目、選項、問答回答、答案、分數或作答歷史；生詞庫、AI 分類結構化保存與 Anki 式複習流程尚未實作。
+- 區段練習目前只用 Markdown 對話呈現，不保存結構化題目、選項、問答回答、答案、分數或作答歷史；生詞庫已能獨立保存與編輯項目，但 AI 建立／查詢、從標記沉澱及 Anki 式複習流程尚未實作。
 - 本機 GUI 環境必須能找到已安裝的 `codex` 可執行檔。
 
 ## 11. Related Documents
@@ -256,6 +261,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/modules/skill-management.md`
 - `documents/modules/annotation-explanation.md`
 - `documents/modules/reading-comprehension-quiz.md`
+- `documents/modules/learning-library.md`
 - `documents/implements/F05-ai-reading-range-markers.md`
 - `documents/implements/F07-codex-ai-conversation.md`
 - `documents/implements/F08-compact-markdown-chat-messages.md`

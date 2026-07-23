@@ -13,6 +13,12 @@ import type {
   SaveReadingStateInput
 } from "../shared/library-contracts";
 import type {
+  LearningDesktopApi,
+  LearningItem,
+  LearningItemListInput,
+  UpdateLearningItemInput
+} from "../shared/learning-contracts";
+import type {
   AppSettings,
   SettingsDesktopApi
 } from "../shared/settings-contracts";
@@ -42,6 +48,20 @@ const desktopApi = Object.freeze({
     saveAnnotations: (input: SaveAnnotationsInput): Promise<LibraryBook> =>
       ipcRenderer.invoke("library:save-annotations", input)
   }),
+  learning: Object.freeze({
+    listItems: (input: LearningItemListInput): Promise<LearningItem[]> =>
+      ipcRenderer.invoke("learning:list", input),
+    getItem: (itemId: string): Promise<LearningItem> =>
+      ipcRenderer.invoke("learning:get", itemId),
+    updateItem: (input: UpdateLearningItemInput): Promise<LearningItem> =>
+      ipcRenderer.invoke("learning:update", input),
+    trashItem: (itemId: string): Promise<LearningItem> =>
+      ipcRenderer.invoke("learning:trash", itemId),
+    restoreItem: (itemId: string): Promise<LearningItem> =>
+      ipcRenderer.invoke("learning:restore", itemId),
+    emptyTrash: (): Promise<{ deleted: number }> =>
+      ipcRenderer.invoke("learning:empty-trash")
+  } satisfies LearningDesktopApi),
   settings: Object.freeze({
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
     save: (settings: AppSettings): Promise<AppSettings> =>

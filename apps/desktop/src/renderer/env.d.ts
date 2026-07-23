@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { ChatDesktopApi } from "../shared/chat-contracts";
+import type { LearningDesktopApi } from "../shared/learning-contracts";
 
 declare global {
 interface ReaderDesktopApi {
@@ -46,6 +47,7 @@ interface ReaderDesktopApi {
       }>;
     }): Promise<DesktopLibraryBook>;
   };
+  learning: LearningDesktopApi;
   settings: {
     get(): Promise<{ explanationLanguage: "source" | "zh-TW" | "en" | "ja" }>;
     save(settings: {

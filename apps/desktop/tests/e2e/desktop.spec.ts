@@ -163,6 +163,14 @@ test("launches the secure Electron reading shell", async () => {
               saveReadingRange: unknown;
               saveAnnotations: unknown;
             };
+            learning: {
+              listItems: unknown;
+              getItem: unknown;
+              updateItem: unknown;
+              trashItem: unknown;
+              restoreItem: unknown;
+              emptyTrash: unknown;
+            };
             settings: {
               get: unknown;
               save: unknown;
@@ -190,6 +198,13 @@ test("launches the secure Electron reading shell", async () => {
         hasReadingStateSave: typeof desktop?.library.saveReadingState,
         hasReadingRangeSave: typeof desktop?.library.saveReadingRange,
         hasAnnotationSave: typeof desktop?.library.saveAnnotations,
+        learningKeys: Object.keys(desktop?.learning ?? {}).sort(),
+        hasLearningList: typeof desktop?.learning.listItems,
+        hasLearningGet: typeof desktop?.learning.getItem,
+        hasLearningUpdate: typeof desktop?.learning.updateItem,
+        hasLearningTrash: typeof desktop?.learning.trashItem,
+        hasLearningRestore: typeof desktop?.learning.restoreItem,
+        hasLearningEmptyTrash: typeof desktop?.learning.emptyTrash,
         hasSettingsGet: typeof desktop?.settings.get,
         hasSettingsSave: typeof desktop?.settings.save,
         settingsKeys: Object.keys(desktop?.settings ?? {}).sort(),
@@ -215,6 +230,20 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasReadingStateSave).toBe("function");
     expect(security.hasReadingRangeSave).toBe("function");
     expect(security.hasAnnotationSave).toBe("function");
+    expect(security.hasLearningList).toBe("function");
+    expect(security.hasLearningGet).toBe("function");
+    expect(security.hasLearningUpdate).toBe("function");
+    expect(security.hasLearningTrash).toBe("function");
+    expect(security.hasLearningRestore).toBe("function");
+    expect(security.hasLearningEmptyTrash).toBe("function");
+    expect(security.learningKeys).toEqual([
+      "emptyTrash",
+      "getItem",
+      "listItems",
+      "restoreItem",
+      "trashItem",
+      "updateItem"
+    ].sort());
     expect(security.hasSettingsGet).toBe("function");
     expect(security.hasSettingsSave).toBe("function");
     expect(security.settingsKeys).toEqual(["get", "save"]);
@@ -239,6 +268,50 @@ test("launches the secure Electron reading shell", async () => {
       "sendMessage"
     ].sort());
     expect(security.hasNodeRequire).toBe("undefined");
+
+    await page.getByRole("button", { name: /生詞庫/ }).click();
+    await expect(page.getByRole("heading", { name: "生詞庫" })).toBeVisible();
+    await expect(page.locator(".learning-item-card")).toHaveCount(10);
+    const pinnedLearningToolbar = await page.evaluate(async () => {
+      const toolbar = document.querySelector<HTMLElement>(".learning-library-sticky");
+      const controls = document.querySelector<HTMLElement>(".learning-library-controls");
+      const scrollRegion = document.querySelector<HTMLElement>(
+        "[data-testid='learning-library-scroll-region']"
+      );
+      if (!toolbar || !controls || !scrollRegion) {
+        throw new Error("learning library layout is unavailable");
+      }
+      const before = {
+        toolbarTop: toolbar.getBoundingClientRect().top,
+        controlsTop: controls.getBoundingClientRect().top
+      };
+      scrollRegion.scrollTop = scrollRegion.scrollHeight;
+      await new Promise<void>((resolve) => requestAnimationFrame(() =>
+        requestAnimationFrame(() => resolve())
+      ));
+      return {
+        before,
+        after: {
+          toolbarTop: toolbar.getBoundingClientRect().top,
+          controlsTop: controls.getBoundingClientRect().top
+        },
+        scrollTop: scrollRegion.scrollTop,
+        overflowY: getComputedStyle(scrollRegion).overflowY
+      };
+    });
+    expect(pinnedLearningToolbar.overflowY).toBe("auto");
+    expect(pinnedLearningToolbar.scrollTop).toBeGreaterThan(0);
+    expect(pinnedLearningToolbar.after.toolbarTop)
+      .toBe(pinnedLearningToolbar.before.toolbarTop);
+    expect(pinnedLearningToolbar.after.controlsTop)
+      .toBe(pinnedLearningToolbar.before.controlsTop);
+    await page.getByRole("button", {
+      name: /bank，單字，A2，financial institution/
+    }).click();
+    await expect(page.getByRole("dialog", { name: "bank" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Common collocations" }))
+      .toBeVisible();
+    await page.getByRole("button", { name: "關閉卡片詳情" }).click();
 
     await page.getByRole("button", { name: "設定" }).click();
     const language = page.getByLabel("講解語言");

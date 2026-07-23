@@ -25,6 +25,7 @@ import type {
   LibraryDesktopApi,
   ReadingRange
 } from "../shared/library-contracts";
+import type { LearningDesktopApi } from "../shared/learning-contracts";
 import type {
   AppSettings,
   ExplanationLanguage,
@@ -42,8 +43,9 @@ import {
   renderAnnotationHighlights,
   textOffsetAtPoint
 } from "./reading-range";
+import { LearningLibraryWorkspace } from "./LearningLibraryWorkspace";
 
-type WorkspaceMode = "overview" | "reader" | "review";
+type WorkspaceMode = "overview" | "reader" | "learning-library";
 
 const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
 const COLLAPSED_PANEL_WIDTH = 48;
@@ -79,6 +81,7 @@ const initialChatSnapshot: ChatSnapshot = {
 
 function desktopBridge(): {
   library?: LibraryDesktopApi;
+  learning?: LearningDesktopApi;
   settings?: SettingsDesktopApi;
   chat?: ChatDesktopApi;
 } | undefined {
@@ -86,6 +89,7 @@ function desktopBridge(): {
     window as unknown as {
       readerDesktop?: {
         library?: LibraryDesktopApi;
+        learning?: LearningDesktopApi;
         settings?: SettingsDesktopApi;
         chat?: ChatDesktopApi;
       };
@@ -99,6 +103,10 @@ function desktopLibrary(): LibraryDesktopApi | undefined {
 
 function desktopChat(): ChatDesktopApi | undefined {
   return desktopBridge()?.chat;
+}
+
+function desktopLearning(): LearningDesktopApi | undefined {
+  return desktopBridge()?.learning;
 }
 
 function desktopSettings(): SettingsDesktopApi | undefined {
@@ -206,6 +214,7 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
+  const [learningCounts, setLearningCounts] = useState({ active: 0, trashed: 0 });
   const workspaceRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLElement>(null);
@@ -282,6 +291,32 @@ export function App() {
         if (storedBooks[0]) restoreBook(storedBooks[0]);
       })
       .catch(() => setLibraryError("無法讀取本機書庫，請重新開啟應用程式。"));
+  }, []);
+
+  useEffect(() => {
+    const learning = desktopLearning();
+    if (!learning) return;
+
+    let active = true;
+    void Promise.all([
+      learning.listItems({ status: "active", sort: "recent" }),
+      learning.listItems({ status: "trashed", sort: "recent" })
+    ])
+      .then(([activeItems, trashedItems]) => {
+        if (active) {
+          setLearningCounts({
+            active: activeItems.length,
+            trashed: trashedItems.length
+          });
+        }
+      })
+      .catch(() => {
+        // The learning workspace presents actionable loading errors when opened.
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -1185,15 +1220,16 @@ export function App() {
               <div className="sidebar-footer">
                 <nav>
                   <button
-                    className={mode === "review" ? "nav-item active" : "nav-item"}
+                    className={mode === "learning-library" ? "nav-item active" : "nav-item"}
+                    aria-label={`生詞庫 ${learningCounts.active}`}
                     onClick={() => {
                       saveCurrentReaderPosition();
-                      setMode("review");
+                      setMode("learning-library");
                     }}
                   >
-                    <span>↻</span>
-                    Anki 複習
-                    <em>10</em>
+                    <span>▤</span>
+                    生詞庫
+                    <em>{learningCounts.active}</em>
                   </button>
                 </nav>
 
@@ -1256,7 +1292,13 @@ export function App() {
         </aside>
 
         <main
-          className={mode === "reader" ? "content reader-content" : "content"}
+          className={
+            mode === "reader"
+              ? "content reader-content"
+              : mode === "learning-library"
+                ? "content learning-library-content"
+                : "content"
+          }
           ref={contentRef}
           onScroll={handleContentScroll}
         >
@@ -1529,18 +1571,18 @@ export function App() {
               ) : null}
             </section>
           ) : (
-            <section className="review-panel" aria-labelledby="review-title">
-              <span className="eyebrow">Spaced repetition</span>
-              <h1 id="review-title">Anki 式間隔複習</h1>
-              <p>
-                這裡只處理生詞庫中的到期項目，跨書籍與章節產生填空、造句等題目。
-              </p>
-              <div className="review-card">
-                <strong>今日待複習</strong>
-                <b>10</b>
-                <span>完成回答後才會更新各項目的複習間隔。</span>
-              </div>
-            </section>
+            desktopLearning() ? (
+              <LearningLibraryWorkspace
+                api={desktopLearning()!}
+                onCountsChange={setLearningCounts}
+              />
+            ) : (
+              <section className="learning-library-panel" aria-labelledby="learning-library-title">
+                <span className="eyebrow">Learning library</span>
+                <h1 id="learning-library-title">生詞庫</h1>
+                <p className="library-error" role="alert">目前無法存取本機生詞庫。</p>
+              </section>
+            )
           )}
         </main>
 
