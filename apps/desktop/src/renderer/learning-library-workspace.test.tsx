@@ -140,6 +140,68 @@ describe("LearningLibraryWorkspace", () => {
     expect(screen.queryByRole("dialog", { name: "bank" })).not.toBeInTheDocument();
   });
 
+  it("plays an English pronunciation for both words and phrases", async () => {
+    const speak = vi.fn();
+    const cancel = vi.fn();
+    class MockSpeechSynthesisUtterance {
+      text: string;
+      lang = "";
+      voice: SpeechSynthesisVoice | null = null;
+      rate = 1;
+      pitch = 1;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
+    vi.stubGlobal("speechSynthesis", {
+      cancel,
+      getVoices: () => [],
+      speak
+    });
+    vi.stubGlobal("SpeechSynthesisUtterance", MockSpeechSynthesisUtterance);
+
+    try {
+      const learning = api();
+      render(<LearningLibraryWorkspace api={learning} />);
+      fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
+      const pronounce = await screen.findByRole("button", {
+        name: "播放 bank 發音"
+      });
+
+      fireEvent.click(pronounce);
+
+      expect(cancel).toHaveBeenCalled();
+      expect(speak).toHaveBeenCalledOnce();
+      expect(speak.mock.calls[0][0]).toMatchObject({
+        text: "bank",
+        lang: "en-US",
+        rate: 0.85,
+        pitch: 1
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "關閉卡片詳情" }));
+      fireEvent.click(screen.getByRole("button", { name: /take for granted/ }));
+      expect(await screen.findByRole("dialog", { name: "take for granted" }))
+        .toBeInTheDocument();
+      const pronouncePhrase = screen.getByRole("button", {
+        name: "播放 take for granted 發音"
+      });
+      fireEvent.click(pronouncePhrase);
+      expect(speak).toHaveBeenCalledTimes(2);
+      expect(speak.mock.calls[1][0]).toMatchObject({
+        text: "take for granted",
+        lang: "en-US",
+        rate: 0.85,
+        pitch: 1
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("edits structured fields and Markdown while cancel leaves data untouched", async () => {
     const learning = api();
     render(<LearningLibraryWorkspace api={learning} />);

@@ -309,8 +309,17 @@ test("launches the secure Electron reading shell", async () => {
       name: /bank，單字，A2，financial institution/
     }).click();
     await expect(page.getByRole("dialog", { name: "bank" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "播放 bank 發音" }))
+      .toBeVisible();
     await expect(page.getByRole("heading", { name: "Common collocations" }))
       .toBeVisible();
+    await page.getByRole("button", { name: "關閉卡片詳情" }).click();
+    await page.getByRole("button", {
+      name: /take for granted，片語，B2/
+    }).click();
+    await expect(page.getByRole("button", {
+      name: "播放 take for granted 發音"
+    })).toBeVisible();
     await page.getByRole("button", { name: "關閉卡片詳情" }).click();
 
     await page.getByRole("button", { name: "設定" }).click();

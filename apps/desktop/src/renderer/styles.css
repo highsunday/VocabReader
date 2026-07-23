@@ -1616,16 +1616,84 @@ button {
   gap: 22px;
 }
 
-.learning-dialog-heading h2 {
+.learning-dialog-title-row {
   margin: 8px 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.learning-dialog-heading h2 {
+  margin: 0;
   color: #2f4637;
   font-family: Georgia, serif;
   font-size: 31px;
 }
 
+.learning-pronunciation-button {
+  width: 35px;
+  height: 35px;
+  padding: 0;
+  border: 1px solid #c9d5ca;
+  border-radius: 50%;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #41674d;
+  background: #eef4ec;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.learning-pronunciation-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.learning-pronunciation-button:hover,
+.learning-pronunciation-button:focus-visible,
+.learning-pronunciation-button.is-speaking {
+  border-color: #7f9b85;
+  color: #2f5d3d;
+  background: #e2eee1;
+}
+
+.learning-pronunciation-button:hover {
+  transform: translateY(-1px);
+}
+
+.learning-pronunciation-button:focus-visible {
+  outline: 3px solid rgb(83 119 91 / 15%);
+  outline-offset: 2px;
+}
+
+.learning-pronunciation-button.is-speaking svg {
+  animation: pronunciation-pulse 850ms ease-in-out infinite alternate;
+}
+
+@keyframes pronunciation-pulse {
+  from {
+    transform: scale(0.92);
+  }
+
+  to {
+    transform: scale(1.12);
+  }
+}
+
 .learning-dialog-heading p {
   margin: 0;
   color: #737a74;
+}
+
+.learning-dialog-heading .learning-pronunciation-error {
+  margin-top: 6px;
+  color: #9a5339;
+  font-size: 11px;
 }
 
 .learning-dialog-close {
@@ -1638,6 +1706,14 @@ button {
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .learning-pronunciation-button,
+  .learning-pronunciation-button.is-speaking svg {
+    animation: none;
+    transition: none;
+  }
 }
 
 .learning-dialog-content {

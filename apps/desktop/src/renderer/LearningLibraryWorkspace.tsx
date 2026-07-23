@@ -6,7 +6,7 @@ import {
   useRef,
   useState
 } from "react";
-import { Search, Trash2 } from "lucide-react";
+import { Search, Trash2, Volume2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type {
@@ -74,6 +74,9 @@ function LearningItemDialog({
   const [draft, setDraft] = useState<UpdateLearningItemInput>();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [pronunciationError, setPronunciationError] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const speechRequestRef = useRef(0);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -82,6 +85,50 @@ function LearningItemDialog({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isSaving, onClose]);
+
+  useEffect(() => () => {
+    speechRequestRef.current += 1;
+    window.speechSynthesis?.cancel();
+  }, []);
+
+  function pronounceTitle() {
+    setPronunciationError("");
+    if (
+      typeof window.speechSynthesis === "undefined" ||
+      typeof SpeechSynthesisUtterance === "undefined"
+    ) {
+      setPronunciationError("此裝置目前不支援語音播放。");
+      return;
+    }
+
+    const requestId = speechRequestRef.current + 1;
+    speechRequestRef.current = requestId;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(item.title);
+      const englishVoice = window.speechSynthesis.getVoices().find((voice) =>
+        voice.lang.toLowerCase().startsWith("en")
+      );
+      utterance.lang = englishVoice?.lang ?? "en-US";
+      utterance.voice = englishVoice ?? null;
+      utterance.rate = 0.85;
+      utterance.pitch = 1;
+      utterance.onend = () => {
+        if (speechRequestRef.current === requestId) setIsSpeaking(false);
+      };
+      utterance.onerror = () => {
+        if (speechRequestRef.current !== requestId) return;
+        setIsSpeaking(false);
+        setPronunciationError("目前無法播放發音，請稍後再試。");
+      };
+      setIsSpeaking(true);
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      speechRequestRef.current += 1;
+      setIsSpeaking(false);
+      setPronunciationError("目前無法播放發音，請稍後再試。");
+    }
+  }
 
   function updateDraft(update: Partial<UpdateLearningItemInput>) {
     setDraft((current) => current ? { ...current, ...update } : current);
@@ -141,8 +188,24 @@ function LearningItemDialog({
               <em>{item.itemType === "word" ? "單字" : "片語"}</em>
               <em>{item.cefr}</em>
             </span>
-            <h2 id="learning-item-dialog-title">{item.title}</h2>
+            <div className="learning-dialog-title-row">
+              <h2 id="learning-item-dialog-title">{item.title}</h2>
+              <button
+                type="button"
+                className={`learning-pronunciation-button${isSpeaking ? " is-speaking" : ""}`}
+                aria-label={`播放 ${item.title} 發音`}
+                title={isSpeaking ? "播放中；點擊可重新播放" : "播放英文發音"}
+                onClick={pronounceTitle}
+              >
+                <Volume2 aria-hidden="true" strokeWidth={1.9} />
+              </button>
+            </div>
             <p>{item.sense}</p>
+            {pronunciationError ? (
+              <p className="learning-pronunciation-error" role="status">
+                {pronunciationError}
+              </p>
+            ) : null}
           </div>
           <button
             type="button"
