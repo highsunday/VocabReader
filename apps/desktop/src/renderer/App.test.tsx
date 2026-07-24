@@ -99,7 +99,9 @@ function installLibraryApi(
   const getSettings = vi.fn().mockResolvedValue({
     explanationLanguage: "source",
     aiConversationFontSize: 13,
-    ebookContentFontSize: 19
+    ebookContentFontSize: 19,
+    readingPaperWidth: 760,
+    ebookLineHeight: 1.9
   });
   const saveSettings = vi.fn((settings) => Promise.resolve(settings));
   const learning = {
@@ -303,7 +305,7 @@ describe("App", () => {
     }));
   });
 
-  it("previews and saves independent conversation and ebook font sizes", async () => {
+  it("previews and saves the conversation font size from application settings", async () => {
     const snapshot = initialReadySnapshot();
     const { saveSettings } = installLibraryApi(books, {
       getState: vi.fn().mockResolvedValue(snapshot),
@@ -317,30 +319,114 @@ describe("App", () => {
     const conversationSize = screen.getByRole("slider", {
       name: "AI 對話文字大小"
     });
-    const ebookSize = screen.getByRole("slider", {
-      name: "電子書內文字大小"
-    });
     expect(conversationSize).toHaveAttribute("min", "12");
     expect(conversationSize).toHaveAttribute("max", "24");
     expect(conversationSize).toHaveValue("13");
-    expect(ebookSize).toHaveAttribute("min", "16");
-    expect(ebookSize).toHaveAttribute("max", "32");
-    expect(ebookSize).toHaveValue("19");
+    expect(screen.queryByRole("slider", {
+      name: "電子書內文字大小"
+    })).not.toBeInTheDocument();
 
     fireEvent.change(conversationSize, { target: { value: "18" } });
-    fireEvent.change(ebookSize, { target: { value: "24" } });
 
     expect(screen.getByText("18px")).toBeInTheDocument();
-    expect(screen.getByText("24px")).toBeInTheDocument();
     expect(document.querySelector(".workspace")).toHaveStyle({
       "--ai-conversation-font-size": "18px",
-      "--ebook-content-font-size": "24px"
+      "--ebook-content-font-size": "19px",
+      "--reading-paper-width": "760px",
+      "--ebook-line-height": "1.9"
     });
     await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
       explanationLanguage: "source",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 19,
+      readingPaperWidth: 760,
+      ebookLineHeight: 1.9
     }));
+  });
+
+  it("controls and resets the global reading layout from the reader toolbar", async () => {
+    const { saveSettings } = installLibraryApi();
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "The First Book" });
+    expect(screen.queryByRole("button", { name: "閱讀版面" }))
+      .not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+
+    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
+    const layoutDialog = screen.getByRole("dialog", { name: "閱讀版面" });
+    const ebookSize = screen.getByRole("slider", { name: "文字大小" });
+    const paperWidth = screen.getByRole("slider", { name: "紙張寬度" });
+    const lineHeight = screen.getByRole("slider", { name: "行間距" });
+
+    expect(layoutDialog).toBeInTheDocument();
+    expect(ebookSize).toHaveAttribute("min", "16");
+    expect(ebookSize).toHaveAttribute("max", "32");
+    expect(ebookSize).toHaveValue("19");
+    expect(paperWidth).toHaveAttribute("min", "560");
+    expect(paperWidth).toHaveAttribute("max", "960");
+    expect(paperWidth).toHaveAttribute("step", "20");
+    expect(paperWidth).toHaveValue("760");
+    expect(lineHeight).toHaveAttribute("min", "1.4");
+    expect(lineHeight).toHaveAttribute("max", "2.4");
+    expect(lineHeight).toHaveAttribute("step", "0.1");
+    expect(lineHeight).toHaveValue("1.9");
+
+    fireEvent.change(ebookSize, { target: { value: "24" } });
+    fireEvent.change(paperWidth, { target: { value: "900" } });
+    fireEvent.change(lineHeight, { target: { value: "2.2" } });
+
+    expect(screen.getByText("24px")).toBeInTheDocument();
+    expect(screen.getByText("900px")).toBeInTheDocument();
+    expect(screen.getByText("2.2×")).toBeInTheDocument();
+    expect(document.querySelector(".workspace")).toHaveStyle({
+      "--ebook-content-font-size": "24px",
+      "--reading-paper-width": "900px",
+      "--ebook-line-height": "2.2"
+    });
+    await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
+      explanationLanguage: "source",
+      aiConversationFontSize: 13,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "恢復預設值" }));
+    expect(ebookSize).toHaveValue("19");
+    expect(paperWidth).toHaveValue("760");
+    expect(lineHeight).toHaveValue("1.9");
+    await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
+      explanationLanguage: "source",
+      aiConversationFontSize: 13,
+      ebookContentFontSize: 19,
+      readingPaperWidth: 760,
+      ebookLineHeight: 1.9
+    }));
+
+    fireEvent.click(screen.getByRole("button", {
+      name: "關閉閱讀版面"
+    }));
+    expect(screen.queryByRole("dialog", { name: "閱讀版面" }))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
+    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
+    expect(screen.queryByRole("dialog", { name: "閱讀版面" }))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("dialog", { name: "閱讀版面" }))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
+    expect(screen.getByRole("dialog", { name: "閱讀版面" }))
+      .toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "閱讀版面" }))
+      .not.toBeInTheDocument();
   });
 
   it("does not submit Enter while an input method is composing text", async () => {
@@ -2121,7 +2207,9 @@ describe("App", () => {
     await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({
       explanationLanguage: "ja",
       aiConversationFontSize: 13,
-      ebookContentFontSize: 19
+      ebookContentFontSize: 19,
+      readingPaperWidth: 760,
+      ebookLineHeight: 1.9
     }));
     fireEvent.click(screen.getByRole("button", { name: "關閉設定" }));
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));

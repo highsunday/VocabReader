@@ -3,8 +3,9 @@ author: Codex
 date: 2026-07-24
 title: 新增 AI 對話與電子書內文字體大小設定
 uuid: 4cf965c7d7914ca79ff08506483e8a62
-version: 1.1.0
+version: 1.2.0
 status: implemented
+superseded_in_part_by: F26-reading-layout-settings
 ---
 
 # Feature Specification - AI 對話與電子書內文字體大小設定
@@ -18,6 +19,10 @@ status: implemented
 本功能在既有「設定」視窗新增兩個彼此獨立的全域字體大小滑桿。調整時畫面立即反映
 新大小，設定也會保存至本機，重新開啟應用程式後繼續沿用。既有使用者未曾設定時，
 視覺維持目前的 13px 與 19px。
+
+> 2026-07-24 現況：F26 保留這裡建立的電子書字級偏好與 16–32px 範圍，但把
+> 電子書字級入口移至章節工具列的「閱讀版面」面板，並加入紙張寬度與行距；一般
+> 設定視窗目前只保留 AI 對話字級。
 
 ## 2. Requirements (User Story)
 

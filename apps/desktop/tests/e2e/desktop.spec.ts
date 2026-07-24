@@ -360,30 +360,68 @@ test("launches the secure Electron reading shell", async () => {
     const conversationFontSize = page.getByRole("slider", {
       name: "AI 對話文字大小"
     });
-    const ebookFontSize = page.getByRole("slider", {
-      name: "電子書內文字大小"
-    });
     await expect(conversationFontSize).toHaveAttribute("min", "12");
     await expect(conversationFontSize).toHaveAttribute("max", "24");
     await expect(conversationFontSize).toHaveValue("13");
-    await expect(ebookFontSize).toHaveAttribute("min", "16");
-    await expect(ebookFontSize).toHaveAttribute("max", "32");
-    await expect(ebookFontSize).toHaveValue("19");
+    await expect(page.getByRole("slider", {
+      name: "電子書內文字大小"
+    })).toHaveCount(0);
     await conversationFontSize.fill("18");
-    await ebookFontSize.fill("24");
     await expect(page.getByText("18px", { exact: true })).toBeVisible();
-    await expect(page.getByText("24px", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "關閉設定" }).click();
+
+    await page.evaluate(() => window.readerDesktop?.settings.save({
+      explanationLanguage: "ja",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
+    }));
+    await page.reload();
+    await expect(page).toHaveTitle("LingoShelf");
     await expect.poll(() => page.locator(".workspace").evaluate((element) => ({
       conversation: getComputedStyle(element)
         .getPropertyValue("--ai-conversation-font-size").trim(),
       ebook: getComputedStyle(element)
-        .getPropertyValue("--ebook-content-font-size").trim()
-    }))).toEqual({ conversation: "18px", ebook: "24px" });
+        .getPropertyValue("--ebook-content-font-size").trim(),
+      paperWidth: getComputedStyle(element)
+        .getPropertyValue("--reading-paper-width").trim(),
+      lineHeight: getComputedStyle(element)
+        .getPropertyValue("--ebook-line-height").trim()
+    }))).toEqual({
+      conversation: "18px",
+      ebook: "24px",
+      paperWidth: "900px",
+      lineHeight: "2.2"
+    });
+    const responsiveReadingWidth = await page.evaluate(() => {
+      const content = document.querySelector<HTMLElement>(".content");
+      const reader = document.querySelector<HTMLElement>(".reader-panel");
+      if (!content || !reader) {
+        throw new Error("reading layout is unavailable");
+      }
+      return {
+        contentClientWidth: content.clientWidth,
+        contentScrollWidth: content.scrollWidth,
+        readerWidth: reader.getBoundingClientRect().width
+      };
+    });
+    expect(responsiveReadingWidth.readerWidth)
+      .toBeLessThanOrEqual(responsiveReadingWidth.contentClientWidth);
+    expect(responsiveReadingWidth.contentScrollWidth)
+      .toBeLessThanOrEqual(responsiveReadingWidth.contentClientWidth);
     await expect.poll(() => page.locator(".workspace").evaluate((workspace) => {
       const message = document.createElement("div");
       message.className = "message-content";
       const chapter = document.createElement("article");
       chapter.className = "chapter-content";
+      const chapterParagraph = document.createElement("p");
+      chapterParagraph.textContent = "Readable paragraph";
+      const chapterHeading = document.createElement("h2");
+      chapterHeading.textContent = "Chapter heading";
+      const chapterCode = document.createElement("pre");
+      chapterCode.textContent = "const answer = 42;";
+      chapter.append(chapterParagraph, chapterHeading, chapterCode);
       const paper = document.createElement("section");
       paper.className = "reading-practice-paper";
       const paperHeading = document.createElement("div");
@@ -415,6 +453,10 @@ test("launches the secure Electron reading shell", async () => {
       const result = {
         conversation: getComputedStyle(message).fontSize,
         ebook: getComputedStyle(chapter).fontSize,
+        ebookLineHeight: getComputedStyle(chapter).lineHeight,
+        headingFontSize: getComputedStyle(chapterHeading).fontSize,
+        headingLineHeight: getComputedStyle(chapterHeading).lineHeight,
+        codeLineHeight: getComputedStyle(chapterCode).lineHeight,
         paperTitle: getComputedStyle(paperTitle).fontSize,
         paperQuestion: getComputedStyle(questionText).fontSize,
         paperOption: getComputedStyle(optionText).fontSize,
@@ -428,6 +470,10 @@ test("launches the secure Electron reading shell", async () => {
     })).toEqual({
       conversation: "18px",
       ebook: "24px",
+      ebookLineHeight: "52.8px",
+      headingFontSize: "36px",
+      headingLineHeight: "45px",
+      codeLineHeight: "29.016px",
       paperTitle: "24.84px",
       paperQuestion: "19.44px",
       paperOption: "18px",
@@ -439,9 +485,10 @@ test("launches the secure Electron reading shell", async () => {
     )).toEqual({
       explanationLanguage: "ja",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     });
-    await page.getByRole("button", { name: "關閉設定" }).click();
 
     const dataImageLoads = await page.evaluate(async () => {
       const image = new Image();

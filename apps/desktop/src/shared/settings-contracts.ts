@@ -12,10 +12,26 @@ export const EBOOK_CONTENT_FONT_SIZE = {
   default: 19
 } as const;
 
+export const READING_PAPER_WIDTH = {
+  min: 560,
+  max: 960,
+  step: 20,
+  default: 760
+} as const;
+
+export const EBOOK_LINE_HEIGHT = {
+  min: 1.4,
+  max: 2.4,
+  step: 0.1,
+  default: 1.9
+} as const;
+
 export interface AppSettings {
   explanationLanguage: ExplanationLanguage;
   aiConversationFontSize: number;
   ebookContentFontSize: number;
+  readingPaperWidth: number;
+  ebookLineHeight: number;
 }
 
 export interface SettingsDesktopApi {
@@ -53,5 +69,26 @@ export function isEbookContentFontSize(value: unknown): value is number {
     value,
     EBOOK_CONTENT_FONT_SIZE.min,
     EBOOK_CONTENT_FONT_SIZE.max
+  );
+}
+
+export function isReadingPaperWidth(value: unknown): value is number {
+  return (
+    isIntegerInRange(
+      value,
+      READING_PAPER_WIDTH.min,
+      READING_PAPER_WIDTH.max
+    ) &&
+    (Number(value) - READING_PAPER_WIDTH.min) % READING_PAPER_WIDTH.step === 0
+  );
+}
+
+export function isEbookLineHeight(value: unknown): value is number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return false;
+  const scaledValue = value * 10;
+  return (
+    Number.isInteger(scaledValue) &&
+    scaledValue >= EBOOK_LINE_HEIGHT.min * 10 &&
+    scaledValue <= EBOOK_LINE_HEIGHT.max * 10
   );
 }

@@ -33,6 +33,8 @@ import type { LearningDesktopApi } from "../shared/learning-contracts";
 import {
   AI_CONVERSATION_FONT_SIZE,
   EBOOK_CONTENT_FONT_SIZE,
+  EBOOK_LINE_HEIGHT,
+  READING_PAPER_WIDTH,
   type AppSettings,
   type ExplanationLanguage,
   type SettingsDesktopApi
@@ -226,9 +228,12 @@ export function App() {
   const [settings, setSettings] = useState<AppSettings>({
     explanationLanguage: "source",
     aiConversationFontSize: AI_CONVERSATION_FONT_SIZE.default,
-    ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default
+    ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default,
+    readingPaperWidth: READING_PAPER_WIDTH.default,
+    ebookLineHeight: EBOOK_LINE_HEIGHT.default
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isReadingLayoutOpen, setIsReadingLayoutOpen] = useState(false);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
   const [learningCounts, setLearningCounts] = useState({ active: 0, trashed: 0 });
@@ -241,6 +246,7 @@ export function App() {
   const contentRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
+  const readingLayoutRef = useRef<HTMLDivElement>(null);
   const initializedRangeRef = useRef<string | undefined>(undefined);
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const annotationCounterRef = useRef(0);
@@ -466,7 +472,38 @@ export function App() {
     updateMarkerTops();
     window.addEventListener("resize", updateMarkerTops);
     return () => window.removeEventListener("resize", updateMarkerTops);
-  }, [chapterContent, readingRange]);
+  }, [
+    chapterContent,
+    readingRange,
+    settings.ebookContentFontSize,
+    settings.readingPaperWidth,
+    settings.ebookLineHeight
+  ]);
+
+  useEffect(() => {
+    if (!isReadingLayoutOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !readingLayoutRef.current?.contains(event.target)
+      ) {
+        setIsReadingLayoutOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsReadingLayoutOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isReadingLayoutOpen]);
+
+  useEffect(() => {
+    if (mode !== "reader") setIsReadingLayoutOpen(false);
+  }, [mode]);
 
   useEffect(() => {
     const article = articleRef.current;
@@ -804,8 +841,12 @@ export function App() {
     void persistSettings(next);
   }
 
-  function previewFontSize(
-    field: "aiConversationFontSize" | "ebookContentFontSize",
+  function previewSetting(
+    field:
+      | "aiConversationFontSize"
+      | "ebookContentFontSize"
+      | "readingPaperWidth"
+      | "ebookLineHeight",
     value: number
   ) {
     const next = { ...settings, [field]: value };
@@ -818,6 +859,21 @@ export function App() {
       settingsSaveTimerRef.current = undefined;
       void persistSettings(next);
     }, 180);
+  }
+
+  function resetReadingLayout() {
+    if (settingsSaveTimerRef.current) {
+      clearTimeout(settingsSaveTimerRef.current);
+      settingsSaveTimerRef.current = undefined;
+    }
+    const next = {
+      ...settings,
+      ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default,
+      readingPaperWidth: READING_PAPER_WIDTH.default,
+      ebookLineHeight: EBOOK_LINE_HEIGHT.default
+    };
+    setSettings(next);
+    void persistSettings(next);
   }
 
   function rangeWithOffset(
@@ -1286,7 +1342,9 @@ export function App() {
           }px`,
           "--ai-conversation-font-size":
             `${settings.aiConversationFontSize}px`,
-          "--ebook-content-font-size": `${settings.ebookContentFontSize}px`
+          "--ebook-content-font-size": `${settings.ebookContentFontSize}px`,
+          "--reading-paper-width": `${settings.readingPaperWidth}px`,
+          "--ebook-line-height": String(settings.ebookLineHeight)
         } as CSSProperties}
       >
         <aside
@@ -1447,23 +1505,132 @@ export function App() {
                   <strong>{activeChapter?.title ?? selectedBook?.title}</strong>
                 </div>
 
-                <div className="chapter-navigation" role="group" aria-label="章節導覽">
-                  <button
-                    type="button"
-                    onClick={openPreviousChapter}
-                    disabled={!previousChapter}
-                  >
-                    <span aria-hidden="true">‹</span>
-                    上一章
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openNextChapter}
-                    disabled={!nextChapter}
-                  >
-                    下一章
-                    <span aria-hidden="true">›</span>
-                  </button>
+                <div className="reader-toolbar-actions">
+                  <div className="reading-layout-anchor" ref={readingLayoutRef}>
+                    <button
+                      className="reading-layout-button"
+                      type="button"
+                      aria-label="閱讀版面"
+                      aria-controls="reading-layout-panel"
+                      aria-expanded={isReadingLayoutOpen}
+                      onClick={() => setIsReadingLayoutOpen((open) => !open)}
+                    >
+                      <span aria-hidden="true">Aa</span>
+                    </button>
+                    {isReadingLayoutOpen ? (
+                      <section
+                        id="reading-layout-panel"
+                        className="reading-layout-panel"
+                        role="dialog"
+                        aria-label="閱讀版面"
+                      >
+                        <div className="reading-layout-heading">
+                          <div>
+                            <span className="eyebrow">Reading layout</span>
+                            <strong>閱讀版面</strong>
+                          </div>
+                          <button
+                            type="button"
+                            aria-label="關閉閱讀版面"
+                            onClick={() => setIsReadingLayoutOpen(false)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="reading-layout-control">
+                          <div>
+                            <label htmlFor="reading-font-size">文字大小</label>
+                            <output htmlFor="reading-font-size">
+                              {settings.ebookContentFontSize}px
+                            </output>
+                          </div>
+                          <input
+                            id="reading-font-size"
+                            type="range"
+                            min={EBOOK_CONTENT_FONT_SIZE.min}
+                            max={EBOOK_CONTENT_FONT_SIZE.max}
+                            step="1"
+                            value={settings.ebookContentFontSize}
+                            aria-valuetext={`${settings.ebookContentFontSize}px`}
+                            onChange={(event) => previewSetting(
+                              "ebookContentFontSize",
+                              Number(event.target.value)
+                            )}
+                          />
+                        </div>
+                        <div className="reading-layout-control">
+                          <div>
+                            <label htmlFor="reading-paper-width">紙張寬度</label>
+                            <output htmlFor="reading-paper-width">
+                              {settings.readingPaperWidth}px
+                            </output>
+                          </div>
+                          <input
+                            id="reading-paper-width"
+                            type="range"
+                            min={READING_PAPER_WIDTH.min}
+                            max={READING_PAPER_WIDTH.max}
+                            step={READING_PAPER_WIDTH.step}
+                            value={settings.readingPaperWidth}
+                            aria-valuetext={`${settings.readingPaperWidth}px`}
+                            onChange={(event) => previewSetting(
+                              "readingPaperWidth",
+                              Number(event.target.value)
+                            )}
+                          />
+                        </div>
+                        <div className="reading-layout-control">
+                          <div>
+                            <label htmlFor="reading-line-height">行間距</label>
+                            <output htmlFor="reading-line-height">
+                              {settings.ebookLineHeight.toFixed(1)}×
+                            </output>
+                          </div>
+                          <input
+                            id="reading-line-height"
+                            type="range"
+                            min={EBOOK_LINE_HEIGHT.min}
+                            max={EBOOK_LINE_HEIGHT.max}
+                            step={EBOOK_LINE_HEIGHT.step}
+                            value={settings.ebookLineHeight}
+                            aria-valuetext={`${settings.ebookLineHeight.toFixed(1)} 倍`}
+                            onChange={(event) => previewSetting(
+                              "ebookLineHeight",
+                              Number(event.target.value)
+                            )}
+                          />
+                        </div>
+                        <button
+                          className="reading-layout-reset"
+                          type="button"
+                          onClick={resetReadingLayout}
+                        >
+                          恢復預設值
+                        </button>
+                        {settingsError ? (
+                          <small role="alert">{settingsError}</small>
+                        ) : null}
+                      </section>
+                    ) : null}
+                  </div>
+                  <div className="chapter-navigation" role="group" aria-label="章節導覽">
+                    <button
+                      type="button"
+                      onClick={openPreviousChapter}
+                      disabled={!previousChapter}
+                    >
+                      <span aria-hidden="true">‹</span>
+                      上一章
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openNextChapter}
+                      disabled={!nextChapter}
+                    >
+                      下一章
+                      <span aria-hidden="true">›</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2178,36 +2345,12 @@ export function App() {
                 step="1"
                 value={settings.aiConversationFontSize}
                 aria-valuetext={`${settings.aiConversationFontSize}px`}
-                onChange={(event) => previewFontSize(
+                onChange={(event) => previewSetting(
                   "aiConversationFontSize",
                   Number(event.target.value)
                 )}
               />
               <p>只調整使用者訊息與 AI 回覆正文。</p>
-            </div>
-            <div className="settings-control font-size-setting">
-              <div className="settings-control-heading">
-                <label htmlFor="ebook-content-font-size">
-                  電子書內文字大小
-                </label>
-                <output htmlFor="ebook-content-font-size">
-                  {settings.ebookContentFontSize}px
-                </output>
-              </div>
-              <input
-                id="ebook-content-font-size"
-                type="range"
-                min={EBOOK_CONTENT_FONT_SIZE.min}
-                max={EBOOK_CONTENT_FONT_SIZE.max}
-                step="1"
-                value={settings.ebookContentFontSize}
-                aria-valuetext={`${settings.ebookContentFontSize}px`}
-                onChange={(event) => previewFontSize(
-                  "ebookContentFontSize",
-                  Number(event.target.value)
-                )}
-              />
-              <p>只調整 EPUB 章節內容，不改變閱讀工具列。</p>
             </div>
             {settingsError ? <small role="alert">{settingsError}</small> : null}
           </section>

@@ -15,6 +15,7 @@ related_implements:
   - B01-preserve-epub-chapter-hierarchy
   - B02-persist-range-marker-on-drag-release
   - F25-adjustable-reading-and-conversation-font-sizes
+  - F26-reading-layout-settings
 ---
 
 # 書籍與本機書庫模組
@@ -28,6 +29,7 @@ related_implements:
 - **書籍（Book）**：一本已導入的 EPUB，是章節、閱讀進度與後續標記的上層容器。
 - **書庫（Book Library）**：跨次開啟持續存在的書籍集合；不同內容的同名書可並存。
 - **書籍總覽（Book Overview）**：選取書籍後顯示封面、書名、作者、進度及章節入口的畫面。
+- **閱讀版面設定（Reading Layout Settings）**：所有書籍共用、只改變章節呈現而不修改 EPUB 原文的字級、紙張寬度與行距偏好。
 
 本模組不等同於生詞庫，也不負責 Anki 式複習。
 
@@ -56,7 +58,9 @@ related_implements:
 - 長章節清單只捲動中央內容，左右欄保持在視窗內。
 - 書籍總覽以縮排、字級、標記及操作文字區分子章節；開啟子章節時定位到書內 fragment。
 - 舊版索引缺少目錄層級時，會從已保存的 EPUB 自動補回並持久化，不需重新導入。
-- 設定視窗可在 16–32px 間即時調整所有 EPUB 章節內文，預設 19px；設定跨書籍保存，但不改變閱讀工具列、範圍標籤或 EPUB 原始內容。
+- 章節閱讀工具列提供 `Aa` 閱讀版面面板，可即時調整 16–32px 內文字級、
+  560–960px 紙張寬度與 1.4–2.4 倍正文行距，並可恢復 19px／760px／1.9
+  預設值；設定跨書籍保存，但不改變側欄、AI 對話面板或 EPUB 原始內容。
 
 章節內容採安全 allowlist，而非完整瀏覽器方式重現 EPUB；自訂 CSS、字型、SVG、影音與複雜互動內容目前不保證呈現。
 
@@ -87,7 +91,8 @@ related_implements:
 - 載入並保存目前 session 的書籍清單、選取狀態與閱讀位置。
 - 依章節初始化、顯示、調整及推進範圍標籤，並提供只擷取目前閱讀區段的共用邏輯。
 - 顯示書籍縮圖、書籍總覽、章節清單、安全章節內容、載入與錯誤訊息。
-- 以全域電子書內文字體大小偏好呈現安全章節內容，標題等 EPUB 內容沿用相對字級。
+- 以全域閱讀版面設定呈現安全章節內容；字級、紙張寬度與正文行距可在章節工具列
+  即時預覽，標題與程式碼保留自己的行距，範圍標籤會在版面變更後重新定位。
 - 在書籍總覽提供刪除入口與確認對話框；刪除成功後依原清單位置選取下一本、前一本或顯示空書庫。
 - 側欄以書籍項目作為書籍總覽入口，保留獨立的 Anki 複習入口，不顯示章節機制說明卡片。
 - 不解析 EPUB，也不直接讀寫書庫檔案。
@@ -105,8 +110,9 @@ related_implements:
 | apps/desktop/src/renderer/reading-range.ts | 閱讀區段初始化、裁切、自動推進、DOM 文字 offset 與範圍標籤定位 |
 | apps/desktop/src/renderer/styles.css | 書庫／總覽／章節排版與中央獨立捲動的三欄版面 |
 | apps/desktop/src/renderer/index.html | renderer CSP；允許本機與 Data URL 封面圖片 |
-| apps/desktop/src/shared/settings-contracts.ts | 電子書內文字體範圍與全域設定型別 |
-| apps/desktop/src/main/settings-store.ts | 字體偏好舊檔相容、逐欄降級與本機保存 |
+| apps/desktop/src/shared/settings-contracts.ts | 閱讀版面數值範圍、步進、預設值與全域設定型別 |
+| apps/desktop/src/main/settings-store.ts | 閱讀版面偏好舊檔相容、逐欄降級與本機保存 |
+| apps/desktop/src/main/settings-ipc.ts | 完整設定 payload 與各閱讀版面欄位的 Main process 驗證 |
 
 ## 5. Domain Data
 
@@ -263,6 +269,8 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - 標記必須使用合法章內純文字 offset、包含非空原文且同章互不重疊；不存在的書籍或章節不得保存標記。
 - 快速連續的閱讀狀態寫入必須串行，最後一筆操作為最終狀態。
 - 刪除請求只接受索引中存在的 bookId；renderer 不得提供檔案路徑，刪除失敗時不得先從畫面移除書籍。
+- 閱讀版面設定只控制安全章節內容的呈現；紙張寬度超過中央可用空間時必須自動
+  收縮，且任何版面調整都不得改寫 EPUB 原文或每本書的閱讀狀態。
 
 ## 11. Testing Notes
 
@@ -270,14 +278,16 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 |---|---|
 | apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、章節階層與舊索引遷移、fragment 定位、安全內容與圖片、閱讀狀態及每章範圍持久化、不存在書籍／章節與錯誤回滾 |
 | apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、刪除、章節、閱讀狀態與閱讀區段 handler，以及輸入驗證 |
-| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除、章節閱讀、電子書內文字體設定、閱讀位置恢復、範圍標籤拖曳／功能選單／防交叉／推進 |
+| apps/desktop/src/main/settings-store.test.ts | 閱讀版面預設、完整保存、舊設定相容與無效欄位獨立降級 |
+| apps/desktop/src/main/settings-ipc.test.ts | 字級、紙張寬度、行距及完整設定 payload 的範圍／步進驗證 |
+| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除、章節閱讀、閱讀版面面板／即時預覽／重設／關閉、閱讀位置恢復、範圍標籤拖曳／功能選單／防交叉／推進 |
 | apps/desktop/src/renderer/reading-range.test.ts | 約 800 字初始化、短章、嚴格裁切、等長推進、章末停止、DOM 文字位置與標記資料獨立性 |
-| apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge（含刪除與閱讀區段 API）、章節／狀態 API、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
+| apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge（含刪除與閱讀區段 API）、閱讀版面保存與 computed style、響應式紙張寬度、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
 
-最近驗證（2026-07-21）：
+最近驗證（2026-07-24）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：52/52 passed。
+- Desktop Vitest：198/198 passed。
 - Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -308,6 +318,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - documents/implements/B01-preserve-epub-chapter-hierarchy.md
 - documents/implements/B02-persist-range-marker-on-drag-release.md
 - documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md
+- documents/implements/F26-reading-layout-settings.md
 - documents/modules/reading-range.md
 - documents/modules/annotation.md
 

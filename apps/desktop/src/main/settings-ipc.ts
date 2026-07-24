@@ -1,7 +1,9 @@
 import {
   isAiConversationFontSize,
   isEbookContentFontSize,
+  isEbookLineHeight,
   isExplanationLanguage,
+  isReadingPaperWidth,
   type AppSettings
 } from "../shared/settings-contracts";
 
@@ -30,14 +32,18 @@ export function registerSettingsIpc(
     if (
       !isExplanationLanguage(settings.explanationLanguage) ||
       !isAiConversationFontSize(settings.aiConversationFontSize) ||
-      !isEbookContentFontSize(settings.ebookContentFontSize)
+      !isEbookContentFontSize(settings.ebookContentFontSize) ||
+      !isReadingPaperWidth(settings.readingPaperWidth) ||
+      !isEbookLineHeight(settings.ebookLineHeight)
     ) {
       throw new Error("應用程式設定格式錯誤");
     }
     return store.save({
       explanationLanguage: settings.explanationLanguage,
       aiConversationFontSize: settings.aiConversationFontSize,
-      ebookContentFontSize: settings.ebookContentFontSize
+      ebookContentFontSize: settings.ebookContentFontSize,
+      readingPaperWidth: settings.readingPaperWidth,
+      ebookLineHeight: settings.ebookLineHeight
     });
   });
 }

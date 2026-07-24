@@ -3,16 +3,22 @@ import { join } from "node:path";
 import {
   AI_CONVERSATION_FONT_SIZE,
   EBOOK_CONTENT_FONT_SIZE,
+  EBOOK_LINE_HEIGHT,
+  READING_PAPER_WIDTH,
   isAiConversationFontSize,
   isEbookContentFontSize,
+  isEbookLineHeight,
   isExplanationLanguage,
+  isReadingPaperWidth,
   type AppSettings
 } from "../shared/settings-contracts";
 
 const defaultSettings = (): AppSettings => ({
   explanationLanguage: "source",
   aiConversationFontSize: AI_CONVERSATION_FONT_SIZE.default,
-  ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default
+  ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default,
+  readingPaperWidth: READING_PAPER_WIDTH.default,
+  ebookLineHeight: EBOOK_LINE_HEIGHT.default
 });
 
 export class LocalSettingsStore {
@@ -41,7 +47,13 @@ export class LocalSettingsStore {
           : defaults.aiConversationFontSize,
         ebookContentFontSize: isEbookContentFontSize(parsed?.ebookContentFontSize)
           ? parsed.ebookContentFontSize
-          : defaults.ebookContentFontSize
+          : defaults.ebookContentFontSize,
+        readingPaperWidth: isReadingPaperWidth(parsed?.readingPaperWidth)
+          ? parsed.readingPaperWidth
+          : defaults.readingPaperWidth,
+        ebookLineHeight: isEbookLineHeight(parsed?.ebookLineHeight)
+          ? parsed.ebookLineHeight
+          : defaults.ebookLineHeight
       };
     } catch {
       return defaultSettings();

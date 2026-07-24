@@ -27,21 +27,29 @@ describe("LocalSettingsStore", () => {
     await expect(store.load()).resolves.toEqual({
       explanationLanguage: "source",
       aiConversationFontSize: 13,
-      ebookContentFontSize: 19
+      ebookContentFontSize: 19,
+      readingPaperWidth: 760,
+      ebookLineHeight: 1.9
     });
     await expect(store.save({
       explanationLanguage: "ja",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     })).resolves.toEqual({
       explanationLanguage: "ja",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     });
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
       explanationLanguage: "ja",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     });
     await expect(readFile(join(directory, "settings.json"), "utf8"))
       .resolves.toContain('"explanationLanguage": "ja"');
@@ -53,7 +61,9 @@ describe("LocalSettingsStore", () => {
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
       explanationLanguage: "source",
       aiConversationFontSize: 13,
-      ebookContentFontSize: 19
+      ebookContentFontSize: 19,
+      readingPaperWidth: 760,
+      ebookLineHeight: 1.9
     });
 
     await writeFile(
@@ -64,7 +74,9 @@ describe("LocalSettingsStore", () => {
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
       explanationLanguage: "ja",
       aiConversationFontSize: 13,
-      ebookContentFontSize: 19
+      ebookContentFontSize: 19,
+      readingPaperWidth: 760,
+      ebookLineHeight: 1.9
     });
 
     await writeFile(
@@ -72,14 +84,37 @@ describe("LocalSettingsStore", () => {
       JSON.stringify({
         explanationLanguage: "en",
         aiConversationFontSize: 18.5,
-        ebookContentFontSize: 28
+        ebookContentFontSize: 28,
+        readingPaperWidth: 900,
+        ebookLineHeight: 2.2
       }),
       "utf8"
     );
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
       explanationLanguage: "en",
       aiConversationFontSize: 13,
-      ebookContentFontSize: 28
+      ebookContentFontSize: 28,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
+    });
+
+    await writeFile(
+      join(directory, "settings.json"),
+      JSON.stringify({
+        explanationLanguage: "zh-TW",
+        aiConversationFontSize: 18,
+        ebookContentFontSize: 24,
+        readingPaperWidth: 901,
+        ebookLineHeight: 2.25
+      }),
+      "utf8"
+    );
+    await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
+      explanationLanguage: "zh-TW",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 760,
+      ebookLineHeight: 1.9
     });
   });
 });

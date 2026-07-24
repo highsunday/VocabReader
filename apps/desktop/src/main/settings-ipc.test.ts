@@ -13,12 +13,16 @@ describe("settings IPC", () => {
       load: vi.fn().mockResolvedValue({
         explanationLanguage: "source",
         aiConversationFontSize: 13,
-        ebookContentFontSize: 19
+        ebookContentFontSize: 19,
+        readingPaperWidth: 760,
+        ebookLineHeight: 1.9
       }),
       save: vi.fn().mockResolvedValue({
         explanationLanguage: "zh-TW",
         aiConversationFontSize: 18,
-        ebookContentFontSize: 24
+        ebookContentFontSize: 24,
+        readingPaperWidth: 900,
+        ebookLineHeight: 2.2
       })
     };
 
@@ -27,21 +31,29 @@ describe("settings IPC", () => {
     await expect(handlers.get("settings:get")?.()).resolves.toEqual({
       explanationLanguage: "source",
       aiConversationFontSize: 13,
-      ebookContentFontSize: 19
+      ebookContentFontSize: 19,
+      readingPaperWidth: 760,
+      ebookLineHeight: 1.9
     });
     await expect(handlers.get("settings:save")?.({}, {
       explanationLanguage: "zh-TW",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     })).resolves.toEqual({
       explanationLanguage: "zh-TW",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     });
     expect(store.save).toHaveBeenCalledWith({
       explanationLanguage: "zh-TW",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     });
   });
 
@@ -49,32 +61,86 @@ describe("settings IPC", () => {
     {
       explanationLanguage: "klingon",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     },
     {
       explanationLanguage: "en",
       aiConversationFontSize: 11,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     },
     {
       explanationLanguage: "en",
       aiConversationFontSize: 25,
-      ebookContentFontSize: 24
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     },
     {
       explanationLanguage: "en",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 15
+      ebookContentFontSize: 15,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     },
     {
       explanationLanguage: "en",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 33
+      ebookContentFontSize: 33,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
     },
     {
       explanationLanguage: "en",
       aiConversationFontSize: 18,
-      ebookContentFontSize: 32.5
+      ebookContentFontSize: 32.5,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2
+    },
+    {
+      explanationLanguage: "en",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 550,
+      ebookLineHeight: 2.2
+    },
+    {
+      explanationLanguage: "en",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 901,
+      ebookLineHeight: 2.2
+    },
+    {
+      explanationLanguage: "en",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 980,
+      ebookLineHeight: 2.2
+    },
+    {
+      explanationLanguage: "en",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 1.3
+    },
+    {
+      explanationLanguage: "en",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.5
+    },
+    {
+      explanationLanguage: "en",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.25
     }
   ])("rejects invalid settings before touching the store", (settings) => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
