@@ -221,6 +221,58 @@ describe("SpacedReviewWorkspace", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("shows an accessible status card while AI grades the paper", async () => {
+    const api: ReviewDesktopApi = reviewApi();
+    let resolveGrade: ((grade: Awaited<
+      ReturnType<ReviewDesktopApi["gradePaper"]>
+    >) => void) | undefined;
+    api.gradePaper = vi.fn(() => new Promise<
+      Awaited<ReturnType<ReviewDesktopApi["gradePaper"]>>
+    >((resolve) => {
+      resolveGrade = resolve;
+    }));
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    await screen.findByText("bank", { selector: "u" });
+    fireEvent.click(screen.getByRole("button", {
+      name: "提交試卷（1 題未作答）"
+    }));
+
+    const gradingStatus = await screen.findByRole("status", {
+      name: "AI 正在批改試卷"
+    });
+    expect(gradingStatus).toHaveAttribute("aria-busy", "true");
+    expect(within(gradingStatus).getByRole("heading", {
+      name: "正在分析你的答案"
+    })).toBeInTheDocument();
+    expect(within(gradingStatus).getByText(
+      "比對詞義與句子語境，完成後會逐題提供回饋與複習評級建議。"
+    )).toBeInTheDocument();
+
+    resolveGrade?.({
+      paperId: "paper-1",
+      results: [{
+        questionId: "q1",
+        itemId: "item-1",
+        feedback: "答案完整且符合語境。",
+        rating: "easy"
+      }]
+    });
+    expect(await screen.findByText("答案完整且符合語境。"))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("status", {
+      name: "AI 正在批改試卷"
+    })).not.toBeInTheDocument();
+  });
+
   it("keeps the round summary and current paper together when leaving and viewing", async () => {
     const api = reviewApi();
     render(

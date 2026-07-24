@@ -514,7 +514,32 @@ export function SpacedReviewWorkspace({
             </footer>
           ) : null}
           {phase === "grading" ? (
-            <p className="library-state">AI 正在批改並建議複習評級…</p>
+            <aside
+              className="review-grading-state"
+              role="status"
+              aria-label="AI 正在批改試卷"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <div className="review-grading-visual" aria-hidden="true">
+                <span className="review-grading-ring">
+                  <LoaderCircle size={26} />
+                </span>
+                <span className="review-grading-spark">
+                  <Sparkles size={14} />
+                </span>
+              </div>
+              <div className="review-grading-copy">
+                <span>AI 批改中</span>
+                <h2>正在分析你的答案</h2>
+                <p>
+                  比對詞義與句子語境，完成後會逐題提供回饋與複習評級建議。
+                </p>
+                <div className="review-grading-progress" aria-hidden="true">
+                  <span />
+                </div>
+              </div>
+            </aside>
           ) : null}
           {phase === "reviewing" || phase === "confirming" ? (
             <footer className="review-paper-actions">
