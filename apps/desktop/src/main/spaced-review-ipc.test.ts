@@ -11,6 +11,7 @@ describe("spaced review IPC", () => {
         _input: unknown,
         onProgress?: (text: string) => void
       ) => {
+        onProgress?.("正在準備 1/1：bank\n");
         onProgress?.(
           "正在準備 1/1：bank\n```review-paper\n{\"paperId\":"
         );
@@ -48,9 +49,15 @@ describe("spaced review IPC", () => {
     expect(controller.generatePaper).toHaveBeenCalledWith({
       explanationLanguage: "zh-TW"
     }, expect.any(Function));
-    expect(send).toHaveBeenCalledWith("review:generation-progress", {
-      text: "正在準備 1/1：bank"
-    });
+    expect(send.mock.calls).toContainEqual([
+      "review:generation-progress",
+      { phase: "preparing" }
+    ]);
+    expect(send.mock.calls).toContainEqual([
+      "review:generation-progress",
+      { phase: "assembling" }
+    ]);
+    expect(JSON.stringify(send.mock.calls)).not.toContain("paperId");
     expect(() => handlers.get("review:generate")?.({}, {
       explanationLanguage: "arbitrary"
     })).toThrow(/生成格式/);

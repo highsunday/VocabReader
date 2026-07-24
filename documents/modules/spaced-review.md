@@ -6,6 +6,7 @@ last_updated: 2026-07-24
 related_implements:
   - F28-ai-graded-spaced-review-paper
   - F29-stream-spaced-review-generation-and-scroll-paper
+  - B09-clarify-spaced-review-generation-status
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -29,8 +30,8 @@ related_implements:
 - 側欄獨立「間隔複習」入口及即時可複習數量。
 - 已複習到期項目依最早到期優先，新項目依 CEFR A1→C2、同級依建立時間補滿 10 題。
 - 進入頁面只顯示摘要，不自動使用 AI；明確按下按鈕後才生成試卷。
-- 生成期間沿用 Codex message delta 顯示即時可讀進度；未完成或完整 artifact JSON
-  都不直接顯示，完成、失敗或離頁後即清除。
+- 生成期間以整合式 AI 狀態卡顯示「產生例句」與「組裝並檢查試卷」階段、活動進度、
+  等待秒數及取消操作；不顯示原始模型 progress log 或未驗證 artifact。
 - AI 依項目語言與特定 `sense` 生成例句，Renderer 以安全結構化片段劃線目標詞。
 - 整卷作答與批改；空白答案可提交，並提示會被判為「忘記」。
 - AI 只依語義正確度與完整度建議忘記／困難／順利／簡單，不使用作答速度。
@@ -73,14 +74,16 @@ related_implements:
 2. 每次生成或批改建立獨立的一次性 Codex thread，使用 read-only sandbox、
    `approvalPolicy: never`，並停用工具、網路、一般 skills、plugins、apps 與 memories。
 3. `practice-spaced-review` skill 在 generation artifact 前輸出不揭露答案的簡短進度
-   行，再依 generation／grading mode 回傳唯一 fenced artifact。
+   行，再依 generation／grading mode 回傳唯一 fenced artifact；這些模型文字只供
+   Main 判斷階段，不直接呈現給使用者。
 4. `spaced-review-artifacts.ts` 驗證 paper id、question id、item id、標題、語義、CEFR、
    完整覆蓋及唯一性；不接受原始 HTML。
 5. 批改只接受目前試卷的完整答案集合，並只保存於 Main 記憶體。
 6. Renderer 確認時只送 question id 與最終評級；Controller 以受信任批改結果還原
    item id 及 AI 評級，再交給 repository 原子寫入。
 7. generation turn 的 `item/agentMessage/delta` 由 invoke event 只推送回發起視窗；
-   IPC 移除 `review-paper` fence 起的內容，Renderer 亦再次過濾後以純文字呈現。
+   IPC 將 artifact fence 前後轉成 `preparing`／`assembling` typed phase，Renderer
+   只呈現產品文案，不接收模型文字、JSON 或未驗證題目。
 8. 切換工作區會解除 progress subscription、呼叫 discard、中斷進行中的 AI request，
    並清除 Main／Renderer 暫態 scope。
 
@@ -116,7 +119,9 @@ skill 路徑、Codex method、SQLite 路徑或 FSRS 狀態。
 ## 7. Renderer States
 
 `SpacedReviewWorkspace` 具有 loading、ready、generating、answering、grading、reviewing、
-confirming、completed 狀態。題目採單欄卡片，使用真正的 `<u>` 呈現受驗證
+confirming、completed 狀態。generating 內另顯示 preparing／assembling 階段；狀態卡
+具有 indeterminate progress、等待秒數、`aria-busy`／live status 及取消操作，並以
+attempt token 忽略取消後的晚到結果。題目採單欄卡片，使用真正的 `<u>` 呈現受驗證
 `targetText`；答案是多行輸入。批改後在原題下呈現回饋及四個 radio 選項。
 
 完成摘要顯示新間隔／到期資訊與剩餘數量；仍有 backlog 時可開始下一回合。離開工作區
@@ -146,8 +151,8 @@ confirming、completed 狀態。題目採單欄卡片，使用真正的 `<u>` �
 | `learning-library-service.test.ts` | due/new 排序、10 題上限、精確到期、FSRS、覆寫歷史、垃圾桶與重複確認 |
 | `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、缺題、未知／重複 id 與錯 scope 拒絕 |
 | `spaced-review-controller.test.ts` | 暫態 paper、AI delta、隔離 turn、受信任確認及 discard |
-| `spaced-review-ipc.test.ts` | 六個操作、生成 progress 回推、artifact 過濾與惡意 payload 拒絕 |
-| `SpacedReviewWorkspace.test.tsx` | 即時輸出、artifact 隱藏、明確生成、空白提醒、批改、覆寫、確認與離開丟棄 |
+| `spaced-review-ipc.test.ts` | 六個操作、typed generation phase、artifact 隱藏與惡意 payload 拒絕 |
+| `SpacedReviewWorkspace.test.tsx` | 整合式狀態卡、階段切換、取消／晚到結果、明確生成、空白提醒、批改、覆寫、確認與離開丟棄 |
 | `learning-library-workspace.test.tsx` | 詳情摘要及可展開精簡歷史 |
 | `App.test.tsx` | 側欄數量、獨立工作區及進入時不呼叫生成 |
 | `bundled-skill.test.ts` | 第四份內建 skill 安裝／更新 |
@@ -166,6 +171,7 @@ confirming、completed 狀態。題目採單欄卡片，使用真正的 `<u>` �
 - `CONTEXT.md`
 - `documents/implements/F28-ai-graded-spaced-review-paper.md`
 - `documents/implements/F29-stream-spaced-review-generation-and-scroll-paper.md`
+- `documents/implements/B09-clarify-spaced-review-generation-status.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/skill-management.md`
 - `documents/modules/ai-conversation.md`

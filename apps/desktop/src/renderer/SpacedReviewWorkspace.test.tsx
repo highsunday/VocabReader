@@ -1,17 +1,27 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ReviewDesktopApi } from "../shared/review-contracts";
+import type {
+  ReviewDesktopApi,
+  ReviewGenerationProgress,
+  ReviewPaper
+} from "../shared/review-contracts";
 import { SpacedReviewWorkspace } from "./SpacedReviewWorkspace";
 
 function reviewApi() {
-  const paper = {
+  const paper: ReviewPaper = {
     paperId: "paper-1",
     questions: [{
       questionId: "q1",
       itemId: "item-1",
       title: "bank",
       sense: "financial institution",
-      cefr: "A2" as const,
+      cefr: "A2",
       beforeTarget: "She went to the ",
       targetText: "bank",
       afterTarget: " before work."
@@ -70,13 +80,14 @@ function reviewApi() {
 }
 
 describe("SpacedReviewWorkspace", () => {
-  it("shows live generation prose while hiding an incomplete paper artifact", async () => {
+  it("keeps AI generation feedback inside one staged status card", async () => {
     const api = reviewApi() as ReviewDesktopApi & {
       onGenerationProgress(
-        listener: (progress: { text: string }) => void
+        listener: (progress: ReviewGenerationProgress) => void
       ): () => void;
     };
-    let publishProgress: ((progress: { text: string }) => void) | undefined;
+    let publishProgress:
+      ((progress: ReviewGenerationProgress) => void) | undefined;
     let resolvePaper: ((paper: Awaited<
       ReturnType<ReviewDesktopApi["generatePaper"]>
     >) => void) | undefined;
@@ -100,11 +111,23 @@ describe("SpacedReviewWorkspace", () => {
     fireEvent.click(await screen.findByRole("button", {
       name: "生成本回合試卷"
     }));
-    publishProgress?.({
-      text: "正在準備 1/1：bank\n```review-paper\n{\"paperId\":"
+    const generationCard = await screen.findByRole("region", {
+      name: "AI 生成試卷"
     });
+    expect(generationCard).toHaveAttribute("aria-busy", "true");
+    expect(within(generationCard).getByText("正在準備 1 題複習試卷"))
+      .toBeInTheDocument();
+    expect(within(generationCard).getByRole("progressbar", {
+      name: "AI 生成試卷進度"
+    })).toBeInTheDocument();
+    expect(within(generationCard).getByText("已等待 0 秒"))
+      .toBeInTheDocument();
+    expect(screen.queryByText("AI 正在依本回合項目生成例句…"))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText(/Preparing/)).not.toBeInTheDocument();
 
-    expect(await screen.findByText("正在準備 1/1：bank"))
+    publishProgress?.({ phase: "assembling" });
+    expect(await screen.findByText("例句已完成，正在組裝並檢查試卷"))
       .toBeInTheDocument();
     expect(screen.queryByText(/paperId/)).not.toBeInTheDocument();
 
@@ -123,9 +146,59 @@ describe("SpacedReviewWorkspace", () => {
     });
     expect(await screen.findByText("bank", { selector: "u" }))
       .toBeInTheDocument();
-    expect(screen.queryByText("正在準備 1/1：bank")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "AI 生成試卷" }))
+      .not.toBeInTheDocument();
     unmount();
     expect(unsubscribeProgress).toHaveBeenCalledOnce();
+  });
+
+  it("cancels generation and ignores a late paper result", async () => {
+    const api = reviewApi();
+    let resolvePaper: ((paper: Awaited<
+      ReturnType<ReviewDesktopApi["generatePaper"]>
+    >) => void) | undefined;
+    api.generatePaper = vi.fn(() => new Promise<
+      Awaited<ReturnType<ReviewDesktopApi["generatePaper"]>>
+    >((resolve) => {
+      resolvePaper = resolve;
+    }));
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "取消生成"
+    }));
+
+    expect(api.discardPaper).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    })).toBeInTheDocument();
+
+    resolvePaper?.({
+      paperId: "late-paper",
+      questions: [{
+        questionId: "late-q1",
+        itemId: "item-1",
+        title: "bank",
+        sense: "financial institution",
+        cefr: "A2",
+        beforeTarget: "She visited the ",
+        targetText: "bank",
+        afterTarget: "."
+      }]
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("bank", { selector: "u" }))
+        .not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("generates, submits blank answers, allows rating overrides and confirms once", async () => {

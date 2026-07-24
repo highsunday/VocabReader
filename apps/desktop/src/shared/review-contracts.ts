@@ -105,7 +105,7 @@ export interface ConfirmReviewPaperInput {
 }
 
 export interface ReviewGenerationProgress {
-  text: string;
+  phase: "preparing" | "assembling";
 }
 
 export interface ReviewDesktopApi {

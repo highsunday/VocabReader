@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, LoaderCircle, Sparkles } from "lucide-react";
 import type {
   ConfirmReviewSessionResult,
   ReviewDesktopApi,
@@ -15,11 +16,6 @@ const ratingOptions: Array<{ value: ReviewRating; label: string }> = [
   { value: "good", label: "順利" },
   { value: "easy", label: "簡單" }
 ];
-
-function visibleGenerationProgress(text: string) {
-  const artifactStart = text.indexOf("```review-paper");
-  return (artifactStart >= 0 ? text.slice(0, artifactStart) : text).trim();
-}
 
 function dueLabel(value: string | null) {
   if (!value) return "尚無排程";
@@ -56,7 +52,11 @@ export function SpacedReviewWorkspace({
     "reviewing" | "confirming" | "completed"
   >("loading");
   const [error, setError] = useState("");
-  const [generationOutput, setGenerationOutput] = useState("");
+  const [generationStage, setGenerationStage] = useState<
+    "preparing" | "assembling"
+  >("preparing");
+  const [generationElapsedSeconds, setGenerationElapsedSeconds] = useState(0);
+  const generationAttemptRef = useRef(0);
 
   async function loadSummary() {
     setPhase("loading");
@@ -80,15 +80,28 @@ export function SpacedReviewWorkspace({
   }
 
   useEffect(() => {
-    const unsubscribeProgress = api.onGenerationProgress(({ text }) => {
-      setGenerationOutput(text);
+    const unsubscribeProgress = api.onGenerationProgress(({ phase }) => {
+      setGenerationStage(phase);
     });
     void loadSummary();
     return () => {
+      generationAttemptRef.current += 1;
       unsubscribeProgress();
       void api.discardPaper();
     };
   }, [api]);
+
+  useEffect(() => {
+    if (phase !== "generating") return;
+    const startedAt = Date.now();
+    setGenerationElapsedSeconds(0);
+    const timer = window.setInterval(() => {
+      setGenerationElapsedSeconds(Math.floor(
+        (Date.now() - startedAt) / 1_000
+      ));
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [phase]);
 
   const unansweredCount = useMemo(
     () => paper?.questions.filter(({ questionId }) =>
@@ -102,25 +115,33 @@ export function SpacedReviewWorkspace({
   const selectedNewCount = summary?.selectedItems.length
     ? summary.selectedItems.length - selectedDueCount
     : 0;
-  const visibleGenerationOutput = visibleGenerationProgress(generationOutput);
-
   async function generatePaper() {
+    const attempt = generationAttemptRef.current + 1;
+    generationAttemptRef.current = attempt;
     setPhase("generating");
     setError("");
-    setGenerationOutput("");
+    setPaper(undefined);
+    setGenerationStage("preparing");
     try {
       const nextPaper = await api.generatePaper({ explanationLanguage });
+      if (generationAttemptRef.current !== attempt) return;
       setPaper(nextPaper);
       setAnswers({});
-      setGenerationOutput("");
       setPhase("answering");
     } catch (generationError) {
+      if (generationAttemptRef.current !== attempt) return;
       setError(generationError instanceof Error
         ? generationError.message
         : "AI 無法生成本回合試卷。");
-      setGenerationOutput("");
       setPhase("ready");
     }
+  }
+
+  function cancelGeneration() {
+    generationAttemptRef.current += 1;
+    setGenerationStage("preparing");
+    setPhase("ready");
+    void api.discardPaper();
   }
 
   async function submitAnswers() {
@@ -225,13 +246,75 @@ export function SpacedReviewWorkspace({
       {phase === "generating" ? (
         <section
           className="review-generation-state"
-          aria-label="AI 生成進度"
-          aria-live="polite"
+          aria-label="AI 生成試卷"
+          aria-busy="true"
         >
-          <p className="library-state">AI 正在依本回合項目生成例句…</p>
-          {visibleGenerationOutput ? (
-            <pre>{visibleGenerationOutput}</pre>
-          ) : null}
+          <header className="review-generation-heading">
+            <span className="review-generation-mark" aria-hidden="true">
+              <Sparkles size={20} />
+            </span>
+            <div>
+              <span>AI 生成中</span>
+              <h2>
+                正在準備 {summary?.selectedItems.length ?? 0} 題複習試卷
+              </h2>
+            </div>
+          </header>
+
+          <ol className="review-generation-stages" aria-label="生成階段">
+            <li className={generationStage === "preparing"
+              ? "is-active"
+              : "is-complete"}>
+              <span aria-hidden="true">
+                {generationStage === "assembling"
+                  ? <Check size={15} />
+                  : <LoaderCircle size={15} />}
+              </span>
+              <div>
+                <strong>產生例句</strong>
+                <small>依每個項目的特定語義建立自然例句</small>
+              </div>
+            </li>
+            <li className={generationStage === "assembling"
+              ? "is-active"
+              : "is-pending"}>
+              <span aria-hidden="true">
+                {generationStage === "assembling"
+                  ? <LoaderCircle size={15} />
+                  : "2"}
+              </span>
+              <div>
+                <strong>組裝並檢查試卷</strong>
+                <small>確認題目完整且可以安全顯示</small>
+              </div>
+            </li>
+          </ol>
+
+          <p
+            className="review-generation-message"
+            role="status"
+            aria-live="polite"
+          >
+            {generationStage === "preparing"
+              ? "AI 正在為本回合項目產生例句"
+              : "例句已完成，正在組裝並檢查試卷"}
+          </p>
+          <div
+            className="review-generation-progress"
+            role="progressbar"
+            aria-label="AI 生成試卷進度"
+            aria-valuetext={generationStage === "preparing"
+              ? "正在產生例句"
+              : "正在組裝並檢查試卷"}
+          >
+            <span />
+          </div>
+          <footer className="review-generation-footer">
+            <span>已等待 {generationElapsedSeconds} 秒</span>
+            <button type="button" onClick={cancelGeneration}>
+              取消生成
+            </button>
+          </footer>
         </section>
       ) : null}
 

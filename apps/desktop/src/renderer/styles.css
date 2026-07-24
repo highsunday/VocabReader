@@ -1675,24 +1675,214 @@ button {
 
 .review-generation-state {
   display: grid;
-  gap: 12px;
+  gap: 22px;
+  padding: 26px;
+  border: 1px solid #d8d2c4;
+  border-radius: 20px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 0 0, rgb(212 229 211 / 70%), transparent 38%),
+    rgb(255 253 248 / 94%);
+  box-shadow: 0 18px 44px rgb(68 78 62 / 9%);
 }
 
-.review-generation-state .library-state {
-  margin-bottom: 0;
+.review-generation-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-.review-generation-state pre {
-  margin: 0;
-  padding: 16px 18px;
-  border: 1px solid #ded5c5;
+.review-generation-mark {
+  width: 44px;
+  height: 44px;
+  flex: none;
   border-radius: 14px;
-  overflow-wrap: anywhere;
-  color: #405046;
-  background: rgb(255 253 248 / 82%);
+  display: grid;
+  place-items: center;
+  color: #f9fbf7;
+  background: linear-gradient(145deg, #3f6651, #294738);
+  box-shadow: 0 8px 18px rgb(45 73 61 / 22%);
+}
+
+.review-generation-heading > div {
+  min-width: 0;
+}
+
+.review-generation-heading span:not(.review-generation-mark) {
+  color: #748078;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.review-generation-heading h2 {
+  margin: 3px 0 0;
+  color: #263a30;
+  font-family: Georgia, serif;
+  font-size: 23px;
+  line-height: 1.25;
+}
+
+.review-generation-stages {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-generation-stages li {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e1dbcf;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: #6d756f;
+  background: rgb(250 248 242 / 76%);
+}
+
+.review-generation-stages li.is-active {
+  border-color: #9eb8a5;
+  color: #2e493b;
+  background: #f0f6ef;
+  box-shadow: inset 0 0 0 1px rgb(108 145 118 / 8%);
+}
+
+.review-generation-stages li.is-complete {
+  color: #42604e;
+  background: #f5f7f1;
+}
+
+.review-generation-stages li.is-pending {
+  opacity: .68;
+}
+
+.review-generation-stages li > span {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 1px solid #cfc9bd;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.review-generation-stages li.is-active > span {
+  border-color: #456b55;
+  color: #fff;
+  background: #456b55;
+}
+
+.review-generation-stages li.is-complete > span {
+  border-color: #98b09e;
+  color: #345342;
+  background: #dce9dc;
+}
+
+.review-generation-stages li.is-active svg {
+  animation: review-generation-spin 1.1s linear infinite;
+}
+
+.review-generation-stages strong,
+.review-generation-stages small {
+  display: block;
+}
+
+.review-generation-stages strong {
+  color: inherit;
+  font-size: 13px;
+}
+
+.review-generation-stages small {
+  margin-top: 2px;
+  color: #7c837e;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.review-generation-message {
+  margin: 0 0 -13px;
+  color: #4a5c51;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.review-generation-progress {
+  height: 7px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e2e3da;
+}
+
+.review-generation-progress span {
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  display: block;
+  background: linear-gradient(90deg, #779985, #315844);
+  animation: review-generation-slide 1.45s ease-in-out infinite;
+}
+
+.review-generation-footer {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #777e78;
+  font-size: 12px;
+}
+
+.review-generation-footer button {
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid #cfc8bb;
+  border-radius: 9px;
+  color: #5d665f;
+  background: rgb(255 253 248 / 80%);
   font: inherit;
-  line-height: 1.65;
-  white-space: pre-wrap;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.review-generation-footer button:hover {
+  border-color: #9ca69e;
+  color: #304d3d;
+  background: #fffdf8;
+}
+
+@keyframes review-generation-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes review-generation-slide {
+  from {
+    transform: translateX(-105%);
+  }
+
+  to {
+    transform: translateX(265%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-generation-stages li.is-active svg,
+  .review-generation-progress span {
+    animation: none;
+  }
+
+  .review-generation-progress span {
+    width: 100%;
+    opacity: .55;
+  }
 }
 
 .review-paper-progress {
@@ -1980,6 +2170,10 @@ button {
   }
 
   .review-round-summary > div {
+    grid-template-columns: 1fr;
+  }
+
+  .review-generation-stages {
     grid-template-columns: 1fr;
   }
 

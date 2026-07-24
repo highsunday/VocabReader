@@ -15,11 +15,6 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function visibleGenerationProgress(text: string): string {
-  const artifactStart = text.indexOf("```review-paper");
-  return (artifactStart >= 0 ? text.slice(0, artifactStart) : text).trim();
-}
-
 export function registerSpacedReviewIpc(
   ipc: IpcRegistrar,
   controller: SpacedReviewController
@@ -33,18 +28,19 @@ export function registerSpacedReviewIpc(
       throw new Error("複習試卷生成格式錯誤");
     }
     const sender = (event as ReviewIpcEvent).sender;
-    let lastProgress = "";
+    let lastPhase: "preparing" | "assembling" | undefined;
     return controller.generatePaper(
       {
         explanationLanguage: input.explanationLanguage as
           "source" | "zh-TW" | "en" | "ja"
       },
       (text) => {
-        const visibleText = visibleGenerationProgress(text);
-        if (visibleText && visibleText !== lastProgress &&
-          !sender.isDestroyed?.()) {
-          lastProgress = visibleText;
-          sender.send("review:generation-progress", { text: visibleText });
+        const phase = text.includes("```review-paper")
+          ? "assembling"
+          : "preparing";
+        if (phase !== lastPhase && !sender.isDestroyed?.()) {
+          lastPhase = phase;
+          sender.send("review:generation-progress", { phase });
         }
       }
     );
