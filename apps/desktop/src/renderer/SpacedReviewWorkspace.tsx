@@ -18,6 +18,8 @@ const ratingOptions: Array<{ value: ReviewRating; label: string }> = [
   { value: "easy", label: "簡單" }
 ];
 
+export type ReviewWorkspaceStatus = "idle" | "generating" | "resumable";
+
 function dueLabel(value: string | null) {
   if (!value) return "尚無排程";
   const due = new Date(value);
@@ -34,11 +36,15 @@ function dueLabel(value: string | null) {
 export function SpacedReviewWorkspace({
   api,
   explanationLanguage,
-  onAvailableCountChange
+  active = true,
+  onAvailableCountChange,
+  onStatusChange
 }: {
   api: ReviewDesktopApi;
   explanationLanguage: ExplanationLanguage;
+  active?: boolean;
   onAvailableCountChange?(count: number): void;
+  onStatusChange?(status: ReviewWorkspaceStatus): void;
 }) {
   const [summary, setSummary] = useState<ReviewSummary>();
   const [paper, setPaper] = useState<ReviewPaper>();
@@ -60,6 +66,10 @@ export function SpacedReviewWorkspace({
       totalCount: 0
     });
   const [generationElapsedSeconds, setGenerationElapsedSeconds] = useState(0);
+  const [isPaperViewPaused, setIsPaperViewPaused] = useState(false);
+  const [isAbandonConfirmationOpen, setIsAbandonConfirmationOpen] =
+    useState(false);
+  const [isAbandoning, setIsAbandoning] = useState(false);
   const generationAttemptRef = useRef(0);
 
   async function loadSummary() {
@@ -70,6 +80,8 @@ export function SpacedReviewWorkspace({
     setCompleted(undefined);
     setAnswers({});
     setFinalRatings({});
+    setIsPaperViewPaused(false);
+    setIsAbandonConfirmationOpen(false);
     try {
       const next = await api.getSummary();
       setSummary(next);
@@ -107,6 +119,19 @@ export function SpacedReviewWorkspace({
     return () => window.clearInterval(timer);
   }, [phase]);
 
+  const hasActivePaper = Boolean(
+    paper && ["answering", "grading", "reviewing", "confirming"].includes(phase)
+  );
+  const workspaceStatus: ReviewWorkspaceStatus = phase === "generating"
+    ? "generating"
+    : hasActivePaper
+      ? "resumable"
+      : "idle";
+
+  useEffect(() => {
+    onStatusChange?.(workspaceStatus);
+  }, [onStatusChange, workspaceStatus]);
+
   const unansweredCount = useMemo(
     () => paper?.questions.filter(({ questionId }) =>
       !answers[questionId]?.trim()
@@ -125,6 +150,7 @@ export function SpacedReviewWorkspace({
     setPhase("generating");
     setError("");
     setPaper(undefined);
+    setIsPaperViewPaused(false);
     setGenerationProgress({
       phase: "preparing",
       completedCount: 0,
@@ -153,7 +179,25 @@ export function SpacedReviewWorkspace({
       totalCount: 0
     });
     setPhase("ready");
+    setIsPaperViewPaused(false);
     void api.discardPaper();
+  }
+
+  async function abandonCurrentPaper() {
+    if (!paper || isAbandoning) return;
+    setIsAbandoning(true);
+    setError("");
+    try {
+      await api.discardPaper();
+      setIsAbandonConfirmationOpen(false);
+      await loadSummary();
+    } catch (abandonError) {
+      setError(abandonError instanceof Error
+        ? abandonError.message
+        : "無法放棄目前試卷。");
+    } finally {
+      setIsAbandoning(false);
+    }
   }
 
   async function submitAnswers() {
@@ -199,6 +243,7 @@ export function SpacedReviewWorkspace({
         ? { ...current, totalAvailable: result.remainingAvailable }
         : current);
       onAvailableCountChange?.(result.remainingAvailable);
+      setIsPaperViewPaused(false);
       setPhase("completed");
     } catch (confirmationError) {
       setError(confirmationError instanceof Error
@@ -207,6 +252,8 @@ export function SpacedReviewWorkspace({
       setPhase("reviewing");
     }
   }
+
+  if (!active) return null;
 
   return (
     <section className="spaced-review-workspace" aria-labelledby="review-title">
@@ -227,9 +274,11 @@ export function SpacedReviewWorkspace({
 
       {phase === "loading" ? <p className="library-state">載入複習排程中…</p> : null}
 
-      {phase === "ready" && summary ? (
+      {summary && (phase === "ready" || hasActivePaper) ? (
         summary.totalAvailable > 0 ? (
-          <section className="review-round-summary">
+          <section className={`review-round-summary${
+            hasActivePaper ? " has-active-paper" : ""
+          }`}>
             <span>本回合</span>
             <strong>{summary.selectedItems.length} 題</strong>
             <div>
@@ -239,9 +288,11 @@ export function SpacedReviewWorkspace({
             <small>
               會先取既有到期項目，再以 CEFR 由簡單到困難補入新項目。
             </small>
-            <button type="button" onClick={() => void generatePaper()}>
-              生成本回合試卷
-            </button>
+            {!hasActivePaper ? (
+              <button type="button" onClick={() => void generatePaper()}>
+                生成本回合試卷
+              </button>
+            ) : null}
           </section>
         ) : (
           <section className="review-empty-state">
@@ -340,11 +391,58 @@ export function SpacedReviewWorkspace({
         </section>
       ) : null}
 
-      {paper && ["answering", "grading", "reviewing", "confirming"].includes(phase) ? (
+      {paper && isPaperViewPaused &&
+        ["answering", "reviewing"].includes(phase) ? (
+          <section
+            className="review-resume-state"
+            aria-label="當前試卷"
+          >
+            <span aria-hidden="true"><Check size={20} /></span>
+            <div>
+              <h2>當前試卷</h2>
+              <p>
+                {phase === "reviewing"
+                  ? `${paper.questions.length} 題詞義回想 · 已完成作答，等待確認評級。`
+                  : `${paper.questions.length} 題詞義回想 · 已作答 ${
+                      paper.questions.length - unansweredCount
+                    }／${paper.questions.length} 題`}
+              </p>
+            </div>
+            <div className="review-resume-actions">
+              <button
+                className="review-abandon-action"
+                type="button"
+                onClick={() => setIsAbandonConfirmationOpen(true)}
+              >
+                放棄試卷
+              </button>
+              <button
+                className="review-resume-action"
+                type="button"
+                onClick={() => setIsPaperViewPaused(false)}
+              >
+                查看試卷
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+      {paper && !isPaperViewPaused &&
+        ["answering", "grading", "reviewing", "confirming"].includes(phase) ? (
         <div className="spaced-review-paper">
           <div className="review-paper-progress">
             <strong>{paper.questions.length} 題詞義回想</strong>
-            <span>{unansweredCount} 題未作答</span>
+            <div>
+              <span>{unansweredCount} 題未作答</span>
+              {phase === "answering" || phase === "reviewing" ? (
+                <button
+                  type="button"
+                  onClick={() => setIsPaperViewPaused(true)}
+                >
+                  先離開
+                </button>
+              ) : null}
+            </div>
           </div>
           {paper.questions.map((question, index) => {
             const result = grade?.results.find(({ questionId }) =>
@@ -462,6 +560,49 @@ export function SpacedReviewWorkspace({
             </button>
           )}
         </section>
+      ) : null}
+
+      {isAbandonConfirmationOpen ? (
+        <div
+          className="dialog-backdrop"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget && !isAbandoning) {
+              setIsAbandonConfirmationOpen(false);
+            }
+          }}
+        >
+          <section
+            className="delete-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="review-abandon-title"
+            aria-describedby="review-abandon-description"
+          >
+            <span className="delete-dialog-icon" aria-hidden="true">!</span>
+            <h2 id="review-abandon-title">放棄目前試卷？</h2>
+            <p id="review-abandon-description">
+              題目、答案、AI 回饋與未確認評級都會清除，且無法復原；
+              複習排程不會更新。
+            </p>
+            <div className="delete-dialog-actions">
+              <button
+                type="button"
+                disabled={isAbandoning}
+                onClick={() => setIsAbandonConfirmationOpen(false)}
+              >
+                取消
+              </button>
+              <button
+                className="danger-action"
+                type="button"
+                disabled={isAbandoning}
+                onClick={() => void abandonCurrentPaper()}
+              >
+                {isAbandoning ? "放棄中…" : "確認放棄"}
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
     </section>
   );

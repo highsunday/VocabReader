@@ -10,7 +10,9 @@ import {
 import type { CSSProperties } from "react";
 import {
   Brain,
+  CircleCheck,
   LibraryBig,
+  LoaderCircle,
   Settings as SettingsIcon
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -59,7 +61,10 @@ import {
   LearningItemDraftDialog
 } from "./LearningItemDraftDialog";
 import { ReadingPracticePaper } from "./ReadingPracticePaper";
-import { SpacedReviewWorkspace } from "./SpacedReviewWorkspace";
+import {
+  SpacedReviewWorkspace,
+  type ReviewWorkspaceStatus
+} from "./SpacedReviewWorkspace";
 import { readingPracticeArtifacts } from "./reading-practice-artifact";
 
 type WorkspaceMode = "overview" | "reader" | "learning-library" | "spaced-review";
@@ -276,6 +281,8 @@ export function App() {
   const [settingsError, setSettingsError] = useState("");
   const [learningCounts, setLearningCounts] = useState({ active: 0, trashed: 0 });
   const [reviewAvailableCount, setReviewAvailableCount] = useState(0);
+  const [reviewWorkspaceStatus, setReviewWorkspaceStatus] =
+    useState<ReviewWorkspaceStatus>("idle");
   const [openLearningItemBatchId, setOpenLearningItemBatchId] =
     useState<string>();
   const [expandedReadingPracticeQuizId, setExpandedReadingPracticeQuizId] =
@@ -1461,7 +1468,14 @@ export function App() {
                 <nav>
                   <button
                     className={mode === "spaced-review" ? "nav-item active" : "nav-item"}
-                    aria-label={`間隔複習 ${reviewAvailableCount}`}
+                    aria-label={[
+                      `間隔複習 ${reviewAvailableCount}`,
+                      reviewWorkspaceStatus === "generating"
+                        ? "試卷生成中"
+                        : reviewWorkspaceStatus === "resumable"
+                          ? "試卷已生成，可繼續"
+                          : ""
+                    ].filter(Boolean).join("，")}
                     onClick={() => {
                       saveCurrentReaderPosition();
                       setMode("spaced-review");
@@ -1472,7 +1486,20 @@ export function App() {
                       aria-hidden="true"
                       strokeWidth={1.8}
                     />
-                    間隔複習
+                    <span className="nav-item-label">
+                      間隔複習
+                      {reviewWorkspaceStatus === "generating" ? (
+                        <LoaderCircle
+                          className="review-sidebar-status generating"
+                          aria-hidden="true"
+                        />
+                      ) : reviewWorkspaceStatus === "resumable" ? (
+                        <CircleCheck
+                          className="review-sidebar-status resumable"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                    </span>
                     <em>{reviewAvailableCount}</em>
                   </button>
                   <button
@@ -1719,6 +1746,16 @@ export function App() {
 
           {libraryError ? <div className="library-error" role="alert">{libraryError}</div> : null}
 
+          {desktopReview() ? (
+            <SpacedReviewWorkspace
+              api={desktopReview()!}
+              explanationLanguage={settings.explanationLanguage}
+              active={mode === "spaced-review"}
+              onAvailableCountChange={setReviewAvailableCount}
+              onStatusChange={setReviewWorkspaceStatus}
+            />
+          ) : null}
+
           {mode === "overview" ? (
             selectedBook ? (
               <section className="book-overview" aria-labelledby="book-overview-title">
@@ -1946,13 +1983,7 @@ export function App() {
               ) : null}
             </section>
           ) : mode === "spaced-review" ? (
-            desktopReview() ? (
-              <SpacedReviewWorkspace
-                api={desktopReview()!}
-                explanationLanguage={settings.explanationLanguage}
-                onAvailableCountChange={setReviewAvailableCount}
-              />
-            ) : (
+            desktopReview() ? null : (
               <section className="learning-library-panel" aria-labelledby="review-title">
                 <span className="eyebrow">Spaced review</span>
                 <h1 id="review-title">間隔複習</h1>

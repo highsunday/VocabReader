@@ -7,7 +7,10 @@ import type {
   LearningItem,
   LearningItemDraftBatch
 } from "../shared/learning-contracts";
-import type { ReviewDesktopApi } from "../shared/review-contracts";
+import type {
+  ReviewDesktopApi,
+  ReviewPaper
+} from "../shared/review-contracts";
 import { App } from "./App";
 
 const books: LibraryBook[] = [
@@ -815,6 +818,188 @@ describe("App", () => {
     expect(screen.getByText("1 題")).toBeInTheDocument();
     expect(review.generatePaper).not.toHaveBeenCalled();
     expect(screen.getByLabelText("AI 助教")).toBeInTheDocument();
+  });
+
+  it("continues generating a review paper while another workspace is open", async () => {
+    const { review } = installLibraryApi();
+    let resolvePaper: ((paper: ReviewPaper) => void) | undefined;
+    review.generatePaper.mockImplementation(() => new Promise<ReviewPaper>(
+      (resolve) => {
+        resolvePaper = resolve;
+      }
+    ));
+    const { unmount } = render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: /間隔複習 1/
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    expect(await screen.findByRole("region", {
+      name: "AI 生成試卷"
+    })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
+    expect(await screen.findByRole("heading", { name: "生詞庫" }))
+      .toBeInTheDocument();
+    expect(review.discardPaper).not.toHaveBeenCalled();
+
+    resolvePaper?.({
+      paperId: "paper-background",
+      questions: [{
+        questionId: "q-background",
+        itemId: "learning-1",
+        title: "reluctant",
+        sense: "unwilling",
+        cefr: "B2",
+        beforeTarget: "She felt ",
+        targetText: "reluctant",
+        afterTarget: " to leave."
+      }]
+    });
+    fireEvent.click(screen.getByRole("button", { name: /間隔複習 1/ }));
+
+    expect(await screen.findByText("reluctant", { selector: "u" }))
+      .toBeInTheDocument();
+    expect(review.generatePaper).toHaveBeenCalledOnce();
+    expect(review.discardPaper).not.toHaveBeenCalled();
+
+    unmount();
+    expect(review.discardPaper).toHaveBeenCalledOnce();
+  });
+
+  it("shows generating and resumable review-paper icons in the sidebar", async () => {
+    const { review } = installLibraryApi();
+    review.generatePaper
+      .mockImplementationOnce(() => new Promise<ReviewPaper>(() => undefined))
+      .mockResolvedValueOnce({
+        paperId: "paper-status",
+        questions: [{
+          questionId: "q-status",
+          itemId: "learning-1",
+          title: "reluctant",
+          sense: "unwilling",
+          cefr: "B2",
+          beforeTarget: "She felt ",
+          targetText: "reluctant",
+          afterTarget: " to leave."
+        }]
+      });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: /間隔複習 1/
+    }));
+    expect(document.querySelector(".review-sidebar-status"))
+      .not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {
+      name: "生成本回合試卷"
+    }));
+
+    expect(await screen.findByRole("button", { name: /試卷生成中/ }))
+      .toBeInTheDocument();
+    expect(document.querySelector(".review-sidebar-status.generating"))
+      .toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "取消生成" }));
+    expect(await screen.findByRole("button", {
+      name: "間隔複習 1"
+    })).toBeInTheDocument();
+    expect(document.querySelector(".review-sidebar-status"))
+      .not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {
+      name: "生成本回合試卷"
+    }));
+
+    expect(await screen.findByRole("button", {
+      name: /試卷已生成，可繼續/
+    })).toBeInTheDocument();
+    expect(document.querySelector(".review-sidebar-status.resumable"))
+      .toBeInTheDocument();
+  });
+
+  it("keeps review answers when switching workspaces", async () => {
+    const { review } = installLibraryApi();
+    review.generatePaper.mockResolvedValue({
+      paperId: "paper-answering",
+      questions: [{
+        questionId: "q-answering",
+        itemId: "learning-1",
+        title: "reluctant",
+        sense: "unwilling",
+        cefr: "B2",
+        beforeTarget: "She felt ",
+        targetText: "reluctant",
+        afterTarget: " to leave."
+      }]
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: /間隔複習 1/
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    const answer = await screen.findByLabelText("這個詞在句中的意思");
+    fireEvent.change(answer, { target: { value: "不情願的" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
+    await screen.findByRole("heading", { name: "生詞庫" });
+    fireEvent.click(screen.getByRole("button", { name: /間隔複習 1/ }));
+
+    expect(await screen.findByLabelText("這個詞在句中的意思"))
+      .toHaveValue("不情願的");
+    expect(review.generatePaper).toHaveBeenCalledOnce();
+  });
+
+  it("keeps review feedback and rating overrides when switching workspaces", async () => {
+    const { review } = installLibraryApi();
+    review.generatePaper.mockResolvedValue({
+      paperId: "paper-reviewing",
+      questions: [{
+        questionId: "q-reviewing",
+        itemId: "learning-1",
+        title: "reluctant",
+        sense: "unwilling",
+        cefr: "B2",
+        beforeTarget: "She felt ",
+        targetText: "reluctant",
+        afterTarget: " to leave."
+      }]
+    });
+    review.gradePaper.mockResolvedValue({
+      paperId: "paper-reviewing",
+      results: [{
+        questionId: "q-reviewing",
+        itemId: "learning-1",
+        feedback: "核心語義正確。",
+        rating: "easy"
+      }]
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: /間隔複習 1/
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
+      target: { value: "不情願的" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+    expect(await screen.findByText("核心語義正確。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "困難" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
+    await screen.findByRole("heading", { name: "生詞庫" });
+    fireEvent.click(screen.getByRole("button", { name: /間隔複習 1/ }));
+
+    expect(await screen.findByText("核心語義正確。")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "困難" })).toBeChecked();
+    expect(review.gradePaper).toHaveBeenCalledOnce();
   });
 
   it("orders reader chat presets as explanation, card creation, then practice", async () => {

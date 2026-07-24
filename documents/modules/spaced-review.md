@@ -9,6 +9,7 @@ related_implements:
   - B09-clarify-spaced-review-generation-status
   - B10-use-fast-model-for-spaced-review
   - F30-show-completed-review-exercise-count
+  - F31-resumable-background-spaced-review
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -20,8 +21,9 @@ related_implements:
 輸入劃線詞在該句中的意思，AI 提供逐題回饋與四級評級建議；使用者確認或覆寫後，
 本機 FSRS 才更新排程。
 
-試卷、答案、詳細回饋與未確認評級全為暫態資料。SQLite 只保存排程狀態及精簡確認
-歷史，確保重新進入頁面時重新選題與生成。
+試卷、答案、詳細回饋與未確認評級只在同一次 App 開啟期間保留。使用者切換工作區時
+可以返回同一個未完成回合，SQLite 仍只保存排程狀態及精簡確認歷史；關閉 App 後不
+恢復未完成試卷。
 
 ## 2. Current Implementation Status
 
@@ -47,6 +49,14 @@ related_implements:
 - 編輯不重設排程；垃圾桶項目排除；還原保留原排程，逾期者立即重新可用。
 - 間隔複習中央工作區使用自己的垂直捲動容器，十題內容可完整捲動；生詞庫仍保留
   固定工具列及內部結果 scroll region。
+- 生成中、作答中及批改後尚未確認的回合可跨工作區保留；切換頁面不取消生成，
+  返回後沿用同一份進度、試卷、答案、回饋及評級選擇。
+- 間隔複習側欄入口在 AI 生成期間顯示旋轉狀態 icon；試卷生成完成且尚未確認回合時
+  顯示可繼續 icon。可存取名稱分別說明「試卷生成中」與「試卷已生成，可繼續」。
+- 作答中或檢視批改時可「先離開」並收合試卷內容；間隔複習首頁仍保留本回合摘要，
+  並在同一頁下方顯示「當前試卷」卡，可查看原試卷且保留題目、答案、回饋及評級。
+- 未完成試卷卡提供「放棄試卷」；確認視窗會說明資料不可復原。只有確認後才清除
+  題目、答案、AI 回饋與未確認評級，且不寫入複習歷史或更新排程。
 
 ## 3. Queue and Scheduling Rules
 
@@ -71,7 +81,7 @@ related_implements:
 初次複習以 `createEmptyCard(now)` 建立卡片，後續從已保存並嚴格驗證的 card JSON
 繼續計算。到期時間保存為 ISO timestamp；Renderer 不可提供或覆寫排程用的目前時間。
 
-## 4. AI Workflow and Ephemeral Scope
+## 4. AI Workflow and App-session Scope
 
 `SpacedReviewController` 在 Main process 擁有目前試卷及批改 scope：
 
@@ -91,8 +101,10 @@ related_implements:
    只計算 `questions` 陣列內完整閉合的頂層題目物件，並透過 invoke event 向發起視窗
    傳送 `phase`、`completedCount`、`totalCount`。Renderer 不接收模型文字、JSON、
    例句內容或未驗證題目。
-8. 切換工作區會解除 progress subscription、呼叫 discard、中斷進行中的 AI request，
-   並清除 Main／Renderer 暫態 scope。
+8. `SpacedReviewWorkspace` 在 App Renderer 生命週期內保持掛載；切換工作區只暫停
+   輸出複習畫面，不解除 progress subscription、不呼叫 discard，也不中斷進行中的
+   AI request。使用者明確取消或 App Renderer 真正卸載時才清除 Main／Renderer
+   暫態 scope。
 
 試卷不進入 `LocalChatConversationStore`，也不顯示成一般 AI 對話訊息。
 複習專用模型策略只存在於 `SpacedReviewController`，不讀寫
@@ -132,12 +144,18 @@ confirming、completed 狀態。generating 內另顯示 preparing／assembling �
 以已完整收到的題目數呈現 determinate progressbar、等待秒數、`aria-busy`／live
 status 及取消操作，並以 attempt token 忽略取消後的晚到結果。題目採單欄卡片，使用
 真正的 `<u>` 呈現受驗證 `targetText`；答案是多行輸入。批改後在原題下呈現回饋及
-四個 radio 選項。
+四個 radio 選項。工作區另外持有只控制顯示的 paused view；它不改變 review phase，
+也不清除任何回合作答狀態。paused view 可開啟放棄確認 alert dialog；取消只關閉
+dialog，確認才呼叫 `discardPaper()`、重新載入摘要並回到 ready。本回合摘要在
+ready、作答、批改及確認階段持續顯示；已有試卷時不再顯示生成按鈕。試卷收合時，
+同頁下方顯示當前試卷卡；展開時，同一位置顯示完整試卷。
 
-完成摘要顯示新間隔／到期資訊與剩餘數量；仍有 backlog 時可開始下一回合。離開工作區
-會卸載元件，因此所有輸入、生成進度與未確認畫面資料消失。`App` 為 review mode
-指定 `spaced-review-content`，由中央 main element 自己 `overflow-y: auto`；不再沿用
-生詞庫刻意鎖住外層捲動的 class。
+完成摘要顯示新間隔／到期資訊與剩餘數量；仍有 backlog 時可開始下一回合。
+`SpacedReviewWorkspace` 由 `App` 常駐掛載，非 review mode 時回傳空畫面，因此生成
+Promise、輸入、生成進度與未確認畫面狀態會跨工作區保留；App 真正卸載時 cleanup
+仍會 discard。`App` 為 review mode 指定 `spaced-review-content`，由中央 main
+element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲動的 class。工作區
+只向 `App` 回報 idle／generating／resumable 顯示狀態，側欄不接收試卷內容。
 
 ## 8. Key Files
 
@@ -150,9 +168,9 @@ status 及取消操作，並以 attempt token 忽略取消後的晚到結果。�
 | `apps/desktop/src/main/spaced-review-controller.ts` | 暫態 scope、隔離 AI turn 與確認信任邊界 |
 | `apps/desktop/src/main/spaced-review-ipc.ts` | review IPC 白名單及 payload 驗證 |
 | `apps/desktop/src/preload/preload.ts` | `window.readerDesktop.review` typed bridge |
-| `apps/desktop/src/renderer/SpacedReviewWorkspace.tsx` | 摘要、作答、批改、覆寫、確認與連續回合 UI |
+| `apps/desktop/src/renderer/SpacedReviewWorkspace.tsx` | 摘要、作答、批改、先離開／繼續、放棄確認、覆寫、確認與連續回合 UI |
 | `apps/desktop/src/renderer/LearningLibraryWorkspace.tsx` | 學習項目複習摘要與精簡歷史 |
-| `apps/desktop/src/renderer/App.tsx` | 獨立工作區入口及可用數量同步 |
+| `apps/desktop/src/renderer/App.tsx` | 獨立工作區入口、可用數量及生成／可繼續狀態同步 |
 
 ## 9. Testing Notes
 
@@ -162,16 +180,18 @@ status 及取消操作，並以 attempt token 忽略取消後的晚到結果。�
 | `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、缺題、未知／重複 id 與錯 scope 拒絕 |
 | `spaced-review-controller.test.ts` | 暫態 paper、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |
 | `spaced-review-ipc.test.ts` | 六個操作、安全 typed generation count payload 與惡意 payload 拒絕 |
-| `SpacedReviewWorkspace.test.tsx` | 整合式狀態卡、完成數與確定進度、階段切換、取消／晚到結果、明確生成、空白提醒、批改、覆寫、確認與離開丟棄 |
+| `SpacedReviewWorkspace.test.tsx` | 整合式狀態卡、完成數與確定進度、階段切換、先離開／繼續、放棄二次確認、取消／晚到結果、明確生成、空白提醒、批改、覆寫、確認與真正卸載清除 |
 | `learning-library-workspace.test.tsx` | 詳情摘要及可展開精簡歷史 |
-| `App.test.tsx` | 側欄數量、獨立工作區及進入時不呼叫生成 |
+| `App.test.tsx` | 側欄數量與狀態 icon、獨立工作區、進入時不呼叫生成，以及生成／作答／批改狀態跨工作區保留 |
 | `bundled-skill.test.ts` | 第四份內建 skill 安裝／更新 |
 | `desktop.spec.ts` | production skill、七項 review bridge、工作區入口及實際垂直捲動 |
 
 ## 10. Known Limitations and Follow-up
 
+- 未完成回合不寫入 SQLite；關閉視窗、重新載入 Renderer、App 當機或重新啟動後
+  不恢復。
 - 第一版沒有 deck、每日上限、手動選題、FSRS optimizer 或 retention 設定。
-- 沒有保存、重播、搜尋或匯出試卷、答案及詳細回饋。
+- 沒有持久保存、重播、搜尋或匯出試卷、答案及詳細回饋。
 - 沒有同步、Anki 匯入／匯出或跨裝置備份。
 - CEFR 是首次引入順序的近似，尚未結合獨立詞頻資料。
 - AI 生成與批改需要本機 Codex 可用；排程查詢與已確認歷史不依賴 AI。
@@ -188,6 +208,7 @@ status 及取消操作，並以 attempt token 忽略取消後的晚到結果。�
 - `documents/implements/B09-clarify-spaced-review-generation-status.md`
 - `documents/implements/B10-use-fast-model-for-spaced-review.md`
 - `documents/implements/F30-show-completed-review-exercise-count.md`
+- `documents/implements/F31-resumable-background-spaced-review.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/skill-management.md`
 - `documents/modules/ai-conversation.md`

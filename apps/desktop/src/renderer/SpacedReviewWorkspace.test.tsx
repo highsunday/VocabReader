@@ -221,9 +221,9 @@ describe("SpacedReviewWorkspace", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("generates, submits blank answers, allows rating overrides and confirms once", async () => {
+  it("keeps the round summary and current paper together when leaving and viewing", async () => {
     const api = reviewApi();
-    const { unmount } = render(
+    render(
       <SpacedReviewWorkspace
         api={api}
         explanationLanguage="zh-TW"
@@ -233,8 +233,125 @@ describe("SpacedReviewWorkspace", () => {
     fireEvent.click(await screen.findByRole("button", {
       name: "生成本回合試卷"
     }));
+    const answer = await screen.findByLabelText("這個詞在句中的意思");
+    fireEvent.change(answer, { target: { value: "銀行" } });
+    fireEvent.click(screen.getByRole("button", { name: "先離開" }));
+
+    expect(screen.queryByText("bank", { selector: "u" }))
+      .not.toBeInTheDocument();
+    const roundSummary = screen.getByText("本回合").closest("section");
+    const currentPaper = screen.getByRole("region", { name: "當前試卷" });
+    expect(roundSummary).toBeInTheDocument();
+    expect(roundSummary?.nextElementSibling).toBe(currentPaper);
+    expect(within(currentPaper).getByText(/已作答 1／1 題/))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "生成本回合試卷" }))
+      .not.toBeInTheDocument();
+    expect(api.discardPaper).not.toHaveBeenCalled();
+
+    fireEvent.click(within(currentPaper).getByRole("button", {
+      name: "查看試卷"
+    }));
+    expect(screen.getByText("本回合")).toBeInTheDocument();
+    expect(await screen.findByLabelText("這個詞在句中的意思"))
+      .toHaveValue("銀行");
+
+    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+    expect(await screen.findByText("答案完整且符合語境。"))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "忘記" }));
+    fireEvent.click(screen.getByRole("button", { name: "先離開" }));
+    expect(screen.getByRole("region", { name: "當前試卷" }))
+      .toHaveTextContent("等待確認評級");
+    fireEvent.click(screen.getByRole("button", { name: "查看試卷" }));
+
+    expect(await screen.findByText("答案完整且符合語境。"))
+      .toBeInTheDocument();
+    expect(screen.getByText("本回合")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "忘記" })).toBeChecked();
+    expect(api.generatePaper).toHaveBeenCalledOnce();
+    expect(api.gradePaper).toHaveBeenCalledOnce();
+    expect(api.discardPaper).not.toHaveBeenCalled();
+  });
+
+  it("confirms before abandoning the current paper without updating schedules", async () => {
+    const api = reviewApi();
+    const onStatusChange = vi.fn();
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        explanationLanguage="zh-TW"
+        onStatusChange={onStatusChange}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    await screen.findByText("bank", { selector: "u" });
+    fireEvent.click(screen.getByRole("button", { name: "先離開" }));
+    await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
+      "resumable"
+    ));
+
+    fireEvent.click(screen.getByRole("button", { name: "放棄試卷" }));
+    const firstConfirmation = screen.getByRole("alertdialog", {
+      name: "放棄目前試卷？"
+    });
+    expect(firstConfirmation).toHaveTextContent(
+      "題目、答案、AI 回饋與未確認評級都會清除"
+    );
+    expect(firstConfirmation).toHaveTextContent("無法復原");
+    fireEvent.click(within(firstConfirmation).getByRole("button", {
+      name: "取消"
+    }));
+
+    expect(screen.queryByRole("alertdialog", {
+      name: "放棄目前試卷？"
+    })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看試卷" }))
+      .toBeInTheDocument();
+    expect(api.discardPaper).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "放棄試卷" }));
+    const secondConfirmation = screen.getByRole("alertdialog", {
+      name: "放棄目前試卷？"
+    });
+    fireEvent.click(within(secondConfirmation).getByRole("button", {
+      name: "確認放棄"
+    }));
+
+    await waitFor(() => expect(api.discardPaper).toHaveBeenCalledOnce());
+    expect(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "查看試卷" }))
+      .not.toBeInTheDocument();
+    expect(api.confirmPaper).not.toHaveBeenCalled();
+    await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
+      "idle"
+    ));
+  });
+
+  it("generates, submits blank answers, allows rating overrides and confirms once", async () => {
+    const api = reviewApi();
+    const onStatusChange = vi.fn();
+    const { unmount } = render(
+      <SpacedReviewWorkspace
+        api={api}
+        explanationLanguage="zh-TW"
+        onStatusChange={onStatusChange}
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
     expect(await screen.findByText("bank", { selector: "u" }))
       .toBeInTheDocument();
+    await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
+      "resumable"
+    ));
     expect(screen.getByText("1 題未作答，提交後將評為忘記。"))
       .toBeInTheDocument();
 
@@ -258,6 +375,9 @@ describe("SpacedReviewWorkspace", () => {
     }));
     expect(await screen.findByRole("heading", { name: "本回合已完成" }))
       .toBeInTheDocument();
+    await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
+      "idle"
+    ));
     expect(screen.getByText("0 個可複習")).toBeInTheDocument();
 
     unmount();
