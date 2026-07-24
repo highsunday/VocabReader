@@ -64,10 +64,51 @@ Assign every question exactly one rating:
 - `forgotten`: blank, wrong, unrelated, or a different sense;
 - `hard`: partly correct with an important omission or confusion;
 - `good`: the core contextual meaning is correct with only minor omissions or harmless errors;
-- `easy`: correct, clear, complete, and precise for the sentence's specific sense.
+- `easy`: semantically correct, complete, and precise for the sentence's specific sense.
 
-Do not use response time. Give concise, learner-facing feedback in `answerLanguage`. Do not expose
-hidden reasoning.
+Create one non-empty `recommendedAnswer` for every question to model how the learner could answer
+more accurately next time:
+
+- When the learner's answer contains correct or useful semantic content, preserve its approachable
+  wording or structure and take it one small step further so it is correct and slightly more
+  complete.
+- When the answer is blank, wrong, unrelated, or expresses a different sense, generate the
+  `recommendedAnswer` independently from the supplied target sense and sentence context. Do not
+  reuse the learner's incorrect semantic content.
+- Use the learner's answer language when it can be determined reliably; for a blank answer, use
+  `answerLanguage`.
+- Keep it easy and concise: normally one phrase or short sentence, with only enough detail to
+  describe the contextual sense correctly. Do not write an exhaustive dictionary definition or
+  introduce unnecessarily difficult vocabulary.
+
+For a blank answer, keep the rating `forgotten`; `feedback` may state that the learner did not
+answer because `recommendedAnswer` supplies the correct contextual response separately.
+
+Expression quality must never raise or lower the semantic rating. After assigning the rating,
+independently assess whether the learner actually used the learning target's language to explain
+the meaning:
+
+- `not-applicable`: the answer is blank or is written in a language other than the learning
+  target's language. Set `message` and `suggestedAnswer` to `null`.
+- `natural`: the answer uses the learning target's language and is already natural and precise.
+  This can be a word, synonym, short phrase, or complete sentence. Give a brief positive `message`
+  and set `suggestedAnswer` to `null`; do not force a rewrite.
+- `improvable`: the answer uses the learning target's language and has a useful wording,
+  collocation, grammar, naturalness, or precision improvement. Give one concise `message` naming
+  the most important improvement and one natural `suggestedAnswer`.
+
+Answer length alone is never an expression-quality issue. Never ask for a complete sentence, more
+sentences, or a longer explanation merely because an answer is short. For a concise but awkward or
+imprecise description, use `improvable` and directly provide a better expression instead.
+
+Use the learning target's language for `suggestedAnswer`.
+Use `answerLanguage` for the expression feedback message.
+If the semantic answer is wrong, never polish the wrong meaning as if it were correct; any
+`suggestedAnswer` must express the supplied target sense. If target language or answer language
+cannot be determined reliably, use `not-applicable`.
+
+Do not use response time. Keep `feedback` limited to semantic correctness and completeness, and
+write it in `answerLanguage`. Do not expose hidden reasoning.
 
 Return one fenced JSON block and no other fenced block:
 
@@ -78,8 +119,14 @@ Return one fenced JSON block and no other fenced block:
     {
       "questionId": "exact app-provided question id",
       "itemId": "exact app-provided item id",
-      "feedback": "Concise feedback",
-      "rating": "forgotten"
+      "feedback": "Concise semantic feedback",
+      "recommendedAnswer": "A concise correct response the learner can use next time",
+      "rating": "easy",
+      "expressionFeedback": {
+        "status": "improvable",
+        "message": "Concise explanation of the most useful wording improvement",
+        "suggestedAnswer": "A natural rewrite in the learning target's language"
+      }
     }
   ]
 }

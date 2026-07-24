@@ -82,7 +82,12 @@ ${JSON.stringify({
     questionId: "q1",
     itemId: "item-1",
     feedback: "答案正確。",
-    rating: "easy"
+    rating: "easy",
+    expressionFeedback: {
+      status: "not-applicable",
+      message: null,
+      suggestedAnswer: null
+    }
   }]
 })}
 \`\`\``;
@@ -398,6 +403,11 @@ describe("SpacedReviewController", () => {
     });
 
     expect(grade.results[0].rating).toBe("easy");
+    expect(grade.results[0].expressionFeedback).toEqual({
+      status: "not-applicable",
+      message: null,
+      suggestedAnswer: null
+    });
     expect(progress).toEqual([
       { phase: "preparing", completedCount: 0, totalCount: 1 }
     ]);

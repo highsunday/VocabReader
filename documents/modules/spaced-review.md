@@ -10,6 +10,7 @@ related_implements:
   - B10-use-fast-model-for-spaced-review
   - F30-show-completed-review-exercise-count
   - F31-resumable-background-spaced-review
+  - F32-add-expression-feedback-to-spaced-review
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -18,12 +19,13 @@ related_implements:
 
 本模組把生詞庫中的單字與片語轉成可持續的主動回想練習。每回合由本機程式選出最多
 10 個到期或新項目，使用者明確要求後，AI 才生成以特定語義為準的例句試卷。使用者
-輸入劃線詞在該句中的意思，AI 提供逐題回饋與四級評級建議；使用者確認或覆寫後，
-本機 FSRS 才更新排程。
+輸入劃線詞在該句中的意思，AI 提供逐題意思回饋與四級評級建議；答案實際使用學習
+項目的語言時，AI 另提供不影響評級的表達建議。使用者確認或覆寫評級後，本機 FSRS
+才更新排程。
 
-試卷、答案、詳細回饋與未確認評級只在同一次 App 開啟期間保留。使用者切換工作區時
-可以返回同一個未完成回合，SQLite 仍只保存排程狀態及精簡確認歷史；關閉 App 後不
-恢復未完成試卷。
+試卷、答案、詳細回饋、表達建議與未確認評級只在同一次 App 開啟期間保留。使用者
+切換工作區時可以返回同一個未完成回合，SQLite 仍只保存排程狀態及精簡確認歷史；
+關閉 App 後不恢復未完成試卷。
 
 ## 2. Current Implementation Status
 
@@ -40,8 +42,14 @@ related_implements:
 - AI 依項目語言與特定 `sense` 生成例句，Renderer 以安全結構化片段劃線目標詞。
 - 生成與批改優先使用帳號可用的 `gpt-5.6-luna` low，其次
   `gpt-5.6-terra` low；兩者不可用時沿用 Codex 預設模型，不影響一般 AI 對話選擇。
-- 整卷作答與批改；空白答案可提交，並提示會被判為「忘記」。
+- 整卷作答與批改；空白答案可提交，提示會被判為「忘記」，批改後直接顯示目前
+  語境的簡短建議回答。
 - AI 只依語義正確度與完整度建議忘記／困難／順利／簡單，不使用作答速度。
+- AI 同一次批改會判斷答案是否實際使用學習項目的語言；適用時另提供自然度肯定，
+  或一個學習項目語言改寫及講解語言原因。答案長度不是表達品質，也不得成為要求
+  完整句或更多說明的理由；表達品質不影響四級評級。
+- 空白或非學習項目語言答案不顯示表達建議；缺少或 malformed 的選用建議欄位會安全
+  降級，不阻擋合法意思回饋及評級確認。
 - 結果頁預選 AI 建議，使用者可逐題覆寫後一次確認。
 - 使用 `ts-fsrs`、固定 90% 目標記憶率及預設參數計算精確到期時間。
 - 同一回合在單一 SQLite 交易寫入所有事件與排程；成功後可連續開始下一回合。
@@ -91,9 +99,12 @@ related_implements:
    初始化後讀取分頁 model catalog，優先選擇支援 low 的 Luna，再選 Terra；目錄失敗、
    格式錯誤或無候選時省略 model／effort，安全使用 Codex 預設值。
 3. `practice-spaced-review` skill 依 generation／grading mode 直接回傳唯一 fenced
-   artifact，不額外生成 `Preparing` 進度文字。
+   artifact，不額外生成 `Preparing` 進度文字。grading artifact 把語意回饋、四級
+   評級與結構化 `expressionFeedback` 分開；skill 明定表達品質不得改變語意評級。
 4. `spaced-review-artifacts.ts` 驗證 paper id、question id、item id、標題、語義、CEFR、
-   完整覆蓋及唯一性；不接受原始 HTML。
+   完整覆蓋及唯一性；不接受原始 HTML。表達建議只接受 natural／improvable／
+   not-applicable 三態及對應欄位組合，缺少、malformed、舊 `insufficient` 或未知
+   狀態時正規化為 not-applicable，保留核心意思批改。
 5. 批改只接受目前試卷的完整答案集合，並只保存於 Main 記憶體。
 6. Renderer 確認時只送 question id 與最終評級；Controller 以受信任批改結果還原
    item id 及 AI 評級，再交給 repository 原子寫入。
@@ -120,7 +131,7 @@ related_implements:
   AI 與最終評級、FSRS 前後 card JSON、間隔秒數及下次到期。
 
 兩表以 foreign key 關聯 `learning_items` 並 `ON DELETE CASCADE`。永久清空垃圾桶時，
-對應排程與歷史一併刪除。事件不保存 AI 例句、使用者答案或詳細回饋。
+對應排程與歷史一併刪除。事件不保存 AI 例句、使用者答案、詳細回饋或表達建議。
 
 ## 6. Typed Boundary
 
@@ -137,18 +148,37 @@ Renderer 只能透過 `ReviewDesktopApi` 使用：
 IPC 驗證所有 enum、id、陣列與答案文字。Renderer 不能傳入 item scope、目前時間、
 skill 路徑、Codex method、SQLite 路徑或 FSRS 狀態。
 
+`ReviewGradeResult.expressionFeedback` 使用 discriminated union：natural
+具有講解語言訊息但沒有改寫，improvable 同時具有訊息與學習項目語言改寫，
+not-applicable 不帶內容。舊回覆或不可靠結構可省略欄位並在 Main 安全降級。
+`ReviewGradeResult.recommendedAnswer` 是非阻斷的簡短建議回答；skill 要求每題產生，
+Main 只接受非空字串，舊 artifact 缺少時仍保留核心批改結果。
+
 ## 7. Renderer States
 
 `SpacedReviewWorkspace` 具有 loading、ready、generating、answering、grading、reviewing、
 confirming、completed 狀態。generating 內另顯示 preparing／assembling 階段；狀態卡
 以已完整收到的題目數呈現 determinate progressbar、等待秒數、`aria-busy`／live
 status 及取消操作，並以 attempt token 忽略取消後的晚到結果。題目採單欄卡片，使用
-真正的 `<u>` 呈現受驗證 `targetText`；答案是多行輸入。批改後在原題下呈現回饋及
-四個 radio 選項。工作區另外持有只控制顯示的 paused view；它不改變 review phase，
-也不清除任何回合作答狀態。paused view 可開啟放棄確認 alert dialog；取消只關閉
-dialog，確認才呼叫 `discardPaper()`、重新載入摘要並回到 ready。本回合摘要在
-ready、作答、批改及確認階段持續顯示；已有試卷時不再顯示生成按鈕。試卷收合時，
-同頁下方顯示當前試卷卡；展開時，同一位置顯示完整試卷。
+真正的 `<u>` 呈現受驗證 `targetText`；答案是多行輸入。批改後在原題下顯示可存取的
+「意思判斷」，並在其中以「下次可以這樣回答」呈現簡短 `recommendedAnswer`；答案
+含有正確內容時沿用其易懂表達往前補完整一步，答案錯誤或留白時則依目標語義重新
+產生，不寫成鉅細靡遺的字典定義。improvable 的 `suggestedAnswer` 只在原作答框下方
+顯示為「口語修正」，不另顯示表達建議區塊。結果區接著顯示四個 radio 選項，並依目前選中的
+評級顯示 forgotten 紅、hard 橘、good 藍綠、easy 綠；radio 覆寫會立即更新
+`data-rating` 與顏色，並保留具名評級狀態、AI 建議文字及 radio，顏色不是唯一訊號。
+工作區另外持有只控制顯示的 paused view；它不改變 review phase，也不清除任何
+回合作答狀態。
+paused view 可開啟放棄確認 alert dialog；取消只關閉 dialog，確認才呼叫
+`discardPaper()`、重新載入摘要並回到 ready。本回合摘要在 ready、作答、批改及確認
+階段持續顯示；已有試卷時不再顯示生成按鈕。試卷收合時，同頁下方顯示當前試卷卡；
+展開時，同一位置顯示完整試卷。
+
+只有整份試卷完成 AI 批改後，每題才顯示帶有卡片圖示的「打開學習卡」。入口以受信任
+`question.itemId` 呼叫既有 `learning:get`，並用生詞庫共用的詳情 modal 顯示安全
+Markdown、發音、複習排程與精簡歷史；複習頁傳入 read-only capability，不提供
+編輯、儲存、刪除或移到垃圾桶。關閉按鈕、Escape 與 backdrop 都可關閉並把焦點還給
+原觸發按鈕；開關詳情及載入失敗不重跑生成／批改，也不清除答案或評級覆寫。
 
 完成摘要顯示新間隔／到期資訊與剩餘數量；仍有 backlog 時可開始下一回合。
 `SpacedReviewWorkspace` 由 `App` 常駐掛載，非 review mode 時回傳空畫面，因此生成
@@ -161,7 +191,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 
 | File | Responsibility |
 |---|---|
-| `.agents/skills/practice-spaced-review/SKILL.md` | 例句生成、語義批改、四級 rubric 與 artifact 契約 |
+| `.agents/skills/practice-spaced-review/SKILL.md` | 例句生成、語義批改、表達建議、四級 rubric 與 artifact 契約 |
 | `apps/desktop/src/shared/review-contracts.ts` | Main／Preload／Renderer 共用 review 型別 |
 | `apps/desktop/src/main/learning-library-service.ts` | queue、SQLite migration、FSRS 與原子確認 |
 | `apps/desktop/src/main/spaced-review-artifacts.ts` | paper／grade artifact 嚴格驗證 |
@@ -177,10 +207,11 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 | Test file | Coverage |
 |---|---|
 | `learning-library-service.test.ts` | due/new 排序、10 題上限、精確到期、FSRS、覆寫歷史、垃圾桶與重複確認 |
-| `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、缺題、未知／重複 id 與錯 scope 拒絕 |
-| `spaced-review-controller.test.ts` | 暫態 paper、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |
+| `spaced-review-skill.test.ts` | 評級獨立、表達建議三態、長度獨立、留白答案、語言分工及改寫契約 |
+| `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、表達建議正規化、缺題、未知／重複 id 與錯 scope 拒絕 |
+| `spaced-review-controller.test.ts` | 暫態 paper／expression feedback、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |
 | `spaced-review-ipc.test.ts` | 六個操作、安全 typed generation count payload 與惡意 payload 拒絕 |
-| `SpacedReviewWorkspace.test.tsx` | 整合式狀態卡、完成數與確定進度、階段切換、先離開／繼續、放棄二次確認、取消／晚到結果、明確生成、空白提醒、批改、覆寫、確認與真正卸載清除 |
+| `SpacedReviewWorkspace.test.tsx` | 整合式狀態卡、完成數與確定進度、意思／表達分區、四級結果色彩、唯讀詳情、焦點回復、短答案與不適用建議、先離開／繼續、放棄二次確認、取消／晚到結果、空白提醒、覆寫、確認與真正卸載清除 |
 | `learning-library-workspace.test.tsx` | 詳情摘要及可展開精簡歷史 |
 | `App.test.tsx` | 側欄數量與狀態 icon、獨立工作區、進入時不呼叫生成，以及生成／作答／批改狀態跨工作區保留 |
 | `bundled-skill.test.ts` | 第四份內建 skill 安裝／更新 |
@@ -191,7 +222,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - 未完成回合不寫入 SQLite；關閉視窗、重新載入 Renderer、App 當機或重新啟動後
   不恢復。
 - 第一版沒有 deck、每日上限、手動選題、FSRS optimizer 或 retention 設定。
-- 沒有持久保存、重播、搜尋或匯出試卷、答案及詳細回饋。
+- 沒有持久保存、重播、搜尋或匯出試卷、答案、詳細回饋及表達建議。
 - 沒有同步、Anki 匯入／匯出或跨裝置備份。
 - CEFR 是首次引入順序的近似，尚未結合獨立詞頻資料。
 - AI 生成與批改需要本機 Codex 可用；排程查詢與已確認歷史不依賴 AI。
@@ -209,6 +240,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - `documents/implements/B10-use-fast-model-for-spaced-review.md`
 - `documents/implements/F30-show-completed-review-exercise-count.md`
 - `documents/implements/F31-resumable-background-spaced-review.md`
+- `documents/implements/F32-add-expression-feedback-to-spaced-review.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/skill-management.md`
 - `documents/modules/ai-conversation.md`

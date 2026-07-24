@@ -1,5 +1,6 @@
 import type { LearningItem } from "../shared/learning-contracts";
 import type {
+  ReviewExpressionFeedback,
   ReviewGrade,
   ReviewPaper,
   ReviewRating
@@ -18,6 +19,42 @@ function text(value: unknown): value is string {
 
 function nonEmpty(value: unknown): value is string {
   return text(value) && Boolean(value.trim());
+}
+
+function unavailableExpressionFeedback(): ReviewExpressionFeedback {
+  return {
+    status: "not-applicable",
+    message: null,
+    suggestedAnswer: null
+  };
+}
+
+function parseExpressionFeedback(value: unknown): ReviewExpressionFeedback {
+  if (!isObject(value) || typeof value.status !== "string") {
+    return unavailableExpressionFeedback();
+  }
+  if (value.status === "not-applicable") {
+    return unavailableExpressionFeedback();
+  }
+  if (value.status === "natural" &&
+    nonEmpty(value.message) &&
+    (value.suggestedAnswer === null || value.suggestedAnswer === undefined)) {
+    return {
+      status: "natural",
+      message: value.message,
+      suggestedAnswer: null
+    };
+  }
+  if (value.status === "improvable" &&
+    nonEmpty(value.message) &&
+    nonEmpty(value.suggestedAnswer)) {
+    return {
+      status: "improvable",
+      message: value.message,
+      suggestedAnswer: value.suggestedAnswer
+    };
+  }
+  return unavailableExpressionFeedback();
 }
 
 function fencedJson(source: string, name: "review-paper" | "review-grade"): unknown {
@@ -119,7 +156,11 @@ export function parseReviewGrade(
       questionId: result.questionId,
       itemId: result.itemId,
       feedback: result.feedback,
-      rating: result.rating as ReviewRating
+      recommendedAnswer: nonEmpty(result.recommendedAnswer)
+        ? result.recommendedAnswer
+        : undefined,
+      rating: result.rating as ReviewRating,
+      expressionFeedback: parseExpressionFeedback(result.expressionFeedback)
     };
   });
   return { paperId: paper.paperId, results };

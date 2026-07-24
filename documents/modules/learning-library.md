@@ -2,12 +2,13 @@
 title: 本機生詞庫模組
 module: learning-library
 status: active
-last_updated: 2026-07-24
+last_updated: 2026-07-25
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
   - F21-ai-assisted-learning-item-creation
   - F28-ai-graded-spaced-review-paper
+  - F33-color-review-results-and-open-learning-item-detail
 ---
 
 # 本機生詞庫模組
@@ -33,7 +34,8 @@ related_implements:
 - 標題限定、大小寫不敏感的部分字串搜尋。
 - 類型與 CEFR 複合篩選，以及最近新增／字母順序排序。
 - 同標題不同語義以不同不可變 id 保存，不合併內容。
-- 置中詳情 modal、安全 Markdown、原文編輯與即時預覽。
+- 共用置中詳情 modal、安全 Markdown、發音、複習排程與歷史；從生詞庫開啟時保留
+  原文編輯、即時預覽及刪除，從尚未確認的複習試卷開啟時則為唯讀。
 - 從詳情刪除前顯示置中確認視窗；確認後才移入垃圾桶。垃圾桶可個別還原，只有確認
   清空才永久刪除。
 - 側欄顯示即時使用中數量。
@@ -92,6 +94,8 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 - 固定工具區與獨立結果捲動區。
 - 詳情 modal、焦點回復、Escape／遮罩關閉。
 - Markdown 查看、編輯、預覽與錯誤狀態。
+- 對共用詳情提供 editable／read-only capability；唯讀模式不渲染或呼叫更新、刪除
+  操作。
 - 單筆移入垃圾桶前的置中確認、還原、清空確認與側欄數量同步。
 - 在詳情中顯示懶載入的精簡複習摘要與可展開歷史。
 
@@ -151,6 +155,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - 結果區顯示目前筆數及可用的清除篩選操作。
 - 卡片以類型、CEFR、標題與語義形成清楚層級，hover／focus 有一致回饋。
 - 詳情使用 `role="dialog"`、`aria-modal`、具名標題、關閉控制與觸發點焦點回復。
+- 同一詳情元件可由已完成 AI 批改的複習題開啟；該入口只使用 `learning:get` 取得
+  最新內容，並以 read-only capability 隱藏所有 mutation。
 - 詳情中的「刪除」先開啟具名 `alertdialog`；取消或 Escape 只關閉最上層確認視窗，
   明確確認後才呼叫 `learning:trash`，並說明項目仍可還原。
 - Markdown 使用 `react-markdown`、GFM 與 `skipHtml`；連結不允許執行 JavaScript URL。
@@ -166,7 +172,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 | `apps/desktop/src/main/learning-item-duplicate-classifier.ts` | 只對 exact-title 候選做 AI 語義重查 |
 | `apps/desktop/src/main/learning-library-ipc.ts` | 六個 IPC 白名單與 payload 驗證 |
 | `apps/desktop/src/preload/preload.ts` | `window.readerDesktop.learning` typed bridge |
-| `apps/desktop/src/renderer/LearningLibraryWorkspace.tsx` | 生詞庫、詳情、編輯與垃圾桶 UI |
+| `apps/desktop/src/renderer/LearningLibraryWorkspace.tsx` | 生詞庫及共用 editable／read-only 詳情、編輯與垃圾桶 UI |
 | `apps/desktop/src/renderer/App.tsx` | 工作區入口、側欄數量與 AI 面板共存 |
 | `apps/desktop/src/renderer/styles.css` | 固定工具區、獨立捲動、卡片與 modal 樣式 |
 
@@ -177,17 +183,16 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 | `learning-library-service.test.ts` | migration、seed、搜尋／篩選、exact-title 候選、atomic create、垃圾桶 |
 | `spaced-review-artifacts.test.ts`、`spaced-review-controller.test.ts` | 有限 AI scope、artifact 與暫態生命週期 |
 | `learning-library-ipc.test.ts` | 六個 IPC 白名單與惡意／錯誤 payload 拒絕 |
-| `learning-library-workspace.test.tsx` | 查詢控制、非捲動工具區、modal、安全 Markdown、編輯、刪除確認與垃圾桶 |
+| `learning-library-workspace.test.tsx` | 查詢控制、非捲動工具區、共用 modal、安全 Markdown、編輯、刪除確認與垃圾桶 |
 | `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
 | `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情，以及捲到底後工具區位置不變 |
 
-最近驗證（2026-07-24）：
+最近驗證（2026-07-25）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：215/215 passed。
-- Electron Playwright：2/2 passed。
+- Desktop Vitest：241/241 passed。
 - 全專案 TypeScript typecheck：passed。
-- 全專案 production build：passed。
+- Desktop production build：passed。
 
 ## 10. Known Limitations and Follow-up
 

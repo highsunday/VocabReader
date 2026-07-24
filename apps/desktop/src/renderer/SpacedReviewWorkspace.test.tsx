@@ -6,12 +6,20 @@ import {
   within
 } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { LearningDesktopApi } from "../shared/learning-contracts";
 import type {
   ReviewDesktopApi,
   ReviewGenerationProgress,
   ReviewPaper
 } from "../shared/review-contracts";
 import { SpacedReviewWorkspace } from "./SpacedReviewWorkspace";
+
+const ratingOptionsForTest = {
+  forgotten: "忘記",
+  hard: "困難",
+  good: "順利",
+  easy: "簡單"
+} as const;
 
 function reviewApi() {
   const paper: ReviewPaper = {
@@ -77,6 +85,28 @@ function reviewApi() {
     getItemDetail: vi.fn(),
     onGenerationProgress: vi.fn(() => () => undefined)
   } satisfies ReviewDesktopApi;
+}
+
+function learningApi() {
+  return {
+    listItems: vi.fn(async () => []),
+    getItem: vi.fn(async (itemId: string) => ({
+      id: itemId,
+      title: "bank",
+      itemType: "word" as const,
+      cefr: "A2" as const,
+      sense: "financial institution",
+      markdownContent: "## Meaning\n銀行／金融機構",
+      status: "active" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      trashedAt: null
+    })),
+    updateItem: vi.fn(),
+    trashItem: vi.fn(),
+    restoreItem: vi.fn(),
+    emptyTrash: vi.fn()
+  } satisfies LearningDesktopApi;
 }
 
 describe("SpacedReviewWorkspace", () => {
@@ -254,7 +284,7 @@ describe("SpacedReviewWorkspace", () => {
       name: "正在分析你的答案"
     })).toBeInTheDocument();
     expect(within(gradingStatus).getByText(
-      "比對詞義與句子語境，完成後會逐題提供回饋與複習評級建議。"
+      "比對詞義與句子語境，並在適用時提供遣詞用句建議。"
     )).toBeInTheDocument();
 
     resolveGrade?.({
@@ -271,6 +301,338 @@ describe("SpacedReviewWorkspace", () => {
     expect(screen.queryByRole("status", {
       name: "AI 正在批改試卷"
     })).not.toBeInTheDocument();
+  });
+
+  it("shows a wording correction in the answer field without expression advice", async () => {
+    const api = reviewApi();
+    api.gradePaper = vi.fn(async () => ({
+      paperId: "paper-1",
+      results: [{
+        questionId: "q1",
+        itemId: "item-1",
+        feedback: "核心詞義正確。",
+        recommendedAnswer:
+          "A bank is a place where people keep and manage their money.",
+        rating: "easy" as const,
+        expressionFeedback: {
+          status: "improvable" as const,
+          message: "institution 比 place 更精確。",
+          suggestedAnswer:
+            "A bank is an institution where people deposit or withdraw money."
+        }
+      }]
+    }));
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
+      target: { value: "It is a place that saves people's money." }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+
+    const meaning = await screen.findByRole("region", { name: "意思判斷" });
+    expect(within(meaning).getByText("核心詞義正確。")).toBeInTheDocument();
+    expect(within(meaning).getByText("下次可以這樣回答"))
+      .toBeInTheDocument();
+    expect(within(meaning).getByText(
+      "A bank is a place where people keep and manage their money."
+    )).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "表達建議" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText("institution 比 place 更精確。"))
+      .not.toBeInTheDocument();
+    const answerArea = screen.getByText("這個詞在句中的意思").closest("label");
+    expect(within(answerArea!).getByText("口語修正 →")).toBeInTheDocument();
+    expect(within(answerArea!).getByText(
+      "A bank is an institution where people deposit or withdraw money."
+    )).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "簡單" })).toBeChecked();
+  });
+
+  it.each([
+    {
+      label: "other-language answer",
+      feedback: {
+        status: "not-applicable" as const,
+        message: null,
+        suggestedAnswer: null
+      },
+      expectedMessage: null
+    },
+    {
+      label: "short target-language answer",
+      feedback: {
+        status: "natural" as const,
+        message: "financial institution 是自然且精確的說法。",
+        suggestedAnswer: null
+      },
+      expectedMessage: "financial institution 是自然且精確的說法。"
+    }
+  ])("handles $label without inventing a rewrite", async ({
+    feedback,
+    expectedMessage
+  }) => {
+    const api = reviewApi();
+    api.gradePaper = vi.fn(async () => ({
+      paperId: "paper-1",
+      results: [{
+        questionId: "q1",
+        itemId: "item-1",
+        feedback: "核心詞義正確。",
+        rating: "easy" as const,
+        expressionFeedback: feedback
+      }]
+    }));
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
+      target: { value: expectedMessage ? "financial institution" : "金融機構" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+
+    expect(await screen.findByRole("region", { name: "意思判斷" }))
+      .toHaveTextContent("核心詞義正確。");
+    expect(screen.queryByRole("region", { name: "表達建議" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText(expectedMessage ?? "不會出現的訊息"))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText("口語修正 →")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "簡單" })).toBeChecked();
+  });
+
+  it("shows the correct contextual meaning when a blank answer is graded forgotten", async () => {
+    const api: ReviewDesktopApi = reviewApi();
+    api.gradePaper = vi.fn(async () => ({
+      paperId: "paper-1",
+      results: [{
+        questionId: "q1",
+        itemId: "item-1",
+        feedback: "這題沒有作答。",
+        recommendedAnswer: "bank 在這個句子中指銀行或金融機構。",
+        rating: "forgotten" as const,
+        expressionFeedback: {
+          status: "not-applicable" as const,
+          message: null,
+          suggestedAnswer: null
+        }
+      }]
+    }));
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "提交試卷（1 題未作答）"
+    }));
+
+    const meaning = await screen.findByRole("region", { name: "意思判斷" });
+    expect(meaning).toHaveTextContent("這題沒有作答。");
+    expect(meaning).toHaveTextContent("下次可以這樣回答");
+    expect(meaning).toHaveTextContent(
+      "bank 在這個句子中指銀行或金融機構。"
+    );
+    expect(screen.getByRole("radio", { name: "忘記" })).toBeChecked();
+    expect(screen.queryByRole("region", { name: "表達建議" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("colors the current rating and opens a read-only learning item after grading", async () => {
+    const api = reviewApi();
+    api.getItemDetail = vi.fn(async () => ({
+      status: "new" as const,
+      lastReviewedAt: null,
+      lastFinalRating: null,
+      nextDueAt: null,
+      reviewCount: 0,
+      history: []
+    }));
+    const learning = learningApi();
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    const answer = await screen.findByLabelText("這個詞在句中的意思");
+    expect(screen.queryByRole("button", { name: "打開學習卡" }))
+      .not.toBeInTheDocument();
+    fireEvent.change(answer, { target: { value: "金融機構" } });
+    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+
+    const meaning = await screen.findByRole("region", { name: "意思判斷" });
+    const feedback = meaning.closest(".review-feedback");
+    expect(feedback).toHaveAttribute("data-rating", "easy");
+    expect(feedback).toHaveAccessibleName("批改結果：簡單");
+
+    const detailTrigger = screen.getByRole("button", {
+      name: "打開學習卡"
+    });
+    fireEvent.click(detailTrigger);
+    expect(learning.getItem).toHaveBeenCalledWith("item-1");
+    const dialog = await screen.findByRole("dialog", { name: "bank" });
+    expect(within(dialog).getByRole("heading", { name: "Meaning" }))
+      .toBeInTheDocument();
+    expect(within(dialog).getByRole("region", { name: "複習排程" }))
+      .toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "編輯" }))
+      .not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "刪除" }))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", {
+      name: "關閉卡片詳情"
+    }));
+    await waitFor(() => expect(detailTrigger).toHaveFocus());
+
+    fireEvent.click(detailTrigger);
+    expect(await screen.findByRole("dialog", { name: "bank" }))
+      .toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "bank" }))
+      .not.toBeInTheDocument();
+    await waitFor(() => expect(detailTrigger).toHaveFocus());
+
+    fireEvent.click(detailTrigger);
+    expect(await screen.findByRole("dialog", { name: "bank" }))
+      .toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByTestId("learning-detail-backdrop"));
+    expect(screen.queryByRole("dialog", { name: "bank" }))
+      .not.toBeInTheDocument();
+    await waitFor(() => expect(detailTrigger).toHaveFocus());
+
+    fireEvent.click(screen.getByRole("radio", { name: "困難" }));
+    expect(feedback).toHaveAttribute("data-rating", "hard");
+    expect(feedback).toHaveAccessibleName("批改結果：困難");
+    expect(screen.getByText("AI 建議：簡單")).toBeInTheDocument();
+    expect(answer).toHaveValue("金融機構");
+    expect(api.generatePaper).toHaveBeenCalledTimes(1);
+    expect(api.gradePaper).toHaveBeenCalledTimes(1);
+    expect(learning.updateItem).not.toHaveBeenCalled();
+    expect(learning.trashItem).not.toHaveBeenCalled();
+  });
+
+  it("marks all four AI ratings with distinct result states", async () => {
+    const api: ReviewDesktopApi = reviewApi();
+    const ratings = ["forgotten", "hard", "good", "easy"] as const;
+    const questions = ratings.map((rating, index) => ({
+      questionId: `q${index + 1}`,
+      itemId: `item-${index + 1}`,
+      title: `word-${index + 1}`,
+      sense: `sense-${index + 1}`,
+      cefr: "A2" as const,
+      beforeTarget: "A ",
+      targetText: `word-${index + 1}`,
+      afterTarget: " appears here."
+    }));
+    api.getSummary = vi.fn(async () => ({
+      dueReviewedCount: 0,
+      newCount: 4,
+      totalAvailable: 4,
+      selectedItems: questions.map((question, index) => ({
+        id: question.itemId,
+        title: question.title,
+        itemType: "word" as const,
+        cefr: "A2" as const,
+        sense: question.sense,
+        markdownContent: "## Meaning\nMeaning",
+        status: "active" as const,
+        createdAt: `2026-01-0${index + 1}T00:00:00.000Z`,
+        updatedAt: `2026-01-0${index + 1}T00:00:00.000Z`,
+        trashedAt: null,
+        reviewKind: "new" as const,
+        dueAt: null
+      })),
+      nextDueAt: null
+    }));
+    api.generatePaper = vi.fn(async () => ({
+      paperId: "paper-4",
+      questions
+    }));
+    api.gradePaper = vi.fn(async () => ({
+      paperId: "paper-4",
+      results: ratings.map((rating, index) => ({
+        questionId: `q${index + 1}`,
+        itemId: `item-${index + 1}`,
+        feedback: `feedback-${rating}`,
+        rating
+      }))
+    }));
+    render(
+      <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "提交試卷（4 題未作答）"
+    }));
+
+    for (const [index, rating] of ratings.entries()) {
+      const meaning = await screen.findByText(`feedback-${rating}`);
+      expect(meaning.closest(".review-feedback"))
+        .toHaveAttribute("data-rating", rating);
+      expect(screen.getAllByRole("radio", {
+        name: ratingOptionsForTest[rating]
+      })[index]).toBeChecked();
+    }
+  });
+
+  it("keeps the graded paper intact when learning item detail cannot load", async () => {
+    const api = reviewApi();
+    const learning = learningApi();
+    learning.getItem = vi.fn(async () => {
+      throw new Error("找不到學習項目");
+    });
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
+      target: { value: "金融機構" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "打開學習卡"
+    }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("找不到學習項目");
+    expect(screen.getByRole("radio", { name: "簡單" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "接受評級並更新排程" }))
+      .toBeEnabled();
   });
 
   it("keeps the round summary and current paper together when leaving and viewing", async () => {

@@ -1749,6 +1749,7 @@ export function App() {
           {desktopReview() ? (
             <SpacedReviewWorkspace
               api={desktopReview()!}
+              learningApi={desktopLearning()}
               explanationLanguage={settings.explanationLanguage}
               active={mode === "spaced-review"}
               onAvailableCountChange={setReviewAvailableCount}

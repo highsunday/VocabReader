@@ -82,18 +82,20 @@ function reviewTime(value: string | null) {
     : "—";
 }
 
-function LearningItemDialog({
+export function LearningItemDialog({
   item,
   api,
   reviewApi,
+  readOnly = false,
   onClose,
   onChanged
 }: {
   item: LearningItem;
   api: LearningDesktopApi;
   reviewApi?: ReviewDesktopApi;
+  readOnly?: boolean;
   onClose: () => void;
-  onChanged: (item: LearningItem) => Promise<void>;
+  onChanged?: (item: LearningItem) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<UpdateLearningItemInput>();
   const [isSaving, setIsSaving] = useState(false);
@@ -183,7 +185,7 @@ function LearningItemDialog({
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!draft || isSaving) return;
+    if (!draft || isSaving || readOnly || !onChanged) return;
     setIsSaving(true);
     setError("");
     try {
@@ -198,7 +200,7 @@ function LearningItemDialog({
   }
 
   async function moveToTrash() {
-    if (isSaving) return;
+    if (isSaving || readOnly || !onChanged) return;
     setIsSaving(true);
     setError("");
     try {
@@ -408,29 +410,31 @@ function LearningItemDialog({
                 ) : <p>讀取排程中…</p>}
               </section>
             ) : null}
-            <div className="learning-dialog-actions">
-              <button
-                type="button"
-                className="danger-outline-action"
-                onClick={() => setIsDeleteConfirming(true)}
-                disabled={isSaving}
-              >
-                刪除
-              </button>
-              <button
-                type="button"
-                className="primary-action"
-                onClick={() => setDraft(fieldsFor(item))}
-                disabled={isSaving}
-              >
-                編輯
-              </button>
-            </div>
+            {!readOnly ? (
+              <div className="learning-dialog-actions">
+                <button
+                  type="button"
+                  className="danger-outline-action"
+                  onClick={() => setIsDeleteConfirming(true)}
+                  disabled={isSaving}
+                >
+                  刪除
+                </button>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={() => setDraft(fieldsFor(item))}
+                  disabled={isSaving}
+                >
+                  編輯
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </section>
 
-      {isDeleteConfirming ? (
+      {isDeleteConfirming && !readOnly ? (
         <div
           className="dialog-backdrop learning-delete-confirm-backdrop"
           onMouseDown={ignoreInnerMouseDown}

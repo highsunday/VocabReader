@@ -75,11 +75,30 @@ export interface ReviewAnswer {
   answer: string;
 }
 
+export type ReviewExpressionFeedback =
+  | {
+      status: "natural";
+      message: string;
+      suggestedAnswer: null;
+    }
+  | {
+      status: "improvable";
+      message: string;
+      suggestedAnswer: string;
+    }
+  | {
+      status: "not-applicable";
+      message: null;
+      suggestedAnswer: null;
+    };
+
 export interface ReviewGradeResult {
   questionId: string;
   itemId: string;
   feedback: string;
+  recommendedAnswer?: string;
   rating: ReviewRating;
+  expressionFeedback?: ReviewExpressionFeedback;
 }
 
 export interface ReviewGrade {

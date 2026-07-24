@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, LoaderCircle, Sparkles } from "lucide-react";
+import { BookOpen, Check, LoaderCircle, Sparkles } from "lucide-react";
+import type {
+  LearningDesktopApi,
+  LearningItem
+} from "../shared/learning-contracts";
 import type {
   ConfirmReviewSessionResult,
   ReviewDesktopApi,
@@ -10,6 +14,7 @@ import type {
   ReviewSummary
 } from "../shared/review-contracts";
 import type { ExplanationLanguage } from "../shared/settings-contracts";
+import { LearningItemDialog } from "./LearningLibraryWorkspace";
 
 const ratingOptions: Array<{ value: ReviewRating; label: string }> = [
   { value: "forgotten", label: "忘記" },
@@ -35,12 +40,14 @@ function dueLabel(value: string | null) {
 
 export function SpacedReviewWorkspace({
   api,
+  learningApi,
   explanationLanguage,
   active = true,
   onAvailableCountChange,
   onStatusChange
 }: {
   api: ReviewDesktopApi;
+  learningApi?: LearningDesktopApi;
   explanationLanguage: ExplanationLanguage;
   active?: boolean;
   onAvailableCountChange?(count: number): void;
@@ -70,7 +77,9 @@ export function SpacedReviewWorkspace({
   const [isAbandonConfirmationOpen, setIsAbandonConfirmationOpen] =
     useState(false);
   const [isAbandoning, setIsAbandoning] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<LearningItem>();
   const generationAttemptRef = useRef(0);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   async function loadSummary() {
     setPhase("loading");
@@ -82,6 +91,7 @@ export function SpacedReviewWorkspace({
     setFinalRatings({});
     setIsPaperViewPaused(false);
     setIsAbandonConfirmationOpen(false);
+    setSelectedItem(undefined);
     try {
       const next = await api.getSummary();
       setSummary(next);
@@ -251,6 +261,27 @@ export function SpacedReviewWorkspace({
         : "無法更新複習排程。");
       setPhase("reviewing");
     }
+  }
+
+  async function openItemDetail(
+    itemId: string,
+    trigger: HTMLButtonElement
+  ) {
+    if (!learningApi) return;
+    detailTriggerRef.current = trigger;
+    setError("");
+    try {
+      setSelectedItem(await learningApi.getItem(itemId));
+    } catch (cause) {
+      setError(cause instanceof Error
+        ? cause.message
+        : "無法開啟學習項目。");
+    }
+  }
+
+  function closeItemDetail() {
+    setSelectedItem(undefined);
+    requestAnimationFrame(() => detailTriggerRef.current?.focus());
   }
 
   if (!active) return null;
@@ -448,6 +479,12 @@ export function SpacedReviewWorkspace({
             const result = grade?.results.find(({ questionId }) =>
               questionId === question.questionId
             );
+            const currentRating = result
+              ? finalRatings[question.questionId] ?? result.rating
+              : undefined;
+            const currentRatingLabel = currentRating
+              ? ratingOptions.find(({ value }) => value === currentRating)?.label
+              : undefined;
             return (
               <article className="review-question-card" key={question.questionId}>
                 <header>
@@ -461,19 +498,62 @@ export function SpacedReviewWorkspace({
                 </p>
                 <label>
                   <span>這個詞在句中的意思</span>
-                  <textarea
-                    value={answers[question.questionId] ?? ""}
-                    disabled={phase !== "answering"}
-                    onChange={(event) => setAnswers((current) => ({
-                      ...current,
-                      [question.questionId]: event.target.value
-                    }))}
-                    placeholder="可以留白，未作答會評為忘記"
-                  />
+                  <div className={`review-answer-field${
+                    result?.expressionFeedback?.status === "improvable"
+                      ? " has-correction"
+                      : ""
+                  }`}>
+                    <textarea
+                      value={answers[question.questionId] ?? ""}
+                      disabled={phase !== "answering"}
+                      onChange={(event) => setAnswers((current) => ({
+                        ...current,
+                        [question.questionId]: event.target.value
+                      }))}
+                      placeholder="可以留白，未作答會評為忘記"
+                    />
+                    {result?.expressionFeedback?.status === "improvable" ? (
+                      <div className="review-answer-correction">
+                        <span>口語修正 →</span>
+                        <strong>
+                          {result.expressionFeedback.suggestedAnswer}
+                        </strong>
+                      </div>
+                    ) : null}
+                  </div>
                 </label>
                 {result ? (
-                  <aside className="review-feedback">
-                    <p>{result.feedback}</p>
+                  <aside
+                    className="review-feedback"
+                    data-rating={currentRating}
+                    aria-label={`批改結果：${currentRatingLabel}`}
+                  >
+                    <section
+                      className="review-meaning-feedback"
+                      aria-label="意思判斷"
+                    >
+                      <strong>意思判斷</strong>
+                      <p>{result.feedback}</p>
+                      {result.recommendedAnswer ? (
+                        <div className="review-recommended-answer">
+                          <span>下次可以這樣回答</span>
+                          <p>{result.recommendedAnswer}</p>
+                        </div>
+                      ) : null}
+                    </section>
+                    {learningApi ? (
+                      <button
+                        type="button"
+                        className="review-item-detail-action"
+                        onClick={(event) => void openItemDetail(
+                          question.itemId,
+                          event.currentTarget
+                        )}
+                      >
+                        <BookOpen aria-hidden="true" size={16} strokeWidth={1.9} />
+                        打開學習卡
+                      </button>
+                    ) : null}
                     <fieldset>
                       <legend>AI 建議：{
                         ratingOptions.find(({ value }) => value === result.rating)?.label
@@ -533,7 +613,7 @@ export function SpacedReviewWorkspace({
                 <span>AI 批改中</span>
                 <h2>正在分析你的答案</h2>
                 <p>
-                  比對詞義與句子語境，完成後會逐題提供回饋與複習評級建議。
+                  比對詞義與句子語境，並在適用時提供遣詞用句建議。
                 </p>
                 <div className="review-grading-progress" aria-hidden="true">
                   <span />
@@ -628,6 +708,16 @@ export function SpacedReviewWorkspace({
             </div>
           </section>
         </div>
+      ) : null}
+
+      {selectedItem && learningApi ? (
+        <LearningItemDialog
+          item={selectedItem}
+          api={learningApi}
+          reviewApi={api}
+          readOnly
+          onClose={closeItemDetail}
+        />
       ) : null}
     </section>
   );

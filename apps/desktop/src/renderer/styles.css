@@ -2066,25 +2066,162 @@ button {
   line-height: 1.55;
 }
 
+.review-answer-field {
+  display: grid;
+}
+
+.review-answer-field.has-correction textarea {
+  border-radius: 10px 10px 0 0;
+}
+
+.review-answer-correction {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin-top: -1px;
+  padding: 11px 13px;
+  border: 1px solid #cec4b4;
+  border-radius: 0 0 10px 10px;
+  background: #f8faf3;
+}
+
+.review-answer-correction span {
+  color: #667044;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.review-answer-correction strong {
+  color: #303727;
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .review-feedback {
   margin-top: 18px;
   padding: 16px;
   border-left: 3px solid #b7483a;
   border-radius: 0 10px 10px 0;
   background: #fff4f1;
+  transition: border-color 140ms ease, background-color 140ms ease;
 }
 
-.review-feedback p {
-  margin: 0 0 14px;
+.review-feedback[data-rating="forgotten"] {
+  border-left-color: #b7483a;
+  background: #fff4f1;
+}
+
+.review-feedback[data-rating="hard"] {
+  border-left-color: #c87528;
+  background: #fff7eb;
+}
+
+.review-feedback[data-rating="good"] {
+  border-left-color: #24847d;
+  background: #eef9f7;
+}
+
+.review-feedback[data-rating="easy"] {
+  border-left-color: #4d8c52;
+  background: #f0f8ef;
+}
+
+.review-feedback[data-rating="hard"] .review-meaning-feedback > strong,
+.review-feedback[data-rating="hard"] legend {
+  color: #8d541e;
+}
+
+.review-feedback[data-rating="good"] .review-meaning-feedback > strong,
+.review-feedback[data-rating="good"] legend {
+  color: #216d68;
+}
+
+.review-feedback[data-rating="easy"] .review-meaning-feedback > strong,
+.review-feedback[data-rating="easy"] legend {
+  color: #356f3a;
+}
+
+.review-meaning-feedback {
+  display: grid;
+  gap: 7px;
+}
+
+.review-meaning-feedback > strong {
+  color: #7e4038;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.review-meaning-feedback p {
+  margin: 0;
+}
+
+.review-recommended-answer {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.review-recommended-answer span {
+  color: #64705f;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.review-recommended-answer > p {
+  padding: 7px 0 7px 12px;
+  border-left: 4px solid #788555;
+  color: #303727;
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.5;
 }
 
 .review-feedback fieldset {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0;
+  margin: 16px 0 0;
   padding: 0;
   border: 0;
+}
+
+.review-item-detail-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid #c7cebf;
+  border-radius: 9px;
+  background: rgb(255 255 255 / 62%);
+  color: #475545;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgb(43 55 40 / 6%);
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.review-item-detail-action:hover {
+  background: #fff;
+  border-color: #879481;
+  box-shadow: 0 3px 9px rgb(43 55 40 / 10%);
+  transform: translateY(-1px);
+}
+
+.review-item-detail-action:focus-visible {
+  outline: 3px solid rgb(68 112 78 / 22%);
+  outline-offset: 2px;
 }
 
 .review-feedback legend {
