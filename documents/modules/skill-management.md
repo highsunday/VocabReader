@@ -2,13 +2,14 @@
 title: App 內建 Skill 管理模組
 module: skill-management
 status: active
-last_updated: 2026-07-24
+last_updated: 2026-07-25
 related_implements:
   - F16-invoke-annotation-explanation-skill
   - F18-use-reading-comprehension-skill
   - F21-ai-assisted-learning-item-creation
   - B03-load-only-bundled-annotation-skill
   - F28-ai-graded-spaced-review-paper
+  - F34-route-multilingual-learning-item-intent-with-ai
 ---
 
 # App 內建 Skill 管理模組
@@ -77,6 +78,8 @@ related_implements:
 - 不得探索、載入或使用其他 skill。
 - 標記解析只在輸入含對應 marker 時啟用。
 - 閱讀測驗在 marker turn 建立題目後，同一 AI 對話中的相關答案 turn 可繼續使用批改 workflow；不相關 turn 不得套用。
+- 一般對話每輪依語義判斷任何語言的明確學習項目建立意圖，只輸出受驗證的
+  `learning-item-intent` targets；不得在 routing 階段直接套用 creation skill 或建立 batch。
 
 新建 thread 與恢復既有 thread 都取得同一份 developer instructions、`approvalPolicy: never`、read-only sandbox 與相同隔離設定。
 
@@ -92,14 +95,20 @@ related_implements:
 | 閱讀測驗 | `$practice-reading-comprehension` | 固定名稱與固定安裝路徑的閱讀 skill |
 | 閱讀測驗後續作答 | 通常無新 marker | 由同一 thread 已載入的評量 workflow 延續，不重新注入任意 skill |
 | 新增學習卡片 | `$create-learning-items` | 固定名稱與固定安裝路徑的建立 skill |
+| AI 路由後自動建立 | `$create-learning-items` | Controller 查完 exact-title 候選後啟動的內部固定建立 skill |
 | 建立 workflow 澄清回答 | Controller 重新加入 marker | 先查同標題候選，再延續固定建立 skill |
 | 間隔複習生成／批改 | `$practice-spaced-review` | 專用一次性 thread 的固定 skill |
 
 Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避免已載入指令在錯誤 turn 被誤用。
+自然語言的第一階段 routing turn 不含 skill item。只有 AI 回傳非空且通過驗證的 targets
+後，Controller 才能自動啟動第二階段固定 creation skill；快捷、invitation 與既有澄清
+仍可直接進入第二階段。
 
 ## 6. Trust and Security Constraints
 
 - `SendChatMessageInput.intent` 只允許 `explainAnnotations | practiceReading | createLearningItems`；IPC 會拒絕其他值。
+- Renderer 的普通自然語言訊息不得自行附加 `createLearningItems`；多語建立意圖由
+  developer instructions 約束的 AI routing artifact 表達，Main 再驗證最多 50 個 targets。
 - Renderer 不可提供 skill path、skill markdown、developer instructions、工作目錄、sandbox、approval policy 或 Codex method。
 - Codex runtime 工作目錄固定在 Electron user data，不指向專案 repo 或使用者任意資料夾。
 - Skill 指令要求不執行工具、不讀寫檔案、不使用網路，並只使用產品明確提供的閱讀區段與既有對話。
@@ -129,7 +138,7 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/main/bundled-skill.test.ts` | 四份 skills 的首次安裝、相同內容略過與舊版原子替換 |
-| `apps/desktop/src/main/chat-controller.test.ts` | 新建／恢復 thread 的完整 instructions、隔離 config、四種 turn routing 與三份 skills 互斥 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 新建／恢復 thread instructions、隔離 config、typed fast path、多語 AI routing、自動 creation continuation 與 skills 互斥 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | intent 與語言 enum 白名單，拒絕任意輸入 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | production Electron 啟動後四份 runtime `SKILL.md` 確實存在且內容正確 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill rubric 與 UI metadata |

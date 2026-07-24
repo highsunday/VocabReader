@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-07-24
+last_updated: 2026-07-25
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -26,6 +26,7 @@ related_implements:
   - F25-adjustable-reading-and-conversation-font-sizes
   - F27-trigger-learning-card-creation-from-natural-language
   - F28-ai-graded-spaced-review-paper
+  - F34-route-multilingual-learning-item-intent-with-ai
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -81,9 +82,12 @@ related_implements:
 - creation skill 的 target 澄清也可在最後一個 assistant message 保存 typed
   `learningItemRequest`。下一則「都加／是」等上下文式回答優先沿用這組 targets；
   structured targets 缺席時才把回答解析成新標題。
-- 提問框可辨識英文與繁體中文的明確新增卡片請求，例如 `add this card` 或
-  「把這個加入生詞庫」，保留原始顯示文字並轉成既有 `createLearningItems` intent；
-  一般問答、引用與否定句仍是普通對話。
+- 一般自然語言訊息一律由 Renderer 原樣送出；AI 依任何語言的語義判斷是否為明確的
+  學習項目建立請求。target 明確時，Controller 隱藏內部 routing turn，自動查詢有限
+  候選並啟動固定 creation skill，使用者只看見一次最終結果，不再回答聊天式確認。
+- 已辨識 targets 後若候選查詢或草稿準備失敗，原 user message 保存可重試狀態；
+  重試直接沿用 targets，不重新判斷意圖。重啟時未完成的 preparing 狀態正規化為
+  failed。pending 草稿可經二次確認成為唯讀的 abandoned terminal state。
 - 間隔複習沿用相同本機 Codex transport 與登入狀態，但使用獨立一次性 Controller；
   試卷、答案及批改不加入全域對話清單或 `LocalChatConversationStore`。
 
@@ -110,6 +114,8 @@ related_implements:
 - `turn/interrupt` 停止流程，以及 starting 狀態等待真實 turn id 的同步。
 - 新對話、切換、恢復、封存與管理操作互斥。
 - 把產品層提供的結構化 context 組成單次 Codex 文字 input。
+- 驗證 `learning-item-intent` routing artifact，協調 AI 路由、exact-title 候選查詢與
+  內部 creation turn，並保存準備、失敗、完成及重試狀態。
 - 以完整、可複製的 `ChatSnapshot` 通知上層。
 - 關閉時解除 listeners、拒絕 pending request 並終止子程序。
 
@@ -126,9 +132,10 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 
 ### Electron IPC and Preload
 
-- Renderer 除既有對話 IPC 外，只能使用四個 typed 草稿能力：
+- Renderer 除既有對話 IPC 外，只能使用六個 typed 學習項目能力：
   `chat:update-learning-item-draft`、`chat:set-learning-item-draft-state`、
-  `chat:submit-learning-item-batch`、`chat:restore-learning-item-match`。
+  `chat:submit-learning-item-batch`、`chat:restore-learning-item-match`、
+  `chat:retry-learning-item-preparation`、`chat:abandon-learning-item-batch`。
 - `chat:state-changed` 只向 Renderer 發送完整型別化 snapshot。
 - Preload 將這些能力收斂於 `window.readerDesktop.chat`。
 - Renderer 不能指定任意 Codex method、工作目錄、approval、sandbox、process 或工具設定。
@@ -141,8 +148,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 從目前模式、選取書籍、章節與 `extractReadingSegment()` 組裝 `SendChatMessageInput`。
 - 以 `bookId + chapterId + start + end + annotation revision` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
 - 將一般訊息與三種 typed intent 分開；`explainAnnotations`、`practiceReading`、
-  `createLearningItems` 各自附固定 App skill。`createLearningItems` 可由快捷操作、
-  invitation、澄清延續或明確自然語言建立請求產生；其他一般訊息不附 skill。
+  `createLearningItems` 各自附固定 App skill。快捷操作、invitation 與既有澄清延續
+  可直接提供 `createLearningItems`；普通自然語言訊息不由 Renderer 判斷或附加 intent。
 - 空閱讀區段只送出一般問題，不使用整章 fallback。
 - 顯示處理中、需要登入、連線失敗與額度不可用狀態。
 - 在提問框呈現模型選擇、鍵盤操作提示與停止按鈕；回覆中狀態顯示於訊息流，IME composition Enter 不觸發送出。
@@ -164,7 +171,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 | `allowance` | 五小時／每週額度、載入階段與細節 |
 | `threadId` | 目前 AI 對話對應的 Codex thread id；空白新對話時為 null |
 | `activeTurnId` | 目前回答識別碼；建立中使用內部 starting 狀態，閒置時為 null |
-| `messages` | 訊息狀態，以及可選 learning request／invitation／draft batch／artifact error；learning request 可附在 user creation turn 或 assistant clarification |
+| `messages` | 訊息狀態，以及可選 preparation／learning request／invitation／draft batch／artifact error；preparation 附著於原始 user message，保存 targets、語言與 preparing／failed／completed 狀態 |
 | `conversations` | 依最近更新排序的全域對話摘要，不包含完整訊息複本 |
 | `activeConversationId` | 目前選取的產品對話 id；空白新對話時為 null |
 | `managementBusy` | 封存等管理操作是否進行中 |
@@ -181,7 +188,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - `context.chapterTitle`：可選，目前章節名稱。
 - `context.readingSegment`：可選，只能來自 `extractReadingSegment()` 的非空輸出。
 - `intent`：可選且只接受 `explainAnnotations | practiceReading | createLearningItems`。
-- `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja`；供標記解析與閱讀測驗題面共用。
+- `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja`；供標記解析、閱讀測驗與學習項目草稿共用。
 - `learningItemTargets`：只允許 creation intent 使用，最多 50 個 title／senseHint。
 
 ## 5. Connection and Allowance Flow
@@ -204,17 +211,26 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 
 ## 6. Conversation Flow
 
-1. Renderer 驗證 Codex ready、輸入非空且沒有 active turn；若提問框文字是明確英文或
-   繁體中文新增卡片請求，附上 `createLearningItems` intent 與目前講解語言，但不從
-   自然語句猜測學習項目標題。
+1. Renderer 驗證 Codex ready、輸入非空且沒有 active turn；一般訊息只附原文、目前
+   講解語言與必要的有限閱讀 context，不以關鍵字、正則或支援語言清單判斷建立意圖。
 2. 閱讀模式以 START／END 裁切目前非空區段，安全插入區段內標記，並以書籍、章節、邊界及標記 revision 組成區段識別。
 3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時，普通追問只送使用者問題。預設標記解析與區段練習每次提供當下區段；其他模式或空區段不附 EPUB 原文。
 4. Controller 在任何 await 前先進入 starting，封鎖第二個並行 send 及對話管理操作。
 5. 空白新對話以固定的唯讀、無工具設定、目前選定模型及 App 內嵌的唯一標記解析 skill instructions 建立 thread，再建立本機產品對話；過去對話以 `thread/resume` 恢復時載入相同 instructions。
 6. Controller 保存畫面用的純使用者問題，另把本次實際收到的有限閱讀 context 組成 Codex input，並更新該對話的最近來源摘要。
-7. 一般 `turn/start` 只有 text input。標記解析含 `$explain-reader-annotations` 與固定標記 skill input；區段練習含 `$practice-reading-comprehension` 與固定閱讀 skill input。閱讀 skill 依長度與複雜度產生 8–12 題選擇題及 1–3 題問答題，題面、問答題回答要求與批改使用本次講解語言，直接引文保留原文，並在同一 AI 對話後續答案 turn 延續評量 workflow。講解語言以每次預設 turn 的動態參數提供，因此新 thread 與恢復的既有 thread 行為一致。
-8. `turn/start` 使用目前選定模型及其預設推理強度；成功後 Renderer 才把本次區段識別記為已提供，bridge 拒絕時保留待提供狀態。
-9. 後續 delta／completed notification 更新同一 assistant 訊息並持久保存；使用者可用停止按鈕中斷目前 turn，turn completed 後解除 busy，才能追問、切換、新建、移除對話或切換模型。
+7. 一般 `turn/start` 只有 text input。若 AI 回傳非空 `learning-item-intent`，Controller
+   把 targets 與準備狀態附著於原始 user message，移除內部 assistant routing message，
+   查詢 exact-title 候選後自動啟動含 `$create-learning-items` 與固定 skill item 的
+   第二個 turn；最終 snapshot 只保留原始 user message 與 creation 結果。
+8. AI 判定不是建立請求時顯示一般回答；意圖明確但 target 不足時只顯示一個聚焦問題。
+   Renderer 明確提供的建立快捷、invitation 與澄清延續仍直接進入 creation turn。
+9. 標記解析含 `$explain-reader-annotations` 與固定標記 skill input；區段練習含
+   `$practice-reading-comprehension` 與固定閱讀 skill input。講解語言以每次 turn 的
+   動態參數提供，因此新 thread、恢復對話與 AI 路由後的內部 creation turn 行為一致。
+10. `turn/start` 使用目前選定模型及其預設推理強度；成功後 Renderer 才把本次區段識別
+    記為已提供，bridge 拒絕時保留待提供狀態。
+11. 後續 delta／completed notification 更新同一 assistant 訊息並持久保存；使用者可用
+    停止按鈕中斷目前 turn，整個操作完成或失敗後才解除 busy。
 
 ## 7. Runtime and Safety Constraints
 

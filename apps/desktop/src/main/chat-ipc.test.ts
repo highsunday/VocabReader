@@ -38,8 +38,10 @@ describe("chat IPC", () => {
       removeConversation: vi.fn().mockResolvedValue(snapshot),
       selectModel: vi.fn().mockReturnValue(snapshot),
       stopResponse: vi.fn().mockResolvedValue(snapshot),
+      retryLearningItemPreparation: vi.fn().mockResolvedValue(snapshot),
       updateLearningItemDraft: vi.fn().mockReturnValue(snapshot),
       setLearningItemDraftState: vi.fn().mockReturnValue(snapshot),
+      abandonLearningItemBatch: vi.fn().mockReturnValue(snapshot),
       submitLearningItemBatch: vi.fn().mockResolvedValue(snapshot),
       restoreLearningItemMatch: vi.fn().mockResolvedValue(snapshot),
       onStateChanged: vi.fn(() => listener)
@@ -60,8 +62,10 @@ describe("chat IPC", () => {
     expect(handlers.has("chat:remove")).toBe(true);
     expect(handlers.has("chat:select-model")).toBe(true);
     expect(handlers.has("chat:stop")).toBe(true);
+    expect(handlers.has("chat:retry-learning-item-preparation")).toBe(true);
     expect(handlers.has("chat:update-learning-item-draft")).toBe(true);
     expect(handlers.has("chat:set-learning-item-draft-state")).toBe(true);
+    expect(handlers.has("chat:abandon-learning-item-batch")).toBe(true);
     expect(handlers.has("chat:submit-learning-item-batch")).toBe(true);
     expect(handlers.has("chat:restore-learning-item-match")).toBe(true);
     await handlers.get("chat:send")?.({}, {
@@ -143,6 +147,11 @@ describe("chat IPC", () => {
       draftId: "draft-a",
       state: "excluded"
     });
+    await handlers.get("chat:abandon-learning-item-batch")?.({}, "batch-a");
+    await handlers.get("chat:retry-learning-item-preparation")?.(
+      {},
+      "user-message-a"
+    );
     await handlers.get("chat:submit-learning-item-batch")?.({}, "batch-a");
     await handlers.get("chat:restore-learning-item-match")?.(
       {},
@@ -151,6 +160,10 @@ describe("chat IPC", () => {
     expect(controller.updateLearningItemDraft).toHaveBeenCalledWith(draftInput);
     expect(controller.setLearningItemDraftState)
       .toHaveBeenCalledWith("batch-a", "draft-a", "excluded");
+    expect(controller.abandonLearningItemBatch)
+      .toHaveBeenCalledWith("batch-a");
+    expect(controller.retryLearningItemPreparation)
+      .toHaveBeenCalledWith("user-message-a");
     expect(controller.submitLearningItemBatch).toHaveBeenCalledWith("batch-a");
     expect(controller.restoreLearningItemMatch)
       .toHaveBeenCalledWith("batch-a", "item-a");

@@ -5,7 +5,10 @@ import {
   writeFileSync
 } from "node:fs";
 import { join } from "node:path";
-import type { ChatMessage } from "../shared/chat-contracts";
+import type {
+  ChatMessage,
+  LearningItemPreparation
+} from "../shared/chat-contracts";
 import {
   learningItemBatchFromUnknown,
   learningItemInvitationFromUnknown
@@ -51,6 +54,55 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function parseLearningItemPreparation(
+  value: unknown
+): LearningItemPreparation {
+  if (!isObject(value) ||
+    (value.status !== "preparing" &&
+      value.status !== "failed" &&
+      value.status !== "completed")) {
+    throw new Error("本機 AI 對話紀錄格式錯誤。");
+  }
+  const targets = learningItemInvitationFromUnknown(value).targets;
+  const explanationLanguage = value.explanationLanguage;
+  if (explanationLanguage !== undefined &&
+    explanationLanguage !== "source" &&
+    explanationLanguage !== "zh-TW" &&
+    explanationLanguage !== "en" &&
+    explanationLanguage !== "ja") {
+    throw new Error("本機 AI 對話紀錄格式錯誤。");
+  }
+  if (value.error !== undefined && typeof value.error !== "string") {
+    throw new Error("本機 AI 對話紀錄格式錯誤。");
+  }
+  const interrupted = value.status === "preparing";
+  const status: LearningItemPreparation["status"] = interrupted
+    ? "failed"
+    : value.status;
+  const storedError = typeof value.error === "string"
+    ? value.error.trim()
+    : "";
+  return {
+    status,
+    targets,
+    ...(typeof explanationLanguage === "string"
+      ? {
+          explanationLanguage:
+            explanationLanguage as LearningItemPreparation[
+              "explanationLanguage"
+            ]
+        }
+      : {}),
+    ...((interrupted || storedError)
+      ? {
+          error: interrupted
+            ? "上次準備卡片的流程未完成，請重試。"
+            : storedError
+        }
+      : {})
+  };
+}
+
 function parseMessage(value: unknown): ChatMessage {
   const status = isObject(value) ? value.status : undefined;
   if (!isObject(value) || typeof value.id !== "string" ||
@@ -80,6 +132,11 @@ function parseMessage(value: unknown): ChatMessage {
   if (value.learningItemRequest !== undefined) {
     message.learningItemRequest = learningItemInvitationFromUnknown(
       value.learningItemRequest
+    );
+  }
+  if (value.learningItemPreparation !== undefined) {
+    message.learningItemPreparation = parseLearningItemPreparation(
+      value.learningItemPreparation
     );
   }
   if (value.artifactError !== undefined) {

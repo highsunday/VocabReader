@@ -128,6 +128,11 @@ describe("LocalChatConversationStore", () => {
     message.learningItemRequest = {
       targets: [{ title: "apple" }, { title: "banana" }]
     };
+    message.learningItemPreparation = {
+      status: "preparing",
+      targets: [{ title: "apple" }, { title: "banana" }],
+      explanationLanguage: "zh-TW"
+    };
 
     store.save(migrated);
     const reloaded = store.load();
@@ -137,6 +142,13 @@ describe("LocalChatConversationStore", () => {
       .toEqual(message.learningItemBatch);
     expect(reloaded.conversations[0]?.messages[0]?.learningItemRequest)
       .toEqual(message.learningItemRequest);
+    expect(reloaded.conversations[0]?.messages[0]?.learningItemPreparation)
+      .toEqual({
+        status: "failed",
+        targets: [{ title: "apple" }, { title: "banana" }],
+        explanationLanguage: "zh-TW",
+        error: "上次準備卡片的流程未完成，請重試。"
+      });
     expect(JSON.parse(await readFile(path, "utf8")).version).toBe(2);
   });
 });

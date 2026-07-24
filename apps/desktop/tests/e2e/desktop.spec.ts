@@ -213,6 +213,8 @@ test("launches the secure Electron reading shell", async () => {
               setLearningItemDraftState: unknown;
               submitLearningItemBatch: unknown;
               restoreLearningItemMatch: unknown;
+              retryLearningItemPreparation: unknown;
+              abandonLearningItemBatch: unknown;
               onStateChanged: unknown;
             };
           };
@@ -258,6 +260,9 @@ test("launches the secure Electron reading shell", async () => {
         hasChatDraftState: typeof desktop?.chat.setLearningItemDraftState,
         hasChatBatchSubmit: typeof desktop?.chat.submitLearningItemBatch,
         hasChatMatchRestore: typeof desktop?.chat.restoreLearningItemMatch,
+        hasChatPreparationRetry:
+          typeof desktop?.chat.retryLearningItemPreparation,
+        hasChatBatchAbandon: typeof desktop?.chat.abandonLearningItemBatch,
         hasChatSubscription: typeof desktop?.chat.onStateChanged,
         chatKeys: Object.keys(desktop?.chat ?? {}).sort(),
         hasNodeRequire: typeof (window as Window & { require?: unknown }).require
@@ -317,12 +322,16 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasChatDraftState).toBe("function");
     expect(security.hasChatBatchSubmit).toBe("function");
     expect(security.hasChatMatchRestore).toBe("function");
+    expect(security.hasChatPreparationRetry).toBe("function");
+    expect(security.hasChatBatchAbandon).toBe("function");
     expect(security.hasChatSubscription).toBe("function");
     expect(security.chatKeys).toEqual([
+      "abandonLearningItemBatch",
       "connect",
       "getState",
       "onStateChanged",
       "removeConversation",
+      "retryLearningItemPreparation",
       "selectModel",
       "selectConversation",
       "setLearningItemDraftState",

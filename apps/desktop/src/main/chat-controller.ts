@@ -95,7 +95,11 @@ export function composeDeveloperInstructions(
     "Apply practice-reading-comprehension when the user input contains $practice-reading-comprehension. After this skill creates a quiz, continue using its assessment workflow when the user submits answers to that quiz in the same conversation, even without the marker. Do not apply it to unrelated turns.",
     ...(creationSkill
       ? [
-          "Apply create-learning-items when the user input contains $create-learning-items. Continue its clarification workflow only for the user's directly related answer in the same conversation. Do not apply it to unrelated turns."
+          "Apply create-learning-items when the user input contains $create-learning-items. Continue its clarification workflow only for the user's directly related answer in the same conversation. Do not apply it to unrelated turns.",
+          "For every ordinary user turn, decide from meaning rather than keywords whether the user explicitly asks to create or save learning cards. Recognize explicit requests in any language using only the current turn, this conversation, and the finite App-provided reading segment.",
+          "If the creation intent and word or phrase targets are clear, output exactly one fenced learning-item-intent JSON block with intent createLearningItems and at most 50 targets. Do not ask the user to confirm clear targets and do not emit learning-item-result in that turn.",
+          "If creation intent is explicit but the targets are unclear, ask one focused target question and end with the same learning-item-intent block using an empty targets array.",
+          "Questions about whether something is suitable for a card, hypothetical statements, quotations, negations, and uncertain intent remain ordinary conversation and must not emit learning-item-intent."
         ]
       : []),
     "<app-provided-skill name=\"explain-reader-annotations\">",
@@ -445,6 +449,15 @@ export class ChatController {
     targets: string[];
     candidates: LearningItem[];
   }>();
+  readonly #turnInputs = new Map<string, {
+    input: SendChatMessageInput;
+    userMessageId: string;
+  }>();
+  readonly #routedLearningItemTurns = new Map<string, {
+    input: SendChatMessageInput;
+    userMessageId: string;
+    targets: NonNullable<SendChatMessageInput["learningItemTargets"]>;
+  }>();
 
   constructor(options: ChatControllerOptions) {
     this.#options = options;
@@ -579,12 +592,60 @@ export class ChatController {
     return this.getSnapshot();
   }
 
+  abandonLearningItemBatch(batchId: string): ChatSnapshot {
+    this.#assertManagementAvailable();
+    const batch = this.#pendingLearningItemBatch(batchId);
+    batch.status = "abandoned";
+    batch.abandonedAt = this.#now();
+    this.#touchActiveConversation();
+    this.#persist();
+    this.#emit();
+    return this.getSnapshot();
+  }
+
+  async retryLearningItemPreparation(messageId: string): Promise<ChatSnapshot> {
+    this.#assertManagementAvailable();
+    const id = typeof messageId === "string" ? messageId.trim() : "";
+    const message = this.#messages.find(
+      (candidate) => candidate.id === id && candidate.role === "user"
+    );
+    const preparation = message?.learningItemPreparation;
+    if (!message || !preparation || preparation.status !== "failed" ||
+      preparation.targets.length === 0) {
+      throw new Error("找不到可重試的學習項目草稿準備。");
+    }
+    if (this.#connection !== "ready" || !this.#client) await this.connect();
+    if (this.#connection !== "ready" || !this.#client) {
+      throw new Error(this.#connectionDetail);
+    }
+    preparation.status = "preparing";
+    delete preparation.error;
+    this.#activeTurnId = "starting";
+    this.#touchActiveConversation();
+    this.#persist();
+    this.#emit();
+    await this.#startRoutedLearningItemTurn({
+      input: {
+        text: message.text,
+        ...(preparation.explanationLanguage
+          ? { explanationLanguage: preparation.explanationLanguage }
+          : {})
+      },
+      userMessageId: message.id,
+      targets: structuredClone(preparation.targets)
+    });
+    return this.getSnapshot();
+  }
+
   async restoreLearningItemMatch(
     batchId: string,
     itemId: string
   ): Promise<ChatSnapshot> {
     this.#assertManagementAvailable();
     const batch = this.#learningItemBatch(batchId);
+    if (batch.status === "abandoned") {
+      throw new Error("學習項目草稿批次已放棄。");
+    }
     const matchIndex = batch.trashed.findIndex(
       (candidate) => candidate.itemId === itemId
     );
@@ -994,6 +1055,10 @@ export class ChatController {
           candidates: learningItemCandidates
         });
       }
+      this.#turnInputs.set(turnId, {
+        input: structuredClone(requestInput),
+        userMessageId: userMessage.id
+      });
       if (this.#activeTurnId === "starting") this.#activeTurnId = turnId;
       this.#resolveTurnReady?.(turnId);
       this.#resolveTurnReady = undefined;
@@ -1020,6 +1085,8 @@ export class ChatController {
     this.#activeTurnId = null;
     this.#stopRequested = false;
     this.#learningItemTurnScopes.clear();
+    this.#turnInputs.clear();
+    this.#routedLearningItemTurns.clear();
   }
 
   #handleNotification(notification: CodexNotification): void {
@@ -1083,6 +1150,46 @@ export class ChatController {
         text: string;
       };
       const artifacts = parseLearningItemArtifacts(completedItem.text);
+      const turnInput = this.#turnInputs.get(params.turnId);
+      if (artifacts.intent && turnInput &&
+        turnInput.input.intent === undefined) {
+        const targets = artifacts.intent.targets;
+        const userMessage = this.#messages.find(
+          (message) => message.id === turnInput.userMessageId
+        );
+        if (userMessage) {
+          userMessage.learningItemRequest = {
+            targets: structuredClone(targets)
+          };
+          if (targets.length > 0) {
+            userMessage.learningItemPreparation = {
+              status: "preparing",
+              targets: structuredClone(targets),
+              ...(turnInput.input.explanationLanguage
+                ? {
+                    explanationLanguage:
+                      turnInput.input.explanationLanguage
+                  }
+                : {})
+            };
+          }
+        }
+        if (targets.length > 0) {
+          this.#routedLearningItemTurns.set(params.turnId, {
+            input: structuredClone(turnInput.input),
+            userMessageId: turnInput.userMessageId,
+            targets: structuredClone(targets)
+          });
+          this.#messages = this.#messages.filter(
+            (message) => message.id !== completedItem.id
+          );
+          this.#touchActiveConversation();
+          this.#tryPersist();
+          this.#emit();
+          return;
+        }
+        artifacts.request = { targets: [] };
+      }
       if (artifacts.batch) {
         try {
           const scope = this.#learningItemTurnScopes.get(params.turnId);
@@ -1099,6 +1206,27 @@ export class ChatController {
           artifacts.error = error instanceof Error
             ? error.message
             : "學習項目草稿候選驗證失敗。";
+        }
+      }
+      const preparationMessage = turnInput
+        ? this.#messages.find(
+            (message) => message.id === turnInput.userMessageId
+          )
+        : undefined;
+      if (preparationMessage?.learningItemPreparation) {
+        if (artifacts.batch) {
+          preparationMessage.learningItemPreparation.status = "completed";
+          delete preparationMessage.learningItemPreparation.error;
+        } else if (artifacts.request) {
+          preparationMessage.learningItemPreparation.status = "completed";
+          delete preparationMessage.learningItemPreparation.error;
+        } else if (artifacts.error) {
+          preparationMessage.learningItemPreparation.status = "failed";
+          preparationMessage.learningItemPreparation.error = artifacts.error;
+        } else if (turnInput?.input.intent === "createLearningItems") {
+          artifacts.error = "AI 未產生可用的學習項目草稿，請重試。";
+          preparationMessage.learningItemPreparation.status = "failed";
+          preparationMessage.learningItemPreparation.error = artifacts.error;
         }
       }
       let message = this.#messages.find((item) => item.id === completedItem.id);
@@ -1131,7 +1259,11 @@ export class ChatController {
 
     if (notification.method === "turn/completed" && isObject(params.turn) &&
       typeof params.turn.id === "string") {
+      const routed = this.#routedLearningItemTurns.get(params.turn.id);
+      const completedTurnInput = this.#turnInputs.get(params.turn.id);
       this.#learningItemTurnScopes.delete(params.turn.id);
+      this.#turnInputs.delete(params.turn.id);
+      this.#routedLearningItemTurns.delete(params.turn.id);
       const completed = params.turn.status === "completed";
       for (const message of this.#messages) {
         if (message.role === "assistant" && message.turnId === params.turn.id) {
@@ -1147,8 +1279,106 @@ export class ChatController {
           typeof params.turn.error.message === "string"
           ? params.turn.error.message
           : "AI 回覆未完成。";
+        const preparation = completedTurnInput
+          ? this.#messages.find(
+              (message) => message.id === completedTurnInput.userMessageId
+            )?.learningItemPreparation
+          : undefined;
+        if (preparation) {
+          preparation.status = "failed";
+          preparation.error = this.#connectionDetail;
+        }
       }
       this.#touchActiveConversation();
+      this.#tryPersist();
+      if (completed && routed) {
+        this.#activeTurnId = "starting";
+        this.#emit();
+        void this.#startRoutedLearningItemTurn(routed);
+      } else {
+        this.#emit();
+      }
+    }
+  }
+
+  async #startRoutedLearningItemTurn(routed: {
+    input: SendChatMessageInput;
+    userMessageId: string;
+    targets: NonNullable<SendChatMessageInput["learningItemTargets"]>;
+  }): Promise<void> {
+    this.#turnReadyPromise = new Promise((resolve) => {
+      this.#resolveTurnReady = resolve;
+    });
+    const client = this.#client;
+    const threadId = this.#threadId;
+    if (!client || !threadId) {
+      this.#resolveTurnReady?.(null);
+      this.#resolveTurnReady = undefined;
+      this.#activeTurnId = null;
+      this.#connectionDetail = "Codex 連線已中斷，無法準備學習項目草稿。";
+      const preparation = this.#messages.find(
+        (message) => message.id === routed.userMessageId
+      )?.learningItemPreparation;
+      if (preparation) {
+        preparation.status = "failed";
+        preparation.error = this.#connectionDetail;
+      }
+      this.#tryPersist();
+      this.#emit();
+      return;
+    }
+    const input: SendChatMessageInput = {
+      ...routed.input,
+      intent: "createLearningItems",
+      learningItemTargets: structuredClone(routed.targets)
+    };
+    try {
+      const candidates = await (
+        this.#options.findLearningItemCandidates?.(
+          routed.targets.map(({ title }) => title)
+        ) ?? Promise.resolve([])
+      );
+      const response = await client.request("turn/start", {
+        threadId,
+        ...this.#selectedModelSettings(),
+        input: composeTurnInput(
+          input,
+          this.#options.annotationExplanationSkillPath,
+          this.#options.readingComprehensionSkillPath,
+          this.#options.learningItemCreationSkillPath,
+          candidates
+        )
+      });
+      const turnId = turnIdFrom(response);
+      if (!turnId) throw new Error("Codex 未回傳回答識別碼。");
+      this.#learningItemTurnScopes.set(turnId, {
+        targets: routed.targets.map(({ title }) => title),
+        candidates
+      });
+      this.#turnInputs.set(turnId, {
+        input: structuredClone(input),
+        userMessageId: routed.userMessageId
+      });
+      if (this.#activeTurnId === "starting") this.#activeTurnId = turnId;
+      this.#resolveTurnReady?.(turnId);
+      this.#resolveTurnReady = undefined;
+      this.#persist();
+      this.#emit();
+    } catch (error) {
+      this.#resolveTurnReady?.(null);
+      this.#resolveTurnReady = undefined;
+      this.#activeTurnId = null;
+      const detail = error instanceof Error
+        ? error.message
+        : "無法準備學習項目草稿。";
+      this.#connectionDetail = detail;
+      const preparation = this.#messages.find(
+        (message) => message.id === routed.userMessageId
+      )?.learningItemPreparation;
+      if (preparation) {
+        preparation.status = "failed";
+        preparation.error = detail;
+      }
       this.#tryPersist();
       this.#emit();
     }
@@ -1191,7 +1421,9 @@ export class ChatController {
   #pendingLearningItemBatch(batchId: string): LearningItemDraftBatch {
     const batch = this.#learningItemBatch(batchId);
     if (batch.status !== "pending") {
-      throw new Error("學習項目草稿批次已提交。");
+      throw new Error(batch.status === "abandoned"
+        ? "學習項目草稿批次已放棄。"
+        : "學習項目草稿批次已提交。");
     }
     return batch;
   }

@@ -780,6 +780,151 @@ describe("ChatController", () => {
     );
   });
 
+  it("routes a multilingual creation request through trusted targets without conversational confirmation", async () => {
+    const candidateQueries: string[][] = [];
+    const answer = (prompt: string) => prompt.includes("$create-learning-items")
+      ? [
+          "已準備 **in advance** 的學習項目草稿。",
+          "```learning-item-result",
+          JSON.stringify({
+            drafts: [{
+              title: "in advance",
+              itemType: "phrase",
+              cefr: "B1",
+              sense: "before a future event",
+              markdownContent: "## Meaning\n預先、提前。"
+            }],
+            existing: [],
+            trashed: []
+          }),
+          "```"
+        ].join("\n")
+      : [
+          "```learning-item-intent",
+          JSON.stringify({
+            intent: "createLearningItems",
+            targets: [{ title: "in advance" }]
+          }),
+          "```"
+        ].join("\n");
+    const { fake, controller } = managedFixture(
+      new MemoryChatConversationStore(),
+      { answer },
+      {
+        findLearningItemCandidates: async (titles) => {
+          candidateQueries.push(titles);
+          return [];
+        }
+      }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({
+      text: "增加這張卡片",
+      explanationLanguage: "zh-TW"
+    });
+    await waitUntil(() =>
+      controller.getSnapshot().activeTurnId === null &&
+      fake.requests.filter((request) => request.method === "turn/start")
+        .length === 2
+    );
+
+    expect(candidateQueries).toEqual([["in advance"]]);
+    expect(fake.requests.filter((request) => request.method === "turn/start"))
+      .toHaveLength(2);
+    expect(controller.getSnapshot().messages).toMatchObject([{
+      role: "user",
+      text: "增加這張卡片"
+    }, {
+      role: "assistant",
+      text: "已準備 **in advance** 的學習項目草稿。",
+      learningItemBatch: {
+        drafts: [{ title: "in advance" }]
+      }
+    }]);
+    expect(controller.getSnapshot().messages).toHaveLength(2);
+    controller.close();
+  });
+
+  it("retries routed draft preparation with persisted targets instead of rerunning intent routing", async () => {
+    let candidateAttempt = 0;
+    const candidateQueries: string[][] = [];
+    const answer = (prompt: string) => prompt.includes("$create-learning-items")
+      ? [
+          "Draft ready.",
+          "```learning-item-result",
+          JSON.stringify({
+            drafts: [{
+              title: "in advance",
+              itemType: "phrase",
+              cefr: "B1",
+              sense: "before a future event",
+              markdownContent: "## Meaning\nAhead of time."
+            }],
+            existing: [],
+            trashed: []
+          }),
+          "```"
+        ].join("\n")
+      : [
+          "```learning-item-intent",
+          JSON.stringify({
+            intent: "createLearningItems",
+            targets: [{ title: "in advance" }]
+          }),
+          "```"
+        ].join("\n");
+    const { fake, controller } = managedFixture(
+      new MemoryChatConversationStore(),
+      { answer },
+      {
+        findLearningItemCandidates: async (titles) => {
+          candidateQueries.push(titles);
+          candidateAttempt += 1;
+          if (candidateAttempt === 1) throw new Error("database busy");
+          return [];
+        }
+      }
+    );
+    await controller.connect();
+    await controller.sendMessage({
+      text: "增加這張卡片",
+      explanationLanguage: "en"
+    });
+    await waitUntil(() =>
+      controller.getSnapshot().activeTurnId === null &&
+      controller.getSnapshot().messages[0]?.learningItemPreparation
+        ?.status === "failed"
+    );
+    const request = controller.getSnapshot().messages[0]!;
+
+    expect(request.learningItemPreparation).toMatchObject({
+      status: "failed",
+      targets: [{ title: "in advance" }],
+      error: "database busy"
+    });
+    expect(fake.requests.filter((item) => item.method === "turn/start"))
+      .toHaveLength(1);
+
+    await controller.retryLearningItemPreparation(request.id);
+    await waitUntil(() =>
+      controller.getSnapshot().activeTurnId === null &&
+      Boolean(controller.getSnapshot().messages.find(
+        (message) => message.learningItemBatch
+      ))
+    );
+
+    expect(candidateQueries).toEqual([["in advance"], ["in advance"]]);
+    expect(fake.requests.filter((item) => item.method === "turn/start"))
+      .toHaveLength(2);
+    expect(controller.getSnapshot().messages[0]?.learningItemPreparation)
+      .toMatchObject({
+        status: "completed",
+        targets: [{ title: "in advance" }]
+      });
+    controller.close();
+  });
+
   it("keeps clarified targets when an explicit creation confirmation has no new targets", async () => {
     const store = new MemoryChatConversationStore({
       version: 2,
@@ -1173,6 +1318,67 @@ describe("ChatController", () => {
       .toEqual(submitted.messages[0]?.learningItemBatch);
     await expect(controller.submitLearningItemBatch("batch-a"))
       .rejects.toThrow(/已提交/);
+    controller.close();
+  });
+
+  it("abandons a pending learning-item batch without mutating the learning library", async () => {
+    const store = new MemoryChatConversationStore({
+      version: 2,
+      selectedConversationId: "conversation-a",
+      conversations: [{
+        id: "conversation-a",
+        threadId: "thread-a",
+        title: "Add cards",
+        createdAt: 10,
+        updatedAt: 20,
+        source: null,
+        messages: [{
+          id: "assistant-a",
+          turnId: "turn-a",
+          role: "assistant",
+          text: "Draft ready",
+          status: "completed",
+          learningItemBatch: {
+            id: "batch-a",
+            status: "pending",
+            drafts: [{
+              id: "draft-a",
+              title: "in advance",
+              itemType: "phrase",
+              cefr: "B1",
+              sense: "before a future event",
+              markdownContent: "## Meaning\n預先。",
+              state: "included"
+            }],
+            existing: [],
+            trashed: []
+          }
+        }]
+      }]
+    });
+    const createLearningItemsAtomically = vi.fn();
+    const { controller } = managedFixture(
+      store,
+      {},
+      { createLearningItemsAtomically }
+    );
+
+    const snapshot = controller.abandonLearningItemBatch("batch-a");
+
+    expect(snapshot.messages[0]?.learningItemBatch).toMatchObject({
+      id: "batch-a",
+      status: "abandoned"
+    });
+    expect(snapshot.messages[0]?.learningItemBatch?.abandonedAt)
+      .toBeTypeOf("number");
+    expect(() => controller.setLearningItemDraftState(
+      "batch-a",
+      "draft-a",
+      "excluded"
+    )).toThrow(/已放棄/);
+    await expect(controller.submitLearningItemBatch("batch-a"))
+      .rejects.toThrow(/已放棄/);
+    expect(createLearningItemsAtomically).not.toHaveBeenCalled();
     controller.close();
   });
 

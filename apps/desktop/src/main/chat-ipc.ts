@@ -169,6 +169,11 @@ export function registerChatIpc(
     return controller.selectModel(parseConversationId(modelId));
   });
   ipc.handle("chat:stop", () => controller.stopResponse());
+  ipc.handle("chat:retry-learning-item-preparation", (_event, messageId) => {
+    return controller.retryLearningItemPreparation(
+      parseConversationId(messageId)
+    );
+  });
   ipc.handle("chat:update-learning-item-draft", (_event, input) => {
     return controller.updateLearningItemDraft(parseDraftUpdate(input));
   });
@@ -179,6 +184,9 @@ export function registerChatIpc(
       parsed.draftId,
       parsed.state
     );
+  });
+  ipc.handle("chat:abandon-learning-item-batch", (_event, batchId) => {
+    return controller.abandonLearningItemBatch(parseConversationId(batchId));
   });
   ipc.handle("chat:submit-learning-item-batch", (_event, batchId) => {
     return controller.submitLearningItemBatch(parseConversationId(batchId));

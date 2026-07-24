@@ -28,6 +28,7 @@ export interface ChatMessage {
   learningItemRequest?: {
     targets: LearningItemTarget[];
   };
+  learningItemPreparation?: LearningItemPreparation;
   artifactError?: string;
 }
 
@@ -58,6 +59,13 @@ export interface ChatContext {
 export interface LearningItemTarget {
   title: string;
   senseHint?: string;
+}
+
+export interface LearningItemPreparation {
+  status: "preparing" | "failed" | "completed";
+  targets: LearningItemTarget[];
+  explanationLanguage?: "source" | "zh-TW" | "en" | "ja";
+  error?: string;
 }
 
 export interface SendChatMessageInput {
@@ -103,6 +111,7 @@ export interface ChatDesktopApi {
   removeConversation(conversationId: string): Promise<ChatSnapshot>;
   selectModel(modelId: string): Promise<ChatSnapshot>;
   stopResponse(): Promise<ChatSnapshot>;
+  retryLearningItemPreparation(messageId: string): Promise<ChatSnapshot>;
   updateLearningItemDraft(
     input: UpdateLearningItemDraftInput
   ): Promise<ChatSnapshot>;
@@ -111,6 +120,7 @@ export interface ChatDesktopApi {
     draftId: string,
     state: "included" | "excluded"
   ): Promise<ChatSnapshot>;
+  abandonLearningItemBatch(batchId: string): Promise<ChatSnapshot>;
   submitLearningItemBatch(batchId: string): Promise<ChatSnapshot>;
   restoreLearningItemMatch(
     batchId: string,

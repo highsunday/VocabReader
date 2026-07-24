@@ -50,11 +50,12 @@ export interface LearningItemMatch {
 
 export interface LearningItemDraftBatch {
   id: string;
-  status: "pending" | "submitted";
+  status: "pending" | "submitted" | "abandoned";
   drafts: LearningItemDraft[];
   existing: LearningItemMatch[];
   trashed: LearningItemMatch[];
   submittedAt?: number;
+  abandonedAt?: number;
   createdItemIds?: string[];
 }
 

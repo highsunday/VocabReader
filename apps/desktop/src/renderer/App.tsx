@@ -151,35 +151,6 @@ function connectionLabel(phase: ConnectionPhase) {
   }[phase];
 }
 
-function isExplicitLearningItemCreationRequest(value: string) {
-  const text = value.trim();
-  if (!text || /^[`"'“”‘’「」『』]/.test(text)) return false;
-  const normalized = text
-    .toLocaleLowerCase()
-    .replace(/[’]/g, "'");
-  if (
-    /^(?:(?:please|pls)\s+)?(?:do\s+not|don't|dont|never)\b/.test(normalized) ||
-    /\b(?:can't|cannot|couldn't|won't|wouldn't)\s+(?:add|create|make|save|turn|convert)\b/.test(normalized) ||
-    /^(?:what|why|how|when|where|who)\b/.test(normalized) ||
-    /^(?:不要|別|請勿|無法|不能|為什麼|怎麼|如何|什麼是)/.test(text)
-  ) {
-    return false;
-  }
-  const englishRequest = [
-    "^(?:(?:please|pls)\\s+)?",
-    "(?:(?:can|could|would|will)\\s+you\\s+)?",
-    "(?:(?:i\\s+(?:want|need)\\s+to|i(?:'d| would)\\s+like\\s+to|let's)\\s+)?",
-    "(?:add|create|make|save|turn|convert)\\b",
-    "[\\s\\S]*\\b",
-    "(?:flashcards?|learning\\s+cards?|cards?|learning\\s+library|",
-    "vocab(?:ulary)?\\s+(?:list|library))\\b"
-  ].join("");
-  if (new RegExp(englishRequest).test(normalized)) return true;
-  return /^(?:(?:請|麻煩)(?:你)?|可以(?:請你)?|能不能(?:請你)?)?(?:幫我)?(?:把)?[^？?]*(?:新增|加入|加到|建立|製作|做成|存成|轉成)[^？?]*(?:學習卡片?|卡片|生詞庫)[。！!？?]?$/.test(
-    text
-  );
-}
-
 function resetLabel(timestamp: number | undefined) {
   if (!Number.isFinite(timestamp)) return "";
   return new Date((timestamp ?? 0) * 1000).toLocaleString(undefined, {
@@ -191,8 +162,15 @@ function resetLabel(timestamp: number | undefined) {
 }
 
 function ChatMessageContent({ text }: { text: string }) {
-  const visibleText = text
+  const intentMarker = "```learning-item-intent";
+  const trimmedText = text.trimStart();
+  const routingOnly = Boolean(trimmedText) && (
+    intentMarker.startsWith(trimmedText) ||
+    trimmedText.startsWith(intentMarker)
+  );
+  const visibleText = (routingOnly ? "" : text)
     .replace(/```reading-practice-(?:quiz|grade)\s*\n[\s\S]*?\n```/g, "")
+    .replace(/```learning-item-intent\s*\n[\s\S]*?(?:\n```|$)/g, "")
     .trim();
   return (
     <div className="message-content">
@@ -1226,15 +1204,9 @@ export function App() {
     const text = draft.trim();
     if (!text) return;
     setDraft("");
-    await sendChatMessage(
-      text,
-      isExplicitLearningItemCreationRequest(text)
-        ? {
-            intent: "createLearningItems",
-            explanationLanguage: settings.explanationLanguage
-          }
-        : {}
-    );
+    await sendChatMessage(text, {
+      explanationLanguage: settings.explanationLanguage
+    });
   }
 
   async function explainAnnotations() {
@@ -1290,6 +1262,21 @@ export function App() {
   function handleLearningItemSnapshot(snapshot: ChatSnapshot) {
     setChatSnapshot(snapshot);
     setLearningLibraryRevision((revision) => revision + 1);
+  }
+
+  async function retryLearningItemPreparation(messageId: string) {
+    const chat = desktopChat();
+    if (!chat || chatSnapshot.activeTurnId || chatSnapshot.managementBusy) {
+      return;
+    }
+    setChatError("");
+    try {
+      setChatSnapshot(await chat.retryLearningItemPreparation(messageId));
+    } catch (error) {
+      setChatError(error instanceof Error
+        ? error.message
+        : "無法重試準備卡片。");
+    }
   }
 
   async function startNewConversation() {
@@ -2172,6 +2159,26 @@ export function App() {
                           key={message.id}
                         >
                           <ChatMessageContent text={message.text} />
+                          {message.learningItemPreparation?.status ===
+                            "failed" ? (
+                              <div className="learning-item-preparation-error">
+                                <p role="alert">
+                                  {message.learningItemPreparation.error ??
+                                    "準備卡片失敗。"}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => void
+                                    retryLearningItemPreparation(message.id)}
+                                  disabled={chatSnapshot.connection !== "ready" ||
+                                    Boolean(chatSnapshot.activeTurnId) ||
+                                    chatSnapshot.managementBusy ||
+                                    isConversationActionPending}
+                                >
+                                  重試準備卡片
+                                </button>
+                              </div>
+                            ) : null}
                           {isCurrentQuiz && messageQuiz ? (
                             <ReadingPracticePaper
                               open={expandedReadingPracticeQuizId === messageQuiz.quizId}
@@ -2217,7 +2224,11 @@ export function App() {
                     {chatSnapshot.activeTurnId ? (
                       <div className="chat-reply-status" role="status">
                         <span aria-hidden="true" />
-                        Codex 正在回覆…
+                        {chatSnapshot.messages.some((message) =>
+                          message.learningItemPreparation?.status ===
+                            "preparing")
+                          ? "正在準備卡片…"
+                          : "Codex 正在回覆…"}
                       </div>
                     ) : null}
                   </div>

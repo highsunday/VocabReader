@@ -333,7 +333,8 @@ describe("App", () => {
     fireEvent.click(sendButton);
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
-      text: "這句話的文法是什麼？"
+      text: "這句話的文法是什麼？",
+      explanationLanguage: "source"
     }));
   });
 
@@ -532,6 +533,54 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "停止中…" })).toBeDisabled();
   });
 
+  it("shows a retry action for failed learning-item preparation", async () => {
+    const failedSnapshot: ChatSnapshot = {
+      ...initialReadySnapshot(),
+      messages: [{
+        id: "user-create-a",
+        turnId: "turn-route-a",
+        role: "user",
+        text: "增加這張卡片",
+        status: "completed",
+        learningItemRequest: {
+          targets: [{ title: "in advance" }]
+        },
+        learningItemPreparation: {
+          status: "failed",
+          targets: [{ title: "in advance" }],
+          explanationLanguage: "zh-TW",
+          error: "database busy"
+        }
+      }]
+    };
+    const retryLearningItemPreparation = vi.fn().mockResolvedValue({
+      ...failedSnapshot,
+      activeTurnId: "starting",
+      messages: [{
+        ...failedSnapshot.messages[0]!,
+        learningItemPreparation: {
+          ...failedSnapshot.messages[0]!.learningItemPreparation!,
+          status: "preparing" as const,
+          error: undefined
+        }
+      }]
+    });
+    installLibraryApi([], {
+      getState: vi.fn().mockResolvedValue(failedSnapshot),
+      connect: vi.fn().mockResolvedValue(failedSnapshot),
+      retryLearningItemPreparation,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+
+    expect(await screen.findByText("database busy")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {
+      name: "重試準備卡片"
+    }));
+    await waitFor(() => expect(retryLearningItemPreparation)
+      .toHaveBeenCalledWith("user-create-a"));
+  });
+
   it("sends only the current reading segment as EPUB context", async () => {
     const rangedBook: LibraryBook = {
       ...books[0],
@@ -575,6 +624,7 @@ describe("App", () => {
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
       text: "Explain this sentence",
+      explanationLanguage: "source",
       context: {
         bookTitle: "The First Book",
         chapterTitle: "Opening",
@@ -626,6 +676,7 @@ describe("App", () => {
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
     expect(sendMessage).toHaveBeenNthCalledWith(1, {
       text: "First question",
+      explanationLanguage: "source",
       context: {
         bookTitle: "The First Book",
         chapterTitle: "Opening",
@@ -638,7 +689,10 @@ describe("App", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "送出" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
-    expect(sendMessage).toHaveBeenNthCalledWith(2, { text: "Follow-up" });
+    expect(sendMessage).toHaveBeenNthCalledWith(2, {
+      text: "Follow-up",
+      explanationLanguage: "source"
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "完成這段，前往下一段" }));
     await waitFor(() => expect(screen.getByRole("button", {
@@ -652,6 +706,7 @@ describe("App", () => {
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(3));
     expect(sendMessage).toHaveBeenNthCalledWith(3, {
       text: "New range",
+      explanationLanguage: "source",
       context: {
         bookTitle: "The First Book",
         chapterTitle: "Opening",
@@ -665,7 +720,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "送出" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(4));
     expect(sendMessage).toHaveBeenNthCalledWith(4, {
-      text: "New range follow-up"
+      text: "New range follow-up",
+      explanationLanguage: "source"
     });
   });
 
@@ -722,6 +778,7 @@ describe("App", () => {
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
     expect(sendMessage).toHaveBeenNthCalledWith(2, {
       text: "New chapter question",
+      explanationLanguage: "source",
       context: {
         bookTitle: "The First Book",
         chapterTitle: "A New Road",
@@ -1103,7 +1160,7 @@ describe("App", () => {
     expect(screen.getByText("look into")).toBeInTheDocument();
   });
 
-  it("starts learning-card creation from explicit English and Chinese requests", async () => {
+  it("sends natural-language creation requests unchanged for AI intent routing", async () => {
     const snapshot = initialReadySnapshot();
     const sendMessage = vi.fn().mockResolvedValue(snapshot);
     installLibraryApi([], {
@@ -1132,7 +1189,6 @@ describe("App", () => {
       await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(expectedCall));
       expect(sendMessage).toHaveBeenNthCalledWith(expectedCall, {
         text,
-        intent: "createLearningItems",
         explanationLanguage: "source"
       });
     }
@@ -1150,7 +1206,10 @@ describe("App", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: "送出" }));
       await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(expectedCall));
-      expect(sendMessage).toHaveBeenNthCalledWith(expectedCall, { text });
+      expect(sendMessage).toHaveBeenNthCalledWith(expectedCall, {
+        text,
+        explanationLanguage: "source"
+      });
     }
   });
 
@@ -2397,6 +2456,7 @@ describe("App", () => {
     await ask("First question");
     expect(sendMessage).toHaveBeenNthCalledWith(1, {
       text: "First question",
+      explanationLanguage: "source",
       context: {
         bookTitle: "The First Book",
         chapterTitle: "Opening",
@@ -2404,7 +2464,10 @@ describe("App", () => {
       }
     });
     await ask("Follow-up");
-    expect(sendMessage).toHaveBeenNthCalledWith(2, { text: "Follow-up" });
+    expect(sendMessage).toHaveBeenNthCalledWith(2, {
+      text: "Follow-up",
+      explanationLanguage: "source"
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "解釋標記" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(3));
@@ -2450,6 +2513,7 @@ describe("App", () => {
     await ask("After removing all marks");
     expect(sendMessage).toHaveBeenNthCalledWith(5, {
       text: "After removing all marks",
+      explanationLanguage: "source",
       context: {
         bookTitle: "The First Book",
         chapterTitle: "Opening",

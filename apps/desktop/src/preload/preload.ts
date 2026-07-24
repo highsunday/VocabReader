@@ -111,6 +111,10 @@ const desktopApi = Object.freeze({
     selectModel: (modelId: string): Promise<ChatSnapshot> =>
       ipcRenderer.invoke("chat:select-model", modelId),
     stopResponse: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:stop"),
+    retryLearningItemPreparation: (
+      messageId: string
+    ): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:retry-learning-item-preparation", messageId),
     updateLearningItemDraft: (
       input: UpdateLearningItemDraftInput
     ): Promise<ChatSnapshot> =>
@@ -125,6 +129,8 @@ const desktopApi = Object.freeze({
         draftId,
         state
       }),
+    abandonLearningItemBatch: (batchId: string): Promise<ChatSnapshot> =>
+      ipcRenderer.invoke("chat:abandon-learning-item-batch", batchId),
     submitLearningItemBatch: (batchId: string): Promise<ChatSnapshot> =>
       ipcRenderer.invoke("chat:submit-learning-item-batch", batchId),
     restoreLearningItemMatch: (

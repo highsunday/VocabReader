@@ -49,6 +49,7 @@ function api() {
   return {
     updateLearningItemDraft: vi.fn().mockResolvedValue(snapshot),
     setLearningItemDraftState: vi.fn().mockResolvedValue(snapshot),
+    abandonLearningItemBatch: vi.fn().mockResolvedValue(snapshot),
     submitLearningItemBatch: vi.fn().mockResolvedValue(snapshot),
     restoreLearningItemMatch: vi.fn().mockResolvedValue(snapshot)
   } as unknown as ChatDesktopApi;
@@ -134,5 +135,41 @@ describe("LearningItemDraftDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "提交卡片" }));
     expect(chat.submitLearningItemBatch).toHaveBeenCalledWith("batch-a");
     expect(chat.updateLearningItemDraft).not.toHaveBeenCalled();
+  });
+
+  it("requires explicit confirmation before abandoning a pending batch", async () => {
+    const chat = api();
+    const { rerender } = render(
+      <LearningItemDraftDialog
+        batch={batch}
+        api={chat}
+        onClose={vi.fn()}
+        onSnapshot={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", {
+      name: "放棄這批草稿"
+    }));
+    expect(chat.abandonLearningItemBatch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", {
+      name: "確認放棄"
+    }));
+    await waitFor(() => expect(chat.abandonLearningItemBatch)
+      .toHaveBeenCalledWith("batch-a"));
+
+    rerender(
+      <LearningItemDraftDialog
+        batch={{ ...batch, status: "abandoned", abandonedAt: 123 }}
+        api={chat}
+        onClose={vi.fn()}
+        onSnapshot={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/這批草稿已放棄/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "提交卡片" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "排除 reluctant" }))
+      .not.toBeInTheDocument();
   });
 });

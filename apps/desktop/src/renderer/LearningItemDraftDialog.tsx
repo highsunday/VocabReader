@@ -21,7 +21,9 @@ export function LearningItemBatchAction({
   const duplicate = batch.existing.length + batch.trashed.length;
   const label = batch.status === "submitted"
     ? `已新增 ${created} 張${duplicate ? `，已存在 ${duplicate} 張` : ""}`
-    : `${batch.drafts.length} 張卡片待確認`;
+    : batch.status === "abandoned"
+      ? `已放棄 ${batch.drafts.length} 張草稿`
+      : `${batch.drafts.length} 張卡片待確認`;
   return (
     <button
       className={`learning-item-batch-action ${batch.status}`}
@@ -31,7 +33,9 @@ export function LearningItemBatchAction({
     >
       <span aria-hidden="true">▤</span>
       <strong>{label}</strong>
-      <small>{batch.status === "submitted" ? "查看結果" : "檢視與提交"}</small>
+      <small>
+        {batch.status === "pending" ? "檢視與提交" : "查看結果"}
+      </small>
     </button>
   );
 }
@@ -41,13 +45,15 @@ function DraftPreview({
   draft,
   api,
   onMutate,
-  disabled
+  disabled,
+  readOnly = false
 }: {
   batchId: string;
   draft: LearningItemDraft;
   api: ChatDesktopApi;
   onMutate(operation: () => Promise<ChatSnapshot>): void;
   disabled: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <article className={`learning-item-draft ${draft.state}`}>
@@ -57,22 +63,24 @@ function DraftPreview({
           <strong>{draft.title}</strong>
           <small>{draft.state === "excluded" ? "已排除，不會提交" : "將會提交"}</small>
         </div>
-        <button
-          type="button"
-          disabled={disabled}
-          aria-label={draft.state === "included"
-            ? `排除 ${draft.title}`
-            : `恢復 ${draft.title}`}
-          onClick={() => {
-            onMutate(() => api.setLearningItemDraftState(
-              batchId,
-              draft.id,
-              draft.state === "included" ? "excluded" : "included"
-            ));
-          }}
-        >
-          {draft.state === "included" ? "排除" : "恢復"}
-        </button>
+        {!readOnly ? (
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label={draft.state === "included"
+              ? `排除 ${draft.title}`
+              : `恢復 ${draft.title}`}
+            onClick={() => {
+              onMutate(() => api.setLearningItemDraftState(
+                batchId,
+                draft.id,
+                draft.state === "included" ? "excluded" : "included"
+              ));
+            }}
+          >
+            {draft.state === "included" ? "排除" : "恢復"}
+          </button>
+        ) : null}
       </div>
 
       <div className="learning-item-draft-preview">
@@ -98,7 +106,9 @@ export function LearningItemDraftDialog({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [confirmAbandon, setConfirmAbandon] = useState(false);
   const submitted = batch.status === "submitted";
+  const abandoned = batch.status === "abandoned";
   const includedCount = batch.drafts.filter(
     (draft) => draft.state === "included"
   ).length;
@@ -145,7 +155,9 @@ export function LearningItemDraftDialog({
             <p>
               {submitted
                 ? `已新增 ${batch.createdItemIds?.length ?? 0} 張卡片。`
-                : `${includedCount} 張將會提交，${batch.drafts.length - includedCount} 張已排除。`}
+                : abandoned
+                  ? "這批草稿已放棄，不會寫入生詞庫。"
+                  : `${includedCount} 張將會提交，${batch.drafts.length - includedCount} 張已排除。`}
             </p>
           </div>
           <button
@@ -179,15 +191,17 @@ export function LearningItemDraftDialog({
                     <strong>{match.title}</strong>
                     <span>{match.sense}</span>
                   </p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    aria-label={`還原 ${match.title}`}
-                    onClick={() => void mutate(() =>
-                      api.restoreLearningItemMatch(batch.id, match.itemId))}
-                  >
-                    還原
-                  </button>
+                  {!abandoned ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      aria-label={`還原 ${match.title}`}
+                      onClick={() => void mutate(() =>
+                        api.restoreLearningItemMatch(batch.id, match.itemId))}
+                    >
+                      還原
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </section>
@@ -200,24 +214,60 @@ export function LearningItemDraftDialog({
               api={api}
               onMutate={(operation) => void mutate(operation)}
               disabled={busy || submitted}
+              readOnly={abandoned}
             />
           ))}
         </div>
 
         <footer>
-          {error ? <p role="alert">{error}</p> : <span />}
-          <button type="button" onClick={onClose} disabled={busy}>關閉</button>
-          {!submitted ? (
-            <button
-              type="button"
-              className="primary-action"
-              disabled={busy || includedCount === 0}
-              onClick={() => void mutate(() =>
-                api.submitLearningItemBatch(batch.id))}
-            >
-              {busy ? "提交中…" : "提交卡片"}
-            </button>
-          ) : null}
+          {error ? <p role="alert">{error}</p> : confirmAbandon ? (
+            <p>放棄後這批草稿將不能提交。</p>
+          ) : <span />}
+          {confirmAbandon && !submitted && !abandoned ? (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirmAbandon(false)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void mutate(() =>
+                  api.abandonLearningItemBatch(batch.id))}
+              >
+                確認放棄
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={onClose} disabled={busy}>
+                關閉
+              </button>
+              {!submitted && !abandoned ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmAbandon(true)}
+                  >
+                    放棄這批草稿
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-action"
+                    disabled={busy || includedCount === 0}
+                    onClick={() => void mutate(() =>
+                      api.submitLearningItemBatch(batch.id))}
+                  >
+                    {busy ? "提交中…" : "提交卡片"}
+                  </button>
+                </>
+              ) : null}
+            </>
+          )}
         </footer>
       </section>
     </div>

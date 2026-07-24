@@ -103,6 +103,44 @@ describe("parseLearningItemArtifacts", () => {
     expect(result.error).toBeUndefined();
   });
 
+  it("extracts an AI-routed multilingual creation intent without rendering raw JSON", () => {
+    const result = parseLearningItemArtifacts([
+      "```learning-item-intent",
+      JSON.stringify({
+        intent: "createLearningItems",
+        targets: [{ title: "in advance" }]
+      }),
+      "```"
+    ].join("\n"));
+
+    expect(result.intent).toEqual({
+      targets: [{ title: "in advance" }]
+    });
+    expect(result.text).toBe("");
+    expect(result.error).toBeUndefined();
+  });
+
+  it("accepts at most 50 AI-routed creation targets", () => {
+    const buildIntent = (count: number) => [
+      "```learning-item-intent",
+      JSON.stringify({
+        intent: "createLearningItems",
+        targets: Array.from(
+          { length: count },
+          (_, index) => ({ title: `word-${index}` })
+        )
+      }),
+      "```"
+    ].join("\n");
+
+    expect(parseLearningItemArtifacts(buildIntent(50)).intent?.targets)
+      .toHaveLength(50);
+
+    const rejected = parseLearningItemArtifacts(buildIntent(51));
+    expect(rejected.intent).toBeUndefined();
+    expect(rejected.error).toMatch(/學習項目建立意圖格式錯誤/);
+  });
+
   it("rejects a clarification request with more than 50 targets", () => {
     const result = parseLearningItemArtifacts([
       "要加入這些內容嗎？",

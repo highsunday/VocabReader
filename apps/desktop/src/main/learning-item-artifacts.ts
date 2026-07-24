@@ -13,6 +13,7 @@ interface ParsedLearningItemArtifacts {
   batch?: LearningItemDraftBatch;
   invitation?: { targets: LearningItemTarget[] };
   request?: { targets: LearningItemTarget[] };
+  intent?: { targets: LearningItemTarget[] };
   error?: string;
 }
 
@@ -86,7 +87,8 @@ export function learningItemBatchFromUnknown(
   }
   const status = value.status === undefined
     ? "pending"
-    : value.status === "pending" || value.status === "submitted"
+    : value.status === "pending" || value.status === "submitted" ||
+        value.status === "abandoned"
       ? value.status
       : (() => {
           throw new Error("學習項目草稿格式錯誤");
@@ -104,6 +106,13 @@ export function learningItemBatchFromUnknown(
       throw new Error("學習項目草稿格式錯誤");
     }
     batch.submittedAt = value.submittedAt;
+  }
+  if (value.abandonedAt !== undefined) {
+    if (typeof value.abandonedAt !== "number" ||
+      !Number.isFinite(value.abandonedAt)) {
+      throw new Error("學習項目草稿格式錯誤");
+    }
+    batch.abandonedAt = value.abandonedAt;
   }
   if (value.createdItemIds !== undefined) {
     if (!Array.isArray(value.createdItemIds) ||
@@ -162,16 +171,18 @@ export function parseLearningItemArtifacts(
     "learning-item-invitation"
   );
   const requestBlock = extractSingleBlock(sourceText, "learning-item-request");
+  const intentBlock = extractSingleBlock(sourceText, "learning-item-intent");
   const text = sourceText
     .replace(blockPattern("learning-item-result"), "")
     .replace(blockPattern("learning-item-invitation"), "")
     .replace(blockPattern("learning-item-request"), "")
+    .replace(blockPattern("learning-item-intent"), "")
     .trim();
   const parsed: ParsedLearningItemArtifacts = { text };
 
   try {
     if (resultBlock.count > 1 || invitationBlock.count > 1 ||
-      requestBlock.count > 1) {
+      requestBlock.count > 1 || intentBlock.count > 1) {
       throw new Error("學習項目草稿格式錯誤");
     }
     if (resultBlock.raw !== undefined) {
@@ -190,10 +201,24 @@ export function parseLearningItemArtifacts(
         JSON.parse(requestBlock.raw)
       );
     }
+    if (intentBlock.raw !== undefined) {
+      const value: unknown = JSON.parse(intentBlock.raw);
+      if (!isObject(value) || value.intent !== "createLearningItems" ||
+        Object.keys(value).some((key) =>
+          key !== "intent" && key !== "targets")) {
+        throw new Error("學習項目建立意圖格式錯誤");
+      }
+      try {
+        parsed.intent = learningItemInvitationFromUnknown(value);
+      } catch {
+        throw new Error("學習項目建立意圖格式錯誤");
+      }
+    }
   } catch (error) {
     parsed.batch = undefined;
     parsed.invitation = undefined;
     parsed.request = undefined;
+    parsed.intent = undefined;
     parsed.error = error instanceof Error
       ? error.message
       : "學習項目草稿格式錯誤";
