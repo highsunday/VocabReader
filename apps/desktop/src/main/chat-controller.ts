@@ -309,7 +309,12 @@ export function composeCodexInput(
       "The App selected the following candidates using exact normalized title lookup:",
       `<learning-item-candidates>${JSON.stringify(candidates)}</learning-item-candidates>`,
       ...(targets.length === 0
-        ? ["No requested target was supplied. Ask the user what word or phrase to add."]
+        ? [
+            "No trusted requested target was supplied.",
+            "Use the user's explicit request and prior conversation to identify proposed word or phrase targets.",
+            "Ask one focused confirmation or clarification and emit a learning-item-request block with those proposed targets.",
+            "Do not emit a learning-item-result until the App supplies trusted requested targets."
+          ]
         : []),
       "Use only these candidates for duplicate comparison. Never request or infer other learning-library data."
     ].join("\n");
@@ -1204,7 +1209,11 @@ export class ChatController {
   #continuedLearningItemInput(
     input: SendChatMessageInput
   ): SendChatMessageInput {
-    if (input.intent) return input;
+    if (input.intent && input.intent !== "createLearningItems") return input;
+    if (input.intent === "createLearningItems" &&
+      input.learningItemTargets?.length) {
+      return input;
+    }
     const lastUserIndex = this.#messages.findLastIndex(
       (message) => message.role === "user"
     );

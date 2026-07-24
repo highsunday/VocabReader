@@ -870,6 +870,57 @@ describe("App", () => {
     expect(screen.getByText("look into")).toBeInTheDocument();
   });
 
+  it("starts learning-card creation from explicit English and Chinese requests", async () => {
+    const snapshot = initialReadySnapshot();
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    installLibraryApi([], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /生詞庫/ }));
+    await screen.findByRole("heading", { name: "生詞庫" });
+
+    const creationRequests = [
+      "add this card",
+      "Could you save this as a flashcard?",
+      "把這個加入生詞庫",
+      "幫我做成學習卡片"
+    ];
+    for (const text of creationRequests) {
+      const expectedCall = sendMessage.mock.calls.length + 1;
+      fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+        target: { value: text }
+      });
+      fireEvent.click(screen.getByRole("button", { name: "送出" }));
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(expectedCall));
+      expect(sendMessage).toHaveBeenNthCalledWith(expectedCall, {
+        text,
+        intent: "createLearningItems",
+        explanationLanguage: "source"
+      });
+    }
+
+    const ordinaryMessages = [
+      'What does "add this card" mean?',
+      "I can't add this card",
+      "don't add this card",
+      "不要新增這張卡片"
+    ];
+    for (const text of ordinaryMessages) {
+      const expectedCall = sendMessage.mock.calls.length + 1;
+      fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+        target: { value: text }
+      });
+      fireEvent.click(screen.getByRole("button", { name: "送出" }));
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(expectedCall));
+      expect(sendMessage).toHaveBeenNthCalledWith(expectedCall, { text });
+    }
+  });
+
   it("asks the creation skill what to add when an explanation invitation is empty", async () => {
     const snapshot: ChatSnapshot = {
       ...initialReadySnapshot(),

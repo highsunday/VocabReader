@@ -24,6 +24,7 @@ related_implements:
   - F23-interactive-reading-practice-paper
   - F24-reorder-reader-chat-presets
   - F25-adjustable-reading-and-conversation-font-sizes
+  - F27-trigger-learning-card-creation-from-natural-language
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -77,6 +78,9 @@ related_implements:
 - creation skill 的 target 澄清也可在最後一個 assistant message 保存 typed
   `learningItemRequest`。下一則「都加／是」等上下文式回答優先沿用這組 targets；
   structured targets 缺席時才把回答解析成新標題。
+- 提問框可辨識英文與繁體中文的明確新增卡片請求，例如 `add this card` 或
+  「把這個加入生詞庫」，保留原始顯示文字並轉成既有 `createLearningItems` intent；
+  一般問答、引用與否定句仍是普通對話。
 
 ## 3. Module Boundary
 
@@ -132,7 +136,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 從目前模式、選取書籍、章節與 `extractReadingSegment()` 組裝 `SendChatMessageInput`。
 - 以 `bookId + chapterId + start + end + annotation revision` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
 - 將一般訊息與三種 typed intent 分開；`explainAnnotations`、`practiceReading`、
-  `createLearningItems` 各自附固定 App skill，一般訊息不附 skill。
+  `createLearningItems` 各自附固定 App skill。`createLearningItems` 可由快捷操作、
+  invitation、澄清延續或明確自然語言建立請求產生；其他一般訊息不附 skill。
 - 空閱讀區段只送出一般問題，不使用整章 fallback。
 - 顯示處理中、需要登入、連線失敗與額度不可用狀態。
 - 在提問框呈現模型選擇、鍵盤操作提示與停止按鈕；回覆中狀態顯示於訊息流，IME composition Enter 不觸發送出。
@@ -194,7 +199,9 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 
 ## 6. Conversation Flow
 
-1. Renderer 驗證 Codex ready、輸入非空且沒有 active turn。
+1. Renderer 驗證 Codex ready、輸入非空且沒有 active turn；若提問框文字是明確英文或
+   繁體中文新增卡片請求，附上 `createLearningItems` intent 與目前講解語言，但不從
+   自然語句猜測學習項目標題。
 2. 閱讀模式以 START／END 裁切目前非空區段，安全插入區段內標記，並以書籍、章節、邊界及標記 revision 組成區段識別。
 3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時，普通追問只送使用者問題。預設標記解析與區段練習每次提供當下區段；其他模式或空區段不附 EPUB 原文。
 4. Controller 在任何 await 前先進入 starting，封鎖第二個並行 send 及對話管理操作。

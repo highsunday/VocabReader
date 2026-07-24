@@ -764,6 +764,83 @@ describe("ChatController", () => {
     controller.close();
   });
 
+  it("asks for typed targets when natural-language creation has no trusted target", () => {
+    const prompt = composeCodexInput({
+      text: "add this card",
+      intent: "createLearningItems",
+      explanationLanguage: "en"
+    });
+
+    expect(prompt).toContain("Requested learning-item targets: []");
+    expect(prompt).toContain(
+      "Use the user's explicit request and prior conversation to identify proposed word or phrase targets."
+    );
+    expect(prompt).toContain(
+      "Do not emit a learning-item-result until the App supplies trusted requested targets."
+    );
+  });
+
+  it("keeps clarified targets when an explicit creation confirmation has no new targets", async () => {
+    const store = new MemoryChatConversationStore({
+      version: 2,
+      selectedConversationId: "conversation-a",
+      conversations: [{
+        id: "conversation-a",
+        threadId: "thread-a",
+        title: "Add cards",
+        createdAt: 10,
+        updatedAt: 20,
+        source: null,
+        messages: [{
+          id: "user-a",
+          turnId: "turn-a",
+          role: "user",
+          text: "add these cards",
+          status: "completed",
+          learningItemRequest: { targets: [] }
+        }, {
+          id: "assistant-a",
+          turnId: "turn-a",
+          role: "assistant",
+          text: "Do you mean apple and banana?",
+          status: "completed",
+          learningItemRequest: {
+            targets: [{ title: "apple" }, { title: "banana" }]
+          }
+        }]
+      }]
+    });
+    const candidateQueries: string[][] = [];
+    const { controller } = managedFixture(
+      store,
+      { answer: "Preparing both cards." },
+      {
+        findLearningItemCandidates: async (titles) => {
+          candidateQueries.push(titles);
+          return [];
+        }
+      }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({
+      text: "add both cards",
+      intent: "createLearningItems",
+      explanationLanguage: "en"
+    });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    expect(candidateQueries).toEqual([["apple", "banana"]]);
+    expect(controller.getSnapshot().messages.findLast(
+      (message) => message.role === "user"
+    )?.learningItemRequest?.targets)
+      .toEqual([
+        { title: "apple", senseHint: "add both cards" },
+        { title: "banana", senseHint: "add both cards" }
+      ]);
+    controller.close();
+  });
+
   it("uses structured targets from a clarification before interpreting a contextual answer", async () => {
     const answer = (prompt: string) => {
       if (prompt.includes("Requested learning-item targets: [].")) {

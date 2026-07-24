@@ -1,6 +1,6 @@
 ---
 name: create-learning-items
-description: Prepare deduplicated word and phrase learning-item drafts for the LingoShelf learning library. Use when the reader explicitly invokes the Add Learning Cards action, accepts an invitation after annotation explanation, answers a clarification for that action, or asks to recheck edited drafts before submission.
+description: Prepare deduplicated word and phrase learning-item drafts for the LingoShelf learning library. Use when the reader explicitly invokes the Add Learning Cards action, makes an explicit natural-language request to add learning cards, accepts an invitation after annotation explanation, answers a clarification for that action, or asks to recheck edited drafts before submission.
 ---
 
 # Create Learning Items
@@ -30,6 +30,12 @@ Ask one focused question and do not emit a draft batch when:
 - no word or phrase can be identified;
 - the intended sense is ambiguous after considering the user's wording and supplied reading context; or
 - a required distinction between a word and a phrase cannot be resolved.
+
+When the App supplies no trusted requested target for an explicit natural-language
+creation request, use that request and prior conversation to identify proposed
+word or phrase targets. Ask the reader to confirm or clarify those targets and
+emit them in `learning-item-request`. Do not emit `learning-item-result` until a
+later turn supplies the confirmed targets through the App.
 
 Do not create every dictionary sense by default. Create multiple senses only when the reader explicitly requests them.
 
