@@ -4,10 +4,12 @@ import { join } from "node:path";
 import annotationExplanationSkillMarkdown from "../../../../.agents/skills/explain-reader-annotations/SKILL.md";
 import learningItemCreationSkillMarkdown from "../../../../.agents/skills/create-learning-items/SKILL.md";
 import readingComprehensionSkillMarkdown from "../../../../.agents/skills/practice-reading-comprehension/SKILL.md";
+import spacedReviewSkillMarkdown from "../../../../.agents/skills/practice-spaced-review/SKILL.md";
 import {
   installBundledAnnotationSkill,
   installBundledLearningItemCreationSkill,
-  installBundledReadingComprehensionSkill
+  installBundledReadingComprehensionSkill,
+  installBundledSpacedReviewSkill
 } from "./bundled-skill";
 import { ChatController } from "./chat-controller";
 import { LocalChatConversationStore } from "./chat-conversation-store";
@@ -20,6 +22,8 @@ import { LocalLearningLibrary } from "./learning-library-service";
 import { classifyLearningItemDuplicatesWithCodex } from "./learning-item-duplicate-classifier";
 import { registerSettingsIpc } from "./settings-ipc";
 import { LocalSettingsStore } from "./settings-store";
+import { SpacedReviewController } from "./spaced-review-controller";
+import { registerSpacedReviewIpc } from "./spaced-review-ipc";
 
 let chatController: ChatController | undefined;
 let unsubscribeChatState: (() => void) | undefined;
@@ -90,6 +94,17 @@ app.whenReady().then(() => {
     runtimePath,
     learningItemCreationSkillMarkdown
   );
+  const spacedReviewSkill = installBundledSpacedReviewSkill(
+    runtimePath,
+    spacedReviewSkillMarkdown
+  );
+  registerSpacedReviewIpc(ipcMain, new SpacedReviewController({
+    createClient: () => new SpawnedCodexAppServerClient(),
+    workingDirectory: runtimePath,
+    skillPath: spacedReviewSkill.path,
+    skillInstructions: spacedReviewSkillMarkdown,
+    library: learningLibrary
+  }));
   chatController = new ChatController({
     createClient: () => new SpawnedCodexAppServerClient(),
     workingDirectory: runtimePath,

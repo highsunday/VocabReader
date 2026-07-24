@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   installBundledAnnotationSkill,
   installBundledLearningItemCreationSkill,
-  installBundledReadingComprehensionSkill
+  installBundledReadingComprehensionSkill,
+  installBundledSpacedReviewSkill
 } from "./bundled-skill";
 
 const roots: string[] = [];
@@ -125,5 +126,27 @@ describe("installBundledLearningItemCreationSkill", () => {
     expect(readFileSync(updated.path, "utf8")).toBe("bundled-v2");
     expect(() => readFileSync(join(dirname(updated.path), "SKILL.md.next")))
       .toThrow();
+  });
+});
+
+describe("installBundledSpacedReviewSkill", () => {
+  it("installs, preserves and atomically updates the App-bundled skill", () => {
+    const runtimePath = runtimeRoot();
+
+    const installed = installBundledSpacedReviewSkill(runtimePath, "bundled-v1");
+    const unchanged = installBundledSpacedReviewSkill(runtimePath, "bundled-v1");
+    writeFileSync(installed.path, "old-version", "utf8");
+    const updated = installBundledSpacedReviewSkill(runtimePath, "bundled-v2");
+
+    expect(installed).toEqual({
+      path: join(
+        runtimePath,
+        ".agents/skills/practice-spaced-review/SKILL.md"
+      ),
+      status: "installed"
+    });
+    expect(unchanged).toEqual({ path: installed.path, status: "unchanged" });
+    expect(updated).toEqual({ path: installed.path, status: "updated" });
+    expect(readFileSync(updated.path, "utf8")).toBe("bundled-v2");
   });
 });

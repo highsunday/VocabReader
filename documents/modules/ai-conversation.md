@@ -25,6 +25,7 @@ related_implements:
   - F24-reorder-reader-chat-presets
   - F25-adjustable-reading-and-conversation-font-sizes
   - F27-trigger-learning-card-creation-from-natural-language
+  - F28-ai-graded-spaced-review-paper
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -35,7 +36,9 @@ related_implements:
 
 閱讀頁的 AI 上下文只包含產品層明確組裝的書籍名稱、章節名稱與目前 **閱讀區段**；本模組不讀取整章、整本 EPUB 或 Renderer 任意指定的檔案。
 
-本文件聚焦 AI 對話與 Codex transport 生命週期；App skills 的安裝與隔離、解釋標記 workflow、閱讀測驗 workflow 分別由 `skill-management.md`、`annotation-explanation.md` 與 `reading-comprehension-quiz.md` 詳述。
+本文件聚焦 AI 對話與 Codex transport 生命週期；App skills 的安裝與隔離、解釋標記、
+閱讀測驗與獨立間隔複習 workflow 分別由 `skill-management.md`、
+`annotation-explanation.md`、`reading-comprehension-quiz.md` 與 `spaced-review.md` 詳述。
 
 ## 2. Current Implementation Status
 
@@ -81,6 +84,8 @@ related_implements:
 - 提問框可辨識英文與繁體中文的明確新增卡片請求，例如 `add this card` 或
   「把這個加入生詞庫」，保留原始顯示文字並轉成既有 `createLearningItems` intent；
   一般問答、引用與否定句仍是普通對話。
+- 間隔複習沿用相同本機 Codex transport 與登入狀態，但使用獨立一次性 Controller；
+  試卷、答案及批改不加入全域對話清單或 `LocalChatConversationStore`。
 
 ## 3. Module Boundary
 
@@ -214,7 +219,10 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 ## 7. Runtime and Safety Constraints
 
 - Codex 子程序只由 Electron Main 管理，Renderer 不可直接存取。
-- thread 使用 `approvalPolicy: never`、read-only sandbox，停用一般 skill instruction catalog、bundled skills、plugins、apps、memories 及 web search。Electron Main 只把 App bundle 隨附的 `explain-reader-annotations` 與 `practice-reading-comprehension` markdown 組入 developer instructions；不得探索或使用其他 skill。各預設 turn 以固定 marker 啟用對應 workflow，閱讀測驗後只有該測驗的答案 turn 延續批改。兩份 skills 都禁止工具、檔案與網路操作。
+- 一般對話 thread 使用 `approvalPolicy: never`、read-only sandbox，停用一般 skill
+  instruction catalog、bundled skills、plugins、apps、memories 及 web search。Electron
+  Main 只把三份對話用 App skills 組入 developer instructions；不得探索其他 skill。
+  間隔複習另以同等隔離的一次性 thread，只注入 `practice-spaced-review`。
 - working directory 固定為 Electron user data 下的 `codex-runtime`，Renderer 不能指定。
 - Desktop build 把 repo skill Markdown 內嵌到 Electron Main bundle；Main 啟動時安裝／更新到 runtime `.agents/skills`，再把這份 user data 絕對路徑作為 `ChatController` 必要設定。Renderer 不能提供 skill 內容或路徑，已安裝 App 也不依賴原始碼 repo。
 - account allowance 是帳戶共用狀態，不代表 token、金額、模型或單一 thread 額度。
@@ -235,6 +243,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/main/learning-item-duplicate-classifier.ts` | 提交前有限候選的隔離 AI 語義分類 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析的語言學習 workflow、CEFR 判斷、選擇式說明與複習表契約 |
 | `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀理解 CEFR、出題、指定語言批改與 final review 契約 |
+| `.agents/skills/practice-spaced-review/SKILL.md` | 暫態例句試卷與四級語意評級契約 |
+| `apps/desktop/src/main/spaced-review-controller.ts` | 不持久的一次性生成／批改 thread |
 | `apps/desktop/src/main/bundled-skill.ts` | 把 App bundle 內建 skill 安裝／原子更新到 user data runtime |
 | `apps/desktop/src/main/chat-conversation-store.ts` | 全域對話資料驗證、載入、原子保存與重啟正規化 |
 | `apps/desktop/src/main/chat-ipc.ts` | chat IPC 白名單與輸入驗證 |
@@ -255,18 +265,18 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、重啟 streaming 正規化與損壞資料隔離 |
 | `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、三個 skills、creation 候選範圍、持久澄清與批次生命週期 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill 的 CEFR、8–12／1–3 題、混合題型、批改、語言與 final review 契約 |
-| `apps/desktop/src/main/bundled-skill.test.ts` | 三份 App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
+| `apps/desktop/src/main/bundled-skill.test.ts` | 四份 App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 與預設意圖白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
 | `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、字體大小即時預覽與保存、bridge send、閱讀區段裁切／去重／區段練習與語言傳值、全域對話管理、安全 Markdown／GFM 與串流占位 |
 | `apps/desktop/src/renderer/ReadingPracticePaper.test.tsx` | 專用試卷作答、提交、鎖定、關閉與紅筆批改 |
 | `apps/desktop/src/renderer/reading-practice-artifact.test.ts` | 試卷／批改 artifact 驗證、串流容錯與提交格式 |
-| `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、三份 runtime skills、13 項 chat bridge 白名單與 Node 隔離 |
+| `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、四份 runtime skills、typed bridges 與 Node 隔離 |
 
 最近驗證（2026-07-24）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：185/185 passed。
-- Electron Playwright：最終完整案例 2/2 passed；先前一次既有生詞庫 sticky toolbar 精確像素斷言偶發 2px 差異，單案例重跑 3/3 passed，未修改產品碼或測試。
+- Desktop Vitest：215/215 passed。
+- Electron Playwright：最終完整案例 2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
 - 真實本機 Codex：帳戶連線成功；使用者手動確認五小時與每週額度可取得。
@@ -280,7 +290,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - 不提供推理強度、API key、字型、行高、主題或每筆 AI 對話個別字體設定。
 - 不提供內嵌 Codex／ChatGPT 登入或帳戶切換。
 - Markdown 程式碼區塊目前不提供語法高亮。
-- 區段練習的未提交答案不做跨啟動保存，也沒有獨立題庫、成績資料表或歷史趨勢；AI 已能建立學習項目草稿，但 Anki 式複習流程尚未實作。
+- 區段練習的未提交答案不做跨啟動保存，也沒有獨立題庫、成績資料表或歷史趨勢；
+  間隔複習已獨立實作，但刻意不保存完整試卷、答案或詳細 AI 回饋。
 - 本機 GUI 環境必須能找到已安裝的 `codex` 可執行檔。
 
 ## 11. Related Documents
@@ -292,6 +303,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/modules/annotation-explanation.md`
 - `documents/modules/reading-comprehension-quiz.md`
 - `documents/modules/learning-library.md`
+- `documents/modules/spaced-review.md`
 - `documents/implements/F05-ai-reading-range-markers.md`
 - `documents/implements/F07-codex-ai-conversation.md`
 - `documents/implements/F08-compact-markdown-chat-messages.md`
@@ -307,5 +319,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/F18-use-reading-comprehension-skill.md`
 - `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`
 - `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
+- `documents/implements/F28-ai-graded-spaced-review-paper.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

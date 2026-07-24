@@ -1,0 +1,4 @@
+interface:
+  display_name: "間隔複習試卷"
+  short_description: "為學習項目生成語意例句試卷、批改詞義並建議四級複習評級"
+  default_prompt: "Use $practice-spaced-review to generate or grade a bounded spaced-review paper."

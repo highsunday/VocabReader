@@ -7,6 +7,7 @@ import type {
   LearningItem,
   LearningItemDraftBatch
 } from "../shared/learning-contracts";
+import type { ReviewDesktopApi } from "../shared/review-contracts";
 import { App } from "./App";
 
 const books: LibraryBook[] = [
@@ -114,6 +115,32 @@ function installLibraryApi(
     restoreItem: vi.fn(async () => learningItems[0]),
     emptyTrash: vi.fn(async () => ({ deleted: 0 }))
   } satisfies LearningDesktopApi;
+  const review = {
+    getSummary: vi.fn(async () => ({
+      dueReviewedCount: 0,
+      newCount: 1,
+      totalAvailable: 1,
+      selectedItems: [{
+        ...learningItems[0],
+        reviewKind: "new" as const,
+        dueAt: null
+      }],
+      nextDueAt: null
+    })),
+    generatePaper: vi.fn(),
+    gradePaper: vi.fn(),
+    confirmPaper: vi.fn(),
+    discardPaper: vi.fn(async () => undefined),
+    getItemDetail: vi.fn(async () => ({
+      status: "new" as const,
+      lastReviewedAt: null,
+      lastFinalRating: null,
+      nextDueAt: null,
+      reviewCount: 0,
+      history: []
+    })),
+    onGenerationProgress: vi.fn(() => () => undefined)
+  } satisfies ReviewDesktopApi;
   Object.defineProperty(window, "readerDesktop", {
     configurable: true,
     value: {
@@ -129,6 +156,7 @@ function installLibraryApi(
         saveAnnotations
       },
       learning,
+      review,
       settings: { get: getSettings, save: saveSettings },
       ...(chat ? { chat } : {})
     }
@@ -142,7 +170,8 @@ function installLibraryApi(
     saveAnnotations,
     getSettings,
     saveSettings,
-    learning
+    learning,
+    review
   };
 }
 
@@ -767,6 +796,25 @@ describe("App", () => {
       .toBeInTheDocument();
     expect(screen.getByLabelText("AI 助教")).toBeInTheDocument();
     expect(screen.queryByText("Anki 式間隔複習")).not.toBeInTheDocument();
+  });
+
+  it("opens the independent spaced review workspace without generating automatically", async () => {
+    const { review } = installLibraryApi();
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /間隔複習 1/ }))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /間隔複習 1/ }));
+
+    expect(await screen.findByRole("heading", { name: "間隔複習" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("spaced-review-content");
+    expect(screen.getByRole("main")).not.toHaveClass(
+      "learning-library-content"
+    );
+    expect(screen.getByText("1 題")).toBeInTheDocument();
+    expect(review.generatePaper).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("AI 助教")).toBeInTheDocument();
   });
 
   it("orders reader chat presets as explanation, card creation, then practice", async () => {

@@ -3,6 +3,7 @@ import {
   MouseEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState
 } from "react";
@@ -17,6 +18,11 @@ import type {
   LearningItemType,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
+import type {
+  LearningItemReviewDetail,
+  ReviewDesktopApi,
+  ReviewRating
+} from "../shared/review-contracts";
 
 const cefrLevels: CefrLevel[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
@@ -60,14 +66,32 @@ function fieldsFor(item: LearningItem): UpdateLearningItemInput {
   };
 }
 
+const reviewRatingLabels: Record<ReviewRating, string> = {
+  forgotten: "忘記",
+  hard: "困難",
+  good: "順利",
+  easy: "簡單"
+};
+
+function reviewTime(value: string | null) {
+  return value
+    ? new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }).format(new Date(value))
+    : "—";
+}
+
 function LearningItemDialog({
   item,
   api,
+  reviewApi,
   onClose,
   onChanged
 }: {
   item: LearningItem;
   api: LearningDesktopApi;
+  reviewApi?: ReviewDesktopApi;
   onClose: () => void;
   onChanged: (item: LearningItem) => Promise<void>;
 }) {
@@ -77,9 +101,11 @@ function LearningItemDialog({
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
   const [pronunciationError, setPronunciationError] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [reviewDetail, setReviewDetail] = useState<LearningItemReviewDetail>();
+  const [reviewDetailError, setReviewDetailError] = useState("");
   const speechRequestRef = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape" || isSaving) return;
       if (isDeleteConfirming) {
@@ -96,6 +122,21 @@ function LearningItemDialog({
     speechRequestRef.current += 1;
     window.speechSynthesis?.cancel();
   }, []);
+
+  useEffect(() => {
+    if (!reviewApi) return;
+    let active = true;
+    void reviewApi.getItemDetail(item.id)
+      .then((detail) => {
+        if (active) setReviewDetail(detail);
+      })
+      .catch(() => {
+        if (active) setReviewDetailError("無法讀取複習歷史。");
+      });
+    return () => {
+      active = false;
+    };
+  }, [item.id, reviewApi]);
 
   function pronounceTitle() {
     setPronunciationError("");
@@ -310,6 +351,63 @@ function LearningItemDialog({
             <div className="learning-dialog-content">
               <MarkdownContent>{item.markdownContent}</MarkdownContent>
             </div>
+            {reviewApi ? (
+              <section className="learning-review-detail" aria-label="複習排程">
+                <div className="learning-review-detail-heading">
+                  <strong>複習排程</strong>
+                  <span>{
+                    reviewDetail?.status === "due"
+                      ? "已到期"
+                      : reviewDetail?.status === "scheduled"
+                        ? "未到期"
+                        : "新項目"
+                  }</span>
+                </div>
+                {reviewDetailError ? (
+                  <p className="library-error" role="status">{reviewDetailError}</p>
+                ) : reviewDetail ? (
+                  <>
+                    <dl>
+                      <div>
+                        <dt>上次複習</dt>
+                        <dd>{reviewTime(reviewDetail.lastReviewedAt)}</dd>
+                      </div>
+                      <div>
+                        <dt>上次評級</dt>
+                        <dd>{reviewDetail.lastFinalRating
+                          ? reviewRatingLabels[reviewDetail.lastFinalRating]
+                          : "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>下次到期</dt>
+                        <dd>{reviewTime(reviewDetail.nextDueAt)}</dd>
+                      </div>
+                      <div>
+                        <dt>累計次數</dt>
+                        <dd>{reviewDetail.reviewCount}</dd>
+                      </div>
+                    </dl>
+                    {reviewDetail.history.length ? (
+                      <details>
+                        <summary>查看精簡複習歷史</summary>
+                        <ol>
+                          {reviewDetail.history.map((entry) => (
+                            <li key={entry.id}>
+                              <time>{reviewTime(entry.reviewedAt)}</time>
+                              <span>
+                                AI {reviewRatingLabels[entry.aiRating]} ·
+                                最終 {reviewRatingLabels[entry.finalRating]}
+                              </span>
+                              <small>下次 {reviewTime(entry.nextDueAt)}</small>
+                            </li>
+                          ))}
+                        </ol>
+                      </details>
+                    ) : null}
+                  </>
+                ) : <p>讀取排程中…</p>}
+              </section>
+            ) : null}
             <div className="learning-dialog-actions">
               <button
                 type="button"
@@ -376,9 +474,11 @@ function LearningItemDialog({
 
 export function LearningLibraryWorkspace({
   api,
+  reviewApi,
   onCountsChange
 }: {
   api: LearningDesktopApi;
+  reviewApi?: ReviewDesktopApi;
   onCountsChange?: (counts: { active: number; trashed: number }) => void;
 }) {
   const [view, setView] = useState<"active" | "trashed">("active");
@@ -694,6 +794,7 @@ export function LearningLibraryWorkspace({
         <LearningItemDialog
           item={selectedItem}
           api={api}
+          reviewApi={reviewApi}
           onClose={closeDetail}
           onChanged={refreshAfterChange}
         />

@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { CSSProperties } from "react";
 import {
+  Brain,
   LibraryBig,
   Settings as SettingsIcon
 } from "lucide-react";
@@ -30,6 +31,7 @@ import type {
   ReadingRange
 } from "../shared/library-contracts";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
+import type { ReviewDesktopApi } from "../shared/review-contracts";
 import {
   AI_CONVERSATION_FONT_SIZE,
   EBOOK_CONTENT_FONT_SIZE,
@@ -57,9 +59,10 @@ import {
   LearningItemDraftDialog
 } from "./LearningItemDraftDialog";
 import { ReadingPracticePaper } from "./ReadingPracticePaper";
+import { SpacedReviewWorkspace } from "./SpacedReviewWorkspace";
 import { readingPracticeArtifacts } from "./reading-practice-artifact";
 
-type WorkspaceMode = "overview" | "reader" | "learning-library";
+type WorkspaceMode = "overview" | "reader" | "learning-library" | "spaced-review";
 
 const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
 const COLLAPSED_PANEL_WIDTH = 48;
@@ -96,6 +99,7 @@ const initialChatSnapshot: ChatSnapshot = {
 function desktopBridge(): {
   library?: LibraryDesktopApi;
   learning?: LearningDesktopApi;
+  review?: ReviewDesktopApi;
   settings?: SettingsDesktopApi;
   chat?: ChatDesktopApi;
 } | undefined {
@@ -104,6 +108,7 @@ function desktopBridge(): {
       readerDesktop?: {
         library?: LibraryDesktopApi;
         learning?: LearningDesktopApi;
+        review?: ReviewDesktopApi;
         settings?: SettingsDesktopApi;
         chat?: ChatDesktopApi;
       };
@@ -121,6 +126,10 @@ function desktopChat(): ChatDesktopApi | undefined {
 
 function desktopLearning(): LearningDesktopApi | undefined {
   return desktopBridge()?.learning;
+}
+
+function desktopReview(): ReviewDesktopApi | undefined {
+  return desktopBridge()?.review;
 }
 
 function desktopSettings(): SettingsDesktopApi | undefined {
@@ -266,6 +275,7 @@ export function App() {
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
   const [learningCounts, setLearningCounts] = useState({ active: 0, trashed: 0 });
+  const [reviewAvailableCount, setReviewAvailableCount] = useState(0);
   const [openLearningItemBatchId, setOpenLearningItemBatchId] =
     useState<string>();
   const [expandedReadingPracticeQuizId, setExpandedReadingPracticeQuizId] =
@@ -362,6 +372,22 @@ export function App() {
       })
       .catch(() => setLibraryError("無法讀取本機書庫，請重新開啟應用程式。"));
   }, []);
+
+  useEffect(() => {
+    const review = desktopReview();
+    if (!review) return;
+    let active = true;
+    void review.getSummary()
+      .then((summary) => {
+        if (active) setReviewAvailableCount(summary.totalAvailable);
+      })
+      .catch(() => {
+        // The review workspace provides a retryable error when opened.
+      });
+    return () => {
+      active = false;
+    };
+  }, [learningLibraryRevision]);
 
   useEffect(() => {
     const learning = desktopLearning();
@@ -1434,6 +1460,22 @@ export function App() {
               <div className="sidebar-footer">
                 <nav>
                   <button
+                    className={mode === "spaced-review" ? "nav-item active" : "nav-item"}
+                    aria-label={`間隔複習 ${reviewAvailableCount}`}
+                    onClick={() => {
+                      saveCurrentReaderPosition();
+                      setMode("spaced-review");
+                    }}
+                  >
+                    <Brain
+                      className="sidebar-action-icon"
+                      aria-hidden="true"
+                      strokeWidth={1.8}
+                    />
+                    間隔複習
+                    <em>{reviewAvailableCount}</em>
+                  </button>
+                  <button
                     className={mode === "learning-library" ? "nav-item active" : "nav-item"}
                     aria-label={`生詞庫 ${learningCounts.active}`}
                     onClick={() => {
@@ -1519,7 +1561,9 @@ export function App() {
               ? "content reader-content"
               : mode === "learning-library"
                 ? "content learning-library-content"
-                : "content"
+                : mode === "spaced-review"
+                  ? "content spaced-review-content"
+                  : "content"
           }
           ref={contentRef}
           onScroll={handleContentScroll}
@@ -1901,12 +1945,37 @@ export function App() {
                 </div>
               ) : null}
             </section>
+          ) : mode === "spaced-review" ? (
+            desktopReview() ? (
+              <SpacedReviewWorkspace
+                api={desktopReview()!}
+                explanationLanguage={settings.explanationLanguage}
+                onAvailableCountChange={setReviewAvailableCount}
+              />
+            ) : (
+              <section className="learning-library-panel" aria-labelledby="review-title">
+                <span className="eyebrow">Spaced review</span>
+                <h1 id="review-title">間隔複習</h1>
+                <p className="library-error" role="alert">
+                  目前無法存取本機複習排程。
+                </p>
+              </section>
+            )
           ) : (
             desktopLearning() ? (
               <LearningLibraryWorkspace
                 key={learningLibraryRevision}
                 api={desktopLearning()!}
-                onCountsChange={setLearningCounts}
+                reviewApi={desktopReview()}
+                onCountsChange={(counts) => {
+                  setLearningCounts(counts);
+                  void desktopReview()?.getSummary()
+                    .then((summary) =>
+                      setReviewAvailableCount(summary.totalAvailable))
+                    .catch(() => {
+                      // The review workspace provides a retryable error.
+                    });
+                }}
               />
             ) : (
               <section className="learning-library-panel" aria-labelledby="learning-library-title">

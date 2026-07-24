@@ -2,11 +2,12 @@
 title: 本機生詞庫模組
 module: learning-library
 status: active
-last_updated: 2026-07-23
+last_updated: 2026-07-24
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
   - F21-ai-assisted-learning-item-creation
+  - F28-ai-graded-spaced-review-paper
 ---
 
 # 本機生詞庫模組
@@ -17,9 +18,9 @@ related_implements:
 **學習項目（Learning Item）**。第一版支援查詢、篩選、排序、查看、Markdown 編輯、
 移入垃圾桶、個別還原與確認後永久清空，並以十筆一次性 mock data 建立可驗證的資料基礎。
 
-本模組不屬於 EPUB 書庫，也不實作 Anki 式複習排程。AI 建立流程只能先取得程式以
-完整標題篩出的有限候選，並在使用者提交後透過 Main 的交易操作新增；AI 本身沒有
-SQLite、任意查詢或直接寫入能力。
+本模組不屬於 EPUB 書庫。它同時保存學習項目、FSRS 排程與精簡複習歷史；AI 建立與
+複習流程都只能取得程式選出的有限 scope，AI 本身沒有 SQLite、任意查詢或直接寫入
+能力。完整複習流程由 `spaced-review.md` 說明。
 
 ## 2. Current Implementation Status
 
@@ -39,6 +40,8 @@ SQLite、任意查詢或直接寫入能力。
 - 生詞庫標題、垃圾桶入口與查詢篩選固定於中央區頂部，只有結果清單獨立捲動。
 - 提供大小寫不敏感、trim 後完整標題相等的 active／trashed 候選查詢。
 - 提供多筆先完整驗證、再以單一 SQLite 交易新增的 `createItemsAtomically()`。
+- 提供到期／新項目摘要、90% retention FSRS 計算及整回合原子確認。
+- 詳情懶載入目前排程、最後評級、下次到期、累計次數及精簡歷史。
 
 ## 3. Module Boundary
 
@@ -54,6 +57,8 @@ SQLite、任意查詢或直接寫入能力。
 - 以交易永久清空全部垃圾桶項目。
 - 以 `findDuplicateCandidates()` 提供 deterministic exact-title 候選，不做語義判斷。
 - 以 `createItemsAtomically()` 提供草稿批次的全有或全無新增。
+- 依 Main 裝置時間選出最多十個複習項目，已到期優先，新項目依 CEFR 補入。
+- 驗證四級評級、讀寫 FSRS card 狀態，並在單一交易追加事件與更新排程。
 - 保留內部 `createItem()` 供 seed 使用。
 
 Renderer 不知道資料庫路徑、schema 或 SQL。
@@ -75,6 +80,9 @@ Node API 或通用 IPC。
 AI 建立批次的新增／還原由受限 `chat` IPC 呼叫 Main-owned Controller，再委派本
 repository；Renderer 仍拿不到一般 create API。
 
+複習使用獨立的六個 `review:*` IPC 操作。Renderer 不可傳入目前時間、項目 scope、
+FSRS card、資料庫欄位或 AI workflow 設定。
+
 ### Renderer
 
 `LearningLibraryWorkspace` 負責：
@@ -85,6 +93,7 @@ repository；Renderer 仍拿不到一般 create API。
 - 詳情 modal、焦點回復、Escape／遮罩關閉。
 - Markdown 查看、編輯、預覽與錯誤狀態。
 - 單筆移入垃圾桶前的置中確認、還原、清空確認與側欄數量同步。
+- 在詳情中顯示懶載入的精簡複習摘要與可展開歷史。
 
 `App` 只負責工作區切換、啟動時讀取數量，以及繼續呈現既有 AI 對話面板。
 
@@ -101,6 +110,8 @@ repository；Renderer 仍拿不到一般 create API。
 | `UpdateLearningItemInput` | item id 與可編輯的全部結構化／Markdown 欄位 |
 | `LearningItemDraft` | 尚未提交的 word／phrase 結構、Markdown 與 included／excluded |
 | `LearningItemDraftBatch` | drafts、active／trash matches 與提交結果 |
+| `ReviewSummary` | 可用總數、本回合 due/new queue 與下一到期時間 |
+| `LearningItemReviewDetail` | 狀態、最後評級、due、次數與精簡事件 |
 
 標題不是唯一鍵。`sense` 明確標示目標語義，讓 `bank` 的金融機構與河岸能各自保存。
 
@@ -112,6 +123,8 @@ repository；Renderer 仍拿不到一般 create API。
 - `schema_migrations`：已套用 schema 版本。
 - `learning_metadata`：一次性 seed 等 repository metadata。
 - `learning_items`：學習項目內容、狀態與時間戳。
+- `learning_review_schedules`：每個項目的目前 FSRS card、due、次數與最後評級。
+- `learning_review_events`：AI／最終評級、FSRS 前後狀態、間隔及 due 的精簡事件。
 
 `mock_seed_v1=completed` 是是否 seed 的唯一判定；即使使用者把十筆項目全部永久刪除，
 重啟後也不會重新植入。EPUB `library/index.json` 不包含任何學習項目。
@@ -147,7 +160,9 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 | File | Responsibility |
 |---|---|
 | `apps/desktop/src/shared/learning-contracts.ts` | Main／Preload／Renderer 共用型別 |
+| `apps/desktop/src/shared/review-contracts.ts` | 複習摘要、試卷、評級及歷史型別 |
 | `apps/desktop/src/main/learning-library-service.ts` | SQLite、migration、seed、查詢與狀態轉移 |
+| `apps/desktop/src/main/spaced-review-controller.ts` | 暫態 AI 試卷與受信任確認 scope |
 | `apps/desktop/src/main/learning-item-duplicate-classifier.ts` | 只對 exact-title 候選做 AI 語義重查 |
 | `apps/desktop/src/main/learning-library-ipc.ts` | 六個 IPC 白名單與 payload 驗證 |
 | `apps/desktop/src/preload/preload.ts` | `window.readerDesktop.learning` typed bridge |
@@ -160,16 +175,17 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 | Test file | Coverage |
 |---|---|
 | `learning-library-service.test.ts` | migration、seed、搜尋／篩選、exact-title 候選、atomic create、垃圾桶 |
+| `spaced-review-artifacts.test.ts`、`spaced-review-controller.test.ts` | 有限 AI scope、artifact 與暫態生命週期 |
 | `learning-library-ipc.test.ts` | 六個 IPC 白名單與惡意／錯誤 payload 拒絕 |
 | `learning-library-workspace.test.tsx` | 查詢控制、非捲動工具區、modal、安全 Markdown、編輯、刪除確認與垃圾桶 |
 | `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
 | `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情，以及捲到底後工具區位置不變 |
 
-最近驗證（2026-07-23）：
+最近驗證（2026-07-24）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：159/159 passed。
-- Electron Playwright：本次受執行環境阻擋 Electron process launch，未進入斷言。
+- Desktop Vitest：215/215 passed。
+- Electron Playwright：2/2 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
 
@@ -178,7 +194,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - AI 新增只支援單字與片語，不支援 sentence 或任意卡片類型。
 - AI workflow 不提供既有正式項目的編輯或刪除；這些仍由生詞庫詳情 UI 負責。
 - 從標記解析可建立項目，但刻意不保存書籍、章節、標記、原句或來源追溯資料。
-- 尚未實作到期判定、翻面、AI 出題、自評、間隔排程與複習歷史。
+- 已實作 AI 語意試卷與四級 FSRS 複習；尚無 deck、每日上限、optimizer 或完整試卷歷史。
 - 不提供匯入、匯出、同步、封存、單筆永久刪除或復原已清空垃圾桶。
 
 ## 11. Related Documents
@@ -187,6 +203,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - `documents/implements/F19-local-learning-library-page.md`
 - `documents/implements/F20-confirm-learning-item-trash.md`
 - `documents/implements/F21-ai-assisted-learning-item-creation.md`
+- `documents/implements/F28-ai-graded-spaced-review-paper.md`
 - `documents/modules/ai-conversation.md`
 - `documents/modules/learning-item-creation.md`
+- `documents/modules/spaced-review.md`
 - `documents/modules/book-library.md`

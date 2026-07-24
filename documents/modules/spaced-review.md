@@ -1,0 +1,172 @@
+---
+title: AI 批改與 FSRS 間隔複習模組
+module: spaced-review
+status: active
+last_updated: 2026-07-24
+related_implements:
+  - F28-ai-graded-spaced-review-paper
+  - F29-stream-spaced-review-generation-and-scroll-paper
+---
+
+# AI 批改與 FSRS 間隔複習模組
+
+## 1. Purpose
+
+本模組把生詞庫中的單字與片語轉成可持續的主動回想練習。每回合由本機程式選出最多
+10 個到期或新項目，使用者明確要求後，AI 才生成以特定語義為準的例句試卷。使用者
+輸入劃線詞在該句中的意思，AI 提供逐題回饋與四級評級建議；使用者確認或覆寫後，
+本機 FSRS 才更新排程。
+
+試卷、答案、詳細回饋與未確認評級全為暫態資料。SQLite 只保存排程狀態及精簡確認
+歷史，確保重新進入頁面時重新選題與生成。
+
+## 2. Current Implementation Status
+
+狀態：**已實作，可在本機使用**
+
+目前支援：
+
+- 側欄獨立「間隔複習」入口及即時可複習數量。
+- 已複習到期項目依最早到期優先，新項目依 CEFR A1→C2、同級依建立時間補滿 10 題。
+- 進入頁面只顯示摘要，不自動使用 AI；明確按下按鈕後才生成試卷。
+- 生成期間沿用 Codex message delta 顯示即時可讀進度；未完成或完整 artifact JSON
+  都不直接顯示，完成、失敗或離頁後即清除。
+- AI 依項目語言與特定 `sense` 生成例句，Renderer 以安全結構化片段劃線目標詞。
+- 整卷作答與批改；空白答案可提交，並提示會被判為「忘記」。
+- AI 只依語義正確度與完整度建議忘記／困難／順利／簡單，不使用作答速度。
+- 結果頁預選 AI 建議，使用者可逐題覆寫後一次確認。
+- 使用 `ts-fsrs`、固定 90% 目標記憶率及預設參數計算精確到期時間。
+- 同一回合在單一 SQLite 交易寫入所有事件與排程；成功後可連續開始下一回合。
+- 生詞庫詳情懶載入目前狀態、最後評級、下次到期、次數及精簡歷史。
+- 編輯不重設排程；垃圾桶項目排除；還原保留原排程，逾期者立即重新可用。
+- 間隔複習中央工作區使用自己的垂直捲動容器，十題內容可完整捲動；生詞庫仍保留
+  固定工具列及內部結果 scroll region。
+
+## 3. Queue and Scheduling Rules
+
+`LocalLearningLibrary.getReviewSummary()` 以 Main process 的裝置時間建立摘要：
+
+1. 查出 `active` 且已有 schedule、`due_at <= now` 的項目，依 `due_at`、`created_at`
+   排序，最多先取 10 筆。
+2. 剩餘名額由沒有 schedule 的 active 項目補入，依 CEFR A1→C2、`created_at` 排序。
+3. `totalAvailable` 是所有已到期及所有新項目的總數；`selectedItems` 才是本回合最多
+   10 筆的實際組成。
+4. 沒有可用項目時回傳最近一筆尚未到期的 `nextDueAt`。
+
+最終評級映射：
+
+| 產品評級 | FSRS rating |
+|---|---|
+| 忘記 `forgotten` | Again |
+| 困難 `hard` | Hard |
+| 順利 `good` | Good |
+| 簡單 `easy` | Easy |
+
+初次複習以 `createEmptyCard(now)` 建立卡片，後續從已保存並嚴格驗證的 card JSON
+繼續計算。到期時間保存為 ISO timestamp；Renderer 不可提供或覆寫排程用的目前時間。
+
+## 4. AI Workflow and Ephemeral Scope
+
+`SpacedReviewController` 在 Main process 擁有目前試卷及批改 scope：
+
+1. 生成時重新查詢本回合摘要，只把最多 10 個選中項目的必要欄位交給 AI。
+2. 每次生成或批改建立獨立的一次性 Codex thread，使用 read-only sandbox、
+   `approvalPolicy: never`，並停用工具、網路、一般 skills、plugins、apps 與 memories。
+3. `practice-spaced-review` skill 在 generation artifact 前輸出不揭露答案的簡短進度
+   行，再依 generation／grading mode 回傳唯一 fenced artifact。
+4. `spaced-review-artifacts.ts` 驗證 paper id、question id、item id、標題、語義、CEFR、
+   完整覆蓋及唯一性；不接受原始 HTML。
+5. 批改只接受目前試卷的完整答案集合，並只保存於 Main 記憶體。
+6. Renderer 確認時只送 question id 與最終評級；Controller 以受信任批改結果還原
+   item id 及 AI 評級，再交給 repository 原子寫入。
+7. generation turn 的 `item/agentMessage/delta` 由 invoke event 只推送回發起視窗；
+   IPC 移除 `review-paper` fence 起的內容，Renderer 亦再次過濾後以純文字呈現。
+8. 切換工作區會解除 progress subscription、呼叫 discard、中斷進行中的 AI request，
+   並清除 Main／Renderer 暫態 scope。
+
+試卷不進入 `LocalChatConversationStore`，也不顯示成一般 AI 對話訊息。
+
+## 5. Persistence
+
+學習資料庫新增：
+
+- `learning_review_schedules`：每個項目一筆目前 `due_at`、完整 FSRS card JSON、
+  累計次數、最後複習時間與最後最終評級。
+- `learning_review_events`：append-only 精簡事件，保存 session／item／reviewed time、
+  AI 與最終評級、FSRS 前後 card JSON、間隔秒數及下次到期。
+
+兩表以 foreign key 關聯 `learning_items` 並 `ON DELETE CASCADE`。永久清空垃圾桶時，
+對應排程與歷史一併刪除。事件不保存 AI 例句、使用者答案或詳細回饋。
+
+## 6. Typed Boundary
+
+Renderer 只能透過 `ReviewDesktopApi` 使用：
+
+- `getSummary()`
+- `generatePaper({ explanationLanguage })`
+- `gradePaper({ paperId, answers })`
+- `confirmPaper({ paperId, ratings })`
+- `discardPaper()`
+- `getItemDetail(itemId)`
+- `onGenerationProgress(listener)`
+
+IPC 驗證所有 enum、id、陣列與答案文字。Renderer 不能傳入 item scope、目前時間、
+skill 路徑、Codex method、SQLite 路徑或 FSRS 狀態。
+
+## 7. Renderer States
+
+`SpacedReviewWorkspace` 具有 loading、ready、generating、answering、grading、reviewing、
+confirming、completed 狀態。題目採單欄卡片，使用真正的 `<u>` 呈現受驗證
+`targetText`；答案是多行輸入。批改後在原題下呈現回饋及四個 radio 選項。
+
+完成摘要顯示新間隔／到期資訊與剩餘數量；仍有 backlog 時可開始下一回合。離開工作區
+會卸載元件，因此所有輸入、生成進度與未確認畫面資料消失。`App` 為 review mode
+指定 `spaced-review-content`，由中央 main element 自己 `overflow-y: auto`；不再沿用
+生詞庫刻意鎖住外層捲動的 class。
+
+## 8. Key Files
+
+| File | Responsibility |
+|---|---|
+| `.agents/skills/practice-spaced-review/SKILL.md` | 例句生成、語義批改、四級 rubric 與 artifact 契約 |
+| `apps/desktop/src/shared/review-contracts.ts` | Main／Preload／Renderer 共用 review 型別 |
+| `apps/desktop/src/main/learning-library-service.ts` | queue、SQLite migration、FSRS 與原子確認 |
+| `apps/desktop/src/main/spaced-review-artifacts.ts` | paper／grade artifact 嚴格驗證 |
+| `apps/desktop/src/main/spaced-review-controller.ts` | 暫態 scope、隔離 AI turn 與確認信任邊界 |
+| `apps/desktop/src/main/spaced-review-ipc.ts` | review IPC 白名單及 payload 驗證 |
+| `apps/desktop/src/preload/preload.ts` | `window.readerDesktop.review` typed bridge |
+| `apps/desktop/src/renderer/SpacedReviewWorkspace.tsx` | 摘要、作答、批改、覆寫、確認與連續回合 UI |
+| `apps/desktop/src/renderer/LearningLibraryWorkspace.tsx` | 學習項目複習摘要與精簡歷史 |
+| `apps/desktop/src/renderer/App.tsx` | 獨立工作區入口及可用數量同步 |
+
+## 9. Testing Notes
+
+| Test file | Coverage |
+|---|---|
+| `learning-library-service.test.ts` | due/new 排序、10 題上限、精確到期、FSRS、覆寫歷史、垃圾桶與重複確認 |
+| `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、缺題、未知／重複 id 與錯 scope 拒絕 |
+| `spaced-review-controller.test.ts` | 暫態 paper、AI delta、隔離 turn、受信任確認及 discard |
+| `spaced-review-ipc.test.ts` | 六個操作、生成 progress 回推、artifact 過濾與惡意 payload 拒絕 |
+| `SpacedReviewWorkspace.test.tsx` | 即時輸出、artifact 隱藏、明確生成、空白提醒、批改、覆寫、確認與離開丟棄 |
+| `learning-library-workspace.test.tsx` | 詳情摘要及可展開精簡歷史 |
+| `App.test.tsx` | 側欄數量、獨立工作區及進入時不呼叫生成 |
+| `bundled-skill.test.ts` | 第四份內建 skill 安裝／更新 |
+| `desktop.spec.ts` | production skill、七項 review bridge、工作區入口及實際垂直捲動 |
+
+## 10. Known Limitations and Follow-up
+
+- 第一版沒有 deck、每日上限、手動選題、FSRS optimizer 或 retention 設定。
+- 沒有保存、重播、搜尋或匯出試卷、答案及詳細回饋。
+- 沒有同步、Anki 匯入／匯出或跨裝置備份。
+- CEFR 是首次引入順序的近似，尚未結合獨立詞頻資料。
+- AI 生成與批改需要本機 Codex 可用；排程查詢與已確認歷史不依賴 AI。
+
+## 11. Related Documents
+
+- `CONTEXT.md`
+- `documents/implements/F28-ai-graded-spaced-review-paper.md`
+- `documents/implements/F29-stream-spaced-review-generation-and-scroll-paper.md`
+- `documents/modules/learning-library.md`
+- `documents/modules/skill-management.md`
+- `documents/modules/ai-conversation.md`
+- `documents/modules/learning-item-creation.md`

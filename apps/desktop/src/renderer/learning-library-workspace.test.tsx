@@ -5,6 +5,7 @@ import type {
   LearningItem,
   LearningItemListInput
 } from "../shared/learning-contracts";
+import type { ReviewDesktopApi } from "../shared/review-contracts";
 import { LearningLibraryWorkspace } from "./LearningLibraryWorkspace";
 
 const activeItems: LearningItem[] = [
@@ -78,6 +79,41 @@ function api() {
 }
 
 describe("LearningLibraryWorkspace", () => {
+  it("shows compact review status and history in learning item detail", async () => {
+    const reviewApi = {
+      getSummary: vi.fn(),
+      generatePaper: vi.fn(),
+      gradePaper: vi.fn(),
+      confirmPaper: vi.fn(),
+      discardPaper: vi.fn(),
+      getItemDetail: vi.fn(async () => ({
+        status: "scheduled" as const,
+        lastReviewedAt: "2026-07-24T08:00:00.000Z",
+        lastFinalRating: "good" as const,
+        nextDueAt: "2026-07-26T08:00:00.000Z",
+        reviewCount: 1,
+        history: [{
+          id: "event-1",
+          sessionId: "session-1",
+          itemId: activeItems[0].id,
+          reviewedAt: "2026-07-24T08:00:00.000Z",
+          aiRating: "easy" as const,
+          finalRating: "good" as const,
+          intervalSeconds: 172800,
+          nextDueAt: "2026-07-26T08:00:00.000Z"
+        }]
+      })),
+      onGenerationProgress: vi.fn(() => () => undefined)
+    } satisfies ReviewDesktopApi;
+    render(<LearningLibraryWorkspace api={api()} reviewApi={reviewApi} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
+    expect(await screen.findByText("未到期")).toBeInTheDocument();
+    expect(screen.getByText("順利")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("查看精簡複習歷史"));
+    expect(screen.getByText(/AI 簡單 · 最終 順利/)).toBeInTheDocument();
+  });
+
   it("loads cards and combines title, type, CEFR, and sort controls", async () => {
     const learning = api();
     render(<LearningLibraryWorkspace api={learning} />);

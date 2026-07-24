@@ -20,6 +20,13 @@ import type {
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
 import type {
+  ConfirmReviewPaperInput,
+  GenerateReviewPaperInput,
+  GradeReviewPaperInput,
+  ReviewDesktopApi,
+  ReviewGenerationProgress
+} from "../shared/review-contracts";
+import type {
   AppSettings,
   SettingsDesktopApi
 } from "../shared/settings-contracts";
@@ -63,6 +70,28 @@ const desktopApi = Object.freeze({
     emptyTrash: (): Promise<{ deleted: number }> =>
       ipcRenderer.invoke("learning:empty-trash")
   } satisfies LearningDesktopApi),
+  review: Object.freeze({
+    getSummary: () => ipcRenderer.invoke("review:summary"),
+    generatePaper: (input: GenerateReviewPaperInput) =>
+      ipcRenderer.invoke("review:generate", input),
+    gradePaper: (input: GradeReviewPaperInput) =>
+      ipcRenderer.invoke("review:grade", input),
+    confirmPaper: (input: ConfirmReviewPaperInput) =>
+      ipcRenderer.invoke("review:confirm", input),
+    discardPaper: (): Promise<void> => ipcRenderer.invoke("review:discard"),
+    getItemDetail: (itemId: string) =>
+      ipcRenderer.invoke("review:item-detail", itemId),
+    onGenerationProgress(
+      listener: (progress: ReviewGenerationProgress) => void
+    ) {
+      const wrapped = (
+        _event: Electron.IpcRendererEvent,
+        progress: ReviewGenerationProgress
+      ) => listener(progress);
+      ipcRenderer.on("review:generation-progress", wrapped);
+      return () => ipcRenderer.off("review:generation-progress", wrapped);
+    }
+  } satisfies ReviewDesktopApi),
   settings: Object.freeze({
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
     save: (settings: AppSettings): Promise<AppSettings> =>

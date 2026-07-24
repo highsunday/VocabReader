@@ -9,6 +9,7 @@ related_implements:
   - B06-use-explanation-language-for-learning-cards
   - B07-preserve-clarified-learning-item-targets
   - F27-trigger-learning-card-creation-from-natural-language
+  - F28-ai-graded-spaced-review-paper
 ---
 
 # AI 輔助學習項目建立模組
@@ -39,6 +40,8 @@ related_implements:
 7. 新發現的 active／trashed 重複分別顯示為已存在／垃圾桶；其他 included 草稿由
    `createItemsAtomically()` 在單一 `BEGIN IMMEDIATE` 交易中新增。
 8. 提交結果保留在原 AI 訊息，不能再次提交；垃圾桶 match 在提交前後都可明確還原。
+9. 成功新增的 active 項目沒有 schedule row，因此立即進入間隔複習的新項目 queue；
+   首次引入順序由複習模組按 CEFR A1→C2 決定。
 
 ## 3. Clarification and Annotation Integration
 
@@ -134,5 +137,6 @@ Markdown 的編輯控制；沒有 included 草稿時提交停用。Escape、遮�
 ## 9. Non-goals
 
 不支援 sentence 卡片、來源追溯、完整生詞庫 AI 搜尋、任意 AI 資料庫工具、自動提交、
-背景 AI 意圖分類、間隔複習、匯入／匯出、同步或跨裝置資料。第一版自然語言入口只辨識
-明確的英文與繁體中文建立請求；其他語言仍使用快捷操作。
+背景 AI 意圖分類、匯入／匯出、同步或跨裝置資料。間隔複習由獨立模組承接已提交
+項目，不改變本模組的草稿與交易規則。第一版自然語言入口只辨識明確的英文與繁體中文
+建立請求；其他語言仍使用快捷操作。

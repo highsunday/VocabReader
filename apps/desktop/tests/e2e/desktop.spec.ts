@@ -40,6 +40,14 @@ test("launches the secure Electron reading shell", async () => {
       .toContain("name: create-learning-items");
     expect(installedLearningItemSkill)
       .toContain("learning-item-result");
+    const installedReviewSkill = readFileSync(join(
+      userDataPath,
+      "codex-runtime/.agents/skills/practice-spaced-review/SKILL.md"
+    ), "utf8");
+    expect(installedReviewSkill)
+      .toContain("name: practice-spaced-review");
+    expect(installedReviewSkill)
+      .toContain("review-grade");
     await expect(page).toHaveTitle("LingoShelf");
     await expect(
       page.getByRole("heading", { name: "導入 EPUB 開始閱讀" })
@@ -179,6 +187,15 @@ test("launches the secure Electron reading shell", async () => {
               restoreItem: unknown;
               emptyTrash: unknown;
             };
+            review: {
+              getSummary: unknown;
+              generatePaper: unknown;
+              gradePaper: unknown;
+              confirmPaper: unknown;
+              discardPaper: unknown;
+              getItemDetail: unknown;
+              onGenerationProgress: unknown;
+            };
             settings: {
               get: unknown;
               save: unknown;
@@ -217,6 +234,15 @@ test("launches the secure Electron reading shell", async () => {
         hasLearningTrash: typeof desktop?.learning.trashItem,
         hasLearningRestore: typeof desktop?.learning.restoreItem,
         hasLearningEmptyTrash: typeof desktop?.learning.emptyTrash,
+        reviewKeys: Object.keys(desktop?.review ?? {}).sort(),
+        hasReviewSummary: typeof desktop?.review.getSummary,
+        hasReviewGenerate: typeof desktop?.review.generatePaper,
+        hasReviewGrade: typeof desktop?.review.gradePaper,
+        hasReviewConfirm: typeof desktop?.review.confirmPaper,
+        hasReviewDiscard: typeof desktop?.review.discardPaper,
+        hasReviewItemDetail: typeof desktop?.review.getItemDetail,
+        hasReviewGenerationProgress:
+          typeof desktop?.review.onGenerationProgress,
         hasSettingsGet: typeof desktop?.settings.get,
         hasSettingsSave: typeof desktop?.settings.save,
         settingsKeys: Object.keys(desktop?.settings ?? {}).sort(),
@@ -260,6 +286,22 @@ test("launches the secure Electron reading shell", async () => {
       "trashItem",
       "updateItem"
     ].sort());
+    expect(security.hasReviewSummary).toBe("function");
+    expect(security.hasReviewGenerate).toBe("function");
+    expect(security.hasReviewGrade).toBe("function");
+    expect(security.hasReviewConfirm).toBe("function");
+    expect(security.hasReviewDiscard).toBe("function");
+    expect(security.hasReviewItemDetail).toBe("function");
+    expect(security.hasReviewGenerationProgress).toBe("function");
+    expect(security.reviewKeys).toEqual([
+      "confirmPaper",
+      "discardPaper",
+      "generatePaper",
+      "getItemDetail",
+      "getSummary",
+      "gradePaper",
+      "onGenerationProgress"
+    ].sort());
     expect(security.hasSettingsGet).toBe("function");
     expect(security.hasSettingsSave).toBe("function");
     expect(security.settingsKeys).toEqual(["get", "save"]);
@@ -293,6 +335,49 @@ test("launches the secure Electron reading shell", async () => {
     ].sort());
     expect(security.hasNodeRequire).toBe("undefined");
 
+    await page.getByRole("button", { name: /間隔複習/ }).click();
+    await expect(
+      page.getByRole("heading", { name: "間隔複習" })
+    ).toBeVisible();
+    await expect(page.getByText("10 個可複習")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "生成本回合試卷" })
+    ).toBeVisible();
+    const reviewScroll = await page.evaluate(async () => {
+      const content = document.querySelector<HTMLElement>(
+        ".content.spaced-review-content"
+      );
+      const workspace = document.querySelector<HTMLElement>(
+        ".spaced-review-workspace"
+      );
+      if (!content || !workspace) {
+        throw new Error("spaced review scroll container is unavailable");
+      }
+      const probe = document.createElement("div");
+      probe.style.height = "1800px";
+      probe.dataset.testid = "spaced-review-scroll-probe";
+      workspace.append(probe);
+      content.scrollTop = content.scrollHeight;
+      await new Promise<void>((resolve) => requestAnimationFrame(() =>
+        requestAnimationFrame(() => resolve())
+      ));
+      const result = {
+        overflowY: getComputedStyle(content).overflowY,
+        scrollTop: content.scrollTop,
+        scrollHeight: content.scrollHeight,
+        clientHeight: content.clientHeight,
+        usesLearningLibraryClass:
+          content.classList.contains("learning-library-content")
+      };
+      probe.remove();
+      content.scrollTop = 0;
+      return result;
+    });
+    expect(reviewScroll.overflowY).toBe("auto");
+    expect(reviewScroll.scrollHeight).toBeGreaterThan(reviewScroll.clientHeight);
+    expect(reviewScroll.scrollTop).toBeGreaterThan(0);
+    expect(reviewScroll.usesLearningLibraryClass).toBe(false);
+
     await page.getByRole("button", { name: /生詞庫/ }).click();
     await expect(page.getByRole("heading", { name: "生詞庫" })).toBeVisible();
     await expect(page.locator(".learning-item-card")).toHaveCount(10);
@@ -305,6 +390,10 @@ test("launches the secure Electron reading shell", async () => {
       if (!toolbar || !controls || !scrollRegion) {
         throw new Error("learning library layout is unavailable");
       }
+      await document.fonts.ready;
+      await new Promise<void>((resolve) => requestAnimationFrame(() =>
+        requestAnimationFrame(() => resolve())
+      ));
       const before = {
         toolbarTop: toolbar.getBoundingClientRect().top,
         controlsTop: controls.getBoundingClientRect().top

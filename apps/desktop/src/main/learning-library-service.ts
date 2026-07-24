@@ -2,6 +2,13 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import {
+  createEmptyCard,
+  fsrs,
+  Rating,
+  type Card,
+  type Grade
+} from "ts-fsrs";
 import type {
   CefrLevel,
   CreateLearningItemInput,
@@ -11,6 +18,15 @@ import type {
   LearningItemType,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
+import type {
+  ConfirmReviewSessionInput,
+  ConfirmReviewSessionResult,
+  LearningItemReviewDetail,
+  ReviewHistoryEntry,
+  ReviewQueueItem,
+  ReviewRating,
+  ReviewSummary
+} from "../shared/review-contracts";
 
 interface LearningItemRow {
   id: string;
@@ -25,9 +41,118 @@ interface LearningItemRow {
   trashed_at: string | null;
 }
 
+interface ReviewScheduleRow {
+  learning_item_id: string;
+  due_at: string;
+  card_json: string;
+  review_count: number;
+  last_reviewed_at: string;
+  last_final_rating: ReviewRating;
+}
+
+interface ReviewHistoryRow {
+  id: string;
+  session_id: string;
+  learning_item_id: string;
+  reviewed_at: string;
+  ai_rating: ReviewRating;
+  final_rating: ReviewRating;
+  interval_seconds: number;
+  next_due_at: string;
+}
+
+interface ReviewQueueRow extends LearningItemRow {
+  due_at: string | null;
+}
+
 const itemTypes = new Set<LearningItemType>(["word", "phrase"]);
 const cefrLevels = new Set<CefrLevel>(["A1", "A2", "B1", "B2", "C1", "C2"]);
 const statuses = new Set<LearningItemStatus>(["active", "trashed"]);
+const reviewRatings = new Set<ReviewRating>([
+  "forgotten",
+  "hard",
+  "good",
+  "easy"
+]);
+const cefrOrder = `
+  CASE cefr
+    WHEN 'A1' THEN 1 WHEN 'A2' THEN 2 WHEN 'B1' THEN 3
+    WHEN 'B2' THEN 4 WHEN 'C1' THEN 5 WHEN 'C2' THEN 6
+  END
+`;
+
+const reviewScheduler = fsrs({ request_retention: 0.9 });
+
+function validDate(value: unknown, label: string): Date {
+  const date = value instanceof Date ? new Date(value) : new Date(String(value));
+  if (!Number.isFinite(date.getTime())) throw new Error(`${label}格式錯誤`);
+  return date;
+}
+
+function ratingForFsrs(rating: ReviewRating): Grade {
+  switch (rating) {
+    case "forgotten": return Rating.Again as Grade;
+    case "hard": return Rating.Hard as Grade;
+    case "good": return Rating.Good as Grade;
+    case "easy": return Rating.Easy as Grade;
+  }
+}
+
+function cardFromJson(value: string): Card {
+  const parsed = JSON.parse(value) as Partial<Card> & {
+    due?: string;
+    last_review?: string | null;
+  };
+  const numericFields = [
+    "stability",
+    "difficulty",
+    "elapsed_days",
+    "scheduled_days",
+    "learning_steps",
+    "reps",
+    "lapses",
+    "state"
+  ] as const;
+  if (!parsed || typeof parsed !== "object" ||
+    numericFields.some((field) => !Number.isFinite(parsed[field]))) {
+    throw new Error("複習排程資料損壞");
+  }
+  return {
+    due: validDate(parsed.due, "到期時間"),
+    stability: parsed.stability!,
+    difficulty: parsed.difficulty!,
+    elapsed_days: parsed.elapsed_days!,
+    scheduled_days: parsed.scheduled_days!,
+    learning_steps: parsed.learning_steps!,
+    reps: parsed.reps!,
+    lapses: parsed.lapses!,
+    state: parsed.state!,
+    ...(parsed.last_review
+      ? { last_review: validDate(parsed.last_review, "上次複習時間") }
+      : {})
+  };
+}
+
+function cardJson(card: Card): string {
+  return JSON.stringify({
+    ...card,
+    due: card.due.toISOString(),
+    last_review: card.last_review?.toISOString() ?? null
+  });
+}
+
+function historyFromRow(row: ReviewHistoryRow): ReviewHistoryEntry {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    itemId: row.learning_item_id,
+    reviewedAt: row.reviewed_at,
+    aiRating: row.ai_rating,
+    finalRating: row.final_rating,
+    intervalSeconds: row.interval_seconds,
+    nextDueAt: row.next_due_at
+  };
+}
 
 function requiredText(value: unknown, label: string): string {
   if (typeof value !== "string" || !value.trim()) {
@@ -301,8 +426,41 @@ export class LocalLearningLibrary {
           updated_at TEXT NOT NULL,
           trashed_at TEXT
         );
+        CREATE TABLE IF NOT EXISTS learning_review_schedules (
+          learning_item_id TEXT PRIMARY KEY
+            REFERENCES learning_items(id) ON DELETE CASCADE,
+          due_at TEXT NOT NULL,
+          card_json TEXT NOT NULL,
+          review_count INTEGER NOT NULL CHECK (review_count >= 1),
+          last_reviewed_at TEXT NOT NULL,
+          last_final_rating TEXT NOT NULL
+            CHECK (last_final_rating IN ('forgotten', 'hard', 'good', 'easy')),
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS learning_review_events (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          learning_item_id TEXT NOT NULL
+            REFERENCES learning_items(id) ON DELETE CASCADE,
+          reviewed_at TEXT NOT NULL,
+          ai_rating TEXT NOT NULL
+            CHECK (ai_rating IN ('forgotten', 'hard', 'good', 'easy')),
+          final_rating TEXT NOT NULL
+            CHECK (final_rating IN ('forgotten', 'hard', 'good', 'easy')),
+          previous_card_json TEXT,
+          next_card_json TEXT NOT NULL,
+          interval_seconds INTEGER NOT NULL CHECK (interval_seconds >= 0),
+          next_due_at TEXT NOT NULL,
+          UNIQUE (session_id, learning_item_id)
+        );
+        CREATE INDEX IF NOT EXISTS learning_review_schedules_due_idx
+          ON learning_review_schedules(due_at);
+        CREATE INDEX IF NOT EXISTS learning_review_events_item_time_idx
+          ON learning_review_events(learning_item_id, reviewed_at DESC);
         INSERT OR IGNORE INTO schema_migrations (version, applied_at)
         VALUES (1, CURRENT_TIMESTAMP);
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+        VALUES (2, CURRENT_TIMESTAMP);
       `);
       const seeded = database.prepare(
         "SELECT value FROM learning_metadata WHERE key = 'mock_seed_v1'"
@@ -413,6 +571,242 @@ export class LocalLearningLibrary {
         return titleOrder || left.sense.localeCompare(right.sense) ||
           left.id.localeCompare(right.id);
       });
+  }
+
+  async getReviewSummary(nowInput: Date | string = new Date()): Promise<ReviewSummary> {
+    const now = validDate(nowInput, "目前時間");
+    const nowIso = now.toISOString();
+    const database = this.#open();
+    const dueRows = database.prepare(`
+      SELECT i.*, s.due_at
+      FROM learning_items i
+      JOIN learning_review_schedules s ON s.learning_item_id = i.id
+      WHERE i.status = 'active' AND s.due_at <= ?
+      ORDER BY s.due_at ASC, i.id ASC
+      LIMIT 10
+    `).all(nowIso) as unknown as ReviewQueueRow[];
+    const dueReviewedCount = Number((database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM learning_items i
+      JOIN learning_review_schedules s ON s.learning_item_id = i.id
+      WHERE i.status = 'active' AND s.due_at <= ?
+    `).get(nowIso) as { count: number }).count);
+    const newCount = Number((database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM learning_items i
+      LEFT JOIN learning_review_schedules s ON s.learning_item_id = i.id
+      WHERE i.status = 'active' AND s.learning_item_id IS NULL
+    `).get() as { count: number }).count);
+    const remaining = Math.max(0, 10 - dueRows.length);
+    const newRows = remaining
+      ? database.prepare(`
+          SELECT i.*, NULL AS due_at
+          FROM learning_items i
+          LEFT JOIN learning_review_schedules s ON s.learning_item_id = i.id
+          WHERE i.status = 'active' AND s.learning_item_id IS NULL
+          ORDER BY ${cefrOrder} ASC, i.created_at ASC, i.id ASC
+          LIMIT ?
+        `).all(remaining) as unknown as ReviewQueueRow[]
+      : [];
+    const selectedItems: ReviewQueueItem[] = [
+      ...dueRows.map((row) => ({
+        ...itemFromRow(row),
+        reviewKind: "due" as const,
+        dueAt: row.due_at
+      })),
+      ...newRows.map((row) => ({
+        ...itemFromRow(row),
+        reviewKind: "new" as const,
+        dueAt: null
+      }))
+    ];
+    const nextDue = database.prepare(`
+      SELECT MIN(s.due_at) AS next_due_at
+      FROM learning_items i
+      JOIN learning_review_schedules s ON s.learning_item_id = i.id
+      WHERE i.status = 'active' AND s.due_at > ?
+    `).get(nowIso) as { next_due_at: string | null };
+    return {
+      dueReviewedCount,
+      newCount,
+      totalAvailable: dueReviewedCount + newCount,
+      selectedItems,
+      nextDueAt: nextDue.next_due_at
+    };
+  }
+
+  async getItemReviewDetail(
+    itemId: string,
+    nowInput: Date | string = new Date()
+  ): Promise<LearningItemReviewDetail> {
+    const id = requiredText(itemId, "學習項目");
+    const now = validDate(nowInput, "目前時間");
+    await this.getItem(id);
+    const schedule = this.#open().prepare(`
+      SELECT * FROM learning_review_schedules WHERE learning_item_id = ?
+    `).get(id) as ReviewScheduleRow | undefined;
+    const rows = this.#open().prepare(`
+      SELECT id, session_id, learning_item_id, reviewed_at, ai_rating,
+        final_rating, interval_seconds, next_due_at
+      FROM learning_review_events
+      WHERE learning_item_id = ?
+      ORDER BY reviewed_at DESC, id DESC
+    `).all(id) as unknown as ReviewHistoryRow[];
+    if (!schedule) {
+      return {
+        status: "new",
+        lastReviewedAt: null,
+        lastFinalRating: null,
+        nextDueAt: null,
+        reviewCount: 0,
+        history: []
+      };
+    }
+    return {
+      status: schedule.due_at <= now.toISOString() ? "due" : "scheduled",
+      lastReviewedAt: schedule.last_reviewed_at,
+      lastFinalRating: schedule.last_final_rating,
+      nextDueAt: schedule.due_at,
+      reviewCount: schedule.review_count,
+      history: rows.map(historyFromRow)
+    };
+  }
+
+  async confirmReviewSession(
+    input: ConfirmReviewSessionInput
+  ): Promise<ConfirmReviewSessionResult> {
+    if (!input || typeof input !== "object") throw new Error("複習回合格式錯誤");
+    const sessionId = requiredText(input.sessionId, "複習回合");
+    const reviewedAt = validDate(input.reviewedAt, "複習時間");
+    if (!Array.isArray(input.ratings) ||
+      input.ratings.length === 0 ||
+      input.ratings.length > 10) {
+      throw new Error("複習評級數量格式錯誤");
+    }
+    const ratings = input.ratings.map((rating) => {
+      if (!rating || typeof rating !== "object") {
+        throw new Error("複習評級格式錯誤");
+      }
+      const itemId = requiredText(rating.itemId, "學習項目");
+      if (!reviewRatings.has(rating.aiRating) ||
+        !reviewRatings.has(rating.finalRating)) {
+        throw new Error("複習評級格式錯誤");
+      }
+      return { ...rating, itemId };
+    });
+    if (new Set(ratings.map(({ itemId }) => itemId)).size !== ratings.length) {
+      throw new Error("複習評級包含重複項目");
+    }
+
+    const database = this.#open();
+    const reviewedAtIso = reviewedAt.toISOString();
+    const pending = ratings.map((rating) => {
+      const row = database.prepare(`
+        SELECT i.status, s.learning_item_id, s.due_at, s.card_json,
+          s.review_count, s.last_reviewed_at, s.last_final_rating
+        FROM learning_items i
+        LEFT JOIN learning_review_schedules s ON s.learning_item_id = i.id
+        WHERE i.id = ?
+      `).get(rating.itemId) as (ReviewScheduleRow & {
+        status: LearningItemStatus;
+      }) | undefined;
+      if (!row || row.status !== "active") {
+        throw new Error("複習項目已不可用");
+      }
+      if (row.learning_item_id && row.due_at > reviewedAtIso) {
+        throw new Error("複習項目尚未到期");
+      }
+      const previousCard = row.learning_item_id
+        ? cardFromJson(row.card_json)
+        : createEmptyCard(reviewedAt);
+      const result = reviewScheduler.next(
+        previousCard,
+        reviewedAt,
+        ratingForFsrs(rating.finalRating)
+      );
+      const nextDueAt = result.card.due.toISOString();
+      return {
+        rating,
+        previousCardJson: row.learning_item_id ? cardJson(previousCard) : null,
+        nextCardJson: cardJson(result.card),
+        nextDueAt,
+        intervalSeconds: Math.max(
+          0,
+          Math.round((result.card.due.getTime() - reviewedAt.getTime()) / 1000)
+        ),
+        reviewCount: row.learning_item_id ? row.review_count + 1 : 1
+      };
+    });
+
+    const entries: ReviewHistoryEntry[] = [];
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      const insertEvent = database.prepare(`
+        INSERT INTO learning_review_events (
+          id, session_id, learning_item_id, reviewed_at, ai_rating,
+          final_rating, previous_card_json, next_card_json,
+          interval_seconds, next_due_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const upsertSchedule = database.prepare(`
+        INSERT INTO learning_review_schedules (
+          learning_item_id, due_at, card_json, review_count,
+          last_reviewed_at, last_final_rating, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(learning_item_id) DO UPDATE SET
+          due_at = excluded.due_at,
+          card_json = excluded.card_json,
+          review_count = excluded.review_count,
+          last_reviewed_at = excluded.last_reviewed_at,
+          last_final_rating = excluded.last_final_rating,
+          updated_at = excluded.updated_at
+      `);
+      for (const item of pending) {
+        const eventId = randomUUID();
+        insertEvent.run(
+          eventId,
+          sessionId,
+          item.rating.itemId,
+          reviewedAtIso,
+          item.rating.aiRating,
+          item.rating.finalRating,
+          item.previousCardJson,
+          item.nextCardJson,
+          item.intervalSeconds,
+          item.nextDueAt
+        );
+        upsertSchedule.run(
+          item.rating.itemId,
+          item.nextDueAt,
+          item.nextCardJson,
+          item.reviewCount,
+          reviewedAtIso,
+          item.rating.finalRating,
+          reviewedAtIso
+        );
+        entries.push({
+          id: eventId,
+          sessionId,
+          itemId: item.rating.itemId,
+          reviewedAt: reviewedAtIso,
+          aiRating: item.rating.aiRating,
+          finalRating: item.rating.finalRating,
+          intervalSeconds: item.intervalSeconds,
+          nextDueAt: item.nextDueAt
+        });
+      }
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+    const remaining = await this.getReviewSummary(reviewedAt);
+    return {
+      sessionId,
+      reviewedAt: reviewedAtIso,
+      entries,
+      remainingAvailable: remaining.totalAvailable
+    };
   }
 
   async createItem(input: CreateLearningItemInput): Promise<LearningItem> {

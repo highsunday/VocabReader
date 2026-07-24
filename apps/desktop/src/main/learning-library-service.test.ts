@@ -214,4 +214,189 @@ describe("LocalLearningLibrary", () => {
       library.listItems({ status: "active", sort: "recent" })
     ).resolves.toHaveLength(before.length + 2);
   });
+
+  it("selects reviewed due items before new items ordered by CEFR", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const reviewLibrary = library as LocalLearningLibrary & {
+      getReviewSummary(now: Date): Promise<{
+        dueReviewedCount: number;
+        newCount: number;
+        selectedItems: Array<{ title: string; cefr: string }>;
+      }>;
+    };
+
+    const summary = await reviewLibrary.getReviewSummary(
+      new Date("2026-07-24T08:00:00.000Z")
+    );
+
+    expect({
+      ...summary,
+      selectedItems: summary.selectedItems.slice(0, 4)
+    }).toMatchObject({
+      dueReviewedCount: 0,
+      newCount: 10,
+      selectedItems: [
+        { title: "happy", cefr: "A1" },
+        { title: "wake up", cefr: "A1" },
+        { title: "bank", cefr: "A2" },
+        { title: "bank", cefr: "A2" }
+      ]
+    });
+  });
+
+  it("persists compact FSRS history and uses the final user rating", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const happy = (await library.listItems({
+      status: "active",
+      search: "happy",
+      sort: "recent"
+    }))[0];
+    const reviewedAt = "2026-07-24T08:00:00.000Z";
+
+    const result = await library.confirmReviewSession({
+      sessionId: "review-session-1",
+      reviewedAt,
+      ratings: [{
+        itemId: happy.id,
+        aiRating: "easy",
+        finalRating: "forgotten"
+      }]
+    });
+    const detail = await library.getItemReviewDetail(
+      happy.id,
+      new Date(reviewedAt)
+    );
+
+    expect(result.entries[0]).toMatchObject({
+      itemId: happy.id,
+      aiRating: "easy",
+      finalRating: "forgotten",
+      reviewedAt
+    });
+    expect(result.entries[0].intervalSeconds).toBeGreaterThan(0);
+    expect(detail).toMatchObject({
+      reviewCount: 1,
+      lastFinalRating: "forgotten",
+      nextDueAt: result.entries[0].nextDueAt,
+      history: [{
+        aiRating: "easy",
+        finalRating: "forgotten"
+      }]
+    });
+  });
+
+  it("maps all four final ratings to distinct FSRS intervals", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const items = (await library.listItems({
+      status: "active",
+      sort: "recent"
+    })).slice(0, 4);
+    const ratings = ["forgotten", "hard", "good", "easy"] as const;
+
+    const result = await library.confirmReviewSession({
+      sessionId: "review-session-four-ratings",
+      reviewedAt: "2026-07-24T08:00:00.000Z",
+      ratings: items.map((item, index) => ({
+        itemId: item.id,
+        aiRating: ratings[index],
+        finalRating: ratings[index]
+      }))
+    });
+
+    expect(result.entries.map(({ intervalSeconds }) => intervalSeconds))
+      .toEqual([60, 360, 600, 691200]);
+  });
+
+  it("rolls back every item when a review session conflicts mid-transaction", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const [first, second] = (await library.listItems({
+      status: "active",
+      sort: "recent"
+    })).slice(0, 2);
+    await library.confirmReviewSession({
+      sessionId: "review-session-collision",
+      reviewedAt: "2026-07-24T08:00:00.000Z",
+      ratings: [{
+        itemId: second.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }]
+    });
+
+    await expect(library.confirmReviewSession({
+      sessionId: "review-session-collision",
+      reviewedAt: "2030-07-24T08:00:00.000Z",
+      ratings: [{
+        itemId: first.id,
+        aiRating: "good",
+        finalRating: "good"
+      }, {
+        itemId: second.id,
+        aiRating: "good",
+        finalRating: "good"
+      }]
+    })).rejects.toThrow();
+
+    expect((await library.getItemReviewDetail(first.id)).reviewCount).toBe(0);
+    expect((await library.getItemReviewDetail(second.id)).reviewCount).toBe(1);
+  });
+
+  it("prioritizes a reviewed item once its exact FSRS due time arrives", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const fastidious = (await library.listItems({
+      status: "active",
+      search: "fastidious",
+      sort: "recent"
+    }))[0];
+    const first = await library.confirmReviewSession({
+      sessionId: "review-session-due",
+      reviewedAt: "2026-07-24T08:00:00.000Z",
+      ratings: [{
+        itemId: fastidious.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }]
+    });
+
+    const beforeDue = await library.getReviewSummary(
+      new Date(new Date(first.entries[0].nextDueAt).getTime() - 1)
+    );
+    const atDue = await library.getReviewSummary(first.entries[0].nextDueAt);
+
+    expect(beforeDue.selectedItems.some(({ id }) => id === fastidious.id))
+      .toBe(false);
+    expect(atDue.selectedItems[0]).toMatchObject({
+      id: fastidious.id,
+      reviewKind: "due",
+      dueAt: first.entries[0].nextDueAt
+    });
+  });
+
+  it("does not duplicate a confirmed session and keeps trash out of review", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const happy = (await library.listItems({
+      status: "active",
+      search: "happy",
+      sort: "recent"
+    }))[0];
+    const input = {
+      sessionId: "review-session-once",
+      reviewedAt: "2026-07-24T08:00:00.000Z",
+      ratings: [{
+        itemId: happy.id,
+        aiRating: "good" as const,
+        finalRating: "good" as const
+      }]
+    };
+    await library.confirmReviewSession(input);
+    await expect(library.confirmReviewSession(input)).rejects.toThrow();
+    expect((await library.getItemReviewDetail(happy.id)).reviewCount).toBe(1);
+
+    await library.trashItem(happy.id);
+    expect((await library.getReviewSummary("2030-01-01T00:00:00.000Z"))
+      .selectedItems.some(({ id }) => id === happy.id)).toBe(false);
+    await library.restoreItem(happy.id);
+    expect((await library.getReviewSummary("2030-01-01T00:00:00.000Z"))
+      .selectedItems[0].id).toBe(happy.id);
+  });
 });
