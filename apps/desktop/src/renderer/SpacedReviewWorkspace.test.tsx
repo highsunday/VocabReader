@@ -126,9 +126,29 @@ describe("SpacedReviewWorkspace", () => {
       .not.toBeInTheDocument();
     expect(screen.queryByText(/Preparing/)).not.toBeInTheDocument();
 
-    publishProgress?.({ phase: "assembling" });
+    publishProgress?.({
+      phase: "preparing",
+      completedCount: 1,
+      totalCount: 4
+    });
+    const progressbar = within(generationCard).getByRole("progressbar", {
+      name: "AI 生成試卷進度"
+    });
+    expect(await screen.findByText("已完成 1／4 題例句"))
+      .toBeInTheDocument();
+    expect(progressbar).toHaveAttribute("aria-valuenow", "1");
+    expect(progressbar).toHaveAttribute("aria-valuemax", "4");
+    expect(progressbar.firstElementChild).toHaveStyle({ width: "25%" });
+
+    publishProgress?.({
+      phase: "assembling",
+      completedCount: 4,
+      totalCount: 4
+    });
     expect(await screen.findByText("例句已完成，正在組裝並檢查試卷"))
       .toBeInTheDocument();
+    expect(progressbar).toHaveAttribute("aria-valuenow", "4");
+    expect(progressbar.firstElementChild).toHaveStyle({ width: "100%" });
     expect(screen.queryByText(/paperId/)).not.toBeInTheDocument();
 
     resolvePaper?.({

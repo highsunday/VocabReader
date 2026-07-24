@@ -3,6 +3,7 @@ import { Check, LoaderCircle, Sparkles } from "lucide-react";
 import type {
   ConfirmReviewSessionResult,
   ReviewDesktopApi,
+  ReviewGenerationProgress,
   ReviewGrade,
   ReviewPaper,
   ReviewRating,
@@ -52,9 +53,12 @@ export function SpacedReviewWorkspace({
     "reviewing" | "confirming" | "completed"
   >("loading");
   const [error, setError] = useState("");
-  const [generationStage, setGenerationStage] = useState<
-    "preparing" | "assembling"
-  >("preparing");
+  const [generationProgress, setGenerationProgress] =
+    useState<ReviewGenerationProgress>({
+      phase: "preparing",
+      completedCount: 0,
+      totalCount: 0
+    });
   const [generationElapsedSeconds, setGenerationElapsedSeconds] = useState(0);
   const generationAttemptRef = useRef(0);
 
@@ -80,8 +84,8 @@ export function SpacedReviewWorkspace({
   }
 
   useEffect(() => {
-    const unsubscribeProgress = api.onGenerationProgress(({ phase }) => {
-      setGenerationStage(phase);
+    const unsubscribeProgress = api.onGenerationProgress((progress) => {
+      setGenerationProgress(progress);
     });
     void loadSummary();
     return () => {
@@ -121,7 +125,11 @@ export function SpacedReviewWorkspace({
     setPhase("generating");
     setError("");
     setPaper(undefined);
-    setGenerationStage("preparing");
+    setGenerationProgress({
+      phase: "preparing",
+      completedCount: 0,
+      totalCount: summary?.selectedItems.length ?? 0
+    });
     try {
       const nextPaper = await api.generatePaper({ explanationLanguage });
       if (generationAttemptRef.current !== attempt) return;
@@ -139,7 +147,11 @@ export function SpacedReviewWorkspace({
 
   function cancelGeneration() {
     generationAttemptRef.current += 1;
-    setGenerationStage("preparing");
+    setGenerationProgress({
+      phase: "preparing",
+      completedCount: 0,
+      totalCount: 0
+    });
     setPhase("ready");
     void api.discardPaper();
   }
@@ -262,11 +274,11 @@ export function SpacedReviewWorkspace({
           </header>
 
           <ol className="review-generation-stages" aria-label="生成階段">
-            <li className={generationStage === "preparing"
+            <li className={generationProgress.phase === "preparing"
               ? "is-active"
               : "is-complete"}>
               <span aria-hidden="true">
-                {generationStage === "assembling"
+                {generationProgress.phase === "assembling"
                   ? <Check size={15} />
                   : <LoaderCircle size={15} />}
               </span>
@@ -275,11 +287,11 @@ export function SpacedReviewWorkspace({
                 <small>依每個項目的特定語義建立自然例句</small>
               </div>
             </li>
-            <li className={generationStage === "assembling"
+            <li className={generationProgress.phase === "assembling"
               ? "is-active"
               : "is-pending"}>
               <span aria-hidden="true">
-                {generationStage === "assembling"
+                {generationProgress.phase === "assembling"
                   ? <LoaderCircle size={15} />
                   : "2"}
               </span>
@@ -295,19 +307,29 @@ export function SpacedReviewWorkspace({
             role="status"
             aria-live="polite"
           >
-            {generationStage === "preparing"
-              ? "AI 正在為本回合項目產生例句"
+            {generationProgress.phase === "preparing"
+              ? `已完成 ${generationProgress.completedCount}／${generationProgress.totalCount} 題例句`
               : "例句已完成，正在組裝並檢查試卷"}
           </p>
           <div
             className="review-generation-progress"
             role="progressbar"
             aria-label="AI 生成試卷進度"
-            aria-valuetext={generationStage === "preparing"
-              ? "正在產生例句"
+            aria-valuemin={0}
+            aria-valuemax={generationProgress.totalCount}
+            aria-valuenow={generationProgress.completedCount}
+            aria-valuetext={generationProgress.phase === "preparing"
+              ? `已完成 ${generationProgress.completedCount}／${generationProgress.totalCount} 題例句`
               : "正在組裝並檢查試卷"}
           >
-            <span />
+            <span style={{
+              width: generationProgress.totalCount > 0
+                ? `${Math.round(
+                    generationProgress.completedCount /
+                    generationProgress.totalCount * 100
+                  )}%`
+                : "0%"
+            }} />
           </div>
           <footer className="review-generation-footer">
             <span>已等待 {generationElapsedSeconds} 秒</span>

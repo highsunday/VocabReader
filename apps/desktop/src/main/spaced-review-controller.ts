@@ -7,6 +7,7 @@ import type {
   GradeReviewPaperInput,
   LearningItemReviewDetail,
   ReviewGrade,
+  ReviewGenerationProgress,
   ReviewPaper,
   ReviewSummary
 } from "../shared/review-contracts";
@@ -48,6 +49,11 @@ const isolationConfig = Object.freeze({
   web_search: "disabled"
 });
 
+const fastReviewModelPriority = [
+  "gpt-5.6-luna",
+  "gpt-5.6-terra"
+] as const;
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -57,6 +63,51 @@ function idFromResult(value: unknown, key: "thread" | "turn") {
     typeof value[key].id === "string"
     ? value[key].id
     : undefined;
+}
+
+function supportsLowReasoning(value: unknown): value is Record<string, unknown> {
+  return isObject(value) &&
+    typeof value.id === "string" &&
+    value.hidden !== true &&
+    Array.isArray(value.supportedReasoningEfforts) &&
+    value.supportedReasoningEfforts.some((option) =>
+      isObject(option) && option.reasoningEffort === "low"
+    );
+}
+
+async function selectFastReviewModel(
+  client: CodexAppServerClient
+): Promise<{ model: string; effort: "low" } | undefined> {
+  try {
+    const available = new Set<string>();
+    const seenCursors = new Set<string>();
+    let cursor: string | null = null;
+    do {
+      const response = await client.request("model/list", {
+        cursor,
+        includeHidden: false
+      });
+      if (!isObject(response) || !Array.isArray(response.data)) {
+        return undefined;
+      }
+      for (const candidate of response.data) {
+        if (supportsLowReasoning(candidate)) available.add(candidate.id as string);
+      }
+      const nextCursor = typeof response.nextCursor === "string"
+        ? response.nextCursor
+        : null;
+      if (nextCursor && seenCursors.has(nextCursor)) return undefined;
+      if (nextCursor) seenCursors.add(nextCursor);
+      cursor = nextCursor;
+    } while (cursor);
+
+    const model = fastReviewModelPriority.find((candidate) =>
+      available.has(candidate)
+    );
+    return model ? { model, effort: "low" } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function generationPrompt(
@@ -86,9 +137,46 @@ function generationPrompt(
         markdownContent
       }))
     })}`,
-    "Before the artifact, stream brief learner-facing progress lines without revealing answers.",
     "Generate every question exactly once using only this payload."
   ].join("\n");
+}
+
+function completedQuestionCount(text: string, totalCount: number): number {
+  const fenceStart = text.indexOf("```review-paper");
+  if (fenceStart < 0) return 0;
+  const questionsKey = text.indexOf('"questions"', fenceStart);
+  if (questionsKey < 0) return 0;
+  const arrayStart = text.indexOf("[", questionsKey + '"questions"'.length);
+  if (arrayStart < 0) return 0;
+
+  let completedCount = 0;
+  let objectDepth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = arrayStart + 1; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+    } else if (character === "{") {
+      objectDepth += 1;
+    } else if (character === "}" && objectDepth > 0) {
+      objectDepth -= 1;
+      if (objectDepth === 0) completedCount += 1;
+    } else if (character === "]" && objectDepth === 0) {
+      break;
+    }
+  }
+  return Math.min(completedCount, totalCount);
 }
 
 function gradingPrompt(
@@ -164,6 +252,7 @@ async function runReviewTurn(
       title: "LingoShelf Spaced Review",
       version: "0.1.0"
     });
+    const modelSettings = await selectFastReviewModel(client);
     const thread = await client.request("thread/start", {
       cwd: options.workingDirectory,
       approvalPolicy: "never",
@@ -172,6 +261,7 @@ async function runReviewTurn(
       config: isolationConfig,
       environments: [],
       selectedCapabilityRoots: [],
+      ...(modelSettings ? { model: modelSettings.model } : {}),
       developerInstructions: [
         "You only generate or grade one bounded LingoShelf spaced-review paper.",
         "Never run tools, read files, write files, access the network, or request more data.",
@@ -185,6 +275,7 @@ async function runReviewTurn(
     if (!threadId) throw new Error("Codex 未回傳間隔複習對話識別碼。");
     const turn = await client.request("turn/start", {
       threadId,
+      ...(modelSettings ?? {}),
       input: [{
         type: "text",
         text: prompt,
@@ -232,7 +323,7 @@ export class SpacedReviewController {
 
   async generatePaper(
     input: GenerateReviewPaperInput,
-    onProgress?: (text: string) => void
+    onProgress?: (progress: ReviewGenerationProgress) => void
   ): Promise<ReviewPaper> {
     if (this.#busy) throw new Error("間隔複習 AI 正在處理中");
     if (!input || !["source", "zh-TW", "en", "ja"].includes(
@@ -251,13 +342,31 @@ export class SpacedReviewController {
       }
       const paperId = randomUUID();
       let progressText = "";
+      let lastCompletedCount = -1;
+      const totalCount = summary.selectedItems.length;
+      const publishProgress = () => {
+        const completedCount = completedQuestionCount(
+          progressText,
+          totalCount
+        );
+        if (completedCount === lastCompletedCount) return;
+        lastCompletedCount = completedCount;
+        onProgress?.({
+          phase: completedCount === totalCount
+            ? "assembling"
+            : "preparing",
+          completedCount,
+          totalCount
+        });
+      };
+      publishProgress();
       const response = await runReviewTurn(
         this.options,
         generationPrompt(paperId, input, summary),
         abortController.signal,
         (delta) => {
           progressText += delta;
-          onProgress?.(progressText);
+          publishProgress();
         }
       );
       const paper = parseReviewPaper(response, paperId, summary.selectedItems);

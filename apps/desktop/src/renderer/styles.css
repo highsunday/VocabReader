@@ -1821,12 +1821,12 @@ button {
 }
 
 .review-generation-progress span {
-  width: 38%;
+  width: 0;
   height: 100%;
   border-radius: inherit;
   display: block;
   background: linear-gradient(90deg, #779985, #315844);
-  animation: review-generation-slide 1.45s ease-in-out infinite;
+  transition: width 320ms ease;
 }
 
 .review-generation-footer {
@@ -1863,16 +1863,6 @@ button {
   }
 }
 
-@keyframes review-generation-slide {
-  from {
-    transform: translateX(-105%);
-  }
-
-  to {
-    transform: translateX(265%);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .review-generation-stages li.is-active svg,
   .review-generation-progress span {
@@ -1880,8 +1870,7 @@ button {
   }
 
   .review-generation-progress span {
-    width: 100%;
-    opacity: .55;
+    transition: none;
   }
 }
 

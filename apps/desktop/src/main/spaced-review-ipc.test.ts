@@ -9,12 +9,22 @@ describe("spaced review IPC", () => {
       getSummary: vi.fn(async () => ({ totalAvailable: 0 })),
       generatePaper: vi.fn(async (
         _input: unknown,
-        onProgress?: (text: string) => void
+        onProgress?: (progress: {
+          phase: "preparing" | "assembling";
+          completedCount: number;
+          totalCount: number;
+        }) => void
       ) => {
-        onProgress?.("正在準備 1/1：bank\n");
-        onProgress?.(
-          "正在準備 1/1：bank\n```review-paper\n{\"paperId\":"
-        );
+        onProgress?.({
+          phase: "preparing",
+          completedCount: 1,
+          totalCount: 2
+        });
+        onProgress?.({
+          phase: "assembling",
+          completedCount: 2,
+          totalCount: 2
+        });
         return { paperId: "paper-1", questions: [] };
       }),
       gradePaper: vi.fn(),
@@ -51,11 +61,11 @@ describe("spaced review IPC", () => {
     }, expect.any(Function));
     expect(send.mock.calls).toContainEqual([
       "review:generation-progress",
-      { phase: "preparing" }
+      { phase: "preparing", completedCount: 1, totalCount: 2 }
     ]);
     expect(send.mock.calls).toContainEqual([
       "review:generation-progress",
-      { phase: "assembling" }
+      { phase: "assembling", completedCount: 2, totalCount: 2 }
     ]);
     expect(JSON.stringify(send.mock.calls)).not.toContain("paperId");
     expect(() => handlers.get("review:generate")?.({}, {

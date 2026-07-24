@@ -31,10 +31,6 @@ For every item exactly once:
 If any item cannot be handled reliably, do not return a partial paper. Explain the failure without
 emitting a `review-paper` block.
 
-Before the fenced block, emit brief learner-facing progress lines in `answerLanguage` as you prepare
-the questions, such as `正在準備 1/10：bank`. Progress lines may identify the target but must not
-reveal its definition, translation or answer.
-
 Return one fenced JSON block and no other fenced block:
 
 ```review-paper

@@ -28,19 +28,14 @@ export function registerSpacedReviewIpc(
       throw new Error("複習試卷生成格式錯誤");
     }
     const sender = (event as ReviewIpcEvent).sender;
-    let lastPhase: "preparing" | "assembling" | undefined;
     return controller.generatePaper(
       {
         explanationLanguage: input.explanationLanguage as
           "source" | "zh-TW" | "en" | "ja"
       },
-      (text) => {
-        const phase = text.includes("```review-paper")
-          ? "assembling"
-          : "preparing";
-        if (phase !== lastPhase && !sender.isDestroyed?.()) {
-          lastPhase = phase;
-          sender.send("review:generation-progress", { phase });
+      (progress) => {
+        if (!sender.isDestroyed?.()) {
+          sender.send("review:generation-progress", progress);
         }
       }
     );

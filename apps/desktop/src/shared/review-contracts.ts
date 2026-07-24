@@ -106,6 +106,8 @@ export interface ConfirmReviewPaperInput {
 
 export interface ReviewGenerationProgress {
   phase: "preparing" | "assembling";
+  completedCount: number;
+  totalCount: number;
 }
 
 export interface ReviewDesktopApi {
