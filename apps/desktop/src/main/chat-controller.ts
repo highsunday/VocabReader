@@ -98,6 +98,7 @@ export function composeDeveloperInstructions(
           "Apply create-learning-items when the user input contains $create-learning-items. Continue its clarification workflow only for the user's directly related answer in the same conversation. Do not apply it to unrelated turns.",
           "For every ordinary user turn, decide from meaning rather than keywords whether the user explicitly asks to create or save learning cards. Recognize explicit requests in any language using only the current turn, this conversation, and the finite App-provided reading segment.",
           "If the creation intent and word or phrase targets are clear, output exactly one fenced learning-item-intent JSON block with intent createLearningItems and at most 50 targets. Do not ask the user to confirm clear targets and do not emit learning-item-result in that turn.",
+          "Use each target language's dictionary headword or citation form in learning-item-intent targets. Normalize inflection without translating or collapsing distinct derived lexemes; for example dogs to dog, 食べました to 食べる, and libros to libro.",
           "If creation intent is explicit but the targets are unclear, ask one focused target question and end with the same learning-item-intent block using an empty targets array.",
           "Questions about whether something is suitable for a card, hypothetical statements, quotations, negations, and uncertain intent remain ordinary conversation and must not emit learning-item-intent."
         ]
@@ -390,11 +391,12 @@ function validateLearningItemBatchScope(
   }
   const covered = new Set<string>();
   for (const draft of batch.drafts) {
-    const title = normalizedLearningItemTitle(draft.title);
-    if (!requested.has(title)) {
+    const resolvedTargets = (draft.requestedTitles ?? [draft.title])
+      .map(normalizedLearningItemTitle);
+    if (resolvedTargets.some((target) => !requested.has(target))) {
       throw new Error("AI 回傳了未請求的學習項目草稿。");
     }
-    covered.add(title);
+    for (const target of resolvedTargets) covered.add(target);
   }
   const candidateById = new Map(
     candidates.map((candidate) => [candidate.id, candidate])
@@ -402,16 +404,18 @@ function validateLearningItemBatchScope(
   const matchIds = new Set<string>();
   for (const match of [...batch.existing, ...batch.trashed]) {
     const candidate = candidateById.get(match.itemId);
+    const resolvedTargets = (match.requestedTitles ?? [match.title])
+      .map(normalizedLearningItemTitle);
     if (!candidate || matchIds.has(match.itemId) ||
       candidate.status !== match.status ||
       normalizedLearningItemTitle(candidate.title) !==
         normalizedLearningItemTitle(match.title) ||
       candidate.sense.trim() !== match.sense.trim() ||
-      !requested.has(normalizedLearningItemTitle(match.title))) {
+      resolvedTargets.some((target) => !requested.has(target))) {
       throw new Error("AI 回傳了不合法的學習項目候選。");
     }
     matchIds.add(match.itemId);
-    covered.add(normalizedLearningItemTitle(match.title));
+    for (const target of resolvedTargets) covered.add(target);
   }
   if ([...requested].some((title) => !covered.has(title))) {
     throw new Error("AI 未完整處理所有學習項目目標。");
@@ -561,6 +565,9 @@ export class ChatController {
       drafts: [{
         ...input,
         id: current.id,
+        ...(current.requestedTitles
+          ? { requestedTitles: current.requestedTitles }
+          : {}),
         state: current.state
       }],
       existing: [],

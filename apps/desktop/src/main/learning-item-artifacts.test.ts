@@ -13,6 +13,7 @@ describe("parseLearningItemArtifacts", () => {
       JSON.stringify({
         drafts: [{
           title: "reluctant",
+          requestedTitles: ["reluctant"],
           itemType: "word",
           cefr: "B2",
           sense: "unwilling or hesitant",
@@ -21,6 +22,7 @@ describe("parseLearningItemArtifacts", () => {
         existing: [{
           itemId: "item-bank",
           title: "bank",
+          requestedTitles: ["bank", "banks"],
           sense: "financial institution",
           status: "active"
         }],
@@ -42,11 +44,39 @@ describe("parseLearningItemArtifacts", () => {
       drafts: [{
         id: "generated-2",
         title: "reluctant",
+        requestedTitles: ["reluctant"],
         state: "included"
       }],
-      existing: [{ itemId: "item-bank", status: "active" }],
+      existing: [{
+        itemId: "item-bank",
+        requestedTitles: ["bank", "banks"],
+        status: "active"
+      }],
       trashed: [{ itemId: "item-happy", status: "trashed" }]
     });
+  });
+
+  it("rejects malformed requested-title mappings", () => {
+    const result = parseLearningItemArtifacts([
+      "Draft ready.",
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "dog",
+          requestedTitles: [],
+          itemType: "word",
+          cefr: "A1",
+          sense: "domesticated animal",
+          markdownContent: "## Meaning\nA common animal."
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```"
+    ].join("\n"));
+
+    expect(result.batch).toBeUndefined();
+    expect(result.error).toMatch(/學習項目草稿/);
   });
 
   it("rejects malformed draft output and never exposes a submittable batch", () => {

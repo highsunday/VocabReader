@@ -665,6 +665,126 @@ describe("ChatController", () => {
     controller.close();
   });
 
+  it("accepts a canonical title mapping and rechecks that title before submission", async () => {
+    const answer = [
+      "Draft ready.",
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "dog",
+          requestedTitles: ["dogs"],
+          itemType: "word",
+          cefr: "A1",
+          sense: "domesticated canine animal",
+          markdownContent: "## Meaning\nA domesticated canine."
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```"
+    ].join("\n");
+    const dogCandidate: LearningItem = {
+      ...bankCandidate,
+      id: "item-dog",
+      title: "dog",
+      cefr: "A1",
+      sense: "domesticated canine animal",
+      markdownContent: "## Meaning\nA domesticated canine."
+    };
+    const candidateQueries: string[][] = [];
+    const createLearningItemsAtomically = vi.fn().mockResolvedValue([]);
+    const classifyLearningItemDuplicates = vi.fn(
+      async (drafts: LearningItemDraft[]) => [{
+        draftId: drafts[0]!.id,
+        decision: "existing" as const,
+        itemId: "item-dog"
+      }]
+    );
+    const { controller } = managedFixture(
+      new MemoryChatConversationStore(),
+      { answer },
+      {
+        findLearningItemCandidates: async (titles) => {
+          candidateQueries.push(titles);
+          return titles.includes("dog") ? [dogCandidate] : [];
+        },
+        createLearningItemsAtomically,
+        classifyLearningItemDuplicates
+      }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({
+      text: "Add dogs",
+      intent: "createLearningItems",
+      learningItemTargets: [{ title: "dogs" }]
+    });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    const batch = controller.getSnapshot().messages.find(
+      (message) => message.learningItemBatch
+    )?.learningItemBatch;
+    expect(batch?.drafts[0]).toMatchObject({
+      title: "dog",
+      requestedTitles: ["dogs"]
+    });
+
+    await controller.submitLearningItemBatch(String(batch?.id));
+
+    expect(candidateQueries).toEqual([["dogs"], ["dog"]]);
+    expect(classifyLearningItemDuplicates).toHaveBeenCalledWith(
+      [expect.objectContaining({ title: "dog" })],
+      [dogCandidate]
+    );
+    expect(createLearningItemsAtomically).not.toHaveBeenCalled();
+    expect(controller.getSnapshot().messages.find(
+      (message) => message.learningItemBatch
+    )?.learningItemBatch).toMatchObject({
+      status: "submitted",
+      existing: [{ itemId: "item-dog", title: "dog" }]
+    });
+    controller.close();
+  });
+
+  it("rejects a canonical title mapping that names an unrequested source target", async () => {
+    const answer = [
+      "Draft ready.",
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "dog",
+          requestedTitles: ["cats"],
+          itemType: "word",
+          cefr: "A1",
+          sense: "domesticated canine animal",
+          markdownContent: "## Meaning\nA domesticated canine."
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```"
+    ].join("\n");
+    const { controller } = managedFixture(
+      new MemoryChatConversationStore(),
+      { answer }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({
+      text: "Add dogs",
+      intent: "createLearningItems",
+      learningItemTargets: [{ title: "dogs" }]
+    });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    const assistant = controller.getSnapshot().messages.find(
+      (message) => message.role === "assistant"
+    );
+    expect(assistant?.learningItemBatch).toBeUndefined();
+    expect(assistant?.artifactError).toMatch(/未請求/);
+    controller.close();
+  });
+
   it("rejects learning-item matches that exact-title lookup did not supply", async () => {
     const answer = [
       "Already exists.",
@@ -1807,6 +1927,13 @@ describe("create-learning-items skill", () => {
     expect(skill).toContain(
       "Keep `sense` as a short English semantic identifier"
     );
+    expect(skill).toContain(
+      "dictionary headword or citation form used by that target's language"
+    );
+    expect(skill).toContain("`dogs` → `dog`");
+    expect(skill).toContain("Japanese `食べました` → `食べる`");
+    expect(skill).toContain("Spanish");
+    expect(skill).toContain("`requestedTitles`");
   });
 
   it("returns structured targets whenever it asks a creation clarification", () => {

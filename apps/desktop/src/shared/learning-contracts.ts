@@ -39,6 +39,7 @@ export interface UpdateLearningItemInput extends CreateLearningItemInput {
 export interface LearningItemDraft extends CreateLearningItemInput {
   id: string;
   state: "included" | "excluded";
+  requestedTitles?: string[];
 }
 
 export interface LearningItemMatch {
@@ -46,6 +47,7 @@ export interface LearningItemMatch {
   title: string;
   sense: string;
   status: "active" | "trashed";
+  requestedTitles?: string[];
 }
 
 export interface LearningItemDraftBatch {

@@ -28,6 +28,7 @@ Create structured drafts for words and phrases. Never write to the learning libr
 Ask one focused question and do not emit a draft batch when:
 
 - no word or phrase can be identified;
+- the dictionary headword or citation form cannot be determined confidently;
 - the intended sense is ambiguous after considering the user's wording and supplied reading context; or
 - a required distinction between a word and a phrase cannot be resolved.
 
@@ -62,22 +63,55 @@ The App uses these structured targets for exact-title candidate lookup if the
 reader answers with contextual language such as "both", "yes", or "都加". Do
 not treat that contextual answer itself as a new card title.
 
+## Canonical Titles
+
+Before duplicate comparison or drafting, convert each requested target to the
+dictionary headword or citation form used by that target's language.
+
+- Keep the title in the same language and script. Never translate it.
+- Normalize inflection, not derivation. For example: `dogs` → `dog`, `having`
+  → `have`, `likes` → `like`, Japanese `食べました` → `食べる`, and Spanish
+  `libros` → `libro`.
+- Apply the language's own morphology rather than English suffix rules. Handle
+  irregular forms when the reading context or common lexical knowledge makes
+  the headword clear.
+- For an inflected phrase, use its conventional dictionary form while
+  preserving the complete phrase, such as `ran out of` → `run out of`.
+- Preserve a target when it has no inflectional change or when it is a proper
+  noun, abbreviation, fixed expression, or distinct derived lexeme. For
+  example, do not change `happiness` to `happy`.
+- Ask one focused clarification question when more than one headword is
+  genuinely plausible. Put the proposed dictionary-form target or targets in
+  the required `learning-item-request` block.
+
+Set every `learning-item-result` entry's `title` to the canonical title. Add
+`requestedTitles`, containing the exact App-supplied requested target title or
+titles resolved by that entry. Copy these values from `Requested learning-item
+targets`, not from a discarded surface form elsewhere in the user's wording.
+If several requested forms reduce to the same canonical title and sense,
+return one result entry and include all of those forms in `requestedTitles`.
+
 ## Duplicate Decision
 
-For each requested term:
+For each canonical title:
 
-1. Compare only candidates with the same normalized full title.
+1. Compare only supplied candidates with the same normalized canonical full
+   title.
 2. Treat the item as existing when a candidate expresses the same sense, even if definitions, collocations, or examples use different wording.
 3. Treat the same title with a different sense as a separate learning item.
 4. Report an active match as `existing`.
 5. Report a trashed match as `trashed`; preserve its existing item id so the App can offer Restore.
-6. Create a draft only when no candidate has the same sense.
+6. Create a canonical-title draft when no supplied candidate has the same
+   sense. Never fall back to an inflected title merely because no canonical
+   candidate was supplied; the App rechecks the canonical title before
+   submission.
 
 ## Draft Contract
 
 For every new word or phrase, provide:
 
 - `title`
+- `requestedTitles`: one or more exact requested titles resolved by this entry
 - `itemType`: `word` or `phrase`
 - `cefr`: `A1`, `A2`, `B1`, `B2`, `C1`, or `C2`
 - `sense`: a short English semantic identifier
@@ -102,6 +136,7 @@ End a successful preparation or recheck response with exactly one fenced `learni
   "drafts": [
     {
       "title": "reluctant",
+      "requestedTitles": ["reluctant"],
       "itemType": "word",
       "cefr": "B2",
       "sense": "unwilling or hesitant",
@@ -112,6 +147,7 @@ End a successful preparation or recheck response with exactly one fenced `learni
     {
       "itemId": "existing-id",
       "title": "bank",
+      "requestedTitles": ["bank"],
       "sense": "financial institution",
       "status": "active"
     }

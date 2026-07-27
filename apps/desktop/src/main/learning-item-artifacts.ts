@@ -37,6 +37,14 @@ function requiredString(value: unknown): string {
   return value.trim();
 }
 
+function requestedTitlesFromUnknown(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
+    throw new Error("學習項目草稿格式錯誤");
+  }
+  return value.map(requiredString);
+}
+
 function draftFromUnknown(
   value: unknown,
   createId: () => string
@@ -45,6 +53,7 @@ function draftFromUnknown(
     !cefrLevels.has(value.cefr as CefrLevel)) {
     throw new Error("學習項目草稿格式錯誤");
   }
+  const requestedTitles = requestedTitlesFromUnknown(value.requestedTitles);
   return {
     id: typeof value.id === "string" && value.id ? value.id : createId(),
     title: requiredString(value.title),
@@ -52,6 +61,7 @@ function draftFromUnknown(
     cefr: value.cefr as CefrLevel,
     sense: requiredString(value.sense),
     markdownContent: requiredString(value.markdownContent),
+    ...(requestedTitles ? { requestedTitles } : {}),
     state: value.state === undefined
       ? "included"
       : value.state === "included" || value.state === "excluded"
@@ -69,11 +79,13 @@ function matchFromUnknown(
   if (!isObject(value) || value.status !== expectedStatus) {
     throw new Error("學習項目草稿格式錯誤");
   }
+  const requestedTitles = requestedTitlesFromUnknown(value.requestedTitles);
   return {
     itemId: requiredString(value.itemId),
     title: requiredString(value.title),
     sense: requiredString(value.sense),
-    status: expectedStatus
+    status: expectedStatus,
+    ...(requestedTitles ? { requestedTitles } : {})
   };
 }
 

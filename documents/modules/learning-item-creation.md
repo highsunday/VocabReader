@@ -2,7 +2,7 @@
 title: AI 輔助學習項目建立模組
 module: learning-item-creation
 status: active
-last_updated: 2026-07-25
+last_updated: 2026-07-27
 related_implements:
   - F21-ai-assisted-learning-item-creation
   - F22-read-only-learning-item-draft-preview
@@ -31,22 +31,25 @@ related_implements:
 2. targets 明確時，Controller 隱藏第一階段的 `learning-item-intent` artifact 與內部
    assistant message，自動進入後續準備；使用者只看見「正在準備卡片…」與一次最終
    creation 結果，不必回答 `yes`。目標不明確時才顯示一個聚焦問題。
-3. `LocalLearningLibrary.findDuplicateCandidates()` 以 trim、英文大小寫不敏感、
+3. AI route 與 `create-learning-items` 先依各目標語言把屈折變化還原成字典原型
+   （lemma／citation form），不翻譯、不以英文尾碼規則套用其他語言，也不合併不同的
+   衍生詞。skill 以 `requestedTitles` 保留原始輸入與原型 title 的可驗證對應。
+4. `LocalLearningLibrary.findDuplicateCandidates()` 以 trim、英文大小寫不敏感、
    完整標題相等查詢 active 與 trashed 候選。
-4. `create-learning-items` 只收到請求目標、有限閱讀區段及候選的
-   id／title／sense／status／Markdown，負責語義去重、必要澄清及草稿內容。
-5. Main 驗證 fenced `learning-item-result`；回傳的草稿標題與 match id 必須落在該
-   turn 的受信任範圍。
-6. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要與安全
+5. `create-learning-items` 只收到請求目標、有限閱讀區段及候選的
+   id／title／sense／status／Markdown，負責原型化、語義去重、必要澄清及草稿內容。
+6. Main 驗證 fenced `learning-item-result`；每個結果的 `requestedTitles` 必須落在該
+   turn 的受信任目標，match id 仍必須來自 App 提供的候選。
+7. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要與安全
    渲染的 Markdown 預覽；使用者可把草稿排除／恢復，但不可編輯草稿內容。
-7. 提交時重新以草稿標題查候選。若有候選，以一次隔離 Codex turn 執行
+8. 提交時重新以原型草稿標題查候選。若有候選，以一次隔離 Codex turn 執行
    `learning-item-recheck` 語義分類；不逐卡啟動 AI，也不提供完整生詞庫。
-8. 新發現的 active／trashed 重複分別顯示為已存在／垃圾桶；其他 included 草稿由
+9. 新發現的 active／trashed 重複分別顯示為已存在／垃圾桶；其他 included 草稿由
    `createItemsAtomically()` 在單一 `BEGIN IMMEDIATE` 交易中新增。
-9. pending 批次可明確二次確認後放棄；abandoned 與 submitted 都是唯讀 terminal
+10. pending 批次可明確二次確認後放棄；abandoned 與 submitted 都是唯讀 terminal
    state，不能再排除、恢復、還原 match 或提交。關閉 modal 不等於放棄。
-10. 提交結果保留在原 AI 訊息，不能再次提交；垃圾桶 match 在提交前後都可明確還原。
-11. 成功新增的 active 項目沒有 schedule row，因此立即進入間隔複習的新項目 queue；
+11. 提交結果保留在原 AI 訊息，不能再次提交；垃圾桶 match 在提交前後都可明確還原。
+12. 成功新增的 active 項目沒有 schedule row，因此立即進入間隔複習的新項目 queue；
    首次引入順序由複習模組按 CEFR A1→C2 決定。
 
 ## 3. Clarification and Annotation Integration
@@ -85,8 +88,9 @@ related_implements:
 - Renderer 的普通訊息不判斷建立意圖；只有產品快捷可傳 typed intent 與最多 50 個
   title／senseHint，且不能指定 SQL、資料庫路徑、skill 路徑、Codex method 或任意查詢。
 - AI 路由最多回傳 50 個 targets；第一階段不得輸出可提交 batch、查詢資料或寫入生詞庫。
-- 初次 AI 回傳的 draft title 必須屬於 requested targets；existing／trashed id、標題、
-  語義與狀態必須逐一等於程式提供的候選。
+- 初次 AI 回傳的每個 draft／match 都必須以 `requestedTitles` 對應 requested targets；
+  canonical title 可因跨語言詞形還原而不同。existing／trashed id、標題、語義與狀態
+  仍必須逐一等於程式提供的候選。
 - 提交 recheck 必須恰好為每個 included draft 回傳一個 decision；match id 必須來自
   同標題且狀態相符的候選。
 - 對話 store、IPC、Controller 與 repository 都重新驗證 enum、必要文字及批次 id。
