@@ -644,16 +644,52 @@ export function SpacedReviewWorkspace({
           <h2>本回合已完成</h2>
           <p>已更新 {completed.entries.length} 個學習項目的下次複習時間。</p>
           <ul>
-            {completed.entries.map((entry) => (
-              <li key={entry.id}>
-                <strong>{
-                  ratingOptions.find(({ value }) =>
-                    value === entry.finalRating
-                  )?.label
-                }</strong>
-                <span>下次：{dueLabel(entry.nextDueAt)}</span>
-              </li>
-            ))}
+            {completed.entries.map((entry) => {
+              const title = paper?.questions.find(
+                ({ itemId }) => itemId === entry.itemId
+              )?.title ?? "學習項目";
+              const ratingLabel = ratingOptions.find(
+                ({ value }) => value === entry.finalRating
+              )?.label ?? entry.finalRating;
+              const nextDueLabel = dueLabel(entry.nextDueAt);
+              return (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    className="review-completed-item"
+                    aria-label={
+                      `${title}，${ratingLabel}，下次複習：${nextDueLabel}`
+                    }
+                    disabled={!learningApi}
+                    onClick={(event) => void openItemDetail(
+                      entry.itemId,
+                      event.currentTarget
+                    )}
+                  >
+                    <span className="review-completed-item-main">
+                      <strong>{title}</strong>
+                      <span
+                        className="review-completed-rating"
+                        data-rating={entry.finalRating}
+                      >
+                        {ratingLabel}
+                      </span>
+                    </span>
+                    <span className="review-completed-schedule">
+                      <span>
+                        <small>下次複習</small>
+                        <time dateTime={entry.nextDueAt}>{nextDueLabel}</time>
+                      </span>
+                      <BookOpen
+                        aria-hidden="true"
+                        size={18}
+                        strokeWidth={1.8}
+                      />
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           {completed.remainingAvailable > 0 ? (
             <button type="button" onClick={() => void loadSummary()}>

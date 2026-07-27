@@ -82,7 +82,14 @@ function reviewApi() {
       }]
     })),
     discardPaper: vi.fn(async () => undefined),
-    getItemDetail: vi.fn(),
+    getItemDetail: vi.fn(async () => ({
+      status: "new" as const,
+      lastReviewedAt: null,
+      lastFinalRating: null,
+      nextDueAt: null,
+      reviewCount: 0,
+      history: []
+    })),
     onGenerationProgress: vi.fn(() => () => undefined)
   } satisfies ReviewDesktopApi;
 }
@@ -749,10 +756,12 @@ describe("SpacedReviewWorkspace", () => {
 
   it("generates, submits blank answers, allows rating overrides and confirms once", async () => {
     const api = reviewApi();
+    const learning = learningApi();
     const onStatusChange = vi.fn();
     const { unmount } = render(
       <SpacedReviewWorkspace
         api={api}
+        learningApi={learning}
         explanationLanguage="zh-TW"
         onStatusChange={onStatusChange}
       />
@@ -789,6 +798,29 @@ describe("SpacedReviewWorkspace", () => {
     }));
     expect(await screen.findByRole("heading", { name: "本回合已完成" }))
       .toBeInTheDocument();
+    const completedItem = screen.getByRole("button", {
+      name: /bank.*忘記.*下次複習/
+    });
+    expect(completedItem).toBeInTheDocument();
+
+    fireEvent.click(completedItem);
+    expect(learning.getItem).toHaveBeenCalledWith("item-1");
+    const dialog = await screen.findByRole("dialog", { name: "bank" });
+    expect(within(dialog).queryByRole("button", { name: "編輯" }))
+      .not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "刪除" }))
+      .not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", {
+      name: "關閉卡片詳情"
+    }));
+    await waitFor(() => expect(completedItem).toHaveFocus());
+
+    expect(screen.getByText("bank")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "返回複習總覽" }))
+      .toBeEnabled();
+    expect(api.generatePaper).toHaveBeenCalledTimes(1);
+    expect(api.gradePaper).toHaveBeenCalledTimes(1);
+    expect(api.confirmPaper).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
       "idle"
     ));
@@ -796,5 +828,163 @@ describe("SpacedReviewWorkspace", () => {
 
     unmount();
     expect(api.discardPaper).toHaveBeenCalled();
+  });
+
+  it("maps every completed result to its learning item", async () => {
+    const api: ReviewDesktopApi = reviewApi();
+    const learning: LearningDesktopApi = learningApi();
+    const questions = [
+      {
+        questionId: "q1",
+        itemId: "item-1",
+        title: "bank",
+        sense: "financial institution",
+        cefr: "A2" as const,
+        beforeTarget: "The ",
+        targetText: "bank",
+        afterTarget: " opens at nine."
+      },
+      {
+        questionId: "q2",
+        itemId: "item-2",
+        title: "in advance",
+        sense: "before a particular time",
+        cefr: "B1" as const,
+        beforeTarget: "Book ",
+        targetText: "in advance",
+        afterTarget: " to save money."
+      }
+    ];
+    api.generatePaper = vi.fn(async () => ({
+      paperId: "paper-2",
+      questions
+    }));
+    api.gradePaper = vi.fn(async () => ({
+      paperId: "paper-2",
+      results: [
+        {
+          questionId: "q1",
+          itemId: "item-1",
+          feedback: "需要再複習。",
+          rating: "hard" as const
+        },
+        {
+          questionId: "q2",
+          itemId: "item-2",
+          feedback: "回答很順利。",
+          rating: "easy" as const
+        }
+      ]
+    }));
+    api.confirmPaper = vi.fn(async () => ({
+      sessionId: "paper-2",
+      reviewedAt: "2026-07-27T02:00:00.000Z",
+      remainingAvailable: 0,
+      entries: [
+        {
+          id: "event-1",
+          sessionId: "paper-2",
+          itemId: "item-1",
+          reviewedAt: "2026-07-27T02:00:00.000Z",
+          aiRating: "hard" as const,
+          finalRating: "hard" as const,
+          intervalSeconds: 360,
+          nextDueAt: "2026-07-27T02:06:00.000Z"
+        },
+        {
+          id: "event-2",
+          sessionId: "paper-2",
+          itemId: "item-2",
+          reviewedAt: "2026-07-27T02:00:00.000Z",
+          aiRating: "easy" as const,
+          finalRating: "easy" as const,
+          intervalSeconds: 86_400,
+          nextDueAt: "2026-07-28T02:00:00.000Z"
+        }
+      ]
+    }));
+    learning.getItem = vi.fn(async (itemId: string) => ({
+      id: itemId,
+      title: itemId === "item-1" ? "bank" : "in advance",
+      itemType: itemId === "item-1" ? "word" as const : "phrase" as const,
+      cefr: itemId === "item-1" ? "A2" as const : "B1" as const,
+      sense: itemId === "item-1"
+        ? "financial institution"
+        : "before a particular time",
+      markdownContent: "## Meaning\nMeaning",
+      status: "active" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      trashedAt: null
+    }));
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "提交試卷（2 題未作答）"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "接受評級並更新排程"
+    }));
+
+    const bank = await screen.findByRole("button", {
+      name: /bank.*困難.*下次複習/
+    });
+    const phrase = screen.getByRole("button", {
+      name: /in advance.*簡單.*下次複習/
+    });
+    fireEvent.click(bank);
+    expect(learning.getItem).toHaveBeenLastCalledWith("item-1");
+    fireEvent.click((await screen.findByRole("dialog", { name: "bank" }))
+      .querySelector<HTMLButtonElement>("[aria-label='關閉卡片詳情']")!);
+    fireEvent.click(phrase);
+    expect(learning.getItem).toHaveBeenLastCalledWith("item-2");
+    expect(await screen.findByRole("dialog", { name: "in advance" }))
+      .toBeInTheDocument();
+  });
+
+  it("keeps completed results usable when item detail cannot load", async () => {
+    const api = reviewApi();
+    const learning = learningApi();
+    learning.getItem = vi.fn(async () => {
+      throw new Error("找不到學習項目");
+    });
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "提交試卷（1 題未作答）"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "接受評級並更新排程"
+    }));
+    const completedItem = await screen.findByRole("button", {
+      name: /bank.*忘記.*下次複習/
+    });
+    fireEvent.click(completedItem);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "找不到學習項目"
+    );
+    expect(completedItem).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "返回複習總覽" }))
+      .toBeEnabled();
+    expect(api.confirmPaper).toHaveBeenCalledTimes(1);
   });
 });

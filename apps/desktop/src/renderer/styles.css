@@ -1752,7 +1752,7 @@ button {
 
 .review-round-summary button,
 .review-paper-actions button,
-.review-completed button {
+.review-completed > button {
   min-height: 44px;
   padding: 0 18px;
   border: 0;
@@ -2421,21 +2421,129 @@ button {
   margin: 0 0 8px;
 }
 
+.review-completed > p {
+  margin: 0;
+  color: #625b50;
+}
+
 .review-completed ul {
   display: grid;
-  gap: 6px;
-  margin: 20px 0;
+  gap: 8px;
+  margin: 24px 0;
   padding: 0;
   list-style: none;
   text-align: left;
 }
 
-.review-completed li {
+.review-completed-item {
+  width: 100%;
+  min-height: 72px;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #f4efe5;
+  gap: 24px;
+  padding: 13px 15px 13px 17px;
+  border: 1px solid #e3dccf;
+  border-radius: 12px;
+  color: #2f3b34;
+  background: #f7f3eb;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.review-completed-item:hover {
+  border-color: #aeb9aa;
+  background: #fffdf8;
+  box-shadow: 0 6px 16px rgb(52 68 55 / 9%);
+  transform: translateY(-1px);
+}
+
+.review-completed-item:focus-visible {
+  outline: 3px solid rgb(68 112 78 / 22%);
+  outline-offset: 2px;
+}
+
+.review-completed-item:disabled {
+  cursor: default;
+}
+
+.review-completed-item-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-completed-item-main strong {
+  overflow: hidden;
+  color: #26382f;
+  font-family: Georgia, serif;
+  font-size: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-completed-rating {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #475545;
+  background: #e4ebe2;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.review-completed-rating[data-rating="forgotten"] {
+  color: #873d34;
+  background: #f7dfda;
+}
+
+.review-completed-rating[data-rating="hard"] {
+  color: #8d541e;
+  background: #f8e6cf;
+}
+
+.review-completed-rating[data-rating="good"] {
+  color: #216d68;
+  background: #dcefeb;
+}
+
+.review-completed-rating[data-rating="easy"] {
+  color: #356f3a;
+  background: #dfeede;
+}
+
+.review-completed-schedule {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  color: #59675e;
+}
+
+.review-completed-schedule > span {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.review-completed-schedule small {
+  color: #81796e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.review-completed-schedule time {
+  color: #34483d;
+  font-size: 14px;
+  font-weight: 750;
 }
 
 .learning-review-detail {
@@ -2572,6 +2680,21 @@ button {
     align-items: start;
     gap: 14px;
     padding: 20px;
+  }
+
+  .review-completed-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 11px;
+  }
+
+  .review-completed-schedule {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .review-completed-schedule > span {
+    justify-items: start;
   }
 
   .learning-review-detail {
