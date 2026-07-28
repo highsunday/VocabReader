@@ -156,6 +156,8 @@ function reviewLibrary(selectedItems = [defaultReviewItem]) {
     getReviewSummary: vi.fn(async () => ({
       dueReviewedCount: 0,
       newCount: selectedItems.length,
+      reviewedNewTodayCount: 0,
+      reviewedDueTodayCount: 0,
       totalAvailable: selectedItems.length,
       nextDueAt: null,
       selectedItems
@@ -358,6 +360,8 @@ describe("SpacedReviewController", () => {
         getReviewSummary: vi.fn(async () => ({
           dueReviewedCount: 0,
           newCount: 1,
+          reviewedNewTodayCount: 0,
+          reviewedDueTodayCount: 0,
           totalAvailable: 1,
           nextDueAt: null,
           selectedItems: [{

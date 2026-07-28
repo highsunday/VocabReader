@@ -2,7 +2,7 @@
 title: AI 批改與 FSRS 間隔複習模組
 module: spaced-review
 status: active
-last_updated: 2026-07-24
+last_updated: 2026-07-28
 related_implements:
   - F28-ai-graded-spaced-review-paper
   - F29-stream-spaced-review-generation-and-scroll-paper
@@ -11,6 +11,7 @@ related_implements:
   - F30-show-completed-review-exercise-count
   - F31-resumable-background-spaced-review
   - F32-add-expression-feedback-to-spaced-review
+  - F36-show-spaced-review-daily-status
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -34,6 +35,8 @@ related_implements:
 目前支援：
 
 - 側欄獨立「間隔複習」入口及即時可複習數量。
+- 間隔複習頁固定顯示所有目前新項目、目前到期項目、裝置本地今日已完成的新項目
+  複習事件與到期項目複習事件；確認試卷後會重新查詢摘要並立即更新四個數字。
 - 已複習到期項目依最早到期優先，新項目依 CEFR A1→C2、同級依建立時間補滿 10 題。
 - 進入頁面只顯示摘要，不自動使用 AI；明確按下按鈕後才生成試卷。
 - 生成期間以整合式 AI 狀態卡顯示「已完成 X／N 題例句」與確定比例進度；全部例句
@@ -79,6 +82,9 @@ related_implements:
 3. `totalAvailable` 是所有已到期及所有新項目的總數；`selectedItems` 才是本回合最多
    10 筆的實際組成。
 4. 沒有可用項目時回傳最近一筆尚未到期的 `nextDueAt`。
+5. 摘要另以 Main process 裝置時區建立本地今日 00:00 至次日 00:00 的半開區間；
+   `learning_review_events.previous_card_json` 為空者計為今日已學習新項目，非空者
+   計為今日已學習到期項目。同一項目同日再次到期並完成會形成另一筆到期事件。
 
 最終評級映射：
 
@@ -172,6 +178,10 @@ status 及取消操作，並以 attempt token 忽略取消後的晚到結果。�
 `data-rating` 與顏色，並保留具名評級狀態、AI 建議文字及 radio，顏色不是唯一訊號。
 工作區另外持有只控制顯示的 paused view；它不改變 review phase，也不清除任何
 回合作答狀態。
+工作區載入摘要後，在所有 phase 持續顯示四格間隔複習狀態；它們是完整佇列及本地
+今日已確認事件的統計，不是本回合最多 10 題的組成。確認成功後完成頁保持不變，
+Renderer 另重新呼叫 `getSummary()` 更新四格狀態與側欄可複習數；若非關鍵刷新失敗，
+不把已成功寫入的確認降回未確認狀態。
 paused view 可開啟放棄確認 alert dialog；取消只關閉 dialog，確認才呼叫
 `discardPaper()`、重新載入摘要並回到 ready。本回合摘要在 ready、作答、批改及確認
 階段持續顯示；已有試卷時不再顯示生成按鈕。試卷收合時，同頁下方顯示當前試卷卡；
@@ -244,6 +254,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - `documents/implements/F30-show-completed-review-exercise-count.md`
 - `documents/implements/F31-resumable-background-spaced-review.md`
 - `documents/implements/F32-add-expression-feedback-to-spaced-review.md`
+- `documents/implements/F36-show-spaced-review-daily-status.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/skill-management.md`
 - `documents/modules/ai-conversation.md`

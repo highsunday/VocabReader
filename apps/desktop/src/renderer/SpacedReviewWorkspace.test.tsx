@@ -21,7 +21,8 @@ const ratingOptionsForTest = {
   easy: "簡單"
 } as const;
 
-function reviewApi() {
+function reviewApi(): ReviewDesktopApi {
+  let reviewConfirmed = false;
   const paper: ReviewPaper = {
     paperId: "paper-1",
     questions: [{
@@ -38,9 +39,11 @@ function reviewApi() {
   return {
     getSummary: vi.fn(async () => ({
       dueReviewedCount: 0,
-      newCount: 1,
-      totalAvailable: 1,
-      selectedItems: [{
+      newCount: reviewConfirmed ? 0 : 1,
+      reviewedNewTodayCount: 0,
+      reviewedDueTodayCount: 0,
+      totalAvailable: reviewConfirmed ? 0 : 1,
+      selectedItems: reviewConfirmed ? [] : [{
         id: "item-1",
         title: "bank",
         itemType: "word" as const,
@@ -66,21 +69,24 @@ function reviewApi() {
         rating: "easy" as const
       }]
     })),
-    confirmPaper: vi.fn(async () => ({
-      sessionId: paper.paperId,
-      reviewedAt: "2026-07-24T08:00:00.000Z",
-      remainingAvailable: 0,
-      entries: [{
-        id: "event-1",
+    confirmPaper: vi.fn(async () => {
+      reviewConfirmed = true;
+      return {
         sessionId: paper.paperId,
-        itemId: "item-1",
         reviewedAt: "2026-07-24T08:00:00.000Z",
-        aiRating: "easy" as const,
-        finalRating: "forgotten" as const,
-        intervalSeconds: 60,
-        nextDueAt: "2026-07-24T08:01:00.000Z"
-      }]
-    })),
+        remainingAvailable: 0,
+        entries: [{
+          id: "event-1",
+          sessionId: paper.paperId,
+          itemId: "item-1",
+          reviewedAt: "2026-07-24T08:00:00.000Z",
+          aiRating: "easy" as const,
+          finalRating: "forgotten" as const,
+          intervalSeconds: 60,
+          nextDueAt: "2026-07-24T08:01:00.000Z"
+        }]
+      };
+    }),
     discardPaper: vi.fn(async () => undefined),
     getItemDetail: vi.fn(async () => ({
       status: "new" as const,
@@ -117,6 +123,93 @@ function learningApi() {
 }
 
 describe("SpacedReviewWorkspace", () => {
+  it("shows available and learned-today status even when the queue is empty", async () => {
+    const api = reviewApi();
+    api.getSummary = vi.fn(async () => ({
+      dueReviewedCount: 0,
+      newCount: 0,
+      reviewedNewTodayCount: 2,
+      reviewedDueTodayCount: 4,
+      totalAvailable: 0,
+      selectedItems: [],
+      nextDueAt: "2026-07-29T08:00:00.000Z"
+    }));
+
+    render(
+      <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
+    );
+
+    const status = await screen.findByRole("region", {
+      name: "間隔複習狀態"
+    });
+    expect(within(status).getByText("新項目")).toBeInTheDocument();
+    expect(within(status).getByText("到期項目")).toBeInTheDocument();
+    expect(within(status).getByText("今日已學習新項目")).toBeInTheDocument();
+    expect(within(status).getByText("今日已學習到期項目")).toBeInTheDocument();
+    expect(within(status).getAllByText("0")).toHaveLength(2);
+    expect(within(status).getByText("2")).toBeInTheDocument();
+    expect(within(status).getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("目前沒有可複習的項目")).toBeInTheDocument();
+  });
+
+  it("refreshes all status counts after confirming a review paper", async () => {
+    const api = reviewApi();
+    api.getSummary = vi.fn()
+      .mockResolvedValueOnce({
+        dueReviewedCount: 0,
+        newCount: 1,
+        reviewedNewTodayCount: 0,
+        reviewedDueTodayCount: 0,
+        totalAvailable: 1,
+        selectedItems: [{
+          id: "item-1",
+          title: "bank",
+          itemType: "word" as const,
+          cefr: "A2" as const,
+          sense: "financial institution",
+          markdownContent: "## Meaning\n銀行",
+          status: "active" as const,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          trashedAt: null,
+          reviewKind: "new" as const,
+          dueAt: null
+        }],
+        nextDueAt: null
+      })
+      .mockResolvedValue({
+        dueReviewedCount: 0,
+        newCount: 0,
+        reviewedNewTodayCount: 1,
+        reviewedDueTodayCount: 0,
+        totalAvailable: 0,
+        selectedItems: [],
+        nextDueAt: "2026-07-25T08:00:00.000Z"
+      });
+
+    render(
+      <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "生成本回合試卷"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "提交試卷（1 題未作答）"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "接受評級並更新排程"
+    }));
+
+    expect(await screen.findByRole("heading", { name: "本回合已完成" }))
+      .toBeInTheDocument();
+    await waitFor(() => expect(api.getSummary).toHaveBeenCalledTimes(2));
+    const status = screen.getByRole("region", { name: "間隔複習狀態" });
+    expect(within(status).getByText("今日已學習新項目")).toBeInTheDocument();
+    expect(within(status).getByText("1")).toBeInTheDocument();
+    expect(within(status).getAllByText("0")).toHaveLength(3);
+  });
+
   it("keeps AI generation feedback inside one staged status card", async () => {
     const api = reviewApi() as ReviewDesktopApi & {
       onGenerationProgress(
@@ -560,6 +653,8 @@ describe("SpacedReviewWorkspace", () => {
     api.getSummary = vi.fn(async () => ({
       dueReviewedCount: 0,
       newCount: 4,
+      reviewedNewTodayCount: 0,
+      reviewedDueTodayCount: 0,
       totalAvailable: 4,
       selectedItems: questions.map((question, index) => ({
         id: question.itemId,

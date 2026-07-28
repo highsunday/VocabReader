@@ -89,6 +89,14 @@ function validDate(value: unknown, label: string): Date {
   return date;
 }
 
+function localDayRange(value: Date): [string, string] {
+  const start = new Date(value);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return [start.toISOString(), end.toISOString()];
+}
+
 function ratingForFsrs(rating: ReviewRating): Grade {
   switch (rating) {
     case "forgotten": return Rating.Again as Grade;
@@ -576,6 +584,7 @@ export class LocalLearningLibrary {
   async getReviewSummary(nowInput: Date | string = new Date()): Promise<ReviewSummary> {
     const now = validDate(nowInput, "目前時間");
     const nowIso = now.toISOString();
+    const [todayStartIso, tomorrowStartIso] = localDayRange(now);
     const database = this.#open();
     const dueRows = database.prepare(`
       SELECT i.*, s.due_at
@@ -626,9 +635,23 @@ export class LocalLearningLibrary {
       JOIN learning_review_schedules s ON s.learning_item_id = i.id
       WHERE i.status = 'active' AND s.due_at > ?
     `).get(nowIso) as { next_due_at: string | null };
+    const reviewedToday = database.prepare(`
+      SELECT
+        COALESCE(SUM(CASE WHEN previous_card_json IS NULL THEN 1 ELSE 0 END), 0)
+          AS new_count,
+        COALESCE(SUM(CASE WHEN previous_card_json IS NOT NULL THEN 1 ELSE 0 END), 0)
+          AS due_count
+      FROM learning_review_events
+      WHERE reviewed_at >= ? AND reviewed_at < ?
+    `).get(todayStartIso, tomorrowStartIso) as {
+      new_count: number;
+      due_count: number;
+    };
     return {
       dueReviewedCount,
       newCount,
+      reviewedNewTodayCount: Number(reviewedToday.new_count),
+      reviewedDueTodayCount: Number(reviewedToday.due_count),
       totalAvailable: dueReviewedCount + newCount,
       selectedItems,
       nextDueAt: nextDue.next_due_at

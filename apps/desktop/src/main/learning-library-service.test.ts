@@ -285,6 +285,62 @@ describe("LocalLearningLibrary", () => {
     });
   });
 
+  it("counts today's new and due review events using local calendar boundaries", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const [dueItem, newItem, previousDayItem] = (await library.listItems({
+      status: "active",
+      sort: "recent"
+    })).slice(0, 3);
+    const todayStart = new Date(2026, 6, 24, 0, 0, 0, 0);
+    const tomorrowStart = new Date(2026, 6, 25, 0, 0, 0, 0);
+
+    await library.confirmReviewSession({
+      sessionId: "review-session-due-setup",
+      reviewedAt: new Date(2026, 6, 23, 9, 0).toISOString(),
+      ratings: [{
+        itemId: dueItem.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }]
+    });
+    await library.confirmReviewSession({
+      sessionId: "review-session-previous-day",
+      reviewedAt: new Date(todayStart.getTime() - 1).toISOString(),
+      ratings: [{
+        itemId: previousDayItem.id,
+        aiRating: "easy",
+        finalRating: "easy"
+      }]
+    });
+    await library.confirmReviewSession({
+      sessionId: "review-session-due-today",
+      reviewedAt: new Date(2026, 6, 24, 10, 0).toISOString(),
+      ratings: [{
+        itemId: dueItem.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }]
+    });
+    await library.confirmReviewSession({
+      sessionId: "review-session-new-today",
+      reviewedAt: new Date(2026, 6, 24, 11, 0).toISOString(),
+      ratings: [{
+        itemId: newItem.id,
+        aiRating: "good",
+        finalRating: "good"
+      }]
+    });
+
+    const summary = await library.getReviewSummary(
+      new Date(tomorrowStart.getTime() - 1)
+    );
+
+    expect(summary).toMatchObject({
+      reviewedNewTodayCount: 1,
+      reviewedDueTodayCount: 1
+    });
+  });
+
   it("maps all four final ratings to distinct FSRS intervals", async () => {
     const library = new LocalLearningLibrary(await databasePath());
     const items = (await library.listItems({

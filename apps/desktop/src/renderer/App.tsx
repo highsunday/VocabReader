@@ -2416,7 +2416,14 @@ export function App() {
       ) : null}
 
       {isSettingsOpen ? (
-        <div className="dialog-backdrop">
+        <div
+          className="dialog-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsSettingsOpen(false);
+            }
+          }}
+        >
           <section
             className="settings-dialog"
             role="dialog"

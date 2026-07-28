@@ -10,6 +10,8 @@ export interface ReviewQueueItem extends LearningItem {
 export interface ReviewSummary {
   dueReviewedCount: number;
   newCount: number;
+  reviewedNewTodayCount: number;
+  reviewedDueTodayCount: number;
   totalAvailable: number;
   selectedItems: ReviewQueueItem[];
   nextDueAt: string | null;

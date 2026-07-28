@@ -122,6 +122,8 @@ function installLibraryApi(
     getSummary: vi.fn(async () => ({
       dueReviewedCount: 0,
       newCount: 1,
+      reviewedNewTodayCount: 0,
+      reviewedDueTodayCount: 0,
       totalAvailable: 1,
       selectedItems: [{
         ...learningItems[0],
@@ -375,6 +377,26 @@ describe("App", () => {
       readingPaperWidth: 760,
       ebookLineHeight: 1.9
     }));
+  });
+
+  it("closes settings when clicking outside the card", async () => {
+    const snapshot = initialReadySnapshot();
+    installLibraryApi(books, {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage: vi.fn().mockResolvedValue(snapshot),
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    const dialog = screen.getByRole("dialog", { name: "設定" });
+    fireEvent.click(dialog);
+    expect(dialog).toBeInTheDocument();
+
+    fireEvent.click(dialog.parentElement!);
+    expect(screen.queryByRole("dialog", { name: "設定" }))
+      .not.toBeInTheDocument();
   });
 
   it("controls and resets the global reading layout from the reader toolbar", async () => {

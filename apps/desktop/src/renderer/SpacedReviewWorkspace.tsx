@@ -255,6 +255,14 @@ export function SpacedReviewWorkspace({
       onAvailableCountChange?.(result.remainingAvailable);
       setIsPaperViewPaused(false);
       setPhase("completed");
+      try {
+        const nextSummary = await api.getSummary();
+        setSummary(nextSummary);
+        onAvailableCountChange?.(nextSummary.totalAvailable);
+      } catch {
+        // Confirmation already succeeded; keep the completion result and the
+        // best-known remaining count if the non-critical refresh fails.
+      }
     } catch (confirmationError) {
       setError(confirmationError instanceof Error
         ? confirmationError.message
@@ -304,6 +312,30 @@ export function SpacedReviewWorkspace({
       {error ? <p className="library-error" role="alert">{error}</p> : null}
 
       {phase === "loading" ? <p className="library-state">載入複習排程中…</p> : null}
+
+      {summary ? (
+        <section
+          className="review-status-grid"
+          aria-label="間隔複習狀態"
+        >
+          <div>
+            <span>新項目</span>
+            <strong>{summary.newCount}</strong>
+          </div>
+          <div>
+            <span>到期項目</span>
+            <strong>{summary.dueReviewedCount}</strong>
+          </div>
+          <div>
+            <span>今日已學習新項目</span>
+            <strong>{summary.reviewedNewTodayCount}</strong>
+          </div>
+          <div>
+            <span>今日已學習到期項目</span>
+            <strong>{summary.reviewedDueTodayCount}</strong>
+          </div>
+        </section>
+      ) : null}
 
       {summary && (phase === "ready" || hasActivePaper) ? (
         summary.totalAvailable > 0 ? (
