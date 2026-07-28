@@ -1,5 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 
 export interface CodexNotification {
@@ -29,6 +31,13 @@ interface ClientOptions {
   requestTimeoutMs?: number;
   threadStartTimeoutMs?: number;
   spawnProcess?(): ChildProcessWithoutNullStreams;
+}
+
+interface SpawnCodexAppServerOptions {
+  platform?: NodeJS.Platform;
+  environment?: NodeJS.ProcessEnv;
+  desktopExecutable?: string | null;
+  spawnCommand?: typeof spawn;
 }
 
 interface PendingRequest {
@@ -65,6 +74,68 @@ function parseAccount(value: unknown): AccountReadResult {
   };
 }
 
+export function findCodexDesktopExecutable(
+  localAppData: string | undefined
+): string | null {
+  if (!localAppData) return null;
+  const binDirectory = join(localAppData, "OpenAI", "Codex", "bin");
+  try {
+    return readdirSync(binDirectory, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => {
+        const executable = join(binDirectory, entry.name, "codex.exe");
+        try {
+          const stat = statSync(executable);
+          return stat.isFile()
+            ? { executable, modifiedAt: stat.mtimeMs }
+            : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter((candidate): candidate is {
+        executable: string;
+        modifiedAt: number;
+      } => candidate !== null)
+      .sort((left, right) =>
+        right.modifiedAt - left.modifiedAt ||
+        right.executable.localeCompare(left.executable)
+      )[0]?.executable ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function spawnCodexAppServer(
+  options: SpawnCodexAppServerOptions = {}
+): ChildProcessWithoutNullStreams {
+  const platform = options.platform ?? process.platform;
+  const environment = options.environment ?? process.env;
+  const spawnCommand = options.spawnCommand ?? spawn;
+  if (platform === "win32") {
+    const desktopExecutable = options.desktopExecutable === undefined
+      ? findCodexDesktopExecutable(environment.LOCALAPPDATA)
+      : options.desktopExecutable;
+    if (desktopExecutable) {
+      return spawnCommand(desktopExecutable, ["app-server"], {
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true
+      });
+    }
+    return spawnCommand(
+      environment.ComSpec || "cmd.exe",
+      ["/d", "/s", "/c", "codex.cmd app-server"],
+      {
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true
+      }
+    );
+  }
+  return spawnCommand("codex", ["app-server"], {
+    stdio: ["pipe", "pipe", "pipe"]
+  });
+}
+
 export class SpawnedCodexAppServerClient implements CodexAppServerClient {
   readonly #child: ChildProcessWithoutNullStreams;
   readonly #lines: Interface;
@@ -78,9 +149,7 @@ export class SpawnedCodexAppServerClient implements CodexAppServerClient {
   constructor(options: ClientOptions = {}) {
     this.#requestTimeoutMs = options.requestTimeoutMs ?? 10_000;
     this.#threadStartTimeoutMs = options.threadStartTimeoutMs ?? 30_000;
-    this.#child = options.spawnProcess?.() ?? spawn("codex", ["app-server"], {
-      stdio: ["pipe", "pipe", "pipe"]
-    });
+    this.#child = options.spawnProcess?.() ?? spawnCodexAppServer();
     this.#lines = createInterface({ input: this.#child.stdout });
     this.#lines.on("line", (line) => this.#handleLine(line));
     this.#child.once("error", (error) => this.#handleExit(error));

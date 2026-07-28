@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-07-25
+last_updated: 2026-07-28
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -27,6 +27,7 @@ related_implements:
   - F27-trigger-learning-card-creation-from-natural-language
   - F28-ai-graded-spaced-review-paper
   - F34-route-multilingual-learning-item-intent-with-ai
+  - B12-launch-codex-app-server-on-windows
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -47,7 +48,9 @@ related_implements:
 
 目前支援：
 
-- Electron Main 啟動 `codex app-server`，完成 initialize／initialized／account/read 握手。
+- Electron Main 啟動 `codex app-server`，完成 initialize／initialized／account/read
+  握手；Windows 優先使用 Codex Desktop 最新 native CLI，未安裝時透過系統命令
+  處理器解析 npm 的 `codex.cmd` shim，其他平台直接啟動 `codex`。
 - 自動沿用本機 Codex／ChatGPT 登入狀態，不讀取 OpenAI API key。
 - 顯示 disconnected、connecting、ready、auth-required 與 error 連線階段。
 - 依 300 與 10,080 分鐘視窗辨識五小時與每週額度；缺值、載入中與確實 0% 保持不同語意。
@@ -235,6 +238,10 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 ## 7. Runtime and Safety Constraints
 
 - Codex 子程序只由 Electron Main 管理，Renderer 不可直接存取。
+- Codex transport 的預設啟動命令依平台決定：Windows 在固定的 Codex Desktop
+  安裝根目錄選擇最新 regular `codex.exe`，找不到時透過 `ComSpec` 執行固定的
+  `codex.cmd app-server`；其他平台直接執行 `codex app-server`。路徑與命令不接受
+  Renderer 或使用者輸入。
 - 一般對話 thread 使用 `approvalPolicy: never`、read-only sandbox，停用一般 skill
   instruction catalog、bundled skills、plugins、apps、memories 及 web search。Electron
   Main 只把三份對話用 App skills 組入 developer instructions；不得探索其他 skill。
@@ -279,6 +286,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、重啟 streaming 正規化與損壞資料隔離 |
+| `apps/desktop/src/main/codex-app-server-client.test.ts` | Windows Desktop native CLI discovery、npm shim fallback 與非 Windows 啟動 |
 | `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、三個 skills、creation 候選範圍、持久澄清與批次生命週期 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill 的 CEFR、8–12／1–3 題、混合題型、批改、語言與 final review 契約 |
 | `apps/desktop/src/main/bundled-skill.test.ts` | 四份 App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
@@ -288,14 +296,15 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/renderer/reading-practice-artifact.test.ts` | 試卷／批改 artifact 驗證、串流容錯與提交格式 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、四份 runtime skills、typed bridges 與 Node 隔離 |
 
-最近驗證（2026-07-24）：
+最近驗證（2026-07-28）：
 
-- Server Vitest：3/3 passed。
-- Desktop Vitest：215/215 passed。
-- Electron Playwright：最終完整案例 2/2 passed。
-- 全專案 TypeScript typecheck：passed。
-- 全專案 production build：passed。
-- 真實本機 Codex：帳戶連線成功；使用者手動確認五小時與每週額度可取得。
+- Windows／非 Windows transport focused Vitest：5/5 passed。
+- Desktop Vitest：241 tests passed；既有 `learning-library-service.test.ts` 因 Vitest
+  jsdom 無法 bundle `node:sqlite` 而未收集，與 transport 修正無關。
+- Desktop TypeScript typecheck：passed。
+- Desktop production build：passed。
+- 真實 Windows production Electron：透過 Codex Desktop native CLI 冷啟動 3/3
+  ready，帳戶型別為 ChatGPT。
 
 ## 10. Known Limitations and Follow-up
 
@@ -334,6 +343,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/B04-use-language-setting-for-reading-quiz.md`
 - `documents/implements/F18-use-reading-comprehension-skill.md`
 - `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`
+- `documents/implements/B12-launch-codex-app-server-on-windows.md`
 - `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
 - `documents/implements/F28-ai-graded-spaced-review-paper.md`
 
