@@ -71,6 +71,7 @@ import {
 import { readingPracticeArtifacts } from "./reading-practice-artifact";
 
 type WorkspaceMode = "overview" | "reader" | "learning-library" | "spaced-review";
+type SettingsSection = "general" | "review" | "account";
 
 const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
 const COLLAPSED_PANEL_WIDTH = 48;
@@ -260,6 +261,8 @@ export function App() {
     reviewPaperSize: REVIEW_PAPER_SIZE.default
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeSettingsSection, setActiveSettingsSection] =
+    useState<SettingsSection>("general");
   const [isReadingLayoutOpen, setIsReadingLayoutOpen] = useState(false);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
@@ -2444,8 +2447,8 @@ export function App() {
           >
             <div className="settings-dialog-heading">
               <div>
-                <span className="eyebrow">Settings</span>
                 <h2>設定</h2>
+                <p>依照用途分類，快速找到需要調整的項目。</p>
               </div>
               <button
                 type="button"
@@ -2455,120 +2458,203 @@ export function App() {
                 ×
               </button>
             </div>
-            <div className="settings-control codex-account-setting">
-              <div className="settings-control-heading">
-                <span className="settings-control-label">Codex 帳戶</span>
-                <span className="codex-connection-label">
-                  {connectionLabel(chatSnapshot.connection)}
-                </span>
-              </div>
-              <div
-                className="settings-account-value"
-                aria-label="Codex 帳戶信箱"
+            <div className="settings-tabs" role="tablist" aria-label="設定分類">
+              <button
+                type="button"
+                role="tab"
+                id="settings-tab-general"
+                aria-selected={activeSettingsSection === "general"}
+                aria-controls="settings-panel-general"
+                onClick={() => setActiveSettingsSection("general")}
               >
-                <span
-                  className={`codex-status-dot ${chatSnapshot.connection}`}
-                  aria-hidden="true"
-                />
-                <strong>
-                  {chatSnapshot.account?.email ?? "未提供信箱資訊"}
-                </strong>
-              </div>
-              <p>使用目前 Codex 登入的帳戶；此處僅供確認。</p>
-            </div>
-            <div className="settings-control">
-              <label htmlFor="explanation-language">講解語言</label>
-              <select
-                id="explanation-language"
-                aria-label="講解語言"
-                value={settings.explanationLanguage}
-                disabled={isSettingsSaving}
-                onChange={(event) => saveExplanationLanguage(
-                  event.target.value as ExplanationLanguage
-                )}
+                一般
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="settings-tab-review"
+                aria-selected={activeSettingsSection === "review"}
+                aria-controls="settings-panel-review"
+                onClick={() => setActiveSettingsSection("review")}
               >
-                <option value="source">原文語言（預設）</option>
-                <option value="zh-TW">繁體中文</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-              </select>
-              <p>
-                影響之後的標記講解與閱讀測驗，不改變一般問答或既有回覆。
-              </p>
+                間隔複習
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="settings-tab-account"
+                aria-selected={activeSettingsSection === "account"}
+                aria-controls="settings-panel-account"
+                onClick={() => setActiveSettingsSection("account")}
+              >
+                帳戶
+              </button>
             </div>
-            <div className="settings-control font-size-setting">
-              <div className="settings-control-heading">
-                <label htmlFor="ai-conversation-font-size">
-                  AI 對話文字大小
-                </label>
-                <output htmlFor="ai-conversation-font-size">
-                  {settings.aiConversationFontSize}px
-                </output>
-              </div>
-              <input
-                id="ai-conversation-font-size"
-                type="range"
-                min={AI_CONVERSATION_FONT_SIZE.min}
-                max={AI_CONVERSATION_FONT_SIZE.max}
-                step="1"
-                value={settings.aiConversationFontSize}
-                aria-valuetext={`${settings.aiConversationFontSize}px`}
-                onChange={(event) => previewSetting(
-                  "aiConversationFontSize",
-                  Number(event.target.value)
-                )}
-              />
-              <p>只調整使用者訊息與 AI 回覆正文。</p>
-            </div>
-            <fieldset className="settings-control review-settings">
-              <legend>間隔複習</legend>
-              <label htmlFor="daily-new-item-completion-limit">
-                每日新項目完成上限
-              </label>
-              <input
-                id="daily-new-item-completion-limit"
-                type="number"
-                min={DAILY_NEW_ITEM_COMPLETION_LIMIT.min}
-                max={DAILY_NEW_ITEM_COMPLETION_LIMIT.max}
-                step="1"
-                value={settings.dailyNewItemCompletionLimit}
-                onChange={(event) => previewSetting(
-                  "dailyNewItemCompletionLimit",
-                  Number(event.target.value)
-                )}
-              />
-              <p>完成是指下一次到期日期已排到隔天或更晚；0 代表暫停。</p>
-              <label htmlFor="daily-due-review-completion-limit">
-                每日到期複習完成上限
-              </label>
-              <input
-                id="daily-due-review-completion-limit"
-                type="number"
-                min={DAILY_DUE_REVIEW_COMPLETION_LIMIT.min}
-                max={DAILY_DUE_REVIEW_COMPLETION_LIMIT.max}
-                step="1"
-                value={settings.dailyDueReviewCompletionLimit}
-                onChange={(event) => previewSetting(
-                  "dailyDueReviewCompletionLimit",
-                  Number(event.target.value)
-                )}
-              />
-              <p>與新項目額度獨立計算；0 代表暫停。</p>
-              <label htmlFor="review-paper-size">每份試卷題數</label>
-              <input
-                id="review-paper-size"
-                type="number"
-                min={REVIEW_PAPER_SIZE.min}
-                max={REVIEW_PAPER_SIZE.max}
-                step="1"
-                value={settings.reviewPaperSize}
-                onChange={(event) => previewSetting(
-                  "reviewPaperSize",
-                  Number(event.target.value)
-                )}
-              />
-              <p>可設定 1–20 題；可用額度不足時，實際題數會較少。</p>
-            </fieldset>
+            {activeSettingsSection === "account" ? (
+              <section
+                className="settings-panel"
+                role="tabpanel"
+                id="settings-panel-account"
+                aria-labelledby="settings-tab-account"
+              >
+                <div className="settings-section-intro">
+                  <h3>帳戶</h3>
+                  <p>確認目前與 LingoShelf 連線的 Codex 帳戶。</p>
+                </div>
+                <div className="settings-control codex-account-setting">
+                  <div className="settings-control-heading">
+                    <span className="settings-control-label">Codex 帳戶</span>
+                    <span className="codex-connection-label">
+                      {connectionLabel(chatSnapshot.connection)}
+                    </span>
+                  </div>
+                  <div
+                    className="settings-account-value"
+                    aria-label="Codex 帳戶信箱"
+                  >
+                    <span
+                      className={`codex-status-dot ${chatSnapshot.connection}`}
+                      aria-hidden="true"
+                    />
+                    <strong>
+                      {chatSnapshot.account?.email ?? "未提供信箱資訊"}
+                    </strong>
+                  </div>
+                  <p>帳戶由 Codex 管理，此處僅供確認。</p>
+                </div>
+              </section>
+            ) : null}
+            {activeSettingsSection === "general" ? (
+              <section
+                className="settings-panel"
+                role="tabpanel"
+                id="settings-panel-general"
+                aria-labelledby="settings-tab-general"
+              >
+                <div className="settings-section-intro">
+                  <h3>一般</h3>
+                  <p>調整 AI 回覆使用的語言與閱讀舒適度。</p>
+                </div>
+                <div className="settings-control">
+                  <label htmlFor="explanation-language">講解語言</label>
+                  <select
+                    id="explanation-language"
+                    aria-label="講解語言"
+                    value={settings.explanationLanguage}
+                    disabled={isSettingsSaving}
+                    onChange={(event) => saveExplanationLanguage(
+                      event.target.value as ExplanationLanguage
+                    )}
+                  >
+                    <option value="source">原文語言（預設）</option>
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="en">English</option>
+                    <option value="ja">日本語</option>
+                  </select>
+                  <p>
+                    影響之後的標記講解與閱讀測驗，不改變一般問答或既有回覆。
+                  </p>
+                </div>
+                <div className="settings-control font-size-setting">
+                  <div className="settings-control-heading">
+                    <label htmlFor="ai-conversation-font-size">
+                      AI 對話文字大小
+                    </label>
+                    <output htmlFor="ai-conversation-font-size">
+                      {settings.aiConversationFontSize}px
+                    </output>
+                  </div>
+                  <input
+                    id="ai-conversation-font-size"
+                    type="range"
+                    min={AI_CONVERSATION_FONT_SIZE.min}
+                    max={AI_CONVERSATION_FONT_SIZE.max}
+                    step="1"
+                    value={settings.aiConversationFontSize}
+                    aria-valuetext={`${settings.aiConversationFontSize}px`}
+                    onChange={(event) => previewSetting(
+                      "aiConversationFontSize",
+                      Number(event.target.value)
+                    )}
+                  />
+                  <p>只調整使用者訊息與 AI 回覆正文。</p>
+                </div>
+              </section>
+            ) : null}
+            {activeSettingsSection === "review" ? (
+              <section
+                className="settings-panel"
+                role="tabpanel"
+                id="settings-panel-review"
+                aria-labelledby="settings-tab-review"
+              >
+                <div className="settings-section-intro">
+                  <h3>間隔複習</h3>
+                  <p>安排每天的學習份量，以及每次作答的題數。</p>
+                </div>
+                <fieldset className="settings-number-list">
+                  <legend className="visually-hidden">間隔複習</legend>
+                  <div className="settings-number-control">
+                    <div>
+                      <label htmlFor="daily-new-item-completion-limit">
+                        每日新項目完成上限
+                      </label>
+                      <p>排到隔天或更晚才算完成；0 代表暫停。</p>
+                    </div>
+                    <input
+                      id="daily-new-item-completion-limit"
+                      type="number"
+                      min={DAILY_NEW_ITEM_COMPLETION_LIMIT.min}
+                      max={DAILY_NEW_ITEM_COMPLETION_LIMIT.max}
+                      step="1"
+                      value={settings.dailyNewItemCompletionLimit}
+                      onChange={(event) => previewSetting(
+                        "dailyNewItemCompletionLimit",
+                        Number(event.target.value)
+                      )}
+                    />
+                  </div>
+                  <div className="settings-number-control">
+                    <div>
+                      <label htmlFor="daily-due-review-completion-limit">
+                        每日到期複習完成上限
+                      </label>
+                      <p>與新項目額度分開計算；0 代表暫停。</p>
+                    </div>
+                    <input
+                      id="daily-due-review-completion-limit"
+                      type="number"
+                      min={DAILY_DUE_REVIEW_COMPLETION_LIMIT.min}
+                      max={DAILY_DUE_REVIEW_COMPLETION_LIMIT.max}
+                      step="1"
+                      value={settings.dailyDueReviewCompletionLimit}
+                      onChange={(event) => previewSetting(
+                        "dailyDueReviewCompletionLimit",
+                        Number(event.target.value)
+                      )}
+                    />
+                  </div>
+                  <div className="settings-number-control">
+                    <div>
+                      <label htmlFor="review-paper-size">每份試卷題數</label>
+                      <p>可設定 1–20 題；額度不足時會自動減少。</p>
+                    </div>
+                    <input
+                      id="review-paper-size"
+                      type="number"
+                      min={REVIEW_PAPER_SIZE.min}
+                      max={REVIEW_PAPER_SIZE.max}
+                      step="1"
+                      value={settings.reviewPaperSize}
+                      onChange={(event) => previewSetting(
+                        "reviewPaperSize",
+                        Number(event.target.value)
+                      )}
+                    />
+                  </div>
+                </fieldset>
+              </section>
+            ) : null}
             {settingsError ? <small role="alert">{settingsError}</small> : null}
           </section>
         </div>

@@ -317,6 +317,7 @@ describe("App", () => {
     expect(document.querySelector(".allowance-track")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "設定" }));
     expect(screen.getByRole("dialog", { name: "設定" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "帳戶" }));
     expect(screen.getByText("Codex 帳戶")).toBeInTheDocument();
     expect(screen.getByText("reader@example.com")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "關閉設定" }));
@@ -362,6 +363,11 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    expect(screen.getByRole("tab", { name: "一般" }))
+      .toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("spinbutton", {
+      name: "每日新項目完成上限"
+    })).not.toBeInTheDocument();
     const conversationSize = screen.getByRole("slider", {
       name: "AI 對話文字大小"
     });
@@ -398,6 +404,9 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    fireEvent.click(screen.getByRole("tab", { name: "間隔複習" }));
+    expect(screen.getByRole("tab", { name: "間隔複習" }))
+      .toHaveAttribute("aria-selected", "true");
     const newLimit = screen.getByRole("spinbutton", {
       name: "每日新項目完成上限"
     });
