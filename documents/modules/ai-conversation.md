@@ -128,7 +128,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 
 `LocalChatConversationStore` 負責：
 
-- 驗證並載入 LingoShelf 自有的全域對話資料，不匯入其他 Codex／ChatGPT 對話。
+- 驗證並載入 VocabReader 自有的全域對話資料，不匯入其他 Codex／ChatGPT 對話。
 - 以暫存檔加原子替換保存對話集合與上次選取狀態。
 - 讀取時把未完成的 streaming 訊息正規化為 failed。
 - 遇到損壞資料時保留原檔並回報錯誤，不自動覆寫。
@@ -251,7 +251,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - account allowance 是帳戶共用狀態，不代表 token、金額、模型或單一 thread 額度。
 - notification 必須先驗證 thread id；其他 thread 的訊息不得進入目前對話。
 - item completed 是 canonical 最終文字，必須取代而非重複附加 delta。
-- LingoShelf 對話索引只收錄本產品建立的 thread；不把使用者帳戶中的其他 Codex 對話混入清單。
+- VocabReader 對話索引只收錄本產品建立的 thread；不把使用者帳戶中的其他 Codex 對話混入清單。
 - 對話資料只存本機，不提供跨裝置同步；空白新對話在第一則訊息前不持久化。
 - `apps/server` 的 Fastify `AiGateway` 仍維持 unconfigured；本機 Codex 生命週期不由桌面與 HTTP server 重複管理。
 

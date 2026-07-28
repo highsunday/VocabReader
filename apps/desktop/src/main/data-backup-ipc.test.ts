@@ -12,7 +12,7 @@ describe("data backup IPC", () => {
     const dialog = {
       showSaveDialog: vi.fn().mockResolvedValue({
         canceled: false,
-        filePath: "/chosen/LingoShelf-backup"
+        filePath: "/chosen/VocabReader-backup"
       }),
       showOpenDialog: vi.fn().mockResolvedValue({
         canceled: false,
@@ -30,7 +30,7 @@ describe("data backup IPC", () => {
     const service = {
       exportToPath: vi.fn().mockResolvedValue({
         status: "exported",
-        fileName: "LingoShelf-backup.zip"
+        fileName: "VocabReader-backup.zip"
       }),
       selectBackupFromPath: vi.fn().mockResolvedValue(preview),
       cancelRestore: vi.fn().mockResolvedValue(undefined),
@@ -41,7 +41,7 @@ describe("data backup IPC", () => {
       ipc,
       dialog,
       service,
-      "LingoShelf-backup-2026-07-28-110000.zip"
+      "VocabReader-backup-2026-07-28-110000.zip"
     );
 
     expect([...handlers.keys()].sort()).toEqual([
@@ -54,14 +54,14 @@ describe("data backup IPC", () => {
       handlers.get("data-backup:export")?.({}, "/renderer/cannot/choose.zip")
     ).resolves.toEqual({
       status: "exported",
-      fileName: "LingoShelf-backup.zip"
+      fileName: "VocabReader-backup.zip"
     });
     expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({
-      defaultPath: "LingoShelf-backup-2026-07-28-110000.zip",
-      filters: [{ name: "LingoShelf 資料備份", extensions: ["zip"] }]
+      defaultPath: "VocabReader-backup-2026-07-28-110000.zip",
+      filters: [{ name: "VocabReader 資料備份", extensions: ["zip"] }]
     }));
     expect(service.exportToPath)
-      .toHaveBeenCalledWith("/chosen/LingoShelf-backup.zip");
+      .toHaveBeenCalledWith("/chosen/VocabReader-backup.zip");
 
     await expect(handlers.get("data-backup:select")?.()).resolves.toEqual({
       status: "ready",

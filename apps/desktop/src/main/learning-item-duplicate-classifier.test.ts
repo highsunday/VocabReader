@@ -23,8 +23,8 @@ describe("classifyLearningItemDuplicatesWithCodex", () => {
       createClient: () => new SpawnedCodexAppServerClient({
         spawnProcess: () => fake.child
       }),
-      workingDirectory: "/tmp/lingoshelf-recheck-test",
-      skillPath: "/tmp/lingoshelf-recheck-test/create-learning-items/SKILL.md",
+      workingDirectory: "/tmp/vocabreader-recheck-test",
+      skillPath: "/tmp/vocabreader-recheck-test/create-learning-items/SKILL.md",
       skillInstructions: "Submission Recheck",
       drafts: [{
         id: "draft-bank",
@@ -61,5 +61,11 @@ describe("classifyLearningItemDuplicatesWithCodex", () => {
     expect(payload).not.toContain("learning-items.sqlite");
     expect(fake.requests.filter((request) => request.method === "turn/start"))
       .toHaveLength(1);
+    expect(fake.requests.find((request) => request.method === "initialize")
+      ?.params?.clientInfo).toEqual({
+      name: "vocabreader-learning-item-recheck",
+      title: "VocabReader Learning Item Recheck",
+      version: "0.1.0"
+    });
   });
 });

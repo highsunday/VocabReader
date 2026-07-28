@@ -11,7 +11,7 @@ related_implements:
 
 ## 1. Purpose
 
-本模組把一個時間點的完整**書庫**與完整**生詞庫**封裝為單一 LingoShelf ZIP，供
+本模組把一個時間點的完整**書庫**與完整**生詞庫**封裝為單一 VocabReader ZIP，供
 使用者自行移到另一台電腦，再以**資料還原**完整取代目的裝置的兩個資料域。
 
 這是手動備份／還原，不是雙向同步或合併匯入。AI 對話、全域設定、Codex runtime
@@ -36,7 +36,7 @@ related_implements:
 
 ## 3. Archive Format
 
-格式識別為 `lingoshelf-data-backup`，目前版本為整數 `1`。固定內容：
+為維持舊備份相容性，格式識別仍為 `lingoshelf-data-backup`，目前版本為整數 `1`。固定內容：
 
 ```text
 manifest.json

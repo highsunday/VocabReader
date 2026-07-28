@@ -48,7 +48,8 @@ test("launches the secure Electron reading shell", async () => {
       .toContain("name: practice-spaced-review");
     expect(installedReviewSkill)
       .toContain("review-grade");
-    await expect(page).toHaveTitle("LingoShelf");
+    await expect(page).toHaveTitle("VocabReader");
+    await expect(page.getByText("VocabReader", { exact: true })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "導入 EPUB 開始閱讀" })
     ).toBeVisible();
@@ -507,7 +508,7 @@ test("launches the secure Electron reading shell", async () => {
       reviewPaperSize: 10
     }));
     await page.reload();
-    await expect(page).toHaveTitle("LingoShelf");
+    await expect(page).toHaveTitle("VocabReader");
     await expect.poll(() => page.locator(".workspace").evaluate((element) => ({
       conversation: getComputedStyle(element)
         .getPropertyValue("--ai-conversation-font-size").trim(),

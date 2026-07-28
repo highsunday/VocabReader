@@ -16,7 +16,7 @@ related_implements:
 
 ## 1. Purpose
 
-本模組管理 LingoShelf 隨桌面 App 發布的受信任 AI skills，負責把 skill 指令從原始碼帶入 production bundle、安裝到 Electron user data 的 Codex runtime，並交由一般 **AI 對話**或專用暫態 Controller 在單次 turn 啟用符合產品動作的 skill。
+本模組管理 VocabReader 隨桌面 App 發布的受信任 AI skills，負責把 skill 指令從原始碼帶入 production bundle、安裝到 Electron user data 的 Codex runtime，並交由一般 **AI 對話**或專用暫態 Controller 在單次 turn 啟用符合產品動作的 skill。
 
 它是 **Codex AI 執行層**的技術邊界，不是使用者可自行安裝或選擇任意 skill 的管理介面。Renderer 只能送出白名單內的產品意圖，不能指定 skill 名稱、內容、路徑或 developer instructions。
 

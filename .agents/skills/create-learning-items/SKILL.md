@@ -1,6 +1,6 @@
 ---
 name: create-learning-items
-description: Prepare deduplicated word and phrase learning-item drafts for the LingoShelf learning library. Use when the reader explicitly invokes the Add Learning Cards action, makes an explicit natural-language request to add learning cards, accepts an invitation after annotation explanation, answers a clarification for that action, or asks to recheck edited drafts before submission.
+description: Prepare deduplicated word and phrase learning-item drafts for the VocabReader learning library. Use when the reader explicitly invokes the Add Learning Cards action, makes an explicit natural-language request to add learning cards, accepts an invitation after annotation explanation, answers a clarification for that action, or asks to recheck edited drafts before submission.
 ---
 
 # Create Learning Items

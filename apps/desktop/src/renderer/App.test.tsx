@@ -118,7 +118,7 @@ function installLibraryApi(
   const dataBackup = {
     exportBackup: vi.fn().mockResolvedValue({
       status: "exported",
-      fileName: "LingoShelf-backup-2026-07-28.zip"
+      fileName: "VocabReader-backup-2026-07-28.zip"
     }),
     selectBackup: vi.fn().mockResolvedValue({ status: "cancelled" }),
     cancelRestore: vi.fn().mockResolvedValue(undefined),
@@ -290,7 +290,7 @@ describe("App", () => {
 
     await waitFor(() => expect(dataBackup.exportBackup).toHaveBeenCalledOnce());
     expect(await screen.findByText(
-      "已匯出 LingoShelf-backup-2026-07-28.zip"
+      "已匯出 VocabReader-backup-2026-07-28.zip"
     )).toBeInTheDocument();
   });
 

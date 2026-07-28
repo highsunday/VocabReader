@@ -7,7 +7,7 @@ import { LocalSettingsStore } from "./settings-store";
 const temporaryDirectories: string[] = [];
 
 async function temporaryDirectory() {
-  const directory = await mkdtemp(join(tmpdir(), "lingoshelf-settings-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "vocabreader-settings-test-"));
   temporaryDirectories.push(directory);
   return directory;
 }

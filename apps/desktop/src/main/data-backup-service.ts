@@ -36,7 +36,7 @@ const maximumEntryCount = 1003;
 export function defaultDataBackupFileName(now = new Date()): string {
   const part = (value: number) => String(value).padStart(2, "0");
   return [
-    "LingoShelf-backup-",
+    "VocabReader-backup-",
     now.getFullYear(),
     "-",
     part(now.getMonth() + 1),
@@ -311,19 +311,19 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
   try {
     value = JSON.parse(bytes.toString("utf8"));
   } catch {
-    throw new Error("LingoShelf 備份格式錯誤");
+    throw new Error("VocabReader 備份格式錯誤");
   }
   const manifest = record(value);
   const counts = record(manifest?.counts);
   if (manifest?.format !== backupFormat) {
-    throw new Error("這不是 LingoShelf 資料備份");
+    throw new Error("這不是 VocabReader 資料備份");
   }
   if (manifest.version !== backupFormatVersion) {
     throw new Error(
       typeof manifest.version === "number" &&
       manifest.version > backupFormatVersion
-        ? "備份格式版本較新，請先更新 LingoShelf"
-        : "LingoShelf 備份格式版本不受支援"
+        ? "備份格式版本較新，請先更新 VocabReader"
+        : "VocabReader 備份格式版本不受支援"
     );
   }
   if (
@@ -340,7 +340,7 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
     Number(counts.trashedLearningItems) < 0 ||
     !Array.isArray(manifest.files)
   ) {
-    throw new Error("LingoShelf 備份 manifest 格式錯誤");
+    throw new Error("VocabReader 備份 manifest 格式錯誤");
   }
   const files: ManifestFile[] = manifest.files.map((rawFile) => {
     const file = record(rawFile);
@@ -352,7 +352,7 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
       typeof file.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/.test(file.sha256)
     ) {
-      throw new Error("LingoShelf 備份 manifest 檔案資訊錯誤");
+      throw new Error("VocabReader 備份 manifest 檔案資訊錯誤");
     }
     return {
       path: file.path,
@@ -361,7 +361,7 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
     };
   });
   if (new Set(files.map((file) => file.path)).size !== files.length) {
-    throw new Error("LingoShelf 備份 manifest 含重複檔案");
+    throw new Error("VocabReader 備份 manifest 含重複檔案");
   }
   return {
     format: backupFormat,
@@ -563,7 +563,7 @@ export class DataBackupService {
       try {
         zip = await JSZip.loadAsync(archive);
       } catch {
-        throw new Error("無法讀取 LingoShelf 備份 ZIP");
+        throw new Error("無法讀取 VocabReader 備份 ZIP");
       }
       const entries = Object.values(zip.files);
       if (entries.length > maximumEntryCount) {
@@ -599,7 +599,7 @@ export class DataBackupService {
         }
       }
       const manifestEntry = zip.file("manifest.json");
-      if (!manifestEntry) throw new Error("這不是 LingoShelf 資料備份");
+      if (!manifestEntry) throw new Error("這不是 VocabReader 資料備份");
       const manifestBytes = await manifestEntry.async("nodebuffer");
       const manifest = parseManifest(manifestBytes);
       const declaredPaths = new Set(manifest.files.map((file) => file.path));

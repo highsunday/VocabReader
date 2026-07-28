@@ -19,13 +19,13 @@ import type { LearningItemRecheckDecision } from "./learning-item-artifacts";
 import { createFakeCodexAppServer } from "./fake-codex-app-server";
 
 const annotationExplanationSkillPath =
-  "/tmp/lingoshelf-codex-test/.agents/skills/explain-reader-annotations/SKILL.md";
+  "/tmp/vocabreader-codex-test/.agents/skills/explain-reader-annotations/SKILL.md";
 const annotationExplanationSkillInstructions = readFileSync(resolve(
   process.cwd(),
   "../../.agents/skills/explain-reader-annotations/SKILL.md"
 ), "utf8");
 const readingComprehensionSkillPath =
-  "/tmp/lingoshelf-codex-test/.agents/skills/practice-reading-comprehension/SKILL.md";
+  "/tmp/vocabreader-codex-test/.agents/skills/practice-reading-comprehension/SKILL.md";
 const readingComprehensionSkillInstructions = [
   "name: practice-reading-comprehension",
   "Estimate the passage CEFR level.",
@@ -33,7 +33,7 @@ const readingComprehensionSkillInstructions = [
   "Provide a final review after grading."
 ].join("\n");
 const learningItemCreationSkillPath =
-  "/tmp/lingoshelf-codex-test/.agents/skills/create-learning-items/SKILL.md";
+  "/tmp/vocabreader-codex-test/.agents/skills/create-learning-items/SKILL.md";
 const learningItemCreationSkillInstructions = readFileSync(resolve(
   process.cwd(),
   "../../.agents/skills/create-learning-items/SKILL.md"
@@ -86,7 +86,7 @@ function fixture(options: Parameters<typeof createFakeCodexAppServer>[0] = {}) {
     createClient: () => new SpawnedCodexAppServerClient({
       spawnProcess: () => fake.child
     }),
-    workingDirectory: "/tmp/lingoshelf-codex-test",
+    workingDirectory: "/tmp/vocabreader-codex-test",
     annotationExplanationSkillPath,
     annotationExplanationSkillInstructions,
     readingComprehensionSkillPath,
@@ -121,7 +121,7 @@ function managedFixture(
     createClient: () => new SpawnedCodexAppServerClient({
       spawnProcess: () => fake.child
     }),
-    workingDirectory: "/tmp/lingoshelf-codex-test",
+    workingDirectory: "/tmp/vocabreader-codex-test",
     annotationExplanationSkillPath,
     annotationExplanationSkillInstructions,
     readingComprehensionSkillPath,
@@ -183,6 +183,11 @@ describe("ChatController", () => {
         "account/read",
         "account/rateLimits/read"
       ]);
+    expect(fake.requests[0]?.params?.clientInfo).toEqual({
+      name: "vocabreader",
+      title: "VocabReader",
+      version: "0.1.0"
+    });
     expect(states).toContainEqual({
       connection: "ready",
       allowance: "loading"
@@ -405,7 +410,7 @@ describe("ChatController", () => {
       {
         type: "skill",
         name: "explain-reader-annotations",
-        path: "/tmp/lingoshelf-codex-test/.agents/skills/explain-reader-annotations/SKILL.md"
+        path: "/tmp/vocabreader-codex-test/.agents/skills/explain-reader-annotations/SKILL.md"
       }
     ]);
     expect(creationInput).toEqual([
@@ -1597,7 +1602,7 @@ describe("ChatController", () => {
       createClient: () => new SpawnedCodexAppServerClient({
         spawnProcess: () => fake.child
       }),
-      workingDirectory: "/tmp/lingoshelf-codex-test",
+      workingDirectory: "/tmp/vocabreader-codex-test",
       annotationExplanationSkillPath,
       annotationExplanationSkillInstructions,
       readingComprehensionSkillPath,
@@ -1663,7 +1668,7 @@ describe("ChatController", () => {
       createClient: () => new SpawnedCodexAppServerClient({
         spawnProcess: () => fake.child
       }),
-      workingDirectory: "/tmp/lingoshelf-codex-test",
+      workingDirectory: "/tmp/vocabreader-codex-test",
       annotationExplanationSkillPath,
       annotationExplanationSkillInstructions,
       readingComprehensionSkillPath,
@@ -1688,7 +1693,7 @@ describe("ChatController", () => {
       createClient: () => new SpawnedCodexAppServerClient({
         spawnProcess: () => fake.child
       }),
-      workingDirectory: "/tmp/lingoshelf-codex-test",
+      workingDirectory: "/tmp/vocabreader-codex-test",
       annotationExplanationSkillPath,
       annotationExplanationSkillInstructions,
       readingComprehensionSkillPath,
@@ -1716,7 +1721,7 @@ describe("ChatController", () => {
       createClient: () => new SpawnedCodexAppServerClient({
         spawnProcess: () => fake.child
       }),
-      workingDirectory: "/tmp/lingoshelf-codex-test",
+      workingDirectory: "/tmp/vocabreader-codex-test",
       annotationExplanationSkillPath,
       annotationExplanationSkillInstructions,
       readingComprehensionSkillPath,

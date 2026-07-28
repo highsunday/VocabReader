@@ -1016,7 +1016,7 @@ export function App() {
     try {
       await api.restoreBackup(preview.token);
       setDataRestorePreview(undefined);
-      setDataBackupMessage("資料已還原，正在重新啟動 LingoShelf…");
+      setDataBackupMessage("資料已還原，正在重新啟動 VocabReader…");
     } catch (error) {
       setDataRestorePreview(undefined);
       setDataBackupError(
@@ -1490,9 +1490,9 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">L</span>
+          <span className="brand-mark">V</span>
           <div>
-            <strong>LingoShelf</strong>
+            <strong>VocabReader</strong>
             <span>Read first. Learn deeply.</span>
           </div>
         </div>
@@ -2608,7 +2608,7 @@ export function App() {
               >
                 <div className="settings-section-intro">
                   <h3>帳戶</h3>
-                  <p>確認目前與 LingoShelf 連線的 Codex 帳戶。</p>
+                  <p>確認目前與 VocabReader 連線的 Codex 帳戶。</p>
                 </div>
                 <div className="settings-control codex-account-setting">
                   <div className="settings-control-heading">
@@ -2846,7 +2846,7 @@ export function App() {
               </div>
             </dl>
             <p>
-              還原成功後 LingoShelf 會自動重新啟動。AI 對話、全域設定與
+              還原成功後 VocabReader 會自動重新啟動。AI 對話、全域設定與
               Codex 登入維持不變。
             </p>
             <div className="delete-dialog-actions">

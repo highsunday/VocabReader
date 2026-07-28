@@ -904,8 +904,8 @@ export class ChatController {
     this.#connectPromise = (async () => {
       try {
         await client.initialize({
-          name: "lingoshelf",
-          title: "LingoShelf",
+          name: "vocabreader",
+          title: "VocabReader",
           version: "0.1.0"
         });
         const account = await client.readAccount();

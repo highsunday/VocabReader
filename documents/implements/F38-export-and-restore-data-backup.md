@@ -16,13 +16,13 @@ status: implemented
 不但容易漏掉閱讀進度、標記或複習歷史，也可能在 App 尚未停止寫入時取得不一致資料。
 
 本功能在設定視窗提供**資料備份**與**資料還原**。使用者可把完整書庫與完整生詞庫
-匯出為一個 LingoShelf ZIP 備份，再於另一台電腦選取該 ZIP、檢視摘要並確認還原。
+匯出為一個 VocabReader ZIP 備份，再於另一台電腦選取該 ZIP、檢視摘要並確認還原。
 還原採完整取代，不合併來源與目前裝置資料；App 必須先完整驗證備份，成功取代後自動
 重新啟動。任何驗證或取代失敗都不得留下混合、部分更新或無法復原的目前資料。
 
 ## 2. Requirements (User Story)
 
-- **As a** 在多台電腦使用 LingoShelf 的語言學習者
+- **As a** 在多台電腦使用 VocabReader 的語言學習者
 - **I want** 將書籍、閱讀狀態、學習項目與複習進度匯出成一個 ZIP 並在另一台電腦還原
 - **So that** 我可以安全延續閱讀與學習，而不必手動尋找及複製內部資料檔案
 
@@ -47,10 +47,10 @@ status: implemented
 
 ### 3.2 單一可辨識 ZIP
 
-- 匯出結果是一個副檔名為 `.zip` 的 LingoShelf 資料備份。
+- 匯出結果是一個副檔名為 `.zip` 的 VocabReader 資料備份。
 - ZIP 包含固定格式識別、格式版本、建立時間、App 版本、資料數量與 payload 完整性
   資訊，讓匯入端可在寫入前驗證來源、相容性與檔案完整性。
-- 預設檔名包含 `LingoShelf`、`backup` 及本地建立日期時間；使用者仍可在原生儲存
+- 預設檔名包含 `VocabReader`、`backup` 及本地建立日期時間；使用者仍可在原生儲存
   對話框修改檔名與位置。
 - 匯出空書庫與空生詞庫仍是合法備份。
 - 取消儲存對話框不建立檔案，也不顯示失敗訊息。
@@ -75,14 +75,14 @@ status: implemented
 - App 在取代前保留內部回滾資料。若停止資料寫入、關閉資料庫、交換檔案或重新驗證
   任一步驟失敗，必須恢復匯入前狀態並顯示可理解的錯誤。
 - 還原成功後保留目前裝置的 AI 對話、全域設定與 Codex 執行環境。
-- 還原成功後，正式安裝版自動重新啟動 LingoShelf；Vite 開發模式則保留 Electron
+- 還原成功後，正式安裝版自動重新啟動 VocabReader；Vite 開發模式則保留 Electron
   與 dev server，只重新載入既有視窗。兩種模式都由既有 migration 與載入流程開啟
   還原的書庫及生詞庫。
 - 還原失敗或取消時不得重新啟動。
 
 ### 3.5 相容性與安全邊界
 
-- 第一版只接受具有受支援 LingoShelf 備份格式與版本的 ZIP；一般 ZIP、損壞 ZIP、
+- 第一版只接受具有受支援 VocabReader 備份格式與版本的 ZIP；一般 ZIP、損壞 ZIP、
   缺檔、checksum 不符及較新未知版本都必須在寫入前拒絕。
 - ZIP entry 必須限制在固定 allowlist 及安全相對路徑，不解壓絕對路徑、`..` traversal、
   symlink 或額外未宣告 payload。
@@ -104,7 +104,7 @@ status: implemented
   - **Given** 書庫包含兩本有閱讀狀態與標記的書，生詞庫包含使用中與垃圾桶項目、
     複習排程及歷史
   - **When** 使用者在設定中選擇匯出並確認目的檔
-  - **Then** 產生一個可驗證的 LingoShelf ZIP
+  - **Then** 產生一個可驗證的 VocabReader ZIP
   - **And** ZIP 同時包含所有書籍資料與一致的生詞庫資料
   - **And** 不包含設定、AI 對話或 Codex runtime
 
@@ -175,7 +175,7 @@ status: implemented
 | TC7 | 成功取代 | 有效完整備份 | 確認 | 書庫＋生詞庫只含備份狀態；設定／對話不變；relaunch 一次 | Critical |
 | TC8 | 書庫交換失敗 | 已保存回滾資料 | 確認還原並注入失敗 | 兩個資料域皆回復；不 relaunch | Critical |
 | TC9 | 生詞庫交換失敗 | 書庫已暫時交換 | 注入第二階段失敗 | 書庫回復、SQLite 回復；不 relaunch | Critical |
-| TC10 | 一般／損壞 ZIP | 非 LingoShelf 或無法解析 | 選取 | 明確錯誤；無確認；零 mutation | Critical |
+| TC10 | 一般／損壞 ZIP | 非 VocabReader 或無法解析 | 選取 | 明確錯誤；無確認；零 mutation | Critical |
 | TC11 | Manifest 不相容 | 缺欄、較新 version、未知 file | 選取 | 拒絕；零 mutation | Critical |
 | TC12 | Payload 損壞 | checksum、EPUB id 或 SQLite integrity 不符 | 選取 | 拒絕；零 mutation | Critical |
 | TC13 | Archive 安全 | traversal／absolute／過量 payload | 選取 | 寫入正式目錄前拒絕 | Critical |
@@ -266,7 +266,7 @@ status: implemented
 ### Assumptions
 
 - 書籍 id 仍是原始 EPUB 完整位元組的 SHA-256，備份驗證可重新計算並比對。
-- 還原發生於本機桌面 App，來源與目的 App 都支援同一份 LingoShelf 備份格式。
+- 還原發生於本機桌面 App，來源與目的 App 都支援同一份 VocabReader 備份格式。
 - 使用者可取得 ZIP 並自行透過 USB、AirDrop、網路磁碟或其他方式傳到另一台電腦。
 - 備份檔沒有密碼或加密；使用者需自行選擇可信任的保存與傳輸位置。
 

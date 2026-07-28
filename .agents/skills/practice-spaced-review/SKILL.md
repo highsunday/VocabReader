@@ -1,6 +1,6 @@
 ---
 name: practice-spaced-review
-description: Generate and grade a bounded LingoShelf spaced-review paper from App-supplied learning items. Use only when the App explicitly invokes the review-paper generation or answer-grading workflow.
+description: Generate and grade a bounded VocabReader spaced-review paper from App-supplied learning items. Use only when the App explicitly invokes the review-paper generation or answer-grading workflow.
 ---
 
 # Practice Spaced Review

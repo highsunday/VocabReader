@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from "fastify";
 export const systemRoutes: FastifyPluginAsync = async (app) => {
   app.get("/health", async () => ({
     status: "ok",
-    service: "reader-server"
+    service: "vocab-reader-server"
   }));
 
   app.get("/api/v1/system/capabilities", async () => ({
@@ -14,4 +14,3 @@ export const systemRoutes: FastifyPluginAsync = async (app) => {
     aiGateway: "unconfigured"
   }));
 };
-

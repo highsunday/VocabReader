@@ -10,7 +10,7 @@ import {
 const temporaryDirectories: string[] = [];
 
 async function temporaryDirectory() {
-  const directory = await mkdtemp(join(tmpdir(), "lingoshelf-chat-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "vocabreader-chat-test-"));
   temporaryDirectories.push(directory);
   return directory;
 }

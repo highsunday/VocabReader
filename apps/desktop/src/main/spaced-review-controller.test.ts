@@ -24,7 +24,9 @@ interface FakeClientOptions {
 function fakeClient(options: FakeClientOptions = {}): CodexAppServerClient {
   let listener: ((notification: CodexNotification) => void) | undefined;
   return {
-    initialize: vi.fn(async () => undefined),
+    initialize: vi.fn(async (clientInfo) => {
+      options.requests?.push({ method: "initialize", params: clientInfo });
+    }),
     readAccount: vi.fn(async () => ({
       account: { type: "chatgpt" },
       requiresOpenaiAuth: false
@@ -275,6 +277,20 @@ describe("SpacedReviewController", () => {
       answers: [{ questionId: "q1", answer: "銀行" }]
     });
 
+    expect(requests.filter(({ method }) => method === "initialize").map(
+      ({ params }) => params
+    )).toEqual([
+      {
+        name: "vocabreader-spaced-review",
+        title: "VocabReader Spaced Review",
+        version: "0.1.0"
+      },
+      {
+        name: "vocabreader-spaced-review",
+        title: "VocabReader Spaced Review",
+        version: "0.1.0"
+      }
+    ]);
     expect(requests.filter(({ method }) => method === "model/list").map(
       ({ params }) => params?.cursor
     )).toEqual([null, "page-2", null, "page-2"]);

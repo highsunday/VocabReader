@@ -16,7 +16,7 @@ type BookChapterWithLegacyFields = Omit<
 };
 
 async function createTemporaryDirectory() {
-  const directory = await mkdtemp(join(tmpdir(), "lingoshelf-library-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "vocabreader-library-test-"));
   temporaryDirectories.push(directory);
   return directory;
 }

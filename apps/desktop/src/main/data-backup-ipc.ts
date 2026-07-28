@@ -49,9 +49,9 @@ export function registerDataBackupIpc(
 ): void {
   ipc.handle("data-backup:export", async () => {
     const selection = await dialog.showSaveDialog({
-      title: "匯出 LingoShelf 資料備份",
+      title: "匯出 VocabReader 資料備份",
       defaultPath: defaultFileName,
-      filters: [{ name: "LingoShelf 資料備份", extensions: ["zip"] }]
+      filters: [{ name: "VocabReader 資料備份", extensions: ["zip"] }]
     });
     if (selection.canceled || !selection.filePath) {
       return { status: "cancelled" } satisfies ExportDataBackupResult;
@@ -64,9 +64,9 @@ export function registerDataBackupIpc(
 
   ipc.handle("data-backup:select", async () => {
     const selection = await dialog.showOpenDialog({
-      title: "匯入 LingoShelf 資料備份",
+      title: "匯入 VocabReader 資料備份",
       properties: ["openFile"],
-      filters: [{ name: "LingoShelf 資料備份", extensions: ["zip"] }]
+      filters: [{ name: "VocabReader 資料備份", extensions: ["zip"] }]
     });
     const selectedPath = selection.filePaths[0];
     if (selection.canceled || !selectedPath) {

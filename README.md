@@ -1,4 +1,4 @@
-# AI 輔助英文學習電子書閱讀器
+# VocabReader
 
 Electron + React 桌面前端與 Node.js 後端骨架。
 

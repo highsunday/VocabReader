@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 function runtimeRoot() {
-  const root = mkdtempSync(join(tmpdir(), "lingoshelf-bundled-skill-"));
+  const root = mkdtempSync(join(tmpdir(), "vocabreader-bundled-skill-"));
   roots.push(root);
   return root;
 }

@@ -13,7 +13,7 @@ import { LocalLearningLibrary } from "./learning-library-service";
 const temporaryDirectories: string[] = [];
 
 async function temporaryDirectory(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), "lingoshelf-data-backup-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "vocabreader-data-backup-test-"));
   temporaryDirectories.push(directory);
   return directory;
 }
@@ -117,7 +117,7 @@ describe("DataBackupService", () => {
       sort: "recent"
     });
     await learningLibrary.trashItem(activeItems[0].id);
-    const destinationPath = join(root, "LingoShelf-backup.zip");
+    const destinationPath = join(root, "VocabReader-backup.zip");
     const service = new DataBackupService({
       libraryPath,
       learningDatabasePath,
@@ -138,7 +138,7 @@ describe("DataBackupService", () => {
 
     expect(result).toEqual({
       status: "exported",
-      fileName: "LingoShelf-backup.zip"
+      fileName: "VocabReader-backup.zip"
     });
     const zip = await JSZip.loadAsync(await readFile(destinationPath));
     expect(Object.keys(zip.files).sort()).toEqual([
@@ -388,7 +388,7 @@ describe("DataBackupService", () => {
     await writeFile(ordinaryPath, await ordinary.generateAsync({ type: "nodebuffer" }));
 
     await expect(service.selectBackupFromPath(ordinaryPath))
-      .rejects.toThrow(/LingoShelf|備份格式/);
+      .rejects.toThrow(/VocabReader|備份格式/);
 
     const validPath = join(root, "valid.zip");
     await service.exportToPath(validPath);

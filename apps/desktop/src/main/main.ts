@@ -41,7 +41,7 @@ function createMainWindow(): BrowserWindow {
     height: 920,
     minWidth: 1080,
     minHeight: 720,
-    title: "LingoShelf",
+    title: "VocabReader",
     backgroundColor: "#f5f1e8",
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),
@@ -72,15 +72,15 @@ function createMainWindow(): BrowserWindow {
 app.whenReady().then(() => {
   const libraryPath =
     process.env.NODE_ENV === "test"
-      ? join(app.getPath("temp"), `lingoshelf-library-test-${process.pid}`)
+      ? join(app.getPath("temp"), `vocabreader-library-test-${process.pid}`)
       : join(app.getPath("userData"), "library");
   const bookLibrary = new LocalBookLibrary(libraryPath);
   registerLibraryIpc(ipcMain, dialog, bookLibrary);
   const learningLibraryPath = process.env.NODE_ENV === "test"
-    ? join(app.getPath("temp"), `lingoshelf-learning-test-${process.pid}`, "learning-items.sqlite")
+    ? join(app.getPath("temp"), `vocabreader-learning-test-${process.pid}`, "learning-items.sqlite")
     : join(app.getPath("userData"), "learning-library", "learning-items.sqlite");
   const settingsPath = process.env.NODE_ENV === "test"
-    ? join(app.getPath("temp"), `lingoshelf-settings-test-${process.pid}`)
+    ? join(app.getPath("temp"), `vocabreader-settings-test-${process.pid}`)
     : join(app.getPath("userData"), "settings");
   const settingsStore = new LocalSettingsStore(settingsPath);
   const learningLibrary = new LocalLearningLibrary(learningLibraryPath, {
@@ -99,7 +99,7 @@ app.whenReady().then(() => {
     libraryPath,
     learningDatabasePath: learningLibraryPath,
     temporaryRoot: process.env.NODE_ENV === "test"
-      ? join(app.getPath("temp"), `lingoshelf-data-backup-test-${process.pid}`)
+      ? join(app.getPath("temp"), `vocabreader-data-backup-test-${process.pid}`)
       : join(app.getPath("userData"), ".data-backup-staging"),
     appVersion: app.getVersion(),
     waitForBookWrites: () => bookLibrary.waitForIdle(),
@@ -130,7 +130,7 @@ app.whenReady().then(() => {
   registerSettingsIpc(ipcMain, settingsStore);
   const runtimePath = join(app.getPath("userData"), "codex-runtime");
   const conversationPath = process.env.NODE_ENV === "test"
-    ? join(app.getPath("temp"), `lingoshelf-chat-test-${process.pid}`)
+    ? join(app.getPath("temp"), `vocabreader-chat-test-${process.pid}`)
     : join(app.getPath("userData"), "chat");
   mkdirSync(runtimePath, { recursive: true });
   const annotationExplanationSkill = installBundledAnnotationSkill(

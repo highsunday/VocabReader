@@ -84,7 +84,7 @@ describe("spawnCodexAppServer", () => {
 
 describe("findCodexDesktopExecutable", () => {
   it("selects the newest installed Codex Desktop executable", () => {
-    const localAppData = mkdtempSync(join(tmpdir(), "lingoshelf-codex-"));
+    const localAppData = mkdtempSync(join(tmpdir(), "vocabreader-codex-"));
     const older = join(
       localAppData,
       "OpenAI",

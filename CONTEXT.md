@@ -1,4 +1,4 @@
-# CONTEXT.md — AI 輔助英文學習電子書閱讀器
+# CONTEXT.md — VocabReader
 
 > 本文件定義專案目標、領域詞彙與系統邊界。撰寫需求、測試與程式碼前，應先以此文件建立共同語言。
 > 尚未確認的產品或技術決策必須保留在「Flagged Ambiguities」，不可自行當成既定需求。
