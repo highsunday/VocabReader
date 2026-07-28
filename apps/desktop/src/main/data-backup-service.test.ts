@@ -180,6 +180,61 @@ describe("DataBackupService", () => {
     )).toBe(false);
   });
 
+  it("exports a normalized snapshot when saved reading chapters no longer exist", async () => {
+    const root = await temporaryDirectory();
+    const libraryPath = join(root, "library");
+    const learningDatabasePath = join(
+      root,
+      "learning-library",
+      "learning-items.sqlite"
+    );
+    const book = await createStoredBook(libraryPath);
+    await writeFile(
+      join(libraryPath, "index.json"),
+      `${JSON.stringify([{
+        ...book,
+        lastChapterId: "legacy-chapter",
+        readingState: {
+          view: "overview",
+          chapterId: "legacy-chapter",
+          scrollProgress: 0.42
+        }
+      }], null, 2)}\n`
+    );
+    const bookLibrary = new LocalBookLibrary(libraryPath);
+    const learningLibrary = new LocalLearningLibrary(learningDatabasePath);
+    await learningLibrary.listItems({ status: "active", sort: "recent" });
+    const destinationPath = join(root, "normalized-reading-state.zip");
+    const service = new DataBackupService({
+      libraryPath,
+      learningDatabasePath,
+      temporaryRoot: join(root, "temporary"),
+      appVersion: "0.1.0",
+      waitForBookWrites: () => bookLibrary.waitForIdle(),
+      snapshotBookIndex: () => bookLibrary.listBooks(),
+      snapshotLearningDatabase: (path) =>
+        learningLibrary.backupTo(path),
+      closeLearningDatabase: () => learningLibrary.close(),
+      relaunch: () => undefined
+    });
+
+    await service.exportToPath(destinationPath);
+
+    const zip = await JSZip.loadAsync(await readFile(destinationPath));
+    const exportedBooks = JSON.parse(
+      await zip.file("library/index.json")!.async("text")
+    ) as LibraryBook[];
+    expect(exportedBooks[0]).toMatchObject({
+      progressPercent: 42,
+      lastChapterId: null,
+      readingState: {
+        view: "overview",
+        chapterId: null,
+        scrollProgress: 0.42
+      }
+    });
+  });
+
   it("previews a valid backup without mutation, then replaces both data domains", async () => {
     const root = await temporaryDirectory();
     const sourceLibraryPath = join(root, "source", "library");

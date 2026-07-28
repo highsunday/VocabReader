@@ -26,10 +26,12 @@ related_implements:
 - 從設定視窗匯出或匯入一個 `.zip`。
 - 匯出全部 EPUB、正規化書籍索引、閱讀狀態、範圍標籤、標記，以及完整生詞庫
   SQLite。
+- EPUB 重新解析後留下的失效閱讀章節引用會先由書庫正規化，不會阻擋整份備份。
 - 保存 active／trashed 學習項目、FSRS 排程與精簡複習事件。
 - 有效備份先顯示時間與三種數量，使用者再次確認後才完整取代。
 - 嚴格驗證格式版本、allowlist、路徑、大小、checksum、SQLite 與書籍資料。
-- 書庫與生詞庫跨資料域 rollback；成功後自動重新啟動 App。
+- 書庫與生詞庫跨資料域 rollback；成功後正式版自動重新啟動 App，開發版重新載入
+  renderer，避免退出 Electron 連帶終止 Vite。
 - Renderer 只能使用具名 typed capabilities，不接觸任意本機路徑。
 
 ## 3. Archive Format
@@ -79,7 +81,9 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
   → 等待書庫寫入、關閉 SQLite
   → 暫存目前兩個資料域
   → 交換書庫與生詞庫
-  → 成功：清除 rollback 並 relaunch
+  → 成功：清除 rollback
+      → 正式版 relaunch
+      → Vite 開發版保留 Electron／Vite，重新載入既有視窗
   → 失敗：反向復原兩個資料域，不 relaunch
 ```
 
@@ -132,6 +136,7 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 |---|---|
 | `apps/desktop/src/shared/data-backup-contracts.ts` | 預覽、結果與 Renderer API 型別 |
 | `apps/desktop/src/main/data-backup-service.ts` | ZIP、驗證、staging、交換、rollback 與 relaunch |
+| `apps/desktop/src/main/data-restore-restart.ts` | 正式版 relaunch 與 Vite 開發版視窗 reload 政策 |
 | `apps/desktop/src/main/data-backup-ipc.ts` | 原生 dialog、IPC 白名單與 token 驗證 |
 | `apps/desktop/src/main/library-service.ts` | 書庫寫入 idle boundary 與正規化 snapshot 來源 |
 | `apps/desktop/src/main/learning-library-service.ts` | SQLite backup 與安全 close |
@@ -142,7 +147,8 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 
 | Test file | Coverage |
 |---|---|
-| `data-backup-service.test.ts` | 完整／空備份、驗證、預覽、取代、loader、rollback 與安全拒絕 |
+| `data-backup-service.test.ts` | 完整／空備份、失效閱讀章節正規化、驗證、預覽、取代、loader、rollback 與安全拒絕 |
+| `data-restore-restart.test.ts` | 開發版不退出程序、正式版 relaunch／exit |
 | `data-backup-ipc.test.ts` | Main-owned path、dialog、取消、附檔名與 token |
 | `library-service.test.ts` | 書庫 idle boundary |
 | `learning-library-service.test.ts` | SQLite backup、close 與重新開啟 |
@@ -151,7 +157,7 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 
 最近驗證（2026-07-28）：
 
-- Desktop Vitest：291/291 passed。
+- Desktop Vitest：294/294 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
 - Electron Playwright E2E：2/2 passed。

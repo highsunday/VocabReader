@@ -304,17 +304,26 @@ async function sanitizeChapterHtml(
   return (await renderNodes(findBody(parsed) ?? parsed)).trim();
 }
 
+function knownChapterId(
+  chapters: BookChapter[] | undefined,
+  chapterId: string | null | undefined
+): string | null {
+  return chapterId && chapters?.some((chapter) => chapter.id === chapterId)
+    ? chapterId
+    : null;
+}
+
 function defaultReadingState(book: Partial<LibraryBook>): BookReadingState {
   const saved = book.readingState;
-  const chapterExists = book.chapters?.some(
-    (chapter) => chapter.id === saved?.chapterId
+  const savedChapterId = knownChapterId(book.chapters, saved?.chapterId);
+  const lastChapterId = knownChapterId(
+    book.chapters,
+    book.lastChapterId
   );
   const scrollProgress = Number(saved?.scrollProgress);
   return {
-    view: saved?.view === "reader" && chapterExists ? "reader" : "overview",
-    chapterId: chapterExists
-      ? saved?.chapterId ?? null
-      : book.lastChapterId ?? null,
+    view: saved?.view === "reader" && savedChapterId ? "reader" : "overview",
+    chapterId: savedChapterId ?? lastChapterId,
     scrollProgress: Number.isFinite(scrollProgress)
       ? Math.min(1, Math.max(0, scrollProgress))
       : 0
@@ -586,10 +595,17 @@ export class LocalBookLibrary {
     if (migrated) await this.#saveBooks(booksWithHierarchy);
     return booksWithHierarchy.map((book) => {
       const chapters = distinctChapters(book.chapters);
+      const lastChapterId = knownChapterId(chapters, book.lastChapterId) ??
+        knownChapterId(chapters, book.readingState?.chapterId);
       return {
         ...book,
         chapters,
-        readingState: defaultReadingState({ ...book, chapters }),
+        lastChapterId,
+        readingState: defaultReadingState({
+          ...book,
+          chapters,
+          lastChapterId
+        }),
         chapterRanges: chapterRanges(book, chapters),
         chapterAnnotations: chapterAnnotations(book, chapters)
       };

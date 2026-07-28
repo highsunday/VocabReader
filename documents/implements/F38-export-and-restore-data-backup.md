@@ -3,7 +3,7 @@ author: Codex
 date: 2026-07-28
 title: 以單一 ZIP 匯出並完整還原書庫與生詞庫
 uuid: f31ca7f5-b02e-44d7-b013-c40b3203c5d1
-version: 1.1.0
+version: 1.1.2
 status: implemented
 ---
 
@@ -75,7 +75,8 @@ status: implemented
 - App 在取代前保留內部回滾資料。若停止資料寫入、關閉資料庫、交換檔案或重新驗證
   任一步驟失敗，必須恢復匯入前狀態並顯示可理解的錯誤。
 - 還原成功後保留目前裝置的 AI 對話、全域設定與 Codex 執行環境。
-- 還原成功後自動重新啟動 LingoShelf；重新啟動後由既有 migration 與載入流程開啟
+- 還原成功後，正式安裝版自動重新啟動 LingoShelf；Vite 開發模式則保留 Electron
+  與 dev server，只重新載入既有視窗。兩種模式都由既有 migration 與載入流程開啟
   還原的書庫及生詞庫。
 - 還原失敗或取消時不得重新啟動。
 
@@ -207,8 +208,14 @@ status: implemented
   後清理。不得對 user data 根目錄執行廣泛遞迴刪除。
 - SQLite snapshot 必須使用資料庫支援的一致備份方式或在受控排他邊界關閉後複製，
   不直接假設複製開啟中的 database file 一定一致。
+- 書庫 snapshot 必須使用 `LocalBookLibrary` 的正規化輸出。EPUB parser 升級後若
+  `lastChapterId` 或 `readingState.chapterId` 已不在目前章節集合，優先沿用另一個
+  仍有效的引用；兩者都失效時輸出 `null`，不得因此拒絕其他有效的書庫與生詞庫資料。
 - 還原前後都驗證資料；只有書庫與生詞庫交換完成後才呼叫可注入的 relaunch／exit
   capability，讓服務測試不真正關閉 Vitest。
+- Vite 開發模式不得退出目前 Electron，因為桌面開發 script 的 `concurrently -k`
+  會在 Electron 結束時一併關閉 renderer dev server；此時應延後重新載入現有視窗。
+  正式安裝版仍使用 `app.relaunch()` 後退出目前程序。
 
 ### 6.3 IPC、preload 與 Renderer
 
@@ -224,6 +231,7 @@ status: implemented
 
 - `apps/desktop/src/main/data-backup-service.ts`（新增）
 - `apps/desktop/src/main/data-backup-ipc.ts`（新增）
+- `apps/desktop/src/main/data-restore-restart.ts`（新增）
 - `apps/desktop/src/shared/data-backup-contracts.ts`（新增）
 - `apps/desktop/src/main/library-service.ts`
 - `apps/desktop/src/main/learning-library-service.ts`
@@ -237,6 +245,7 @@ status: implemented
 
 - `apps/desktop/src/main/data-backup-service.test.ts`（新增）
 - `apps/desktop/src/main/data-backup-ipc.test.ts`（新增）
+- `apps/desktop/src/main/data-restore-restart.test.ts`（新增）
 - `apps/desktop/src/main/library-service.test.ts`
 - `apps/desktop/src/main/learning-library-service.test.ts`
 - `apps/desktop/src/renderer/App.test.tsx`

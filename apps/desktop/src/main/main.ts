@@ -20,6 +20,7 @@ import {
   DataBackupService,
   defaultDataBackupFileName
 } from "./data-backup-service";
+import { restartAfterDataRestore } from "./data-restore-restart";
 import { registerLibraryIpc } from "./library-ipc";
 import { LocalBookLibrary } from "./library-service";
 import { registerLearningLibraryIpc } from "./learning-library-ipc";
@@ -107,8 +108,17 @@ app.whenReady().then(() => {
       learningLibrary.backupTo(destinationPath),
     closeLearningDatabase: () => learningLibrary.close(),
     relaunch: () => {
-      app.relaunch();
-      setImmediate(() => app.exit(0));
+      restartAfterDataRestore({
+        developmentServerUrl: process.env.VITE_DEV_SERVER_URL,
+        reloadWindows: () => {
+          for (const window of BrowserWindow.getAllWindows()) {
+            window.webContents.reloadIgnoringCache();
+          }
+        },
+        relaunch: () => app.relaunch(),
+        exit: () => app.exit(0),
+        defer: (callback) => setImmediate(callback)
+      });
     }
   });
   registerDataBackupIpc(
