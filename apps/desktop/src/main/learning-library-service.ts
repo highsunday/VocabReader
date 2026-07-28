@@ -787,6 +787,9 @@ export class LocalLearningLibrary {
       dueRemainingCapacity,
       backlogTotal: dueReviewedCount + newCount,
       totalAvailable,
+      availableLearningCount: eligibleLearningRows.length,
+      availableDueCount: eligibleDueRows.length,
+      availableNewCount: eligibleNewRows.length,
       selectedItems,
       nextDueAt: nextDue.next_due_at
     };

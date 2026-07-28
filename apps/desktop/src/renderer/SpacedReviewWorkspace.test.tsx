@@ -156,15 +156,23 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     const status = await screen.findByRole("region", {
-      name: "間隔複習狀態"
+      name: "今日進度"
     });
-    expect(within(status).getByText("新項目完成")).toBeInTheDocument();
-    expect(within(status).getByText("到期複習完成")).toBeInTheDocument();
-    expect(within(status).getByText("2 / 10")).toBeInTheDocument();
-    expect(within(status).getByText("4 / 50")).toBeInTheDocument();
-    expect(within(status).getByText("學習中 1")).toBeInTheDocument();
-    expect(within(status).getByText("學習中 3")).toBeInTheDocument();
-    expect(screen.getByText("目前沒有可複習的項目")).toBeInTheDocument();
+    const [newLane, dueLane] = within(status).getAllByRole("article");
+    expect(within(newLane).getByRole("heading", { name: "新卡" }))
+      .toBeInTheDocument();
+    expect(within(newLane).getByText(/\/ 10/))
+      .toBeInTheDocument();
+    expect(within(newLane).getByText("還可開始 7 張"))
+      .toBeInTheDocument();
+    expect(within(dueLane).getByRole("heading", { name: "到期複習" }))
+      .toBeInTheDocument();
+    expect(within(dueLane).getByText(/\/ 50/))
+      .toBeInTheDocument();
+    expect(within(dueLane).getByText("尚有 43 個名額"))
+      .toBeInTheDocument();
+    expect(screen.getByText("現在沒有可練習的卡片"))
+      .toBeInTheDocument();
   });
 
   it("refreshes all status counts after confirming a review paper", async () => {
@@ -223,7 +231,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.click(await screen.findByRole("button", {
       name: "提交試卷（1 題未作答）"
@@ -235,10 +243,12 @@ describe("SpacedReviewWorkspace", () => {
     expect(await screen.findByRole("heading", { name: "本回合已完成" }))
       .toBeInTheDocument();
     await waitFor(() => expect(api.getSummary).toHaveBeenCalledTimes(2));
-    const status = screen.getByRole("region", { name: "間隔複習狀態" });
-    expect(within(status).getByText("新項目完成")).toBeInTheDocument();
-    expect(within(status).getByText("1 / 10")).toBeInTheDocument();
-    expect(within(status).getByText("0 / 50")).toBeInTheDocument();
+    const status = screen.getByRole("region", {
+      name: "今日進度"
+    });
+    const [newLane, dueLane] = within(status).getAllByRole("article");
+    expect(newLane).toHaveTextContent("1/ 10已完成");
+    expect(dueLane).toHaveTextContent("0/ 50已完成");
   });
 
   it("keeps AI generation feedback inside one staged status card", async () => {
@@ -270,7 +280,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     const generationCard = await screen.findByRole("region", {
       name: "AI 生成試卷"
@@ -351,7 +361,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.click(await screen.findByRole("button", {
       name: "取消生成"
@@ -359,7 +369,7 @@ describe("SpacedReviewWorkspace", () => {
 
     expect(api.discardPaper).toHaveBeenCalledOnce();
     expect(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     })).toBeInTheDocument();
 
     resolvePaper?.({
@@ -400,7 +410,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     await screen.findByText("bank", { selector: "u" });
     fireEvent.click(screen.getByRole("button", {
@@ -461,7 +471,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
       target: { value: "It is a place that saves people's money." }
@@ -529,7 +539,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
       target: { value: expectedMessage ? "financial institution" : "金融機構" }
@@ -571,7 +581,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.click(await screen.findByRole("button", {
       name: "提交試卷（1 題未作答）"
@@ -608,7 +618,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     const answer = await screen.findByLabelText("這個詞在句中的意思");
     expect(screen.queryByRole("button", { name: "打開學習卡" }))
@@ -729,7 +739,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.click(await screen.findByRole("button", {
       name: "提交試卷（4 題未作答）"
@@ -760,7 +770,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
       target: { value: "金融機構" }
@@ -786,7 +796,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     const answer = await screen.findByLabelText("這個詞在句中的意思");
     fireEvent.change(answer, { target: { value: "銀行" } });
@@ -800,7 +810,7 @@ describe("SpacedReviewWorkspace", () => {
     expect(roundSummary?.nextElementSibling).toBe(currentPaper);
     expect(within(currentPaper).getByText(/已作答 1／1 題/))
       .toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "生成本回合試卷" }))
+    expect(screen.queryByRole("button", { name: /開始 \d+ 題複習/ }))
       .not.toBeInTheDocument();
     expect(api.discardPaper).not.toHaveBeenCalled();
 
@@ -841,7 +851,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     await screen.findByText("bank", { selector: "u" });
     fireEvent.click(screen.getByRole("button", { name: "先離開" }));
@@ -878,7 +888,7 @@ describe("SpacedReviewWorkspace", () => {
 
     await waitFor(() => expect(api.discardPaper).toHaveBeenCalledOnce());
     expect(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "查看試卷" }))
       .not.toBeInTheDocument();
@@ -902,7 +912,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     expect(await screen.findByText("bank", { selector: "u" }))
       .toBeInTheDocument();
@@ -958,7 +968,10 @@ describe("SpacedReviewWorkspace", () => {
     await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
       "idle"
     ));
-    expect(screen.getByText("0 個可複習")).toBeInTheDocument();
+    const readySummary = screen.getByRole("region", {
+      name: "現在可練習"
+    });
+    expect(readySummary).toHaveTextContent("現在可練習0 張");
 
     unmount();
     expect(api.discardPaper).toHaveBeenCalled();
@@ -1060,7 +1073,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.click(await screen.findByRole("button", {
       name: "提交試卷（2 題未作答）"
@@ -1100,7 +1113,7 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.click(await screen.findByRole("button", {
       name: "提交試卷（1 題未作答）"

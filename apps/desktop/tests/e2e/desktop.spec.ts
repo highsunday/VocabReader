@@ -369,9 +369,10 @@ test("launches the secure Electron reading shell", async () => {
     await expect(
       page.getByRole("heading", { name: "間隔複習" })
     ).toBeVisible();
-    await expect(page.getByText("10 個可複習")).toBeVisible();
+    await expect(page.getByText("現在可練習")).toBeVisible();
+    await expect(page.getByText("10", { exact: true }).first()).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "生成本回合試卷" })
+      page.getByRole("button", { name: "開始 10 題複習" })
     ).toBeVisible();
     const reviewScroll = await page.evaluate(async () => {
       const content = document.querySelector<HTMLElement>(

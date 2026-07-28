@@ -1122,7 +1122,7 @@ describe("App", () => {
       name: /間隔複習 1/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     expect(await screen.findByRole("region", {
       name: "AI 生成試卷"
@@ -1182,7 +1182,7 @@ describe("App", () => {
     expect(document.querySelector(".review-sidebar-status"))
       .not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
 
     expect(await screen.findByRole("button", { name: /試卷生成中/ }))
@@ -1197,7 +1197,7 @@ describe("App", () => {
     expect(document.querySelector(".review-sidebar-status"))
       .not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
 
     expect(await screen.findByRole("button", {
@@ -1228,7 +1228,7 @@ describe("App", () => {
       name: /間隔複習 1/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     const answer = await screen.findByLabelText("這個詞在句中的意思");
     fireEvent.change(answer, { target: { value: "不情願的" } });
@@ -1272,7 +1272,7 @@ describe("App", () => {
       name: /間隔複習 1/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "生成本回合試卷"
+      name: /開始 \d+ 題複習/
     }));
     fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
       target: { value: "不情願的" }

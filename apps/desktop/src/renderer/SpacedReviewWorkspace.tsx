@@ -175,6 +175,24 @@ export function SpacedReviewWorkspace({
   const selectedNewCount = summary?.selectedItems.length
     ? summary.selectedItems.length - selectedDueCount
     : 0;
+  const availableUnstartedNewCount = summary
+    ? summary.availableNewCount ??
+      Math.min(summary.newCount, summary.newRemainingCapacity)
+    : 0;
+  const availableRegularDueCount = summary
+    ? summary.availableDueCount ?? Math.min(
+        Math.max(0, summary.dueReviewedCount - summary.dueLearningCount),
+        summary.dueRemainingCapacity
+      )
+    : 0;
+  const availableLearningCount = summary
+    ? summary.availableLearningCount ?? Math.max(
+        0,
+        summary.totalAvailable -
+          availableUnstartedNewCount -
+          availableRegularDueCount
+      )
+    : 0;
   async function generatePaper() {
     const attempt = generationAttemptRef.current + 1;
     generationAttemptRef.current = attempt;
@@ -321,13 +339,8 @@ export function SpacedReviewWorkspace({
         <div>
           <span className="eyebrow">Spaced review</span>
           <h1 id="review-title">間隔複習</h1>
-          <p>用例句回想詞義，AI 批改後再確認本回合排程。</p>
+          <p>先完成正在學習的卡片，再複習到期卡片。</p>
         </div>
-        {summary ? (
-          <span className="review-available-count">
-            {summary.totalAvailable} 個可複習
-          </span>
-        ) : null}
       </header>
 
       {error ? <p className="library-error" role="alert">{error}</p> : null}
@@ -335,37 +348,111 @@ export function SpacedReviewWorkspace({
       {phase === "loading" ? <p className="library-state">載入複習排程中…</p> : null}
 
       {summary ? (
-        <section
-          className="review-status-grid"
-          aria-label="間隔複習狀態"
-        >
-          <div>
-            <span>新項目完成</span>
-            <strong>
-              {summary.reviewedNewTodayCount} / {summary.newCompletionLimit}
-            </strong>
-            <small>學習中 {summary.newLearningCount}</small>
-          </div>
-          <div>
-            <span>到期複習完成</span>
-            <strong>
-              {summary.reviewedDueTodayCount} / {
-                summary.dueReviewCompletionLimit
-              }
-            </strong>
-            <small>學習中 {summary.dueLearningCount}</small>
-          </div>
-          <div>
-            <span>尚未開始的新項目</span>
-            <strong>{summary.newCount}</strong>
-            <small>可再引入 {summary.newRemainingCapacity}</small>
-          </div>
-          <div>
-            <span>目前到期項目</span>
-            <strong>{summary.dueReviewedCount}</strong>
-            <small>可再引入 {summary.dueRemainingCapacity}</small>
-          </div>
-        </section>
+        <>
+          <section
+            className="review-ready-summary"
+            aria-labelledby="review-ready-title"
+          >
+            <div className="review-ready-total">
+              <span id="review-ready-title">現在可練習</span>
+              <strong>{summary.totalAvailable}<small> 張</small></strong>
+            </div>
+            <dl aria-label="可練習卡片組成">
+              <div>
+                <dt>學習中再次到期</dt>
+                <dd>{availableLearningCount}</dd>
+              </div>
+              <div>
+                <dt>一般到期</dt>
+                <dd>{availableRegularDueCount}</dd>
+              </div>
+              <div>
+                <dt>今天可開始的新卡</dt>
+                <dd>{availableUnstartedNewCount}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section
+            className="review-daily-status"
+            aria-labelledby="review-daily-status-title"
+          >
+            <div className="review-section-heading">
+              <h2 id="review-daily-status-title">今日進度</h2>
+              <small>完成＝下次複習已排到明天或更晚</small>
+            </div>
+
+            <div className="review-lane-grid">
+              <article className="review-lane-card">
+                <div className="review-lane-title">
+                  <h3>新卡</h3>
+                  <span className={`review-capacity-badge${
+                    summary.newRemainingCapacity === 0 ? " is-full" : ""
+                  }`}>
+                    {summary.newRemainingCapacity === 0
+                      ? "今日名額已滿"
+                      : `還可開始 ${summary.newRemainingCapacity} 張`}
+                  </span>
+                </div>
+                <div className="review-completion-count">
+                  <strong>{summary.reviewedNewTodayCount}</strong>
+                  <span>
+                    / {summary.newCompletionLimit}
+                    <small>已完成</small>
+                  </span>
+                </div>
+                <dl>
+                  <div>
+                    <dt>學習中</dt>
+                    <dd>{summary.newLearningCount}</dd>
+                  </div>
+                  <div>
+                    <dt>尚未開始</dt>
+                    <dd>{summary.newCount}</dd>
+                  </div>
+                  <div>
+                    <dt>剩餘名額</dt>
+                    <dd>{summary.newRemainingCapacity}</dd>
+                  </div>
+                </dl>
+              </article>
+
+              <article className="review-lane-card">
+                <div className="review-lane-title">
+                  <h3>到期複習</h3>
+                  <span className={`review-capacity-badge${
+                    summary.dueRemainingCapacity === 0 ? " is-full" : ""
+                  }`}>
+                    {summary.dueRemainingCapacity === 0
+                      ? "今日名額已滿"
+                      : `尚有 ${summary.dueRemainingCapacity} 個名額`}
+                  </span>
+                </div>
+                <div className="review-completion-count">
+                  <strong>{summary.reviewedDueTodayCount}</strong>
+                  <span>
+                    / {summary.dueReviewCompletionLimit}
+                    <small>已完成</small>
+                  </span>
+                </div>
+                <dl>
+                  <div>
+                    <dt>重新學習中</dt>
+                    <dd>{summary.dueLearningCount}</dd>
+                  </div>
+                  <div>
+                    <dt>現在到期</dt>
+                    <dd>{summary.dueReviewedCount}</dd>
+                  </div>
+                  <div>
+                    <dt>剩餘名額</dt>
+                    <dd>{summary.dueRemainingCapacity}</dd>
+                  </div>
+                </dl>
+              </article>
+            </div>
+          </section>
+        </>
       ) : null}
 
       {summary && (phase === "ready" || hasActivePaper) ? (
@@ -373,30 +460,31 @@ export function SpacedReviewWorkspace({
           <section className={`review-round-summary${
             hasActivePaper ? " has-active-paper" : ""
           }`}>
-            <span>本回合</span>
-            <strong>{summary.selectedItems.length} 題</strong>
-            <div>
-              <p><b>{selectedDueCount}</b> 個既有到期項目</p>
-              <p><b>{selectedNewCount}</b> 個尚未複習的新項目</p>
+            <div className="review-round-title">
+              <span>{hasActivePaper ? "本回合" : "下一回合"}</span>
+              <strong>{summary.selectedItems.length} 題</strong>
             </div>
-            <small>
-              會先完成學習中項目，再取既有到期項目，最後以新項目補足。
-            </small>
+            <p>
+              {selectedNewCount} 張新卡
+              <span aria-hidden="true"> · </span>
+              {selectedDueCount} 張到期
+            </p>
+            <small>學習中卡片優先</small>
             {!hasActivePaper ? (
               <button type="button" onClick={() => void generatePaper()}>
-                生成本回合試卷
+                開始 {summary.selectedItems.length} 題複習
               </button>
             ) : null}
           </section>
         ) : (
           <section className="review-empty-state">
-            <strong>目前沒有可複習的項目</strong>
+            <strong>現在沒有可練習的卡片</strong>
             <p>
               {summary.backlogTotal > 0
-                ? "今天的可用名額已用完；可在設定調整上限。"
+                ? "今天的名額已用完；你可以到設定調整每日上限。"
                 : summary.nextDueAt
-                ? `下一個項目預計於 ${dueLabel(summary.nextDueAt)} 到期。`
-                : "先從閱讀內容建立學習項目，再回來開始複習。"}
+                ? `下一張卡預計於 ${dueLabel(summary.nextDueAt)} 到期。`
+                : "先從閱讀內容建立學習卡，再回來開始複習。"}
             </p>
           </section>
         )

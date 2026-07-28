@@ -21,6 +21,9 @@ export interface ReviewSummary {
   dueRemainingCapacity: number;
   backlogTotal: number;
   totalAvailable: number;
+  availableLearningCount?: number;
+  availableDueCount?: number;
+  availableNewCount?: number;
   selectedItems: ReviewQueueItem[];
   nextDueAt: string | null;
 }
