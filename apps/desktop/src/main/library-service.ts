@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   copyFile,
   mkdir,
@@ -8,6 +8,7 @@ import {
   writeFile
 } from "node:fs/promises";
 import { basename, join, posix } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { XMLParser } from "fast-xml-parser";
 import JSZip from "jszip";
 import type {
@@ -407,6 +408,22 @@ async function requiredTextFile(zip: JSZip, path: string, label: string) {
   return file.async("text");
 }
 
+const epubParseVersion = 2;
+
+async function replaceFileWithRetry(source: string, destination: string) {
+  const retryableCodes = new Set(["EACCES", "EBUSY", "EPERM"]);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(source, destination);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (!code || !retryableCodes.has(code) || attempt >= 4) throw error;
+      await delay(25 * 2 ** attempt);
+    }
+  }
+}
+
 async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
   const zip = await JSZip.loadAsync(contents);
   const mimetype = await requiredTextFile(zip, "mimetype", "mimetype");
@@ -475,8 +492,10 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
     item.properties.split(/\s+/).includes("nav")
   );
   let links: NavigationLink[] = [];
+  let linksDirectory = packageDirectory;
   if (navigationItem) {
     const navigationPath = resolveArchivePath(packageDirectory, navigationItem.href);
+    linksDirectory = posix.dirname(navigationPath);
     links = navigationLinks(xmlParser.parse(await requiredTextFile(zip, navigationPath, "navigation document")));
   } else {
     const ncxId = attribute(spine, "toc");
@@ -484,6 +503,7 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
       manifestItems.find((item) => item.mediaType === "application/x-dtbncx+xml");
     if (ncxItem) {
       const ncxPath = resolveArchivePath(packageDirectory, ncxItem.href);
+      linksDirectory = posix.dirname(ncxPath);
       const ncx = asRecord(xmlParser.parse(await requiredTextFile(zip, ncxPath, "NCX"))).ncx;
       links = ncxLinks(asRecord(ncx).navMap);
     }
@@ -497,7 +517,7 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
   }
 
   const chapters = distinctChapters(links.map<BookChapter>((link, order) => {
-    const href = resolveArchivePath(packageDirectory, link.href);
+    const href = resolveArchivePath(linksDirectory, link.href);
     const fragment = fragmentFromHref(link.href);
     return {
       id: chapterId(
@@ -541,15 +561,20 @@ export class LocalBookLibrary {
     const books = JSON.parse(contents) as LibraryBook[];
     let migrated = false;
     const booksWithHierarchy = await Promise.all(books.map(async (book) => {
-      const needsMigration = book.chapters.some((chapter) =>
-        !("depth" in chapter) || !("fragment" in chapter)
-      );
+      const needsMigration = book.epubParseVersion !== epubParseVersion ||
+        book.chapters.some((chapter) =>
+          !("depth" in chapter) || !("fragment" in chapter)
+        );
       if (!needsMigration) return book;
       try {
         const epubPath = join(this.#booksPath, book.id, "book.epub");
         const parsed = await parseEpub(await readFile(epubPath));
         migrated = true;
-        return { ...book, chapters: parsed.chapters };
+        return {
+          ...book,
+          epubParseVersion,
+          chapters: parsed.chapters
+        };
       } catch {
         return book;
       }
@@ -568,9 +593,14 @@ export class LocalBookLibrary {
   }
 
   async #saveBooks(books: LibraryBook[]): Promise<void> {
-    const temporaryIndex = `${this.#indexPath}.next`;
+    const temporaryIndex = `${this.#indexPath}.${process.pid}.${randomUUID()}.next`;
     await writeFile(temporaryIndex, `${JSON.stringify(books, null, 2)}\n`, "utf8");
-    await rename(temporaryIndex, this.#indexPath);
+    try {
+      await replaceFileWithRetry(temporaryIndex, this.#indexPath);
+    } catch (error) {
+      await rm(temporaryIndex, { force: true });
+      throw error;
+    }
   }
 
   async importFromPath(epubPath: string): Promise<ImportBookResult> {
@@ -591,6 +621,7 @@ export class LocalBookLibrary {
 
     const book: LibraryBook = {
       id,
+      epubParseVersion,
       ...parsed,
       progressPercent: 0,
       lastChapterId: null,

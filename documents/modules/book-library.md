@@ -2,7 +2,7 @@
 title: 書籍與本機書庫模組
 module: book-library
 status: active
-last_updated: 2026-07-24
+last_updated: 2026-07-28
 related_implements:
   - F01-epub-book-library
   - F02-chapter-reading-resume
@@ -16,6 +16,7 @@ related_implements:
   - B02-persist-range-marker-on-drag-release
   - F25-adjustable-reading-and-conversation-font-sizes
   - F26-reading-layout-settings
+  - B13-resolve-nested-epub-navigation-on-windows
 ---
 
 # 書籍與本機書庫模組
@@ -58,6 +59,8 @@ related_implements:
 - 長章節清單只捲動中央內容，左右欄保持在視窗內。
 - 書籍總覽以縮排、字級、標記及操作文字區分子章節；開啟子章節時定位到書內 fragment。
 - 舊版索引缺少目錄層級時，會從已保存的 EPUB 自動補回並持久化，不需重新導入。
+- navigation／NCX 的章節連結以各自 TOC 文件目錄為基準解析；舊 parse version
+  會從已保存 EPUB 自動重建章節 metadata，修復既有錯誤 href。
 - 章節閱讀工具列提供 `Aa` 閱讀版面面板，可即時調整 16–32px 內文字級、
   560–960px 紙張寬度與 1.4–2.4 倍正文行距，並可恢復 19px／760px／1.9
   預設值；設定跨書籍保存，但不改變側欄、AI 對話面板或 EPUB 原始內容。
@@ -121,6 +124,7 @@ related_implements:
 | Field | Meaning |
 |---|---|
 | id | EPUB 完整位元組內容的 SHA-256；同時作為書籍目錄名稱與去重鍵 |
+| epubParseVersion | EPUB 章節 metadata parser 版本；舊版或缺少時由原始 EPUB 自動重建 |
 | title | package metadata 的第一個 title；缺少時拒絕導入 |
 | author | package metadata 的第一個 creator；缺少時使用「未知作者」 |
 | coverDataUrl | 封面圖片的 MIME type 與 Base64 Data URL；沒有可辨識封面時為 null |
@@ -163,7 +167,7 @@ related_implements:
 
 1. Main process 在正式環境使用 app.getPath("userData")/library 建立 LocalBookLibrary。
 2. Renderer mount 後透過 preload 呼叫 listBooks()。
-3. Main process 讀取 index.json；若舊章節缺少 depth／fragment，從保存的 EPUB 重新解析並更新索引。
+3. Main process 讀取 index.json；若 parse version 過舊或章節缺少 depth／fragment，從保存的 EPUB 重新解析並更新索引。
 4. Main process 依 order 排序每本書的章節後回傳。
 5. Renderer 顯示書籍清單，並預設選取第一本書。
 6. 若第一本書上次停在 reader，載入保存章節並在本文呈現後恢復相對捲動位置；否則顯示總覽。
@@ -215,6 +219,8 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - 從 META-INF/container.xml 取得 package document 路徑。
 - EPUB 3 優先使用帶有 nav property 的 navigation document。
 - EPUB 2 使用 spine toc 指向的 NCX，或第一個 NCX media type 項目。
+- navigation 與 NCX 內的相對連結以各自 TOC 文件所在目錄為基準；spine fallback
+  才以 package document 目錄為基準。
 - navigation document 的巢狀 `<ol>` 與 NCX 的巢狀 `navPoint` 會依深度遞迴解析；同檔案不同 fragment 會保留為不同閱讀入口。
 - 如果沒有 navigation／NCX 連結，依 spine manifest 順序建立 fallback 章節。
 - EPUB 3 封面使用 manifest cover-image property；EPUB 2 使用 metadata cover id。
@@ -232,7 +238,8 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
             └── book.epub
 
 - index.json 保存完整 LibraryBook[]，包含 Base64 封面與章節 metadata。
-- 索引更新先寫入 index.json.next，再以 rename 替換正式索引。
+- 索引更新先寫入包含 process id 與 UUID 的唯一 temp，再以 rename 替換正式索引；
+  Windows `EACCES`／`EBUSY`／`EPERM` 以有限指數退避重試，最終失敗時清除 temp。
 - 閱讀狀態寫入在單一 LocalBookLibrary instance 內串行執行，以最後一筆操作為準。
 - 章內範圍標籤、持久標記與閱讀狀態共用同一寫入佇列，並分別保存在 `chapterRanges`、`chapterAnnotations` 與 `readingState`。
 - 書籍刪除與閱讀狀態寫入共用同一佇列，避免刪除後又被較晚完成的狀態保存寫回索引。
@@ -276,7 +283,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 
 | Test file | Coverage |
 |---|---|
-| apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、章節階層與舊索引遷移、fragment 定位、安全內容與圖片、閱讀狀態及每章範圍持久化、不存在書籍／章節與錯誤回滾 |
+| apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、TOC 相對路徑、章節階層與 parse-version 舊索引遷移、fragment 定位、安全內容與圖片、閱讀狀態及每章範圍持久化、不存在書籍／章節與錯誤回滾 |
 | apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、刪除、章節、閱讀狀態與閱讀區段 handler，以及輸入驗證 |
 | apps/desktop/src/main/settings-store.test.ts | 閱讀版面預設、完整保存、舊設定相容與無效欄位獨立降級 |
 | apps/desktop/src/main/settings-ipc.test.ts | 字級、紙張寬度、行距及完整設定 payload 的範圍／步進驗證 |
@@ -297,7 +304,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - 章節閱讀只保留常見安全 HTML 與點陣圖片，尚未支援 EPUB 自訂 CSS／字型、SVG、影音、MathML 與複雜互動內容。
 - 相對閱讀位置可容忍版面重排，但字型或視窗變動很大時只能恢復到接近原段落，無法保證像素完全一致。
 - 尚未提供重新命名、排序、重新導入或匯出書籍的操作。
-- index.json 沒有 schema version、資料 migration、結構驗證或損壞修復流程。
+- index.json 只有 EPUB parse version migration，尚無完整 schema version、全資料 migration、結構驗證或損壞修復流程。
 - 書庫沒有跨 process 寫入鎖；目前假設只有單一 Electron main process 操作。
 - Base64 封面直接保存在 index.json 並經 IPC 傳遞；大量或高解析度封面可能使索引與 IPC payload 過大。
 - 封面解析只支援標準 cover-image／legacy cover metadata 指向的直接圖片，不支援以封面 XHTML 間接引用圖片的變體。
@@ -317,6 +324,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - documents/implements/F13-persistent-annotations-and-ai-analysis.md
 - documents/implements/B01-preserve-epub-chapter-hierarchy.md
 - documents/implements/B02-persist-range-marker-on-drag-release.md
+- documents/implements/B13-resolve-nested-epub-navigation-on-windows.md
 - documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md
 - documents/implements/F26-reading-layout-settings.md
 - documents/modules/reading-range.md

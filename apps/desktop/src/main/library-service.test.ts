@@ -121,6 +121,39 @@ async function createEpub2(path: string) {
   await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
 }
 
+async function createEpubWithNestedNavigationDocument(path: string) {
+  const zip = new JSZip();
+  zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
+  zip.file(
+    "META-INF/container.xml",
+    `<container><rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>`
+  );
+  zip.file(
+    "OEBPS/content.opf",
+    `<package version="3.0">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Nested Navigation</dc:title>
+      </metadata>
+      <manifest>
+        <item id="nav" href="text/nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+        <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+      </manifest>
+      <spine><itemref idref="chapter"/></spine>
+    </package>`
+  );
+  zip.file(
+    "OEBPS/text/nav.xhtml",
+    `<html xmlns:epub="http://www.idpf.org/2007/ops"><body>
+      <nav epub:type="toc"><ol><li><a href="chapter.xhtml">Nested chapter</a></li></ol></nav>
+    </body></html>`
+  );
+  zip.file(
+    "OEBPS/text/chapter.xhtml",
+    "<html><body><p>Resolved beside the navigation document.</p></body></html>"
+  );
+  await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
+}
+
 describe("LocalBookLibrary", () => {
   it("imports EPUB 3 metadata, cover and navigation, then reloads it from disk", async () => {
     const root = await createTemporaryDirectory();
@@ -173,6 +206,53 @@ describe("LocalBookLibrary", () => {
     ]);
     expect(new Set(result.book.chapters.map((chapter) => chapter.id)).size)
       .toBe(result.book.chapters.length);
+  });
+
+  it("resolves EPUB 3 chapter links relative to a nested navigation document", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "nested-navigation.epub");
+    await createEpubWithNestedNavigationDocument(epubPath);
+    const library = new LocalBookLibrary(join(root, "library"));
+
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    const [chapter] = imported.book.chapters;
+
+    expect(chapter.href).toBe("OEBPS/text/chapter.xhtml");
+    await expect(library.getChapterContent(imported.book.id, chapter.id))
+      .resolves.toMatchObject({
+        title: "Nested chapter",
+        contentHtml: expect.stringContaining(
+          "Resolved beside the navigation document."
+        )
+      });
+  });
+
+  it("reparses existing indexes created before nested navigation paths were fixed", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "legacy-nested-navigation.epub");
+    const libraryPath = join(root, "library");
+    await createEpubWithNestedNavigationDocument(epubPath);
+    const imported = await new LocalBookLibrary(libraryPath).importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    const indexPath = join(libraryPath, "index.json");
+    const persisted = JSON.parse(await readFile(indexPath, "utf8")) as LibraryBook[];
+    delete persisted[0].epubParseVersion;
+    persisted[0].chapters[0].href = "OEBPS/chapter.xhtml";
+    await writeFile(indexPath, `${JSON.stringify(persisted, null, 2)}\n`);
+
+    const library = new LocalBookLibrary(libraryPath);
+    const [migrated] = await library.listBooks();
+
+    expect(migrated.epubParseVersion).toBe(2);
+    expect(migrated.chapters[0].href).toBe("OEBPS/text/chapter.xhtml");
+    await expect(
+      library.getChapterContent(migrated.id, migrated.chapters[0].id)
+    ).resolves.toMatchObject({
+      contentHtml: expect.stringContaining(
+        "Resolved beside the navigation document."
+      )
+    });
   });
 
   it("imports EPUB 2 metadata, legacy cover and NCX navigation", async () => {

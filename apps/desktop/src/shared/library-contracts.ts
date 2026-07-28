@@ -29,6 +29,7 @@ export interface Annotation {
 
 export interface LibraryBook {
   id: string;
+  epubParseVersion?: number;
   title: string;
   author: string;
   coverDataUrl: string | null;
