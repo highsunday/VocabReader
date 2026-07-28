@@ -29,27 +29,39 @@ describe("LocalSettingsStore", () => {
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
-      ebookLineHeight: 1.9
+      ebookLineHeight: 1.9,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     });
     await expect(store.save({
       explanationLanguage: "ja",
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
-      ebookLineHeight: 2.2
+      ebookLineHeight: 2.2,
+      dailyNewItemCompletionLimit: 25,
+      dailyDueReviewCompletionLimit: 80,
+      reviewPaperSize: 6
     })).resolves.toEqual({
       explanationLanguage: "ja",
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
-      ebookLineHeight: 2.2
+      ebookLineHeight: 2.2,
+      dailyNewItemCompletionLimit: 25,
+      dailyDueReviewCompletionLimit: 80,
+      reviewPaperSize: 6
     });
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
       explanationLanguage: "ja",
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
-      ebookLineHeight: 2.2
+      ebookLineHeight: 2.2,
+      dailyNewItemCompletionLimit: 25,
+      dailyDueReviewCompletionLimit: 80,
+      reviewPaperSize: 6
     });
     await expect(readFile(join(directory, "settings.json"), "utf8"))
       .resolves.toContain('"explanationLanguage": "ja"');
@@ -63,7 +75,10 @@ describe("LocalSettingsStore", () => {
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
-      ebookLineHeight: 1.9
+      ebookLineHeight: 1.9,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     });
 
     await writeFile(
@@ -76,7 +91,10 @@ describe("LocalSettingsStore", () => {
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
-      ebookLineHeight: 1.9
+      ebookLineHeight: 1.9,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     });
 
     await writeFile(
@@ -95,7 +113,10 @@ describe("LocalSettingsStore", () => {
       aiConversationFontSize: 13,
       ebookContentFontSize: 28,
       readingPaperWidth: 900,
-      ebookLineHeight: 2.2
+      ebookLineHeight: 2.2,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     });
 
     await writeFile(
@@ -105,7 +126,10 @@ describe("LocalSettingsStore", () => {
         aiConversationFontSize: 18,
         ebookContentFontSize: 24,
         readingPaperWidth: 901,
-        ebookLineHeight: 2.25
+        ebookLineHeight: 2.25,
+        dailyNewItemCompletionLimit: -1,
+        dailyDueReviewCompletionLimit: 1000,
+        reviewPaperSize: 21
       }),
       "utf8"
     );
@@ -114,7 +138,10 @@ describe("LocalSettingsStore", () => {
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 760,
-      ebookLineHeight: 1.9
+      ebookLineHeight: 1.9,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     });
   });
 });

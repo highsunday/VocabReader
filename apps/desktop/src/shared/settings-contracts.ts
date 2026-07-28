@@ -26,12 +26,36 @@ export const EBOOK_LINE_HEIGHT = {
   default: 1.9
 } as const;
 
+export const DAILY_REVIEW_COMPLETION_LIMIT = {
+  min: 0,
+  max: 999
+} as const;
+
+export const DAILY_NEW_ITEM_COMPLETION_LIMIT = {
+  ...DAILY_REVIEW_COMPLETION_LIMIT,
+  default: 10
+} as const;
+
+export const DAILY_DUE_REVIEW_COMPLETION_LIMIT = {
+  ...DAILY_REVIEW_COMPLETION_LIMIT,
+  default: 50
+} as const;
+
+export const REVIEW_PAPER_SIZE = {
+  min: 1,
+  max: 20,
+  default: 10
+} as const;
+
 export interface AppSettings {
   explanationLanguage: ExplanationLanguage;
   aiConversationFontSize: number;
   ebookContentFontSize: number;
   readingPaperWidth: number;
   ebookLineHeight: number;
+  dailyNewItemCompletionLimit: number;
+  dailyDueReviewCompletionLimit: number;
+  reviewPaperSize: number;
 }
 
 export interface SettingsDesktopApi {
@@ -90,5 +114,23 @@ export function isEbookLineHeight(value: unknown): value is number {
     Number.isInteger(scaledValue) &&
     scaledValue >= EBOOK_LINE_HEIGHT.min * 10 &&
     scaledValue <= EBOOK_LINE_HEIGHT.max * 10
+  );
+}
+
+export function isDailyReviewCompletionLimit(
+  value: unknown
+): value is number {
+  return isIntegerInRange(
+    value,
+    DAILY_REVIEW_COMPLETION_LIMIT.min,
+    DAILY_REVIEW_COMPLETION_LIMIT.max
+  );
+}
+
+export function isReviewPaperSize(value: unknown): value is number {
+  return isIntegerInRange(
+    value,
+    REVIEW_PAPER_SIZE.min,
+    REVIEW_PAPER_SIZE.max
   );
 }

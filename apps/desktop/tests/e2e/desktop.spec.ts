@@ -473,7 +473,10 @@ test("launches the secure Electron reading shell", async () => {
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
-      ebookLineHeight: 2.2
+      ebookLineHeight: 2.2,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     }));
     await page.reload();
     await expect(page).toHaveTitle("LingoShelf");

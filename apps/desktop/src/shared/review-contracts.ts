@@ -12,6 +12,14 @@ export interface ReviewSummary {
   newCount: number;
   reviewedNewTodayCount: number;
   reviewedDueTodayCount: number;
+  newLearningCount: number;
+  dueLearningCount: number;
+  newCompletionLimit: number;
+  dueReviewCompletionLimit: number;
+  reviewPaperSize: number;
+  newRemainingCapacity: number;
+  dueRemainingCapacity: number;
+  backlogTotal: number;
   totalAvailable: number;
   selectedItems: ReviewQueueItem[];
   nextDueAt: string | null;

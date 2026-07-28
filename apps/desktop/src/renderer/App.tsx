@@ -36,9 +36,12 @@ import type { LearningDesktopApi } from "../shared/learning-contracts";
 import type { ReviewDesktopApi } from "../shared/review-contracts";
 import {
   AI_CONVERSATION_FONT_SIZE,
+  DAILY_DUE_REVIEW_COMPLETION_LIMIT,
+  DAILY_NEW_ITEM_COMPLETION_LIMIT,
   EBOOK_CONTENT_FONT_SIZE,
   EBOOK_LINE_HEIGHT,
   READING_PAPER_WIDTH,
+  REVIEW_PAPER_SIZE,
   type AppSettings,
   type ExplanationLanguage,
   type SettingsDesktopApi
@@ -251,7 +254,10 @@ export function App() {
     aiConversationFontSize: AI_CONVERSATION_FONT_SIZE.default,
     ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default,
     readingPaperWidth: READING_PAPER_WIDTH.default,
-    ebookLineHeight: EBOOK_LINE_HEIGHT.default
+    ebookLineHeight: EBOOK_LINE_HEIGHT.default,
+    dailyNewItemCompletionLimit: DAILY_NEW_ITEM_COMPLETION_LIMIT.default,
+    dailyDueReviewCompletionLimit: DAILY_DUE_REVIEW_COMPLETION_LIMIT.default,
+    reviewPaperSize: REVIEW_PAPER_SIZE.default
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isReadingLayoutOpen, setIsReadingLayoutOpen] = useState(false);
@@ -259,6 +265,7 @@ export function App() {
   const [settingsError, setSettingsError] = useState("");
   const [learningCounts, setLearningCounts] = useState({ active: 0, trashed: 0 });
   const [reviewAvailableCount, setReviewAvailableCount] = useState(0);
+  const [reviewSettingsRevision, setReviewSettingsRevision] = useState(0);
   const [reviewWorkspaceStatus, setReviewWorkspaceStatus] =
     useState<ReviewWorkspaceStatus>("idle");
   const [openLearningItemBatchId, setOpenLearningItemBatchId] =
@@ -859,6 +866,7 @@ export function App() {
       const saved = api ? await api.save(next) : next;
       if (revision === settingsSaveRevisionRef.current) {
         setSettings(saved);
+        setReviewSettingsRevision((current) => current + 1);
       }
     } catch {
       if (revision === settingsSaveRevisionRef.current) {
@@ -886,7 +894,10 @@ export function App() {
       | "aiConversationFontSize"
       | "ebookContentFontSize"
       | "readingPaperWidth"
-      | "ebookLineHeight",
+      | "ebookLineHeight"
+      | "dailyNewItemCompletionLimit"
+      | "dailyDueReviewCompletionLimit"
+      | "reviewPaperSize",
     value: number
   ) {
     const next = { ...settings, [field]: value };
@@ -1738,6 +1749,7 @@ export function App() {
               api={desktopReview()!}
               learningApi={desktopLearning()}
               explanationLanguage={settings.explanationLanguage}
+              settingsRevision={reviewSettingsRevision}
               active={mode === "spaced-review"}
               onAvailableCountChange={setReviewAvailableCount}
               onStatusChange={setReviewWorkspaceStatus}
@@ -2508,6 +2520,55 @@ export function App() {
               />
               <p>只調整使用者訊息與 AI 回覆正文。</p>
             </div>
+            <fieldset className="settings-control review-settings">
+              <legend>間隔複習</legend>
+              <label htmlFor="daily-new-item-completion-limit">
+                每日新項目完成上限
+              </label>
+              <input
+                id="daily-new-item-completion-limit"
+                type="number"
+                min={DAILY_NEW_ITEM_COMPLETION_LIMIT.min}
+                max={DAILY_NEW_ITEM_COMPLETION_LIMIT.max}
+                step="1"
+                value={settings.dailyNewItemCompletionLimit}
+                onChange={(event) => previewSetting(
+                  "dailyNewItemCompletionLimit",
+                  Number(event.target.value)
+                )}
+              />
+              <p>完成是指下一次到期日期已排到隔天或更晚；0 代表暫停。</p>
+              <label htmlFor="daily-due-review-completion-limit">
+                每日到期複習完成上限
+              </label>
+              <input
+                id="daily-due-review-completion-limit"
+                type="number"
+                min={DAILY_DUE_REVIEW_COMPLETION_LIMIT.min}
+                max={DAILY_DUE_REVIEW_COMPLETION_LIMIT.max}
+                step="1"
+                value={settings.dailyDueReviewCompletionLimit}
+                onChange={(event) => previewSetting(
+                  "dailyDueReviewCompletionLimit",
+                  Number(event.target.value)
+                )}
+              />
+              <p>與新項目額度獨立計算；0 代表暫停。</p>
+              <label htmlFor="review-paper-size">每份試卷題數</label>
+              <input
+                id="review-paper-size"
+                type="number"
+                min={REVIEW_PAPER_SIZE.min}
+                max={REVIEW_PAPER_SIZE.max}
+                step="1"
+                value={settings.reviewPaperSize}
+                onChange={(event) => previewSetting(
+                  "reviewPaperSize",
+                  Number(event.target.value)
+                )}
+              />
+              <p>可設定 1–20 題；可用額度不足時，實際題數會較少。</p>
+            </fieldset>
             {settingsError ? <small role="alert">{settingsError}</small> : null}
           </section>
         </div>

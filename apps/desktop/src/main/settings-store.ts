@@ -2,14 +2,19 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   AI_CONVERSATION_FONT_SIZE,
+  DAILY_DUE_REVIEW_COMPLETION_LIMIT,
+  DAILY_NEW_ITEM_COMPLETION_LIMIT,
   EBOOK_CONTENT_FONT_SIZE,
   EBOOK_LINE_HEIGHT,
   READING_PAPER_WIDTH,
+  REVIEW_PAPER_SIZE,
   isAiConversationFontSize,
   isEbookContentFontSize,
   isEbookLineHeight,
+  isDailyReviewCompletionLimit,
   isExplanationLanguage,
   isReadingPaperWidth,
+  isReviewPaperSize,
   type AppSettings
 } from "../shared/settings-contracts";
 
@@ -18,7 +23,10 @@ const defaultSettings = (): AppSettings => ({
   aiConversationFontSize: AI_CONVERSATION_FONT_SIZE.default,
   ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default,
   readingPaperWidth: READING_PAPER_WIDTH.default,
-  ebookLineHeight: EBOOK_LINE_HEIGHT.default
+  ebookLineHeight: EBOOK_LINE_HEIGHT.default,
+  dailyNewItemCompletionLimit: DAILY_NEW_ITEM_COMPLETION_LIMIT.default,
+  dailyDueReviewCompletionLimit: DAILY_DUE_REVIEW_COMPLETION_LIMIT.default,
+  reviewPaperSize: REVIEW_PAPER_SIZE.default
 });
 
 export class LocalSettingsStore {
@@ -53,7 +61,20 @@ export class LocalSettingsStore {
           : defaults.readingPaperWidth,
         ebookLineHeight: isEbookLineHeight(parsed?.ebookLineHeight)
           ? parsed.ebookLineHeight
-          : defaults.ebookLineHeight
+          : defaults.ebookLineHeight,
+        dailyNewItemCompletionLimit: isDailyReviewCompletionLimit(
+          parsed?.dailyNewItemCompletionLimit
+        )
+          ? parsed.dailyNewItemCompletionLimit
+          : defaults.dailyNewItemCompletionLimit,
+        dailyDueReviewCompletionLimit: isDailyReviewCompletionLimit(
+          parsed?.dailyDueReviewCompletionLimit
+        )
+          ? parsed.dailyDueReviewCompletionLimit
+          : defaults.dailyDueReviewCompletionLimit,
+        reviewPaperSize: isReviewPaperSize(parsed?.reviewPaperSize)
+          ? parsed.reviewPaperSize
+          : defaults.reviewPaperSize
       };
     } catch {
       return defaultSettings();

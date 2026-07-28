@@ -27,6 +27,11 @@ import type {
   ReviewRating,
   ReviewSummary
 } from "../shared/review-contracts";
+import {
+  DAILY_DUE_REVIEW_COMPLETION_LIMIT,
+  DAILY_NEW_ITEM_COMPLETION_LIMIT,
+  REVIEW_PAPER_SIZE
+} from "../shared/settings-contracts";
 
 interface LearningItemRow {
   id: string;
@@ -65,6 +70,30 @@ interface ReviewQueueRow extends LearningItemRow {
   due_at: string | null;
 }
 
+type ReviewLearningKind = "new" | "due";
+
+interface ReviewProgressRow {
+  id: string;
+  learning_item_id: string;
+  reviewed_at: string;
+  next_due_at: string;
+}
+
+interface ReviewProgressState {
+  hasCompletedNewItem: boolean;
+  learningKind: ReviewLearningKind | null;
+}
+
+interface ReviewPreferences {
+  dailyNewItemCompletionLimit: number;
+  dailyDueReviewCompletionLimit: number;
+  reviewPaperSize: number;
+}
+
+interface LocalLearningLibraryOptions {
+  getReviewPreferences?(): Promise<ReviewPreferences>;
+}
+
 const itemTypes = new Set<LearningItemType>(["word", "phrase"]);
 const cefrLevels = new Set<CefrLevel>(["A1", "A2", "B1", "B2", "C1", "C2"]);
 const statuses = new Set<LearningItemStatus>(["active", "trashed"]);
@@ -95,6 +124,63 @@ function localDayRange(value: Date): [string, string] {
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
   return [start.toISOString(), end.toISOString()];
+}
+
+function localDayKey(value: Date | string): string {
+  const date = validDate(value, "日期");
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function reviewProgress(
+  rows: ReviewProgressRow[],
+  now: Date
+): {
+  states: Map<string, ReviewProgressState>;
+  completedNewToday: number;
+  completedDueToday: number;
+  newLearningCount: number;
+  dueLearningCount: number;
+} {
+  const states = new Map<string, ReviewProgressState>();
+  const [todayStartIso, tomorrowStartIso] = localDayRange(now);
+  let completedNewToday = 0;
+  let completedDueToday = 0;
+  for (const row of rows) {
+    const state = states.get(row.learning_item_id) ?? {
+      hasCompletedNewItem: false,
+      learningKind: null
+    };
+    const kind: ReviewLearningKind = state.hasCompletedNewItem ? "due" : "new";
+    const completed = localDayKey(row.next_due_at) > localDayKey(row.reviewed_at);
+    if (completed) {
+      state.hasCompletedNewItem = true;
+      state.learningKind = null;
+      if (row.reviewed_at >= todayStartIso && row.reviewed_at < tomorrowStartIso) {
+        if (kind === "new") completedNewToday += 1;
+        else completedDueToday += 1;
+      }
+    } else {
+      state.learningKind = kind;
+    }
+    states.set(row.learning_item_id, state);
+  }
+  let newLearningCount = 0;
+  let dueLearningCount = 0;
+  for (const state of states.values()) {
+    if (state.learningKind === "new") newLearningCount += 1;
+    if (state.learningKind === "due") dueLearningCount += 1;
+  }
+  return {
+    states,
+    completedNewToday,
+    completedDueToday,
+    newLearningCount,
+    dueLearningCount
+  };
 }
 
 function ratingForFsrs(rating: ReviewRating): Grade {
@@ -404,7 +490,10 @@ const mockItems: CreateLearningItemInput[] = [
 export class LocalLearningLibrary {
   #database: DatabaseSync | undefined;
 
-  constructor(private readonly databasePath: string) {}
+  constructor(
+    private readonly databasePath: string,
+    private readonly options: LocalLearningLibraryOptions = {}
+  ) {}
 
   #open(): DatabaseSync {
     if (this.#database) return this.#database;
@@ -584,75 +673,106 @@ export class LocalLearningLibrary {
   async getReviewSummary(nowInput: Date | string = new Date()): Promise<ReviewSummary> {
     const now = validDate(nowInput, "目前時間");
     const nowIso = now.toISOString();
-    const [todayStartIso, tomorrowStartIso] = localDayRange(now);
     const database = this.#open();
-    const dueRows = database.prepare(`
+    const preferences = this.options.getReviewPreferences
+      ? await this.options.getReviewPreferences()
+      : {
+          dailyNewItemCompletionLimit:
+            DAILY_NEW_ITEM_COMPLETION_LIMIT.default,
+          dailyDueReviewCompletionLimit:
+            DAILY_DUE_REVIEW_COMPLETION_LIMIT.default,
+          reviewPaperSize: REVIEW_PAPER_SIZE.default
+        };
+    const progressRows = database.prepare(`
+      SELECT e.id, e.learning_item_id, e.reviewed_at, e.next_due_at
+      FROM learning_review_events e
+      JOIN learning_items i ON i.id = e.learning_item_id
+      WHERE i.status = 'active' AND e.reviewed_at <= ?
+      ORDER BY e.learning_item_id ASC, e.reviewed_at ASC, e.id ASC
+    `).all(nowIso) as unknown as ReviewProgressRow[];
+    const progress = reviewProgress(progressRows, now);
+    const allDueRows = database.prepare(`
       SELECT i.*, s.due_at
       FROM learning_items i
       JOIN learning_review_schedules s ON s.learning_item_id = i.id
       WHERE i.status = 'active' AND s.due_at <= ?
       ORDER BY s.due_at ASC, i.id ASC
-      LIMIT 10
     `).all(nowIso) as unknown as ReviewQueueRow[];
-    const dueReviewedCount = Number((database.prepare(`
-      SELECT COUNT(*) AS count
-      FROM learning_items i
-      JOIN learning_review_schedules s ON s.learning_item_id = i.id
-      WHERE i.status = 'active' AND s.due_at <= ?
-    `).get(nowIso) as { count: number }).count);
-    const newCount = Number((database.prepare(`
-      SELECT COUNT(*) AS count
+    const newRows = database.prepare(`
+      SELECT i.*, NULL AS due_at
       FROM learning_items i
       LEFT JOIN learning_review_schedules s ON s.learning_item_id = i.id
       WHERE i.status = 'active' AND s.learning_item_id IS NULL
-    `).get() as { count: number }).count);
-    const remaining = Math.max(0, 10 - dueRows.length);
-    const newRows = remaining
-      ? database.prepare(`
-          SELECT i.*, NULL AS due_at
-          FROM learning_items i
-          LEFT JOIN learning_review_schedules s ON s.learning_item_id = i.id
-          WHERE i.status = 'active' AND s.learning_item_id IS NULL
-          ORDER BY ${cefrOrder} ASC, i.created_at ASC, i.id ASC
-          LIMIT ?
-        `).all(remaining) as unknown as ReviewQueueRow[]
-      : [];
-    const selectedItems: ReviewQueueItem[] = [
-      ...dueRows.map((row) => ({
+      ORDER BY ${cefrOrder} ASC, i.created_at ASC, i.id ASC
+    `).all() as unknown as ReviewQueueRow[];
+    const learningDueRows = allDueRows.filter((row) =>
+      progress.states.get(row.id)?.learningKind
+    );
+    const otherDueRows = allDueRows.filter((row) =>
+      !progress.states.get(row.id)?.learningKind
+    );
+    const dueReviewedCount = allDueRows.filter((row) =>
+      progress.states.get(row.id)?.learningKind !== "new"
+    ).length;
+    const newCount = newRows.length;
+    const newRemainingCapacity = Math.max(
+      0,
+      preferences.dailyNewItemCompletionLimit -
+        progress.completedNewToday -
+        progress.newLearningCount
+    );
+    const dueRemainingCapacity = Math.max(
+      0,
+      preferences.dailyDueReviewCompletionLimit -
+        progress.completedDueToday -
+        progress.dueLearningCount
+    );
+    const eligibleLearningRows = learningDueRows.filter((row) => {
+      const kind = progress.states.get(row.id)?.learningKind;
+      return kind === "new"
+        ? preferences.dailyNewItemCompletionLimit > 0
+        : preferences.dailyDueReviewCompletionLimit > 0;
+    });
+    const eligibleDueRows = otherDueRows.slice(0, dueRemainingCapacity);
+    const eligibleNewRows = newRows.slice(0, newRemainingCapacity);
+    const selectedRows = [
+      ...eligibleLearningRows,
+      ...eligibleDueRows,
+      ...eligibleNewRows
+    ].slice(0, preferences.reviewPaperSize);
+    const selectedItems: ReviewQueueItem[] = selectedRows.map((row) => {
+      const learningKind = progress.states.get(row.id)?.learningKind;
+      const reviewKind = learningKind ?? (row.due_at ? "due" : "new");
+      return {
         ...itemFromRow(row),
-        reviewKind: "due" as const,
+        reviewKind,
         dueAt: row.due_at
-      })),
-      ...newRows.map((row) => ({
-        ...itemFromRow(row),
-        reviewKind: "new" as const,
-        dueAt: null
-      }))
-    ];
+      };
+    });
     const nextDue = database.prepare(`
       SELECT MIN(s.due_at) AS next_due_at
       FROM learning_items i
       JOIN learning_review_schedules s ON s.learning_item_id = i.id
       WHERE i.status = 'active' AND s.due_at > ?
     `).get(nowIso) as { next_due_at: string | null };
-    const reviewedToday = database.prepare(`
-      SELECT
-        COALESCE(SUM(CASE WHEN previous_card_json IS NULL THEN 1 ELSE 0 END), 0)
-          AS new_count,
-        COALESCE(SUM(CASE WHEN previous_card_json IS NOT NULL THEN 1 ELSE 0 END), 0)
-          AS due_count
-      FROM learning_review_events
-      WHERE reviewed_at >= ? AND reviewed_at < ?
-    `).get(todayStartIso, tomorrowStartIso) as {
-      new_count: number;
-      due_count: number;
-    };
+    const totalAvailable =
+      eligibleLearningRows.length +
+      eligibleDueRows.length +
+      eligibleNewRows.length;
     return {
       dueReviewedCount,
       newCount,
-      reviewedNewTodayCount: Number(reviewedToday.new_count),
-      reviewedDueTodayCount: Number(reviewedToday.due_count),
-      totalAvailable: dueReviewedCount + newCount,
+      reviewedNewTodayCount: progress.completedNewToday,
+      reviewedDueTodayCount: progress.completedDueToday,
+      newLearningCount: progress.newLearningCount,
+      dueLearningCount: progress.dueLearningCount,
+      newCompletionLimit: preferences.dailyNewItemCompletionLimit,
+      dueReviewCompletionLimit: preferences.dailyDueReviewCompletionLimit,
+      reviewPaperSize: preferences.reviewPaperSize,
+      newRemainingCapacity,
+      dueRemainingCapacity,
+      backlogTotal: dueReviewedCount + newCount,
+      totalAvailable,
       selectedItems,
       nextDueAt: nextDue.next_due_at
     };
@@ -703,7 +823,7 @@ export class LocalLearningLibrary {
     const reviewedAt = validDate(input.reviewedAt, "複習時間");
     if (!Array.isArray(input.ratings) ||
       input.ratings.length === 0 ||
-      input.ratings.length > 10) {
+      input.ratings.length > REVIEW_PAPER_SIZE.max) {
       throw new Error("複習評級數量格式錯誤");
     }
     const ratings = input.ratings.map((rating) => {

@@ -71,12 +71,22 @@ app.whenReady().then(() => {
   const learningLibraryPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-learning-test-${process.pid}`, "learning-items.sqlite")
     : join(app.getPath("userData"), "learning-library", "learning-items.sqlite");
-  const learningLibrary = new LocalLearningLibrary(learningLibraryPath);
-  registerLearningLibraryIpc(ipcMain, learningLibrary);
   const settingsPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-settings-test-${process.pid}`)
     : join(app.getPath("userData"), "settings");
-  registerSettingsIpc(ipcMain, new LocalSettingsStore(settingsPath));
+  const settingsStore = new LocalSettingsStore(settingsPath);
+  const learningLibrary = new LocalLearningLibrary(learningLibraryPath, {
+    getReviewPreferences: async () => {
+      const current = await settingsStore.load();
+      return {
+        dailyNewItemCompletionLimit: current.dailyNewItemCompletionLimit,
+        dailyDueReviewCompletionLimit: current.dailyDueReviewCompletionLimit,
+        reviewPaperSize: current.reviewPaperSize
+      };
+    }
+  });
+  registerLearningLibraryIpc(ipcMain, learningLibrary);
+  registerSettingsIpc(ipcMain, settingsStore);
   const runtimePath = join(app.getPath("userData"), "codex-runtime");
   const conversationPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-chat-test-${process.pid}`)

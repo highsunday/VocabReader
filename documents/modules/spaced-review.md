@@ -12,14 +12,15 @@ related_implements:
   - F31-resumable-background-spaced-review
   - F32-add-expression-feedback-to-spaced-review
   - F36-show-spaced-review-daily-status
+  - F37-configurable-daily-review-limits-and-paper-size
 ---
 
 # AI 批改與 FSRS 間隔複習模組
 
 ## 1. Purpose
 
-本模組把生詞庫中的單字與片語轉成可持續的主動回想練習。每回合由本機程式選出最多
-10 個到期或新項目，使用者明確要求後，AI 才生成以特定語義為準的例句試卷。使用者
+本模組把生詞庫中的單字與片語轉成可持續的主動回想練習。每回合由本機程式依使用者
+設定選出 1 至 20 個到期或新項目，使用者明確要求後，AI 才生成以特定語義為準的例句試卷。使用者
 輸入劃線詞在該句中的意思，AI 提供逐題意思回饋與四級評級建議；答案實際使用學習
 項目的語言時，AI 另提供不影響評級的表達建議。使用者確認或覆寫評級後，本機 FSRS
 才更新排程。
@@ -34,10 +35,13 @@ related_implements:
 
 目前支援：
 
-- 側欄獨立「間隔複習」入口及即時可複習數量。
-- 間隔複習頁固定顯示所有目前新項目、目前到期項目、裝置本地今日已完成的新項目
-  複習事件與到期項目複習事件；確認試卷後會重新查詢摘要並立即更新四個數字。
-- 已複習到期項目依最早到期優先，新項目依 CEFR A1→C2、同級依建立時間補滿 10 題。
+- 側欄獨立「間隔複習」入口及今日仍可排入後續試卷的即時數量。
+- 設定提供每日新項目完成上限（預設 10）、每日到期複習完成上限（預設 50）與每份
+  試卷題數（預設 10）；兩類上限為 0–999 且彼此獨立，題數為 1–20。
+- 間隔複習頁固定顯示兩類今日完成數／上限、學習中數、完整 backlog 與可再引入名額；
+  確認試卷或保存設定後會重新查詢摘要並立即更新。
+- 尚未完成且再次到期的學習中項目優先，其次是其他既有到期項目，最後由新項目依
+  CEFR A1→C2、同級建立時間補到設定題數；額度不足時允許較少題。
 - 進入頁面只顯示摘要，不自動使用 AI；明確按下按鈕後才生成試卷。
 - 生成期間以整合式 AI 狀態卡顯示「已完成 X／N 題例句」與確定比例進度；全部例句
   到達後切換為「組裝並檢查試卷」，並保留等待秒數及取消操作。卡片不顯示原始模型
@@ -76,15 +80,18 @@ related_implements:
 
 `LocalLearningLibrary.getReviewSummary()` 以 Main process 的裝置時間建立摘要：
 
-1. 查出 `active` 且已有 schedule、`due_at <= now` 的項目，依 `due_at`、`created_at`
-   排序，最多先取 10 筆。
-2. 剩餘名額由沒有 schedule 的 active 項目補入，依 CEFR A1→C2、`created_at` 排序。
-3. `totalAvailable` 是所有已到期及所有新項目的總數；`selectedItems` 才是本回合最多
-   10 筆的實際組成。
-4. 沒有可用項目時回傳最近一筆尚未到期的 `nextDueAt`。
-5. 摘要另以 Main process 裝置時區建立本地今日 00:00 至次日 00:00 的半開區間；
-   `learning_review_events.previous_card_json` 為空者計為今日已學習新項目，非空者
-   計為今日已學習到期項目。同一項目同日再次到期並完成會形成另一筆到期事件。
+1. 依每個項目的確認事件順序推導穩定的「新項目學習路徑」或「到期複習路徑」。
+   `next_due_at` 的本地日期仍是確認當天時維持學習中；跨日也保留原始路徑。
+2. 只有 `next_due_at` 的本地日期進入隔天或更晚才算完成，並依事件所屬路徑增加今日
+   新項目或到期複習完成數。
+3. 每類占用量為今日完成數加目前學習中數；達到獨立上限後不再引入同類其他項目。
+   上限為 0 時暫停該類別，但不改動已生成試卷。
+4. 先選已再次到期的學習中項目，再依精確逾期時間選其他既有到期項目，最後以沒有
+   schedule 的 active 新項目依 CEFR 與建立時間補足。
+5. `selectedItems` 最多為 `reviewPaperSize`；`totalAvailable` 是目前受額度限制後可排入
+   後續試卷的數量，`backlogTotal` 另保留完整待處理量。
+6. 沒有目前可用項目時回傳最近一筆尚未到期的 `nextDueAt`；Renderer 依 backlog
+   判斷是等待到期或今日額度已用完。
 
 最終評級映射：
 
@@ -102,7 +109,8 @@ related_implements:
 
 `SpacedReviewController` 在 Main process 擁有目前試卷及批改 scope：
 
-1. 生成時重新查詢本回合摘要，只把最多 10 個選中項目的必要欄位交給 AI。
+1. 生成時重新查詢本回合摘要，只把最多 20 個、且不超過每份試卷題數設定的選中項目
+   必要欄位交給 AI。
 2. 每次生成或批改建立獨立的一次性 Codex thread，使用 read-only sandbox、
    `approvalPolicy: never`，並停用工具、網路、一般 skills、plugins、apps 與 memories。
    初始化後讀取分頁 model catalog，優先選擇支援 low 的 Luna，再選 Terra；目錄失敗、
@@ -178,10 +186,12 @@ status 及取消操作，並以 attempt token 忽略取消後的晚到結果。�
 `data-rating` 與顏色，並保留具名評級狀態、AI 建議文字及 radio，顏色不是唯一訊號。
 工作區另外持有只控制顯示的 paused view；它不改變 review phase，也不清除任何
 回合作答狀態。
-工作區載入摘要後，在所有 phase 持續顯示四格間隔複習狀態；它們是完整佇列及本地
-今日已確認事件的統計，不是本回合最多 10 題的組成。確認成功後完成頁保持不變，
+工作區載入摘要後，在所有 phase 持續顯示四格間隔複習狀態；它們包含兩類今日完成
+進度／上限、學習中數、完整佇列與剩餘名額，不是本回合題目的組成。確認成功後完成頁保持不變，
 Renderer 另重新呼叫 `getSummary()` 更新四格狀態與側欄可複習數；若非關鍵刷新失敗，
 不把已成功寫入的確認降回未確認狀態。
+保存設定後 `App` 也要求重新查詢摘要；若已有進行中試卷，只更新額度與側欄數字並
+保留原 `selectedItems`，避免調低上限破壞作答內容。
 paused view 可開啟放棄確認 alert dialog；取消只關閉 dialog，確認才呼叫
 `discardPaper()`、重新載入摘要並回到 ready。本回合摘要在 ready、作答、批改及確認
 階段持續顯示；已有試卷時不再顯示生成按鈕。試卷收合時，同頁下方顯示當前試卷卡；
@@ -219,7 +229,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 
 | Test file | Coverage |
 |---|---|
-| `learning-library-service.test.ts` | due/new 排序、10 題上限、精確到期、FSRS、覆寫歷史、垃圾桶與重複確認 |
+| `learning-library-service.test.ts` | 學習路徑、完成判定、跨日分類、獨立額度、零值暫停、可設定題數、三層排序、精確到期、FSRS、覆寫歷史、垃圾桶與重複確認 |
 | `spaced-review-skill.test.ts` | 評級獨立、表達建議三態、長度獨立、留白答案、語言分工及改寫契約 |
 | `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、表達建議正規化、缺題、未知／重複 id 與錯 scope 拒絕 |
 | `spaced-review-controller.test.ts` | 暫態 paper／expression feedback、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |
@@ -234,7 +244,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 
 - 未完成回合不寫入 SQLite；關閉視窗、重新載入 Renderer、App 當機或重新啟動後
   不恢復。
-- 第一版沒有 deck、每日上限、手動選題、FSRS optimizer 或 retention 設定。
+- 目前沒有 deck、手動選題、FSRS optimizer、retention 設定或自訂學習日開始時間。
 - 沒有持久保存、重播、搜尋或匯出試卷、答案、詳細回饋及表達建議。
 - 沒有同步、Anki 匯入／匯出或跨裝置備份。
 - CEFR 是首次引入順序的近似，尚未結合獨立詞頻資料。
@@ -243,11 +253,14 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
   Codex 預設模型。
 - 完成數取決於 Codex delta 的分段粒度；單一 delta 同時包含多題時，數字會一次跳升，
   但不會以計時器製造假進度。
+- 摘要目前會依完整複習事件序列推導學習路徑；資料量大幅成長後可能需要持久化索引
+  或快取，以避免每次摘要都掃描全部 active 項目的事件。
 
 ## 11. Related Documents
 
 - `CONTEXT.md`
 - `documents/implements/F28-ai-graded-spaced-review-paper.md`
+- `documents/implements/F37-configurable-daily-review-limits-and-paper-size.md`
 - `documents/implements/F29-stream-spaced-review-generation-and-scroll-paper.md`
 - `documents/implements/B09-clarify-spaced-review-generation-status.md`
 - `documents/implements/B10-use-fast-model-for-spaced-review.md`

@@ -16,7 +16,7 @@ Input contains:
 
 - one `paperId`;
 - an `answerLanguage`;
-- 1–10 learning items with `itemId`, `title`, `itemType`, `cefr`, `sense` and
+- 1–20 learning items with `itemId`, `title`, `itemType`, `cefr`, `sense` and
   `markdownContent`.
 
 For every item exactly once:

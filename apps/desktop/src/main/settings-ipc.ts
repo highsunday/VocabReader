@@ -2,8 +2,10 @@ import {
   isAiConversationFontSize,
   isEbookContentFontSize,
   isEbookLineHeight,
+  isDailyReviewCompletionLimit,
   isExplanationLanguage,
   isReadingPaperWidth,
+  isReviewPaperSize,
   type AppSettings
 } from "../shared/settings-contracts";
 
@@ -34,7 +36,10 @@ export function registerSettingsIpc(
       !isAiConversationFontSize(settings.aiConversationFontSize) ||
       !isEbookContentFontSize(settings.ebookContentFontSize) ||
       !isReadingPaperWidth(settings.readingPaperWidth) ||
-      !isEbookLineHeight(settings.ebookLineHeight)
+      !isEbookLineHeight(settings.ebookLineHeight) ||
+      !isDailyReviewCompletionLimit(settings.dailyNewItemCompletionLimit) ||
+      !isDailyReviewCompletionLimit(settings.dailyDueReviewCompletionLimit) ||
+      !isReviewPaperSize(settings.reviewPaperSize)
     ) {
       throw new Error("應用程式設定格式錯誤");
     }
@@ -43,7 +48,10 @@ export function registerSettingsIpc(
       aiConversationFontSize: settings.aiConversationFontSize,
       ebookContentFontSize: settings.ebookContentFontSize,
       readingPaperWidth: settings.readingPaperWidth,
-      ebookLineHeight: settings.ebookLineHeight
+      ebookLineHeight: settings.ebookLineHeight,
+      dailyNewItemCompletionLimit: settings.dailyNewItemCompletionLimit,
+      dailyDueReviewCompletionLimit: settings.dailyDueReviewCompletionLimit,
+      reviewPaperSize: settings.reviewPaperSize
     });
   });
 }

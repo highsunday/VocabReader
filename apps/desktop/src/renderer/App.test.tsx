@@ -105,7 +105,10 @@ function installLibraryApi(
     aiConversationFontSize: 13,
     ebookContentFontSize: 19,
     readingPaperWidth: 760,
-    ebookLineHeight: 1.9
+    ebookLineHeight: 1.9,
+    dailyNewItemCompletionLimit: 10,
+    dailyDueReviewCompletionLimit: 50,
+    reviewPaperSize: 10
   });
   const saveSettings = vi.fn((settings) => Promise.resolve(settings));
   const learning = {
@@ -124,6 +127,14 @@ function installLibraryApi(
       newCount: 1,
       reviewedNewTodayCount: 0,
       reviewedDueTodayCount: 0,
+      newLearningCount: 0,
+      dueLearningCount: 0,
+      newCompletionLimit: 10,
+      dueReviewCompletionLimit: 50,
+      reviewPaperSize: 10,
+      newRemainingCapacity: 10,
+      dueRemainingCapacity: 50,
+      backlogTotal: 1,
       totalAvailable: 1,
       selectedItems: [{
         ...learningItems[0],
@@ -375,8 +386,49 @@ describe("App", () => {
       aiConversationFontSize: 18,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
-      ebookLineHeight: 1.9
+      ebookLineHeight: 1.9,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     }));
+  });
+
+  it("saves daily completion limits and the review paper size from settings", async () => {
+    const { review, saveSettings } = installLibraryApi();
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    const newLimit = screen.getByRole("spinbutton", {
+      name: "每日新項目完成上限"
+    });
+    const dueLimit = screen.getByRole("spinbutton", {
+      name: "每日到期複習完成上限"
+    });
+    const paperSize = screen.getByRole("spinbutton", {
+      name: "每份試卷題數"
+    });
+    expect(newLimit).toHaveValue(10);
+    expect(dueLimit).toHaveValue(50);
+    expect(paperSize).toHaveValue(10);
+    await waitFor(() => expect(review.getSummary).toHaveBeenCalled());
+    const summariesBeforeSave = review.getSummary.mock.calls.length;
+
+    fireEvent.change(newLimit, { target: { value: "0" } });
+    fireEvent.change(dueLimit, { target: { value: "80" } });
+    fireEvent.change(paperSize, { target: { value: "6" } });
+
+    await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
+      explanationLanguage: "source",
+      aiConversationFontSize: 13,
+      ebookContentFontSize: 19,
+      readingPaperWidth: 760,
+      ebookLineHeight: 1.9,
+      dailyNewItemCompletionLimit: 0,
+      dailyDueReviewCompletionLimit: 80,
+      reviewPaperSize: 6
+    }));
+    await waitFor(() => expect(review.getSummary.mock.calls.length)
+      .toBeGreaterThan(summariesBeforeSave));
   });
 
   it("closes settings when clicking outside the card", async () => {
@@ -445,7 +497,10 @@ describe("App", () => {
       aiConversationFontSize: 13,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
-      ebookLineHeight: 2.2
+      ebookLineHeight: 2.2,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     }));
 
     fireEvent.click(screen.getByRole("button", { name: "恢復預設值" }));
@@ -457,7 +512,10 @@ describe("App", () => {
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
-      ebookLineHeight: 1.9
+      ebookLineHeight: 1.9,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     }));
 
     fireEvent.click(screen.getByRole("button", {
@@ -2579,7 +2637,10 @@ describe("App", () => {
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
-      ebookLineHeight: 1.9
+      ebookLineHeight: 1.9,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     }));
     fireEvent.click(screen.getByRole("button", { name: "關閉設定" }));
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));

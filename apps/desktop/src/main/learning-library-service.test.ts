@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,7 +16,10 @@ async function databasePath() {
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((directory) =>
-    rm(directory, { recursive: true, force: true })
+    rm(directory, { recursive: true, force: true, maxRetries: 2, retryDelay: 25 })
+      .catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "EBUSY") throw error;
+      })
   ));
 });
 
@@ -285,6 +290,183 @@ describe("LocalLearningLibrary", () => {
     });
   });
 
+  it("limits new introductions independently and uses the configured paper size", async () => {
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: 2,
+        dailyDueReviewCompletionLimit: 50,
+        reviewPaperSize: 6
+      })
+    });
+
+    const summary = await library.getReviewSummary(
+      new Date("2026-07-24T08:00:00.000Z")
+    );
+
+    expect(summary).toMatchObject({
+      newCount: 10,
+      dueReviewedCount: 0,
+      reviewedNewTodayCount: 0,
+      reviewedDueTodayCount: 0,
+      newLearningCount: 0,
+      dueLearningCount: 0,
+      newRemainingCapacity: 2,
+      dueRemainingCapacity: 50,
+      totalAvailable: 2
+    });
+    expect(summary.selectedItems).toHaveLength(2);
+    expect(summary.selectedItems.every(({ reviewKind }) =>
+      reviewKind === "new"
+    )).toBe(true);
+  });
+
+  it("keeps a same-day retry in its new learning path until it reaches a later date", async () => {
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: 1,
+        dailyDueReviewCompletionLimit: 50,
+        reviewPaperSize: 10
+      })
+    });
+    const item = (await library.listItems({
+      status: "active",
+      search: "happy",
+      sort: "recent"
+    }))[0];
+    const firstReviewedAt = new Date(2026, 6, 24, 9, 0);
+    const first = await library.confirmReviewSession({
+      sessionId: "new-learning-first",
+      reviewedAt: firstReviewedAt.toISOString(),
+      ratings: [{
+        itemId: item.id,
+        aiRating: "good",
+        finalRating: "good"
+      }]
+    });
+    const firstDue = new Date(first.entries[0].nextDueAt);
+
+    const learning = await library.getReviewSummary(firstDue);
+    expect(learning).toMatchObject({
+      reviewedNewTodayCount: 0,
+      reviewedDueTodayCount: 0,
+      newLearningCount: 1,
+      dueLearningCount: 0,
+      newRemainingCapacity: 0
+    });
+    expect(learning.selectedItems[0]).toMatchObject({
+      id: item.id,
+      reviewKind: "new"
+    });
+
+    const nextDay = new Date(firstDue);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const crossDay = await library.getReviewSummary(nextDay);
+    expect(crossDay).toMatchObject({
+      reviewedNewTodayCount: 0,
+      newLearningCount: 1
+    });
+    expect(crossDay.selectedItems[0]).toMatchObject({
+      id: item.id,
+      reviewKind: "new"
+    });
+
+    const second = await library.confirmReviewSession({
+      sessionId: "new-learning-second",
+      reviewedAt: firstDue.toISOString(),
+      ratings: [{
+        itemId: item.id,
+        aiRating: "good",
+        finalRating: "good"
+      }]
+    });
+    expect(new Date(second.entries[0].nextDueAt).getDate())
+      .not.toBe(firstDue.getDate());
+
+    const completed = await library.getReviewSummary(
+      new Date(firstDue.getTime() + 1)
+    );
+    expect(completed).toMatchObject({
+      reviewedNewTodayCount: 1,
+      reviewedDueTodayCount: 0,
+      newLearningCount: 0,
+      newRemainingCapacity: 0
+    });
+    expect(completed.selectedItems).toEqual([]);
+  });
+
+  it("prioritizes learning paths, then mature due items, then untouched new items", async () => {
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: 2,
+        dailyDueReviewCompletionLimit: 1,
+        reviewPaperSize: 3
+      })
+    });
+    const [learningItem, matureItem] = (await library.listItems({
+      status: "active",
+      sort: "recent"
+    })).slice(0, 2);
+    const today = new Date(2026, 6, 24, 9, 0);
+    const matureStart = new Date(2026, 6, 16, 8, 0);
+    await library.confirmReviewSession({
+      sessionId: "mature-setup",
+      reviewedAt: matureStart.toISOString(),
+      ratings: [{
+        itemId: matureItem.id,
+        aiRating: "easy",
+        finalRating: "easy"
+      }]
+    });
+    const learningResult = await library.confirmReviewSession({
+      sessionId: "new-learning-setup",
+      reviewedAt: today.toISOString(),
+      ratings: [{
+        itemId: learningItem.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }]
+    });
+    const now = new Date(Math.max(
+      new Date(learningResult.entries[0].nextDueAt).getTime(),
+      new Date(2026, 6, 24, 9, 1).getTime()
+    ));
+
+    const summary = await library.getReviewSummary(now);
+
+    expect(summary.selectedItems).toHaveLength(3);
+    expect(summary.selectedItems[0]).toMatchObject({
+      id: learningItem.id,
+      reviewKind: "new"
+    });
+    expect(summary.selectedItems[1]).toMatchObject({
+      id: matureItem.id,
+      reviewKind: "due"
+    });
+    expect(summary.selectedItems[2].reviewKind).toBe("new");
+  });
+
+  it("treats zero as a pause for each independent review category", async () => {
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: 0,
+        dailyDueReviewCompletionLimit: 0,
+        reviewPaperSize: 20
+      })
+    });
+
+    const summary = await library.getReviewSummary(
+      new Date("2026-07-24T08:00:00.000Z")
+    );
+
+    expect(summary).toMatchObject({
+      newCount: 10,
+      newRemainingCapacity: 0,
+      dueRemainingCapacity: 0,
+      totalAvailable: 0,
+      selectedItems: []
+    });
+  });
+
   it("counts today's new and due review events using local calendar boundaries", async () => {
     const library = new LocalLearningLibrary(await databasePath());
     const [dueItem, newItem, previousDayItem] = (await library.listItems({
@@ -296,11 +478,11 @@ describe("LocalLearningLibrary", () => {
 
     await library.confirmReviewSession({
       sessionId: "review-session-due-setup",
-      reviewedAt: new Date(2026, 6, 23, 9, 0).toISOString(),
+      reviewedAt: new Date(2026, 6, 16, 9, 0).toISOString(),
       ratings: [{
         itemId: dueItem.id,
-        aiRating: "forgotten",
-        finalRating: "forgotten"
+        aiRating: "easy",
+        finalRating: "easy"
       }]
     });
     await library.confirmReviewSession({
@@ -317,8 +499,8 @@ describe("LocalLearningLibrary", () => {
       reviewedAt: new Date(2026, 6, 24, 10, 0).toISOString(),
       ratings: [{
         itemId: dueItem.id,
-        aiRating: "forgotten",
-        finalRating: "forgotten"
+        aiRating: "easy",
+        finalRating: "easy"
       }]
     });
     await library.confirmReviewSession({
@@ -326,8 +508,8 @@ describe("LocalLearningLibrary", () => {
       reviewedAt: new Date(2026, 6, 24, 11, 0).toISOString(),
       ratings: [{
         itemId: newItem.id,
-        aiRating: "good",
-        finalRating: "good"
+        aiRating: "easy",
+        finalRating: "easy"
       }]
     });
 
@@ -397,7 +579,7 @@ describe("LocalLearningLibrary", () => {
     expect((await library.getItemReviewDetail(second.id)).reviewCount).toBe(1);
   });
 
-  it("prioritizes a reviewed item once its exact FSRS due time arrives", async () => {
+  it("prioritizes a same-day new learning item once its exact due time arrives", async () => {
     const library = new LocalLearningLibrary(await databasePath());
     const fastidious = (await library.listItems({
       status: "active",
@@ -423,7 +605,7 @@ describe("LocalLearningLibrary", () => {
       .toBe(false);
     expect(atDue.selectedItems[0]).toMatchObject({
       id: fastidious.id,
-      reviewKind: "due",
+      reviewKind: "new",
       dueAt: first.entries[0].nextDueAt
     });
   });

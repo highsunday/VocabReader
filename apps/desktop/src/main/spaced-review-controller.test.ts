@@ -151,6 +151,17 @@ const defaultReviewItem = {
   dueAt: null
 };
 
+const defaultReviewProgress = {
+  newLearningCount: 0,
+  dueLearningCount: 0,
+  newCompletionLimit: 10,
+  dueReviewCompletionLimit: 50,
+  reviewPaperSize: 10,
+  newRemainingCapacity: 10,
+  dueRemainingCapacity: 50,
+  backlogTotal: 1
+};
+
 function reviewLibrary(selectedItems = [defaultReviewItem]) {
   return {
     getReviewSummary: vi.fn(async () => ({
@@ -158,6 +169,7 @@ function reviewLibrary(selectedItems = [defaultReviewItem]) {
       newCount: selectedItems.length,
       reviewedNewTodayCount: 0,
       reviewedDueTodayCount: 0,
+      ...defaultReviewProgress,
       totalAvailable: selectedItems.length,
       nextDueAt: null,
       selectedItems
@@ -362,6 +374,7 @@ describe("SpacedReviewController", () => {
           newCount: 1,
           reviewedNewTodayCount: 0,
           reviewedDueTodayCount: 0,
+          ...defaultReviewProgress,
           totalAvailable: 1,
           nextDueAt: null,
           selectedItems: [{

@@ -42,6 +42,7 @@ export function SpacedReviewWorkspace({
   api,
   learningApi,
   explanationLanguage,
+  settingsRevision = 0,
   active = true,
   onAvailableCountChange,
   onStatusChange
@@ -49,6 +50,7 @@ export function SpacedReviewWorkspace({
   api: ReviewDesktopApi;
   learningApi?: LearningDesktopApi;
   explanationLanguage: ExplanationLanguage;
+  settingsRevision?: number;
   active?: boolean;
   onAvailableCountChange?(count: number): void;
   onStatusChange?(status: ReviewWorkspaceStatus): void;
@@ -80,6 +82,7 @@ export function SpacedReviewWorkspace({
   const [selectedItem, setSelectedItem] = useState<LearningItem>();
   const generationAttemptRef = useRef(0);
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const settingsRevisionRef = useRef(settingsRevision);
 
   async function loadSummary() {
     setPhase("loading");
@@ -137,6 +140,24 @@ export function SpacedReviewWorkspace({
     : hasActivePaper
       ? "resumable"
       : "idle";
+
+  useEffect(() => {
+    if (settingsRevisionRef.current === settingsRevision) return;
+    settingsRevisionRef.current = settingsRevision;
+    void api.getSummary().then((next) => {
+      setSummary((current) => hasActivePaper && current
+        ? { ...next, selectedItems: current.selectedItems }
+        : next);
+      onAvailableCountChange?.(next.totalAvailable);
+    }).catch(() => {
+      // The saved settings remain valid; the next normal refresh retries.
+    });
+  }, [
+    api,
+    hasActivePaper,
+    onAvailableCountChange,
+    settingsRevision
+  ]);
 
   useEffect(() => {
     onStatusChange?.(workspaceStatus);
@@ -319,20 +340,30 @@ export function SpacedReviewWorkspace({
           aria-label="間隔複習狀態"
         >
           <div>
-            <span>新項目</span>
+            <span>新項目完成</span>
+            <strong>
+              {summary.reviewedNewTodayCount} / {summary.newCompletionLimit}
+            </strong>
+            <small>學習中 {summary.newLearningCount}</small>
+          </div>
+          <div>
+            <span>到期複習完成</span>
+            <strong>
+              {summary.reviewedDueTodayCount} / {
+                summary.dueReviewCompletionLimit
+              }
+            </strong>
+            <small>學習中 {summary.dueLearningCount}</small>
+          </div>
+          <div>
+            <span>尚未開始的新項目</span>
             <strong>{summary.newCount}</strong>
+            <small>可再引入 {summary.newRemainingCapacity}</small>
           </div>
           <div>
-            <span>到期項目</span>
+            <span>目前到期項目</span>
             <strong>{summary.dueReviewedCount}</strong>
-          </div>
-          <div>
-            <span>今日已學習新項目</span>
-            <strong>{summary.reviewedNewTodayCount}</strong>
-          </div>
-          <div>
-            <span>今日已學習到期項目</span>
-            <strong>{summary.reviewedDueTodayCount}</strong>
+            <small>可再引入 {summary.dueRemainingCapacity}</small>
           </div>
         </section>
       ) : null}
@@ -349,7 +380,7 @@ export function SpacedReviewWorkspace({
               <p><b>{selectedNewCount}</b> 個尚未複習的新項目</p>
             </div>
             <small>
-              會先取既有到期項目，再以 CEFR 由簡單到困難補入新項目。
+              會先完成學習中項目，再取既有到期項目，最後以新項目補足。
             </small>
             {!hasActivePaper ? (
               <button type="button" onClick={() => void generatePaper()}>
@@ -361,7 +392,9 @@ export function SpacedReviewWorkspace({
           <section className="review-empty-state">
             <strong>目前沒有可複習的項目</strong>
             <p>
-              {summary.nextDueAt
+              {summary.backlogTotal > 0
+                ? "今天的可用名額已用完；可在設定調整上限。"
+                : summary.nextDueAt
                 ? `下一個項目預計於 ${dueLabel(summary.nextDueAt)} 到期。`
                 : "先從閱讀內容建立學習項目，再回來開始複習。"}
             </p>

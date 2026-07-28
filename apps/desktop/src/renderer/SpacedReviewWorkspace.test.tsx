@@ -42,6 +42,14 @@ function reviewApi(): ReviewDesktopApi {
       newCount: reviewConfirmed ? 0 : 1,
       reviewedNewTodayCount: 0,
       reviewedDueTodayCount: 0,
+      newLearningCount: 0,
+      dueLearningCount: 0,
+      newCompletionLimit: 10,
+      dueReviewCompletionLimit: 50,
+      reviewPaperSize: 10,
+      newRemainingCapacity: reviewConfirmed ? 9 : 10,
+      dueRemainingCapacity: 50,
+      backlogTotal: reviewConfirmed ? 0 : 1,
       totalAvailable: reviewConfirmed ? 0 : 1,
       selectedItems: reviewConfirmed ? [] : [{
         id: "item-1",
@@ -130,6 +138,14 @@ describe("SpacedReviewWorkspace", () => {
       newCount: 0,
       reviewedNewTodayCount: 2,
       reviewedDueTodayCount: 4,
+      newLearningCount: 1,
+      dueLearningCount: 3,
+      newCompletionLimit: 10,
+      dueReviewCompletionLimit: 50,
+      reviewPaperSize: 10,
+      newRemainingCapacity: 7,
+      dueRemainingCapacity: 43,
+      backlogTotal: 0,
       totalAvailable: 0,
       selectedItems: [],
       nextDueAt: "2026-07-29T08:00:00.000Z"
@@ -142,13 +158,12 @@ describe("SpacedReviewWorkspace", () => {
     const status = await screen.findByRole("region", {
       name: "間隔複習狀態"
     });
-    expect(within(status).getByText("新項目")).toBeInTheDocument();
-    expect(within(status).getByText("到期項目")).toBeInTheDocument();
-    expect(within(status).getByText("今日已學習新項目")).toBeInTheDocument();
-    expect(within(status).getByText("今日已學習到期項目")).toBeInTheDocument();
-    expect(within(status).getAllByText("0")).toHaveLength(2);
-    expect(within(status).getByText("2")).toBeInTheDocument();
-    expect(within(status).getByText("4")).toBeInTheDocument();
+    expect(within(status).getByText("新項目完成")).toBeInTheDocument();
+    expect(within(status).getByText("到期複習完成")).toBeInTheDocument();
+    expect(within(status).getByText("2 / 10")).toBeInTheDocument();
+    expect(within(status).getByText("4 / 50")).toBeInTheDocument();
+    expect(within(status).getByText("學習中 1")).toBeInTheDocument();
+    expect(within(status).getByText("學習中 3")).toBeInTheDocument();
     expect(screen.getByText("目前沒有可複習的項目")).toBeInTheDocument();
   });
 
@@ -160,6 +175,14 @@ describe("SpacedReviewWorkspace", () => {
         newCount: 1,
         reviewedNewTodayCount: 0,
         reviewedDueTodayCount: 0,
+        newLearningCount: 0,
+        dueLearningCount: 0,
+        newCompletionLimit: 10,
+        dueReviewCompletionLimit: 50,
+        reviewPaperSize: 10,
+        newRemainingCapacity: 10,
+        dueRemainingCapacity: 50,
+        backlogTotal: 1,
         totalAvailable: 1,
         selectedItems: [{
           id: "item-1",
@@ -182,6 +205,14 @@ describe("SpacedReviewWorkspace", () => {
         newCount: 0,
         reviewedNewTodayCount: 1,
         reviewedDueTodayCount: 0,
+        newLearningCount: 0,
+        dueLearningCount: 0,
+        newCompletionLimit: 10,
+        dueReviewCompletionLimit: 50,
+        reviewPaperSize: 10,
+        newRemainingCapacity: 9,
+        dueRemainingCapacity: 50,
+        backlogTotal: 0,
         totalAvailable: 0,
         selectedItems: [],
         nextDueAt: "2026-07-25T08:00:00.000Z"
@@ -205,9 +236,9 @@ describe("SpacedReviewWorkspace", () => {
       .toBeInTheDocument();
     await waitFor(() => expect(api.getSummary).toHaveBeenCalledTimes(2));
     const status = screen.getByRole("region", { name: "間隔複習狀態" });
-    expect(within(status).getByText("今日已學習新項目")).toBeInTheDocument();
-    expect(within(status).getByText("1")).toBeInTheDocument();
-    expect(within(status).getAllByText("0")).toHaveLength(3);
+    expect(within(status).getByText("新項目完成")).toBeInTheDocument();
+    expect(within(status).getByText("1 / 10")).toBeInTheDocument();
+    expect(within(status).getByText("0 / 50")).toBeInTheDocument();
   });
 
   it("keeps AI generation feedback inside one staged status card", async () => {
@@ -655,6 +686,14 @@ describe("SpacedReviewWorkspace", () => {
       newCount: 4,
       reviewedNewTodayCount: 0,
       reviewedDueTodayCount: 0,
+      newLearningCount: 0,
+      dueLearningCount: 0,
+      newCompletionLimit: 10,
+      dueReviewCompletionLimit: 50,
+      reviewPaperSize: 10,
+      newRemainingCapacity: 6,
+      dueRemainingCapacity: 50,
+      backlogTotal: 4,
       totalAvailable: 4,
       selectedItems: questions.map((question, index) => ({
         id: question.itemId,
