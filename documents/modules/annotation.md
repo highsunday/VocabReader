@@ -2,7 +2,7 @@
 title: 持久標記與 AI 標記解析模組
 module: annotation
 status: active
-last_updated: 2026-07-22
+last_updated: 2026-07-28
 related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - F14-sticky-annotation-tool
@@ -14,6 +14,7 @@ related_implements:
   - F18-use-reading-comprehension-skill
   - B05-use-quiz-language-for-open-ended-answers
   - F25-adjustable-reading-and-conversation-font-sizes
+  - F38-export-and-restore-data-backup
 ---
 
 # 持久標記與 AI 標記解析模組
@@ -156,7 +157,8 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - 第一版不支援重疊、巢狀、顏色、手動分類、筆記或標記清單。
 - 標記依保存時原文 offset 定位；EPUB 內容本身變更時不做文字錨點遷移。
 - AI 分類及 Markdown 回覆不轉成結構化資料，也不建立生詞或 Anki 學習項目。
-- 不提供跨裝置同步、匯出、搜尋、復原／重做。
+- 標記會隨完整書庫進入資料備份並可完整還原；不提供個別標記匯出、合併、搜尋、
+  自動同步或復原／重做。
 - Renderer 的 `App.tsx` 目前同時協調閱讀範圍、標記、AI 對話與設定；功能繼續擴張前宜另開 RXX 拆分協調邊界。
 
 ## 11. Related Documents
@@ -178,5 +180,7 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - `documents/implements/F18-use-reading-comprehension-skill.md`
 - `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`
 - `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
+- `documents/implements/F38-export-and-restore-data-backup.md`
+- `documents/modules/data-backup.md`
 
 變更標記資料、不重疊規則、Selection offset、AI 序列化、預設 intent 或講解語言時，必須同步更新本文件與相關 FXX 實作紀錄。

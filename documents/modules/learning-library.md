@@ -2,13 +2,14 @@
 title: 本機生詞庫模組
 module: learning-library
 status: active
-last_updated: 2026-07-25
+last_updated: 2026-07-28
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
   - F21-ai-assisted-learning-item-creation
   - F28-ai-graded-spaced-review-paper
   - F33-color-review-results-and-open-learning-item-detail
+  - F38-export-and-restore-data-backup
 ---
 
 # 本機生詞庫模組
@@ -44,6 +45,8 @@ related_implements:
 - 提供多筆先完整驗證、再以單一 SQLite 交易新增的 `createItemsAtomically()`。
 - 提供到期／新項目摘要、90% retention FSRS 計算及整回合原子確認。
 - 詳情懶載入目前排程、最後評級、下次到期、累計次數及精簡歷史。
+- 可用 SQLite backup API 建立一致 snapshot，隨完整書庫封裝為單一資料備份 ZIP；
+  還原會同時取代 active、trash、排程與精簡歷史。
 
 ## 3. Module Boundary
 
@@ -62,6 +65,8 @@ related_implements:
 - 依 Main 裝置時間選出最多十個複習項目，已到期優先，新項目依 CEFR 補入。
 - 驗證四級評級、讀寫 FSRS card 狀態，並在單一交易追加事件與更新排程。
 - 保留內部 `createItem()` 供 seed 使用。
+- 以 `backupTo()` 建立 SQLite 一致 snapshot，並以 `close()` 在完整還原交換檔案前
+  關閉目前連線。
 
 Renderer 不知道資料庫路徑、schema 或 SQL。
 
@@ -133,6 +138,9 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 `mock_seed_v1=completed` 是是否 seed 的唯一判定；即使使用者把十筆項目全部永久刪除，
 重啟後也不會重新植入。EPUB `library/index.json` 不包含任何學習項目。
 
+完整資料備份保存整份 SQLite，因此同時包含 active、trashed、FSRS schedules 與精簡
+events；暫態試卷、答案、詳細 AI 回饋與設定不在資料庫內，也不會進入備份。
+
 ## 6. Query and Mutation Flow
 
 ```text
@@ -168,6 +176,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 | `apps/desktop/src/shared/learning-contracts.ts` | Main／Preload／Renderer 共用型別 |
 | `apps/desktop/src/shared/review-contracts.ts` | 複習摘要、試卷、評級及歷史型別 |
 | `apps/desktop/src/main/learning-library-service.ts` | SQLite、migration、seed、查詢與狀態轉移 |
+| `apps/desktop/src/main/data-backup-service.ts` | 一致 SQLite snapshot、驗證與跨資料域完整還原 |
 | `apps/desktop/src/main/spaced-review-controller.ts` | 暫態 AI 試卷與受信任確認 scope |
 | `apps/desktop/src/main/learning-item-duplicate-classifier.ts` | 只對 exact-title 候選做 AI 語義重查 |
 | `apps/desktop/src/main/learning-library-ipc.ts` | 六個 IPC 白名單與 payload 驗證 |
@@ -180,19 +189,21 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 
 | Test file | Coverage |
 |---|---|
-| `learning-library-service.test.ts` | migration、seed、搜尋／篩選、exact-title 候選、atomic create、垃圾桶 |
+| `learning-library-service.test.ts` | migration、seed、搜尋／篩選、exact-title 候選、atomic create、垃圾桶、backup／close |
+| `data-backup-service.test.ts` | active／trash／排程／歷史 snapshot、完整取代與 rollback |
 | `spaced-review-artifacts.test.ts`、`spaced-review-controller.test.ts` | 有限 AI scope、artifact 與暫態生命週期 |
 | `learning-library-ipc.test.ts` | 六個 IPC 白名單與惡意／錯誤 payload 拒絕 |
 | `learning-library-workspace.test.tsx` | 查詢控制、非捲動工具區、共用 modal、安全 Markdown、編輯、刪除確認與垃圾桶 |
 | `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
 | `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情，以及捲到底後工具區位置不變 |
 
-最近驗證（2026-07-25）：
+最近驗證（2026-07-28）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：241/241 passed。
+- Desktop Vitest：291/291 passed。
 - 全專案 TypeScript typecheck：passed。
 - Desktop production build：passed。
+- Electron Playwright E2E：2/2 passed。
 
 ## 10. Known Limitations and Follow-up
 
@@ -200,7 +211,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - AI workflow 不提供既有正式項目的編輯或刪除；這些仍由生詞庫詳情 UI 負責。
 - 從標記解析可建立項目，但刻意不保存書籍、章節、標記、原句或來源追溯資料。
 - 已實作 AI 語意試卷與四級 FSRS 複習；尚無 deck、每日上限、optimizer 或完整試卷歷史。
-- 不提供匯入、匯出、同步、封存、單筆永久刪除或復原已清空垃圾桶。
+- 已提供整份書庫＋生詞庫的 ZIP 備份與完整還原；不提供合併、個別項目匯入／匯出、
+  自動同步、封存、單筆永久刪除或復原已清空垃圾桶。
 
 ## 11. Related Documents
 
@@ -213,3 +225,5 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - `documents/modules/learning-item-creation.md`
 - `documents/modules/spaced-review.md`
 - `documents/modules/book-library.md`
+- `documents/modules/data-backup.md`
+- `documents/implements/F38-export-and-restore-data-backup.md`

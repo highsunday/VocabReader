@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { backup, DatabaseSync } from "node:sqlite";
 import {
   createEmptyCard,
   fsrs,
@@ -32,6 +32,10 @@ import {
   DAILY_NEW_ITEM_COMPLETION_LIMIT,
   REVIEW_PAPER_SIZE
 } from "../shared/settings-contracts";
+
+// Schema 3 adds daily review queue tables without changing the core learning,
+// schedule, or history tables used by this build.
+export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 3;
 
 interface LearningItemRow {
   id: string;
@@ -494,6 +498,16 @@ export class LocalLearningLibrary {
     private readonly databasePath: string,
     private readonly options: LocalLearningLibraryOptions = {}
   ) {}
+
+  close(): void {
+    this.#database?.close();
+    this.#database = undefined;
+  }
+
+  async backupTo(destinationPath: string): Promise<void> {
+    mkdirSync(dirname(destinationPath), { recursive: true });
+    await backup(this.#open(), destinationPath);
+  }
 
   #open(): DatabaseSync {
     if (this.#database) return this.#database;

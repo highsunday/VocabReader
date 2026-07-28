@@ -618,4 +618,25 @@ describe("LocalBookLibrary", () => {
     ).rejects.toThrow(/找不到章節/);
     expect((await library.listBooks())[0].readingState.view).toBe("overview");
   });
+
+  it("exposes an idle boundary after queued book writes complete", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "backup-idle.epub");
+    const library = new LocalBookLibrary(join(root, "library"));
+    await createEpub3(epubPath);
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    void library.saveReadingState({
+      bookId: imported.book.id,
+      view: "reader",
+      chapterId: imported.book.chapters[0].id,
+      scrollProgress: 0.75
+    });
+
+    await (
+      library as LocalBookLibrary & { waitForIdle(): Promise<void> }
+    ).waitForIdle();
+
+    expect((await library.listBooks())[0].readingState.scrollProgress).toBe(0.75);
+  });
 });

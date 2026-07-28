@@ -5,6 +5,11 @@ import type {
   SendChatMessageInput
 } from "../shared/chat-contracts";
 import type {
+  DataBackupDesktopApi,
+  ExportDataBackupResult,
+  SelectDataBackupResult
+} from "../shared/data-backup-contracts";
+import type {
   ChapterContent,
   ImportBookResult,
   LibraryBook,
@@ -97,6 +102,16 @@ const desktopApi = Object.freeze({
     save: (settings: AppSettings): Promise<AppSettings> =>
       ipcRenderer.invoke("settings:save", settings)
   } satisfies SettingsDesktopApi),
+  dataBackup: Object.freeze({
+    exportBackup: (): Promise<ExportDataBackupResult> =>
+      ipcRenderer.invoke("data-backup:export"),
+    selectBackup: (): Promise<SelectDataBackupResult> =>
+      ipcRenderer.invoke("data-backup:select"),
+    cancelRestore: (token: string): Promise<void> =>
+      ipcRenderer.invoke("data-backup:cancel-restore", token),
+    restoreBackup: (token: string): Promise<void> =>
+      ipcRenderer.invoke("data-backup:restore", token)
+  } satisfies DataBackupDesktopApi),
   chat: Object.freeze({
     getState: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:get-state"),
     connect: (): Promise<ChatSnapshot> => ipcRenderer.invoke("chat:connect"),

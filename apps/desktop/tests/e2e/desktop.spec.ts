@@ -200,6 +200,12 @@ test("launches the secure Electron reading shell", async () => {
               get: unknown;
               save: unknown;
             };
+            dataBackup: {
+              exportBackup: unknown;
+              selectBackup: unknown;
+              cancelRestore: unknown;
+              restoreBackup: unknown;
+            };
             chat: {
               getState: unknown;
               connect: unknown;
@@ -248,6 +254,11 @@ test("launches the secure Electron reading shell", async () => {
         hasSettingsGet: typeof desktop?.settings.get,
         hasSettingsSave: typeof desktop?.settings.save,
         settingsKeys: Object.keys(desktop?.settings ?? {}).sort(),
+        hasDataBackupExport: typeof desktop?.dataBackup.exportBackup,
+        hasDataBackupSelect: typeof desktop?.dataBackup.selectBackup,
+        hasDataBackupCancel: typeof desktop?.dataBackup.cancelRestore,
+        hasDataBackupRestore: typeof desktop?.dataBackup.restoreBackup,
+        dataBackupKeys: Object.keys(desktop?.dataBackup ?? {}).sort(),
         hasChatState: typeof desktop?.chat.getState,
         hasChatConnect: typeof desktop?.chat.connect,
         hasChatSend: typeof desktop?.chat.sendMessage,
@@ -310,6 +321,16 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasSettingsGet).toBe("function");
     expect(security.hasSettingsSave).toBe("function");
     expect(security.settingsKeys).toEqual(["get", "save"]);
+    expect(security.hasDataBackupExport).toBe("function");
+    expect(security.hasDataBackupSelect).toBe("function");
+    expect(security.hasDataBackupCancel).toBe("function");
+    expect(security.hasDataBackupRestore).toBe("function");
+    expect(security.dataBackupKeys).toEqual([
+      "cancelRestore",
+      "exportBackup",
+      "restoreBackup",
+      "selectBackup"
+    ]);
     expect(security.hasChatState).toBe("function");
     expect(security.hasChatConnect).toBe("function");
     expect(security.hasChatSend).toBe("function");
@@ -445,6 +466,12 @@ test("launches the secure Electron reading shell", async () => {
     await page.getByRole("button", { name: "關閉卡片詳情" }).click();
 
     await page.getByRole("button", { name: "設定" }).click();
+    await expect(page.getByRole("heading", { name: "資料備份" }))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "匯出備份" }))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "匯入備份" }))
+      .toBeVisible();
     const language = page.getByLabel("講解語言");
     await expect(language.locator("option")).toHaveText([
       "原文語言（預設）",
@@ -588,7 +615,10 @@ test("launches the secure Electron reading shell", async () => {
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
-      ebookLineHeight: 2.2
+      ebookLineHeight: 2.2,
+      dailyNewItemCompletionLimit: 10,
+      dailyDueReviewCompletionLimit: 50,
+      reviewPaperSize: 10
     });
 
     const dataImageLoads = await page.evaluate(async () => {

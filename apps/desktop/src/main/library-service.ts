@@ -545,6 +545,10 @@ export class LocalBookLibrary {
     this.#booksPath = join(libraryPath, "books");
   }
 
+  async waitForIdle(): Promise<void> {
+    await this.#stateWriteQueue;
+  }
+
   async #ensureLibrary(): Promise<void> {
     await mkdir(this.#booksPath, { recursive: true });
     try {

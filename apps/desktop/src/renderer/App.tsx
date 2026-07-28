@@ -25,6 +25,10 @@ import type {
   SendChatMessageInput
 } from "../shared/chat-contracts";
 import type {
+  DataBackupDesktopApi,
+  DataBackupPreview
+} from "../shared/data-backup-contracts";
+import type {
   Annotation,
   BookView,
   ChapterContent,
@@ -110,6 +114,7 @@ function desktopBridge(): {
   learning?: LearningDesktopApi;
   review?: ReviewDesktopApi;
   settings?: SettingsDesktopApi;
+  dataBackup?: DataBackupDesktopApi;
   chat?: ChatDesktopApi;
 } | undefined {
   return (
@@ -119,6 +124,7 @@ function desktopBridge(): {
         learning?: LearningDesktopApi;
         review?: ReviewDesktopApi;
         settings?: SettingsDesktopApi;
+        dataBackup?: DataBackupDesktopApi;
         chat?: ChatDesktopApi;
       };
     }
@@ -143,6 +149,10 @@ function desktopReview(): ReviewDesktopApi | undefined {
 
 function desktopSettings(): SettingsDesktopApi | undefined {
   return desktopBridge()?.settings;
+}
+
+function desktopDataBackup(): DataBackupDesktopApi | undefined {
+  return desktopBridge()?.dataBackup;
 }
 
 function connectionLabel(phase: ConnectionPhase) {
@@ -266,6 +276,13 @@ export function App() {
   const [isReadingLayoutOpen, setIsReadingLayoutOpen] = useState(false);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
+  const [dataBackupOperation, setDataBackupOperation] = useState<
+    "exporting" | "selecting" | "cancelling" | "restoring" | null
+  >(null);
+  const [dataBackupMessage, setDataBackupMessage] = useState("");
+  const [dataBackupError, setDataBackupError] = useState("");
+  const [dataRestorePreview, setDataRestorePreview] =
+    useState<DataBackupPreview>();
   const [learningCounts, setLearningCounts] = useState({ active: 0, trashed: 0 });
   const [reviewAvailableCount, setReviewAvailableCount] = useState(0);
   const [reviewSettingsRevision, setReviewSettingsRevision] = useState(0);
@@ -281,6 +298,7 @@ export function App() {
   const articleRef = useRef<HTMLElement>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
   const readingLayoutRef = useRef<HTMLDivElement>(null);
+  const dataRestoreCancelRef = useRef<HTMLButtonElement>(null);
   const initializedRangeRef = useRef<string | undefined>(undefined);
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const annotationCounterRef = useRef(0);
@@ -929,6 +947,97 @@ export function App() {
     setSettings(next);
     void persistSettings(next);
   }
+
+  async function exportDataBackup() {
+    const api = desktopDataBackup();
+    if (!api || dataBackupOperation) return;
+    setDataBackupOperation("exporting");
+    setDataBackupMessage("");
+    setDataBackupError("");
+    try {
+      const result = await api.exportBackup();
+      if (result.status === "exported") {
+        setDataBackupMessage(`已匯出 ${result.fileName}`);
+      }
+    } catch (error) {
+      setDataBackupError(
+        error instanceof Error ? error.message : "無法匯出資料備份。"
+      );
+    } finally {
+      setDataBackupOperation(null);
+    }
+  }
+
+  async function selectDataBackup() {
+    const api = desktopDataBackup();
+    if (!api || dataBackupOperation) return;
+    setDataBackupOperation("selecting");
+    setDataBackupMessage("");
+    setDataBackupError("");
+    try {
+      const result = await api.selectBackup();
+      if (result.status === "ready") {
+        setDataRestorePreview(result.preview);
+      }
+    } catch (error) {
+      setDataBackupError(
+        error instanceof Error ? error.message : "無法驗證資料備份。"
+      );
+    } finally {
+      setDataBackupOperation(null);
+    }
+  }
+
+  async function cancelDataRestore() {
+    const api = desktopDataBackup();
+    const preview = dataRestorePreview;
+    if (!preview || dataBackupOperation === "restoring") return;
+    setDataBackupOperation("cancelling");
+    setDataBackupError("");
+    try {
+      await api?.cancelRestore(preview.token);
+      setDataRestorePreview(undefined);
+    } catch (error) {
+      setDataBackupError(
+        error instanceof Error ? error.message : "無法取消資料還原。"
+      );
+    } finally {
+      setDataBackupOperation(null);
+    }
+  }
+
+  async function confirmDataRestore() {
+    const api = desktopDataBackup();
+    const preview = dataRestorePreview;
+    if (!api || !preview || dataBackupOperation) return;
+    setDataBackupOperation("restoring");
+    setDataBackupError("");
+    setDataBackupMessage("");
+    try {
+      await api.restoreBackup(preview.token);
+      setDataRestorePreview(undefined);
+      setDataBackupMessage("資料已還原，正在重新啟動 LingoShelf…");
+    } catch (error) {
+      setDataRestorePreview(undefined);
+      setDataBackupError(
+        error instanceof Error ? error.message : "無法還原資料備份。"
+      );
+    } finally {
+      setDataBackupOperation(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!dataRestorePreview || dataBackupOperation) return;
+    dataRestoreCancelRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      void cancelDataRestore();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [dataRestorePreview, dataBackupOperation]);
 
   function rangeWithOffset(
     marker: "start" | "end",
@@ -2579,6 +2688,45 @@ export function App() {
                   />
                   <p>只調整使用者訊息與 AI 回覆正文。</p>
                 </div>
+                <section className="settings-control data-backup-setting">
+                  <h3>資料備份</h3>
+                  <p>
+                    匯出或完整還原書籍、閱讀進度、標記、學習項目與複習紀錄。
+                    AI 對話、設定及 Codex 登入不包含在備份中。
+                  </p>
+                  <div className="data-backup-actions">
+                    <button
+                      type="button"
+                      onClick={() => void exportDataBackup()}
+                      disabled={Boolean(dataBackupOperation) ||
+                        !desktopDataBackup()}
+                    >
+                      {dataBackupOperation === "exporting"
+                        ? "匯出中…"
+                        : "匯出備份"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void selectDataBackup()}
+                      disabled={Boolean(dataBackupOperation) ||
+                        !desktopDataBackup()}
+                    >
+                      {dataBackupOperation === "selecting"
+                        ? "驗證中…"
+                        : "匯入備份"}
+                    </button>
+                  </div>
+                  {dataBackupMessage ? (
+                    <output className="data-backup-message">
+                      {dataBackupMessage}
+                    </output>
+                  ) : null}
+                  {dataBackupError ? (
+                    <small className="data-backup-error" role="alert">
+                      {dataBackupError}
+                    </small>
+                  ) : null}
+                </section>
               </section>
             ) : null}
             {activeSettingsSection === "review" ? (
@@ -2656,6 +2804,74 @@ export function App() {
               </section>
             ) : null}
             {settingsError ? <small role="alert">{settingsError}</small> : null}
+          </section>
+        </div>
+      ) : null}
+
+      {dataRestorePreview ? (
+        <div className="dialog-backdrop data-restore-backdrop">
+          <section
+            className="delete-dialog data-restore-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="data-restore-dialog-title"
+            aria-describedby="data-restore-dialog-description"
+          >
+            <span className="delete-dialog-icon" aria-hidden="true">!</span>
+            <h2 id="data-restore-dialog-title">
+              取代目前的閱讀與學習資料？
+            </h2>
+            <p id="data-restore-dialog-description">
+              這份備份會完整取代目前裝置的書籍、閱讀進度、標記、學習項目、
+              垃圾桶與複習紀錄；兩邊資料不會合併。
+            </p>
+            <dl className="data-restore-summary">
+              <div>
+                <dt>書庫</dt>
+                <dd>{dataRestorePreview.books} 本書籍</dd>
+              </div>
+              <div>
+                <dt>生詞庫</dt>
+                <dd>
+                  {dataRestorePreview.activeLearningItems} 個使用中學習項目
+                </dd>
+              </div>
+              <div>
+                <dt>垃圾桶</dt>
+                <dd>{dataRestorePreview.trashedLearningItems} 個垃圾桶項目</dd>
+              </div>
+              <div>
+                <dt>備份時間</dt>
+                <dd>{new Date(dataRestorePreview.createdAt).toLocaleString()}</dd>
+              </div>
+            </dl>
+            <p>
+              還原成功後 LingoShelf 會自動重新啟動。AI 對話、全域設定與
+              Codex 登入維持不變。
+            </p>
+            <div className="delete-dialog-actions">
+              <button
+                ref={dataRestoreCancelRef}
+                type="button"
+                onClick={() => void cancelDataRestore()}
+                disabled={dataBackupOperation === "restoring" ||
+                  dataBackupOperation === "cancelling"}
+              >
+                {dataBackupOperation === "cancelling"
+                  ? "取消中…"
+                  : "取消匯入"}
+              </button>
+              <button
+                className="danger-action"
+                type="button"
+                onClick={() => void confirmDataRestore()}
+                disabled={Boolean(dataBackupOperation)}
+              >
+                {dataBackupOperation === "restoring"
+                  ? "還原中…"
+                  : "確認取代並重新啟動"}
+              </button>
+            </div>
           </section>
         </div>
       ) : null}

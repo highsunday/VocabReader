@@ -15,6 +15,11 @@ import { ChatController } from "./chat-controller";
 import { LocalChatConversationStore } from "./chat-conversation-store";
 import { registerChatIpc } from "./chat-ipc";
 import { SpawnedCodexAppServerClient } from "./codex-app-server-client";
+import { registerDataBackupIpc } from "./data-backup-ipc";
+import {
+  DataBackupService,
+  defaultDataBackupFileName
+} from "./data-backup-service";
 import { registerLibraryIpc } from "./library-ipc";
 import { LocalBookLibrary } from "./library-service";
 import { registerLearningLibraryIpc } from "./learning-library-ipc";
@@ -27,6 +32,7 @@ import { registerSpacedReviewIpc } from "./spaced-review-ipc";
 
 let chatController: ChatController | undefined;
 let unsubscribeChatState: (() => void) | undefined;
+let learningLibraryForShutdown: LocalLearningLibrary | undefined;
 
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -67,7 +73,8 @@ app.whenReady().then(() => {
     process.env.NODE_ENV === "test"
       ? join(app.getPath("temp"), `lingoshelf-library-test-${process.pid}`)
       : join(app.getPath("userData"), "library");
-  registerLibraryIpc(ipcMain, dialog, new LocalBookLibrary(libraryPath));
+  const bookLibrary = new LocalBookLibrary(libraryPath);
+  registerLibraryIpc(ipcMain, dialog, bookLibrary);
   const learningLibraryPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `lingoshelf-learning-test-${process.pid}`, "learning-items.sqlite")
     : join(app.getPath("userData"), "learning-library", "learning-items.sqlite");
@@ -85,7 +92,31 @@ app.whenReady().then(() => {
       };
     }
   });
+  learningLibraryForShutdown = learningLibrary;
   registerLearningLibraryIpc(ipcMain, learningLibrary);
+  const dataBackupService = new DataBackupService({
+    libraryPath,
+    learningDatabasePath: learningLibraryPath,
+    temporaryRoot: process.env.NODE_ENV === "test"
+      ? join(app.getPath("temp"), `lingoshelf-data-backup-test-${process.pid}`)
+      : join(app.getPath("userData"), ".data-backup-staging"),
+    appVersion: app.getVersion(),
+    waitForBookWrites: () => bookLibrary.waitForIdle(),
+    snapshotBookIndex: () => bookLibrary.listBooks(),
+    snapshotLearningDatabase: (destinationPath) =>
+      learningLibrary.backupTo(destinationPath),
+    closeLearningDatabase: () => learningLibrary.close(),
+    relaunch: () => {
+      app.relaunch();
+      setImmediate(() => app.exit(0));
+    }
+  });
+  registerDataBackupIpc(
+    ipcMain,
+    dialog,
+    dataBackupService,
+    defaultDataBackupFileName()
+  );
   registerSettingsIpc(ipcMain, settingsStore);
   const runtimePath = join(app.getPath("userData"), "codex-runtime");
   const conversationPath = process.env.NODE_ENV === "test"
@@ -170,4 +201,6 @@ app.on("before-quit", () => {
   unsubscribeChatState = undefined;
   chatController?.close();
   chatController = undefined;
+  learningLibraryForShutdown?.close();
+  learningLibraryForShutdown = undefined;
 });

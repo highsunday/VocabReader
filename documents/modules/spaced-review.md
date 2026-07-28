@@ -13,6 +13,7 @@ related_implements:
   - F32-add-expression-feedback-to-spaced-review
   - F36-show-spaced-review-daily-status
   - F37-configurable-daily-review-limits-and-paper-size
+  - F38-export-and-restore-data-backup
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -150,6 +151,9 @@ related_implements:
 兩表以 foreign key 關聯 `learning_items` 並 `ON DELETE CASCADE`。永久清空垃圾桶時，
 對應排程與歷史一併刪除。事件不保存 AI 例句、使用者答案、詳細回饋或表達建議。
 
+完整資料備份保存整份 SQLite，因此已確認的 schedules 與精簡 events 會跨裝置還原；
+只在 `SpacedReviewController` 記憶體中的試卷、答案、回饋與未確認評級不會備份。
+
 ## 6. Typed Boundary
 
 Renderer 只能透過 `ReviewDesktopApi` 使用：
@@ -246,7 +250,8 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
   不恢復。
 - 目前沒有 deck、手動選題、FSRS optimizer、retention 設定或自訂學習日開始時間。
 - 沒有持久保存、重播、搜尋或匯出試卷、答案、詳細回饋及表達建議。
-- 沒有同步、Anki 匯入／匯出或跨裝置備份。
+- 已確認排程與精簡歷史可隨整份資料備份還原；沒有自動同步、Anki 匯入／匯出，
+  也不備份未完成試卷。
 - CEFR 是首次引入順序的近似，尚未結合獨立詞頻資料。
 - AI 生成與批改需要本機 Codex 可用；排程查詢與已確認歷史不依賴 AI。
 - 快速複習模型依帳號實際可用 model catalog 決定；Luna／Terra 不可用時效能仍取決於
@@ -272,3 +277,5 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - `documents/modules/skill-management.md`
 - `documents/modules/ai-conversation.md`
 - `documents/modules/learning-item-creation.md`
+- `documents/modules/data-backup.md`
+- `documents/implements/F38-export-and-restore-data-backup.md`

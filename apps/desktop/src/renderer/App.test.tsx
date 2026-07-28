@@ -111,6 +111,15 @@ function installLibraryApi(
     reviewPaperSize: 10
   });
   const saveSettings = vi.fn((settings) => Promise.resolve(settings));
+  const dataBackup = {
+    exportBackup: vi.fn().mockResolvedValue({
+      status: "exported",
+      fileName: "LingoShelf-backup-2026-07-28.zip"
+    }),
+    selectBackup: vi.fn().mockResolvedValue({ status: "cancelled" }),
+    cancelRestore: vi.fn().mockResolvedValue(undefined),
+    restoreBackup: vi.fn().mockResolvedValue(undefined)
+  };
   const learning = {
     listItems: vi.fn(async (input) =>
       input.status === "active" ? learningItems : []
@@ -174,6 +183,7 @@ function installLibraryApi(
       learning,
       review,
       settings: { get: getSettings, save: saveSettings },
+      dataBackup,
       ...(chat ? { chat } : {})
     }
   });
@@ -186,6 +196,7 @@ function installLibraryApi(
     saveAnnotations,
     getSettings,
     saveSettings,
+    dataBackup,
     learning,
     review
   };
@@ -250,6 +261,137 @@ function initialReadySnapshot(): ChatSnapshot {
 }
 
 describe("App", () => {
+  it("offers ZIP data backup export and restore from settings", async () => {
+    installLibraryApi();
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+
+    expect(await screen.findByRole("heading", { name: "資料備份" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "匯出備份" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "匯入備份" }))
+      .toBeInTheDocument();
+    expect(screen.getByText(/書籍、閱讀進度、標記、學習項目與複習紀錄/))
+      .toBeInTheDocument();
+  });
+
+  it("exports a data backup and reports the selected ZIP filename", async () => {
+    const { dataBackup } = installLibraryApi();
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "匯出備份" }));
+
+    await waitFor(() => expect(dataBackup.exportBackup).toHaveBeenCalledOnce());
+    expect(await screen.findByText(
+      "已匯出 LingoShelf-backup-2026-07-28.zip"
+    )).toBeInTheDocument();
+  });
+
+  it("previews replacement counts and cancels without restoring", async () => {
+    const { dataBackup } = installLibraryApi();
+    dataBackup.selectBackup.mockResolvedValue({
+      status: "ready",
+      preview: {
+        token: "preview-token",
+        createdAt: "2026-07-28T03:04:05.000Z",
+        appVersion: "0.1.0",
+        books: 2,
+        activeLearningItems: 8,
+        trashedLearningItems: 1
+      }
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "匯入備份" }));
+
+    expect(await screen.findByRole("heading", {
+      name: "取代目前的閱讀與學習資料？"
+    })).toBeInTheDocument();
+    const confirmation = screen.getByRole("alertdialog");
+    expect(confirmation).toHaveTextContent("2 本書籍");
+    expect(confirmation).toHaveTextContent("8 個使用中學習項目");
+    expect(confirmation).toHaveTextContent("1 個垃圾桶項目");
+    expect(confirmation).toHaveTextContent(/不會合併/);
+    expect(dataBackup.restoreBackup).not.toHaveBeenCalled();
+
+    const cancelButton = screen.getByRole("button", { name: "取消匯入" });
+    await waitFor(() => expect(cancelButton).toHaveFocus());
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() =>
+      expect(dataBackup.cancelRestore).toHaveBeenCalledWith("preview-token")
+    );
+    expect(screen.queryByRole("heading", {
+      name: "取代目前的閱讀與學習資料？"
+    })).not.toBeInTheDocument();
+    expect(dataBackup.restoreBackup).not.toHaveBeenCalled();
+  });
+
+  it("restores only after explicit replacement confirmation", async () => {
+    const { dataBackup } = installLibraryApi();
+    dataBackup.selectBackup.mockResolvedValue({
+      status: "ready",
+      preview: {
+        token: "preview-token",
+        createdAt: "2026-07-28T03:04:05.000Z",
+        appVersion: "0.1.0",
+        books: 1,
+        activeLearningItems: 9,
+        trashedLearningItems: 1
+      }
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    fireEvent.click(screen.getByRole("button", { name: "匯入備份" }));
+    await screen.findByRole("heading", {
+      name: "取代目前的閱讀與學習資料？"
+    });
+
+    fireEvent.click(screen.getByRole("button", {
+      name: "確認取代並重新啟動"
+    }));
+
+    await waitFor(() =>
+      expect(dataBackup.restoreBackup).toHaveBeenCalledWith("preview-token")
+    );
+  });
+
+  it("prevents concurrent backup actions and shows validation failures", async () => {
+    const { dataBackup } = installLibraryApi();
+    let finishExport: (
+      result: { status: "cancelled" }
+    ) => void = () => undefined;
+    dataBackup.exportBackup.mockImplementation(() =>
+      new Promise((resolve) => {
+        finishExport = resolve;
+      })
+    );
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "匯出備份" }));
+
+    expect(await screen.findByRole("button", { name: "匯出中…" }))
+      .toBeDisabled();
+    expect(screen.getByRole("button", { name: "匯入備份" })).toBeDisabled();
+    finishExport({ status: "cancelled" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "匯出備份" })).toBeEnabled()
+    );
+
+    dataBackup.selectBackup.mockRejectedValue(
+      new Error("備份 ZIP checksum 不符")
+    );
+    fireEvent.click(screen.getByRole("button", { name: "匯入備份" }));
+
+    expect(await screen.findByRole("alert"))
+      .toHaveTextContent("備份 ZIP checksum 不符");
+  });
+
   it("shows the Codex account email in settings without exposing it in the sidebar", async () => {
     const snapshot = {
       connection: "ready" as const,

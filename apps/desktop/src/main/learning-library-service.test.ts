@@ -184,6 +184,32 @@ describe("LocalLearningLibrary", () => {
     ]);
   });
 
+  it("creates a consistent SQLite backup and reopens after being closed", async () => {
+    const sourcePath = await databasePath();
+    const snapshotPath = `${sourcePath}.snapshot`;
+    const library = new LocalLearningLibrary(sourcePath);
+    const active = await library.listItems({ status: "active", sort: "recent" });
+    await library.trashItem(active[0].id);
+
+    await (
+      library as LocalLearningLibrary & {
+        backupTo(path: string): Promise<void>;
+      }
+    ).backupTo(snapshotPath);
+    library.close();
+
+    const snapshot = new LocalLearningLibrary(snapshotPath);
+    await expect(
+      snapshot.listItems({ status: "active", sort: "recent" })
+    ).resolves.toHaveLength(9);
+    await expect(
+      snapshot.listItems({ status: "trashed", sort: "recent" })
+    ).resolves.toHaveLength(1);
+    await expect(
+      library.listItems({ status: "active", sort: "recent" })
+    ).resolves.toHaveLength(9);
+  });
+
   it("creates a validated batch atomically", async () => {
     const library = new LocalLearningLibrary(await databasePath());
     const before = await library.listItems({ status: "active", sort: "recent" });
