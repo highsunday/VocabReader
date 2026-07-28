@@ -86,6 +86,90 @@ describe("LocalLearningLibrary", () => {
     expect(filtered.map((item) => item.title)).toEqual(["take for granted"]);
   });
 
+  it("annotates, filters, and sorts cards by their current study status", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const items = await library.listItems(
+      { status: "active", sort: "recent" },
+      new Date("2026-01-01T08:00:00.000Z")
+    );
+
+    async function completeNewItem(
+      itemId: string,
+      reviewedAt: Date,
+      sessionPrefix: string
+    ) {
+      const first = await library.confirmReviewSession({
+        sessionId: `${sessionPrefix}-first`,
+        reviewedAt: reviewedAt.toISOString(),
+        ratings: [{
+          itemId,
+          aiRating: "good",
+          finalRating: "good"
+        }]
+      });
+      return library.confirmReviewSession({
+        sessionId: `${sessionPrefix}-second`,
+        reviewedAt: first.entries[0].nextDueAt,
+        ratings: [{
+          itemId,
+          aiRating: "good",
+          finalRating: "good"
+        }]
+      });
+    }
+
+    await completeNewItem(
+      items[0].id,
+      new Date("2026-01-01T08:00:00.000Z"),
+      "due-card"
+    );
+    const scheduled = await completeNewItem(
+      items[1].id,
+      new Date("2026-07-20T08:00:00.000Z"),
+      "scheduled-card"
+    );
+    const now = new Date(
+      new Date(scheduled.entries[0].reviewedAt).getTime() + 60_000
+    );
+    await library.confirmReviewSession({
+      sessionId: "learning-card",
+      reviewedAt: new Date(now.getTime() - 30_000).toISOString(),
+      ratings: [{
+        itemId: items[2].id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }]
+    });
+
+    const prioritized = await library.listItems({
+      status: "active",
+      sort: "study-status"
+    }, now);
+    expect(prioritized.slice(0, 3).map(({ studyStatus }) => studyStatus))
+      .toEqual(["learning", "due", "new"]);
+
+    const due = await library.listItems({
+      status: "active",
+      studyStatus: "due",
+      sort: "next-due"
+    }, now);
+    expect(due.length).toBeGreaterThan(0);
+    expect(due.every(({ studyStatus }) => studyStatus === "due")).toBe(true);
+    expect(due.every(({ nextDueAt }) => Boolean(nextDueAt))).toBe(true);
+
+    const scheduledOnly = await library.listItems({
+      status: "active",
+      studyStatus: "scheduled",
+      sort: "next-due"
+    }, now);
+    expect(scheduledOnly).toEqual([
+      expect.objectContaining({
+        id: items[1].id,
+        studyStatus: "scheduled"
+      })
+    ]);
+  });
+
   it("persists valid edits and rejects invalid structured values", async () => {
     const path = await databasePath();
     const library = new LocalLearningLibrary(path);
@@ -135,7 +219,9 @@ describe("LocalLearningLibrary", () => {
     await expect(library.listItems({
       status: "trashed",
       sort: "recent"
-    })).resolves.toContainEqual(trashed);
+    })).resolves.toEqual([
+      expect.objectContaining(trashed)
+    ]);
 
     const restored = await library.restoreItem(item.id);
     expect(restored).toMatchObject({ id: item.id, status: "active" });

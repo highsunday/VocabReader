@@ -4,6 +4,7 @@ import type {
   LearningItemListInput,
   LearningItemSort,
   LearningItemStatus,
+  LearningItemStudyStatus,
   LearningItemType,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
@@ -35,7 +36,13 @@ function validStatus(value: unknown): value is LearningItemStatus {
 }
 
 function validSort(value: unknown): value is LearningItemSort {
-  return value === "recent" || value === "alphabetical";
+  return value === "recent" || value === "alphabetical" ||
+    value === "study-status" || value === "next-due";
+}
+
+function validStudyStatus(value: unknown): value is LearningItemStudyStatus {
+  return value === "new" || value === "learning" ||
+    value === "due" || value === "scheduled";
 }
 
 function validListInput(value: unknown): value is LearningItemListInput {
@@ -45,7 +52,9 @@ function validListInput(value: unknown): value is LearningItemListInput {
     validSort(input.sort) &&
     (input.search === undefined || typeof input.search === "string") &&
     (input.itemType === undefined || validType(input.itemType)) &&
-    (input.cefr === undefined || validCefr(input.cefr));
+    (input.cefr === undefined || validCefr(input.cefr)) &&
+    (input.studyStatus === undefined ||
+      validStudyStatus(input.studyStatus));
 }
 
 function validUpdate(value: unknown): value is UpdateLearningItemInput {

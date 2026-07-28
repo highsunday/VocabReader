@@ -1,7 +1,10 @@
 export type LearningItemType = "word" | "phrase";
 export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 export type LearningItemStatus = "active" | "trashed";
-export type LearningItemSort = "recent" | "alphabetical";
+export type LearningItemStudyStatus =
+  "new" | "learning" | "due" | "scheduled";
+export type LearningItemSort =
+  "recent" | "alphabetical" | "study-status" | "next-due";
 
 export interface LearningItem {
   id: string;
@@ -16,11 +19,17 @@ export interface LearningItem {
   trashedAt: string | null;
 }
 
+export interface LearningLibraryItem extends LearningItem {
+  studyStatus: LearningItemStudyStatus;
+  nextDueAt: string | null;
+}
+
 export interface LearningItemListInput {
   status: LearningItemStatus;
   search?: string;
   itemType?: LearningItemType;
   cefr?: CefrLevel;
+  studyStatus?: LearningItemStudyStatus;
   sort: LearningItemSort;
 }
 
@@ -67,7 +76,7 @@ export interface UpdateLearningItemDraftInput extends CreateLearningItemInput {
 }
 
 export interface LearningDesktopApi {
-  listItems(input: LearningItemListInput): Promise<LearningItem[]>;
+  listItems(input: LearningItemListInput): Promise<LearningLibraryItem[]>;
   getItem(itemId: string): Promise<LearningItem>;
   updateItem(input: UpdateLearningItemInput): Promise<LearningItem>;
   trashItem(itemId: string): Promise<LearningItem>;

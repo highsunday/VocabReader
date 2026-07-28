@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   LearningDesktopApi,
   LearningItem,
-  LearningItemListInput
+  LearningItemListInput,
+  LearningLibraryItem
 } from "../shared/learning-contracts";
 import type { ReviewDesktopApi } from "../shared/review-contracts";
 import { LearningLibraryWorkspace } from "./LearningLibraryWorkspace";
@@ -51,15 +52,38 @@ const trashedItem: LearningItem = {
   trashedAt: "2026-01-03T00:00:00.000Z"
 };
 
+const activeLibraryItems: LearningLibraryItem[] = [
+  {
+    ...activeItems[0],
+    studyStatus: "due",
+    nextDueAt: "2026-07-24T08:00:00.000Z"
+  },
+  {
+    ...activeItems[1],
+    studyStatus: "scheduled",
+    nextDueAt: new Date(Date.now() + 2 * 86_400_000).toISOString()
+  }
+];
+
+const trashedLibraryItem: LearningLibraryItem = {
+  ...trashedItem,
+  studyStatus: "new",
+  nextDueAt: null
+};
+
 function api() {
   const listItems = vi.fn(async (input: LearningItemListInput) => {
-    if (input.status === "trashed") return [trashedItem];
-    return activeItems.filter((item) => {
+    if (input.status === "trashed") return [trashedLibraryItem];
+    const filtered = activeLibraryItems.filter((item) => {
       const search = input.search?.toLowerCase() ?? "";
       return (!search || item.title.toLowerCase().includes(search)) &&
         (!input.itemType || item.itemType === input.itemType) &&
-        (!input.cefr || item.cefr === input.cefr);
+        (!input.cefr || item.cefr === input.cefr) &&
+        (!input.studyStatus || item.studyStatus === input.studyStatus);
     });
+    return input.sort === "alphabetical"
+      ? filtered.toSorted((left, right) => left.title.localeCompare(right.title))
+      : filtered;
   });
   return {
     listItems,
@@ -108,10 +132,14 @@ describe("LearningLibraryWorkspace", () => {
     render(<LearningLibraryWorkspace api={api()} reviewApi={reviewApi} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
-    expect(await screen.findByText("未到期")).toBeInTheDocument();
-    expect(screen.getByText("順利")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("查看精簡複習歷史"));
-    expect(screen.getByText(/AI 簡單 · 最終 順利/)).toBeInTheDocument();
+    const schedule = within(await screen.findByRole("dialog", {
+      name: "bank"
+    })).getByRole("region", { name: "複習排程" });
+    expect(await within(schedule).findByText("未到期")).toBeInTheDocument();
+    expect(within(schedule).getByText("順利")).toBeInTheDocument();
+    fireEvent.click(within(schedule).getByText("查看精簡複習歷史"));
+    expect(within(schedule).getByText(/AI 簡單 · 最終 順利/))
+      .toBeInTheDocument();
   });
 
   it("loads cards and combines title, type, CEFR, and sort controls", async () => {
@@ -148,6 +176,86 @@ describe("LearningLibraryWorkspace", () => {
     }));
     expect(await screen.findByRole("button", { name: /take for granted/ }))
       .toBeInTheDocument();
+  });
+
+  it("shows study states and supports status filtering and priority sorting", async () => {
+    const learning = api();
+    render(<LearningLibraryWorkspace api={learning} />);
+
+    const dueCard = await screen.findByRole("button", {
+      name: /bank，已到期/
+    });
+    const scheduledCard = screen.getByRole("button", {
+      name: /take for granted，未到期，2 天後/
+    });
+    expect(dueCard).toHaveAttribute("data-study-status", "due");
+    expect(scheduledCard).toHaveAttribute("data-study-status", "scheduled");
+    expect(within(dueCard).getByText("已到期")).toBeInTheDocument();
+    expect(within(scheduledCard).getByText("2 天後")).toHaveAttribute(
+      "title",
+      "未到期；下次複習在2 天後"
+    );
+
+    fireEvent.change(screen.getByLabelText("學習狀態"), {
+      target: { value: "due" }
+    });
+    await waitFor(() => expect(learning.listItems).toHaveBeenCalledWith({
+      status: "active",
+      search: "",
+      studyStatus: "due",
+      sort: "recent"
+    }));
+    expect(screen.getByRole("button", { name: /bank，已到期/ }))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /take for granted/ }))
+      .not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("學習狀態"), {
+      target: { value: "all" }
+    });
+    fireEvent.change(screen.getByLabelText("排序"), {
+      target: { value: "study-status" }
+    });
+    await waitFor(() => expect(learning.listItems).toHaveBeenCalledWith({
+      status: "active",
+      search: "",
+      sort: "study-status"
+    }));
+  });
+
+  it("shows exact nearby days and progressively coarser future intervals", async () => {
+    const learning = api();
+    const dayOffsets = [1, 2, 7, 8, 14, 30, 365];
+    const scheduledItems = dayOffsets.map((days, index) => {
+      const due = new Date();
+      due.setDate(due.getDate() + days);
+      due.setHours(12, 0, 0, 0);
+      return {
+        ...activeLibraryItems[0],
+        id: `scheduled-${days}`,
+        title: `card-${index}`,
+        studyStatus: "scheduled" as const,
+        nextDueAt: due.toISOString()
+      };
+    });
+    learning.listItems.mockImplementation(async (input) =>
+      input.status === "active" ? scheduledItems : []
+    );
+
+    render(<LearningLibraryWorkspace api={learning} />);
+
+    for (const label of [
+      "明天",
+      "2 天後",
+      "7 天後",
+      "約 1 週後",
+      "約 2 週後",
+      "約 1 個月後",
+      "約 1 年後"
+    ]) {
+      expect(await screen.findByText(label)).toBeInTheDocument();
+    }
+    expect(screen.getByLabelText("學習狀態")).toHaveTextContent("未到期");
   });
 
   it("opens a centered safe Markdown detail and closes only at modal boundaries", async () => {

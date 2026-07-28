@@ -15,6 +15,8 @@ import type {
   LearningItem,
   LearningItemListInput,
   LearningItemStatus,
+  LearningItemStudyStatus,
+  LearningLibraryItem,
   LearningItemType,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
@@ -101,6 +103,12 @@ interface LocalLearningLibraryOptions {
 const itemTypes = new Set<LearningItemType>(["word", "phrase"]);
 const cefrLevels = new Set<CefrLevel>(["A1", "A2", "B1", "B2", "C1", "C2"]);
 const statuses = new Set<LearningItemStatus>(["active", "trashed"]);
+const studyStatuses = new Set<LearningItemStudyStatus>([
+  "new",
+  "learning",
+  "due",
+  "scheduled"
+]);
 const reviewRatings = new Set<ReviewRating>([
   "forgotten",
   "hard",
@@ -610,11 +618,19 @@ export class LocalLearningLibrary {
     return database;
   }
 
-  async listItems(input: LearningItemListInput): Promise<LearningItem[]> {
+  async listItems(
+    input: LearningItemListInput,
+    nowInput: Date | string = new Date()
+  ): Promise<LearningLibraryItem[]> {
     if (!input || typeof input !== "object" || !statuses.has(input.status)) {
       throw new Error("生詞庫狀態格式錯誤");
     }
-    if (input.sort !== "recent" && input.sort !== "alphabetical") {
+    if (
+      input.sort !== "recent" &&
+      input.sort !== "alphabetical" &&
+      input.sort !== "study-status" &&
+      input.sort !== "next-due"
+    ) {
       throw new Error("生詞庫排序格式錯誤");
     }
     if (input.itemType !== undefined && !itemTypes.has(input.itemType)) {
@@ -626,31 +642,90 @@ export class LocalLearningLibrary {
     if (input.search !== undefined && typeof input.search !== "string") {
       throw new Error("生詞庫搜尋格式錯誤");
     }
+    if (
+      input.studyStatus !== undefined &&
+      !studyStatuses.has(input.studyStatus)
+    ) {
+      throw new Error("學習狀態篩選格式錯誤");
+    }
 
-    const clauses = ["status = ?"];
+    const clauses = ["i.status = ?"];
     const values: Array<string> = [input.status];
     const search = input.search?.trim().toLocaleLowerCase();
     if (search) {
-      clauses.push("LOWER(title) LIKE ? ESCAPE '\\'");
+      clauses.push("LOWER(i.title) LIKE ? ESCAPE '\\'");
       values.push(`%${search.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`);
     }
     if (input.itemType) {
-      clauses.push("item_type = ?");
+      clauses.push("i.item_type = ?");
       values.push(input.itemType);
     }
     if (input.cefr) {
-      clauses.push("cefr = ?");
+      clauses.push("i.cefr = ?");
       values.push(input.cefr);
     }
     const order = input.sort === "alphabetical"
-      ? "LOWER(title) ASC, sense ASC, id ASC"
-      : "created_at DESC, id ASC";
-    const rows = this.#open().prepare(`
-      SELECT * FROM learning_items
+      ? "LOWER(i.title) ASC, i.sense ASC, i.id ASC"
+      : "i.created_at DESC, i.id ASC";
+    const database = this.#open();
+    const rows = database.prepare(`
+      SELECT i.*, s.due_at
+      FROM learning_items i
+      LEFT JOIN learning_review_schedules s ON s.learning_item_id = i.id
       WHERE ${clauses.join(" AND ")}
       ORDER BY ${order}
-    `).all(...values) as unknown as LearningItemRow[];
-    return rows.map(itemFromRow);
+    `).all(...values) as unknown as ReviewQueueRow[];
+    const now = validDate(nowInput, "目前時間");
+    const nowIso = now.toISOString();
+    const progressRows = database.prepare(`
+      SELECT e.id, e.learning_item_id, e.reviewed_at, e.next_due_at
+      FROM learning_review_events e
+      JOIN learning_items i ON i.id = e.learning_item_id
+      WHERE i.status = 'active' AND e.reviewed_at <= ?
+      ORDER BY e.learning_item_id ASC, e.reviewed_at ASC, e.id ASC
+    `).all(nowIso) as unknown as ReviewProgressRow[];
+    const progress = reviewProgress(progressRows, now);
+    const libraryItems = rows.map((row): LearningLibraryItem => {
+      const learningKind = progress.states.get(row.id)?.learningKind;
+      const studyStatus: LearningItemStudyStatus = learningKind
+        ? "learning"
+        : !row.due_at
+          ? "new"
+          : row.due_at <= nowIso
+            ? "due"
+            : "scheduled";
+      return {
+        ...itemFromRow(row),
+        studyStatus,
+        nextDueAt: row.due_at
+      };
+    }).filter((item) =>
+      !input.studyStatus || item.studyStatus === input.studyStatus
+    );
+    if (input.sort === "study-status") {
+      const priority: Record<LearningItemStudyStatus, number> = {
+        learning: 0,
+        due: 1,
+        new: 2,
+        scheduled: 3
+      };
+      libraryItems.sort((left, right) =>
+        priority[left.studyStatus] - priority[right.studyStatus] ||
+        (left.nextDueAt ?? "").localeCompare(right.nextDueAt ?? "") ||
+        left.title.localeCompare(right.title)
+      );
+    } else if (input.sort === "next-due") {
+      libraryItems.sort((left, right) => {
+        if (!left.nextDueAt && !right.nextDueAt) {
+          return left.title.localeCompare(right.title);
+        }
+        if (!left.nextDueAt) return 1;
+        if (!right.nextDueAt) return -1;
+        return left.nextDueAt.localeCompare(right.nextDueAt) ||
+          left.title.localeCompare(right.title);
+      });
+    }
+    return libraryItems;
   }
 
   async getItem(itemId: string): Promise<LearningItem> {

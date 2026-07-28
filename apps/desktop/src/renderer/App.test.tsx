@@ -5,7 +5,8 @@ import type { LibraryBook } from "../shared/library-contracts";
 import type {
   LearningDesktopApi,
   LearningItem,
-  LearningItemDraftBatch
+  LearningItemDraftBatch,
+  LearningLibraryItem
 } from "../shared/learning-contracts";
 import type {
   ReviewDesktopApi,
@@ -51,6 +52,9 @@ const learningItems: LearningItem[] = [{
   updatedAt: "2026-01-01T00:00:00.000Z",
   trashedAt: null
 }];
+const learningLibraryItems: LearningLibraryItem[] = learningItems.map(
+  (item) => ({ ...item, studyStatus: "new", nextDueAt: null })
+);
 
 function installLibraryApi(
   storedBooks: LibraryBook[] = books,
@@ -122,7 +126,7 @@ function installLibraryApi(
   };
   const learning = {
     listItems: vi.fn(async (input) =>
-      input.status === "active" ? learningItems : []
+      input.status === "active" ? learningLibraryItems : []
     ),
     getItem: vi.fn(async () => learningItems[0]),
     updateItem: vi.fn(async (input) => ({ ...learningItems[0], ...input })),

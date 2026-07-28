@@ -15,6 +15,8 @@ import type {
   LearningDesktopApi,
   LearningItem,
   LearningItemSort,
+  LearningItemStudyStatus,
+  LearningLibraryItem,
   LearningItemType,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
@@ -25,6 +27,46 @@ import type {
 } from "../shared/review-contracts";
 
 const cefrLevels: CefrLevel[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const studyStatusLabels: Record<LearningItemStudyStatus, string> = {
+  new: "新卡",
+  learning: "學習中",
+  due: "已到期",
+  scheduled: "未到期"
+};
+
+function daysUntilLocalDate(value: string, now = new Date()) {
+  const due = new Date(value);
+  const dueDay = Date.UTC(
+    due.getFullYear(),
+    due.getMonth(),
+    due.getDate()
+  );
+  const today = Date.UTC(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+  return Math.round((dueDay - today) / 86_400_000);
+}
+
+function scheduledReviewLabel(value: string | null) {
+  if (!value) return "未到期";
+  const days = daysUntilLocalDate(value);
+  if (days <= 0) return "今天稍後";
+  if (days === 1) return "明天";
+  if (days <= 7) return `${days} 天後`;
+  if (days < 28) return `約 ${Math.floor(days / 7)} 週後`;
+  if (days < 365) {
+    return `約 ${Math.max(1, Math.round(days / 30))} 個月後`;
+  }
+  return `約 ${Math.max(1, Math.round(days / 365))} 年後`;
+}
+
+function cardStudyStatusLabel(item: LearningLibraryItem) {
+  return item.studyStatus === "scheduled"
+    ? scheduledReviewLabel(item.nextDueAt)
+    : studyStatusLabels[item.studyStatus];
+}
 
 function MarkdownContent({
   children,
@@ -486,11 +528,13 @@ export function LearningLibraryWorkspace({
   onCountsChange?: (counts: { active: number; trashed: number }) => void;
 }) {
   const [view, setView] = useState<"active" | "trashed">("active");
-  const [items, setItems] = useState<LearningItem[]>([]);
+  const [items, setItems] = useState<LearningLibraryItem[]>([]);
   const [counts, setCounts] = useState({ active: 0, trashed: 0 });
   const [search, setSearch] = useState("");
   const [itemType, setItemType] = useState<LearningItemType | "all">("all");
   const [cefr, setCefr] = useState<CefrLevel | "all">("all");
+  const [studyStatus, setStudyStatus] =
+    useState<LearningItemStudyStatus | "all">("all");
   const [sort, setSort] = useState<LearningItemSort>("recent");
   const [selectedItem, setSelectedItem] = useState<LearningItem>();
   const [isLoading, setIsLoading] = useState(true);
@@ -519,6 +563,7 @@ export function LearningLibraryWorkspace({
             search,
             ...(itemType === "all" ? {} : { itemType }),
             ...(cefr === "all" ? {} : { cefr }),
+            ...(studyStatus === "all" ? {} : { studyStatus }),
             sort
           }
         : { status: "trashed", sort: "recent" });
@@ -528,7 +573,7 @@ export function LearningLibraryWorkspace({
     } finally {
       setIsLoading(false);
     }
-  }, [api, cefr, itemType, search, sort, view]);
+  }, [api, cefr, itemType, search, sort, studyStatus, view]);
 
   useEffect(() => {
     void loadItems();
@@ -590,13 +635,18 @@ export function LearningLibraryWorkspace({
   }
 
   const filtersActive = Boolean(
-    search || itemType !== "all" || cefr !== "all" || sort !== "recent"
+    search ||
+    itemType !== "all" ||
+    cefr !== "all" ||
+    studyStatus !== "all" ||
+    sort !== "recent"
   );
 
   function clearFilters() {
     setSearch("");
     setItemType("all");
     setCefr("all");
+    setStudyStatus("all");
     setSort("recent");
   }
 
@@ -684,12 +734,29 @@ export function LearningLibraryWorkspace({
                 </select>
               </label>
               <label>
+                學習狀態
+                <select
+                  value={studyStatus}
+                  onChange={(event) => setStudyStatus(
+                    event.target.value as LearningItemStudyStatus | "all"
+                  )}
+                >
+                  <option value="all">全部狀態</option>
+                  <option value="new">新卡</option>
+                  <option value="learning">學習中</option>
+                  <option value="due">已到期</option>
+                  <option value="scheduled">未到期</option>
+                </select>
+              </label>
+              <label>
                 排序
                 <select
                   value={sort}
                   onChange={(event) => setSort(event.target.value as LearningItemSort)}
                 >
                   <option value="recent">最近新增</option>
+                  <option value="study-status">學習優先</option>
+                  <option value="next-due">下次複習時間</option>
                   <option value="alphabetical">字母順序</option>
                 </select>
               </label>
@@ -758,13 +825,25 @@ export function LearningLibraryWorkspace({
                 <button
                   type="button"
                   className="learning-item-card"
+                  data-study-status={item.studyStatus}
                   key={item.id}
-                  aria-label={`${item.title}，${item.itemType === "word" ? "單字" : "片語"}，${item.cefr}，${item.sense}`}
+                  aria-label={`${item.title}，${item.studyStatus === "scheduled" ? `未到期，${cardStudyStatusLabel(item)}` : cardStudyStatusLabel(item)}，${item.itemType === "word" ? "單字" : "片語"}，${item.cefr}，${item.sense}`}
                   onClick={(event) => void openDetail(item, event.currentTarget)}
                 >
                   <span className="learning-card-badges">
-                    <em>{item.itemType === "word" ? "單字" : "片語"}</em>
-                    <em>{item.cefr}</em>
+                    <em
+                      className="learning-card-study-status"
+                      data-study-status={item.studyStatus}
+                      title={item.studyStatus === "scheduled"
+                        ? `未到期；下次複習在${cardStudyStatusLabel(item)}`
+                        : undefined}
+                    >
+                      {cardStudyStatusLabel(item)}
+                    </em>
+                    <em className="learning-card-type">
+                      {item.itemType === "word" ? "單字" : "片語"}
+                    </em>
+                    <em className="learning-card-cefr">{item.cefr}</em>
                   </span>
                   <strong>{item.title}</strong>
                   <small>{item.sense}</small>

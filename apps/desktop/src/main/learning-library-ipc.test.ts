@@ -41,7 +41,8 @@ describe("learning library IPC", () => {
       search: "rel",
       itemType: "word",
       cefr: "B2",
-      sort: "recent"
+      studyStatus: "learning",
+      sort: "study-status"
     };
     const updateInput = {
       itemId: item.id,
@@ -76,7 +77,8 @@ describe("learning library IPC", () => {
     const { handlers, library } = setup();
 
     expect(() => handlers.get("learning:list")?.({}, {
-      status: "all",
+      status: "active",
+      studyStatus: "mastered",
       sort: "recent"
     })).toThrow(/查詢格式錯誤/);
     expect(() => handlers.get("learning:get")?.({}, "")).toThrow(/請求格式錯誤/);

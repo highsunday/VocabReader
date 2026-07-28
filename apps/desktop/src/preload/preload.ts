@@ -20,6 +20,7 @@ import type {
 import type {
   LearningDesktopApi,
   LearningItem,
+  LearningLibraryItem,
   LearningItemListInput,
   UpdateLearningItemDraftInput,
   UpdateLearningItemInput
@@ -62,7 +63,7 @@ const desktopApi = Object.freeze({
       ipcRenderer.invoke("library:save-annotations", input)
   }),
   learning: Object.freeze({
-    listItems: (input: LearningItemListInput): Promise<LearningItem[]> =>
+    listItems: (input: LearningItemListInput): Promise<LearningLibraryItem[]> =>
       ipcRenderer.invoke("learning:list", input),
     getItem: (itemId: string): Promise<LearningItem> =>
       ipcRenderer.invoke("learning:get", itemId),
