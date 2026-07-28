@@ -1107,7 +1107,8 @@ describe("App", () => {
     expect(screen.getByRole("main")).not.toHaveClass(
       "learning-library-content"
     );
-    expect(screen.getByText("1 題")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "準備好就開始" }))
+      .toHaveTextContent("本回合 1 題");
     expect(review.generatePaper).not.toHaveBeenCalled();
     expect(screen.getByLabelText("AI 助教")).toBeInTheDocument();
   });

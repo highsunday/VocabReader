@@ -131,7 +131,7 @@ function learningApi() {
 }
 
 describe("SpacedReviewWorkspace", () => {
-  it("shows available and learned-today status even when the queue is empty", async () => {
+  it("shows completed cards against the configured daily limits", async () => {
     const api = reviewApi();
     api.getSummary = vi.fn(async () => ({
       dueReviewedCount: 0,
@@ -155,27 +155,43 @@ describe("SpacedReviewWorkspace", () => {
       <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
     );
 
-    const status = await screen.findByRole("region", {
-      name: "今日進度"
+    expect(await screen.findByText("現在沒有可練習的卡片"))
+      .toBeInTheDocument();
+    const status = screen.getByRole("region", {
+      name: "今日複習狀態"
     });
-    const [newLane, dueLane] = within(status).getAllByRole("article");
-    expect(within(newLane).getByRole("heading", { name: "新卡" }))
-      .toBeInTheDocument();
-    expect(within(newLane).getByText(/\/ 10/))
-      .toBeInTheDocument();
-    expect(within(newLane).getByText("還可開始 7 張"))
-      .toBeInTheDocument();
-    expect(within(dueLane).getByRole("heading", { name: "到期複習" }))
-      .toBeInTheDocument();
-    expect(within(dueLane).getByText(/\/ 50/))
-      .toBeInTheDocument();
-    expect(within(dueLane).getByText("尚有 43 個名額"))
-      .toBeInTheDocument();
-    expect(screen.getByText("現在沒有可練習的卡片"))
-      .toBeInTheDocument();
+    expect(status).toHaveTextContent(
+      "今日進度已完成／每日上限新卡2／10複習卡4／50"
+    );
+    expect(screen.queryByText("今日安排")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/ 50/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/名額/)).not.toBeInTheDocument();
   });
 
-  it("refreshes all status counts after confirming a review paper", async () => {
+  it("keeps new-card and review-card progress separate", async () => {
+    const api = reviewApi();
+    const baseSummary = await api.getSummary();
+    api.getSummary = vi.fn(async () => ({
+      ...baseSummary,
+      reviewedNewTodayCount: 3,
+      reviewedDueTodayCount: 5,
+      newCompletionLimit: 12,
+      dueReviewCompletionLimit: 30
+    }));
+
+    render(
+      <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
+    );
+
+    expect(await screen.findByRole("region", {
+      name: "今日複習狀態"
+    })).toHaveTextContent(
+      "新卡3／12複習卡5／30"
+    );
+  });
+
+  it("refreshes the simplified plan after confirming a review paper", async () => {
     const api = reviewApi();
     api.getSummary = vi.fn()
       .mockResolvedValueOnce({
@@ -243,12 +259,17 @@ describe("SpacedReviewWorkspace", () => {
     expect(await screen.findByRole("heading", { name: "本回合已完成" }))
       .toBeInTheDocument();
     await waitFor(() => expect(api.getSummary).toHaveBeenCalledTimes(2));
-    const status = screen.getByRole("region", {
-      name: "今日進度"
-    });
-    const [newLane, dueLane] = within(status).getAllByRole("article");
-    expect(newLane).toHaveTextContent("1/ 10已完成");
-    expect(dueLane).toHaveTextContent("0/ 50已完成");
+    expect(screen.getByRole("region", {
+      name: "今日複習狀態"
+    })).toHaveTextContent(
+      "新卡1／10複習卡0／50"
+    );
+    fireEvent.click(screen.getByRole("button", {
+      name: "返回複習總覽"
+    }));
+    expect(await screen.findByText("現在沒有可練習的卡片"))
+      .toBeInTheDocument();
+    expect(screen.queryByText("今日安排")).not.toBeInTheDocument();
   });
 
   it("keeps AI generation feedback inside one staged status card", async () => {
@@ -786,7 +807,7 @@ describe("SpacedReviewWorkspace", () => {
       .toBeEnabled();
   });
 
-  it("keeps the round summary and current paper together when leaving and viewing", async () => {
+  it("keeps only the current paper visible when leaving and viewing", async () => {
     const api = reviewApi();
     render(
       <SpacedReviewWorkspace
@@ -804,10 +825,9 @@ describe("SpacedReviewWorkspace", () => {
 
     expect(screen.queryByText("bank", { selector: "u" }))
       .not.toBeInTheDocument();
-    const roundSummary = screen.getByText("本回合").closest("section");
     const currentPaper = screen.getByRole("region", { name: "當前試卷" });
-    expect(roundSummary).toBeInTheDocument();
-    expect(roundSummary?.nextElementSibling).toBe(currentPaper);
+    expect(screen.queryByRole("heading", { name: "準備好就開始" }))
+      .not.toBeInTheDocument();
     expect(within(currentPaper).getByText(/已作答 1／1 題/))
       .toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /開始 \d+ 題複習/ }))
@@ -817,7 +837,7 @@ describe("SpacedReviewWorkspace", () => {
     fireEvent.click(within(currentPaper).getByRole("button", {
       name: "查看試卷"
     }));
-    expect(screen.getByText("本回合")).toBeInTheDocument();
+    expect(screen.getByText("1 題詞義回想")).toBeInTheDocument();
     expect(await screen.findByLabelText("這個詞在句中的意思"))
       .toHaveValue("銀行");
 
@@ -832,7 +852,7 @@ describe("SpacedReviewWorkspace", () => {
 
     expect(await screen.findByText("答案完整且符合語境。"))
       .toBeInTheDocument();
-    expect(screen.getByText("本回合")).toBeInTheDocument();
+    expect(screen.getByText("1 題詞義回想")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "忘記" })).toBeChecked();
     expect(api.generatePaper).toHaveBeenCalledOnce();
     expect(api.gradePaper).toHaveBeenCalledOnce();
@@ -968,10 +988,12 @@ describe("SpacedReviewWorkspace", () => {
     await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
       "idle"
     ));
-    const readySummary = screen.getByRole("region", {
-      name: "現在可練習"
-    });
-    expect(readySummary).toHaveTextContent("現在可練習0 張");
+    fireEvent.click(screen.getByRole("button", {
+      name: "返回複習總覽"
+    }));
+    expect(await screen.findByText("現在沒有可練習的卡片"))
+      .toBeInTheDocument();
+    expect(screen.queryByText("現在可練習")).not.toBeInTheDocument();
 
     unmount();
     expect(api.discardPaper).toHaveBeenCalled();
