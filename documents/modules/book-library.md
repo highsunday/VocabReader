@@ -87,14 +87,14 @@ related_implements:
 
 ### Preload bridge
 
-- 使用 contextBridge 暴露唯讀的 readerDesktop.library API。
+- 使用 contextBridge 暴露受限且方法固定的 readerDesktop.library API。
 - 僅提供 listBooks()、importBook()、deleteBook()、getChapterContent()、saveReadingState()、saveReadingRange() 與 saveAnnotations()。
 - 不暴露 Node.js require、fs、ipcRenderer 或通用 IPC 呼叫。
 
 ### Renderer
 
 - 載入並保存目前 session 的書籍清單、選取狀態與閱讀位置。
-- 依章節初始化、顯示、調整及推進範圍標籤，並提供只擷取目前閱讀區段的共用邏輯。
+- 依章節初始化、顯示、調整、快捷導覽及推進範圍標籤，並提供只擷取目前閱讀區段的共用邏輯。
 - 顯示書籍縮圖、書籍總覽、章節清單、安全章節內容、載入與錯誤訊息。
 - 以全域閱讀版面設定呈現安全章節內容；字級、紙張寬度與正文行距可在章節工具列
   即時預覽，標題與程式碼保留自己的行距，範圍標籤會在版面變更後重新定位。
@@ -112,9 +112,9 @@ related_implements:
 | apps/desktop/src/main/main.ts | 決定正式與測試書庫路徑，建立 LocalBookLibrary 並註冊 IPC |
 | apps/desktop/src/preload/preload.ts | 將受限書庫 API 暴露給 renderer |
 | apps/desktop/src/shared/library-contracts.ts | main、preload、renderer 共用的書籍、章節內容、閱讀狀態與導入結果型別 |
-| apps/desktop/src/renderer/App.tsx | 載入書庫、選取書籍、總覽、章節閱讀、導覽與閱讀位置恢復 |
+| apps/desktop/src/renderer/App.tsx | 載入書庫、選取書籍、總覽、章節閱讀、章節與 START／END 導覽、閱讀位置恢復 |
 | apps/desktop/src/renderer/reading-range.ts | 閱讀區段初始化、裁切、自動推進、DOM 文字 offset 與範圍標籤定位 |
-| apps/desktop/src/renderer/styles.css | 書庫／總覽／章節排版與中央獨立捲動的三欄版面 |
+| apps/desktop/src/renderer/styles.css | 書庫／總覽／章節排版、中央獨立捲動、範圍標籤與浮動快捷工具的三欄版面 |
 | apps/desktop/src/renderer/index.html | renderer CSP；允許本機與 Data URL 封面圖片 |
 | apps/desktop/src/shared/settings-contracts.ts | 閱讀版面數值範圍、步進、預設值與全域設定型別 |
 | apps/desktop/src/main/settings-store.ts | 閱讀版面偏好舊檔相容、逐欄降級與本機保存 |
@@ -209,7 +209,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 3. Renderer 透過 `library:save-reading-range` 保存該章範圍；main process 驗證書籍、章節、非負整數及起終點順序後串行寫入索引。
 4. 範圍標籤調整不重建安全章節 DOM，避免中斷文字選取或拖曳；視窗重排時再由文字 offset 計算標籤畫面位置。
 5. 「完成這段，前往下一段」以目前區段約略字數建立下一個相鄰範圍，章末停止且不跨章；一般 AI 訊息操作不會推進。
-6. `extractReadingSegment` 是 AI 對話、未來區段解析、標記說明與區段練習共用的裁切入口；F07 的 AI 對話已使用此入口，空區段不會回退成整章。
+6. `extractReadingSegment` 是 AI 對話、區段解析、標記講解與區段練習共用的裁切入口；相關流程已使用此入口，空區段不會回退成整章。
 
 ### Book deletion
 

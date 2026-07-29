@@ -9,6 +9,10 @@ related_implements:
   - F07-codex-ai-conversation
   - F09-send-reading-segment-on-range-change
   - F13-persistent-annotations-and-ai-analysis
+  - F16-invoke-annotation-explanation-skill
+  - F17-reading-segment-comprehension-quiz
+  - F18-use-reading-comprehension-skill
+  - F23-interactive-reading-practice-paper
   - B02-persist-range-marker-on-drag-release
   - F40-reader-jump-to-range-markers
   - B14-jump-to-reading-range-markers
@@ -18,7 +22,7 @@ related_implements:
 
 ## 1. Purpose
 
-本模組讓使用者在單一章節內，以唯一一對 **範圍標籤（Range Marker）** 界定目前的 **閱讀區段（Reading Segment）**。這個區段是 AI 對話、未來區段解析、根據標記產生說明及區段練習可以取得的原文上限，避免 AI 讀到使用者尚未閱讀的同章內容。
+本模組讓使用者在單一章節內，以唯一一對 **範圍標籤（Range Marker）** 界定目前的 **閱讀區段（Reading Segment）**。這個區段是 AI 對話、區段解析、標記講解及區段練習可以取得的原文上限，避免 AI 讀到使用者尚未閱讀的同章內容。
 
 兩個範圍標籤分別呈現為：
 
@@ -43,7 +47,8 @@ related_implements:
 - 浮動標記工具旁提供 START／END 快捷按鈕，可把對應範圍標籤置中捲入視野；快捷導覽不改動或保存範圍。
 - 每個書籤向內文延伸具名分隔線；位置過近時會上下錯開，避免重疊。
 - 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍，章末停止且不跨章。
-- 已提供只擷取 START／END 之間原文的共用函式；AI 對話面板已使用此入口，完整區段解析與區段練習尚未實作。
+- 已提供只擷取 START／END 之間原文的共用函式；AI 對話面板、標記講解與閱讀測驗都使用此邊界，禁止讀取範圍外內容。
+- 標記講解與互動式閱讀測驗已透過 AI 對話面板實作；結果顯示在產生它的 AI 對話中，不由本模組另存一份結構化解析紀錄。
 - AI 對話面板只在目前書籍、章節或 START／END 相對於最近成功提供的區段發生改變時，重新附帶一次閱讀區段原文。
 
 ## 3. Module Boundary
@@ -54,6 +59,7 @@ related_implements:
 - 將 Pointer 或目前行座標轉換成章內文字 offset。
 - 驗證 START／END 順序，處理拖曳預覽、放開、取消與右鍵移動。
 - 將文字 offset 轉為 START／END 的畫面座標，處理分隔線與重疊避讓。
+- 從浮動標記工具旁把既有 START／END boundary 置中捲入視野，不改動範圍資料。
 - 計算下一個閱讀區段，並提供嚴格的原文裁切函式。
 - 透過 preload bridge 要求保存範圍；renderer 不直接操作檔案系統。
 
@@ -66,7 +72,7 @@ related_implements:
 
 ### Out of scope
 
-- AI 區段解析與選擇題生成。
+- AI 區段解析回覆與閱讀測驗題目的實際生成／呈現；這些由標記講解與閱讀理解模組負責，本模組只提供嚴格的閱讀區段邊界。
 - 使用者原文標記、學習項目與生詞庫。
 - Anki 式間隔複習。
 - 跨章閱讀區段、多組範圍及範圍歷史。
@@ -112,7 +118,7 @@ related_implements:
 
 每個邊界列包含可拖曳書籤、水平分隔線及 `START`／`END` 名稱。整條視覺列不攔截內文操作，只有書籤按鈕啟用 Pointer 事件。
 
-當兩條邊界的畫面 top 距離小於 28px 時，兩列加入 `is-overlapping`：START 向上避讓 13px、END 向下避讓 13px。這同時涵蓋 `start === end` 及不同 offset 落在同一視覺行的情況。
+當兩條邊界的畫面 top 距離小於 28px 時，兩列加入 `is-overlapping`：START 向上避讓 16px、END 向下避讓 16px。這同時涵蓋 `start === end` 及不同 offset 落在同一視覺行的情況。
 
 ## 7. Interaction Flows
 
@@ -178,9 +184,9 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 |---|---|
 | `apps/desktop/src/shared/library-contracts.ts` | `ReadingRange`、`chapterRanges` 與保存輸入／API 型別 |
 | `apps/desktop/src/renderer/reading-range.ts` | 初始化、裁切、自動推進、DOM 點位／Selection 轉 offset、offset 轉 START／END 座標、標記呈現與安全序列化 |
-| `apps/desktop/src/renderer/App.tsx` | 範圍狀態、拖曳、右鍵選單、分隔線、重疊避讓、樂觀更新與推進操作 |
+| `apps/desktop/src/renderer/App.tsx` | 範圍狀態、拖曳、右鍵選單、分隔線、重疊避讓、START／END 快捷導覽、樂觀更新、標記講解與閱讀測驗入口 |
 | `apps/desktop/src/shared/chat-contracts.ts` | AI 對話輸入中的閱讀上下文契約 |
-| `apps/desktop/src/renderer/styles.css` | START／END 書籤、分隔線、名稱與重疊避讓樣式 |
+| `apps/desktop/src/renderer/styles.css` | START／END 書籤、分隔線、名稱、重疊避讓及浮動快捷導覽樣式 |
 | `apps/desktop/src/preload/preload.ts` | 暴露窄化的 `saveReadingRange()` bridge |
 | `apps/desktop/src/main/library-ipc.ts` | `library:save-reading-range` IPC 輸入驗證 |
 | `apps/desktop/src/main/library-service.ts` | 範圍驗證、每章持久化及串行／原子寫入 |
@@ -195,13 +201,13 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 | `apps/desktop/src/main/library-ipc.test.ts` | 保存 IPC 路由及輸入格式驗證 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron preload 確實暴露 `saveReadingRange()`，安全設定與應用程式啟動回歸 |
 
-最近驗證（2026-07-21）：
+最近相關驗證（2026-07-29）：
 
-- Server Vitest：3/3 passed。
-- Desktop Vitest：70/70 passed。
-- Electron Playwright：2/2 passed。
-- 全專案 TypeScript typecheck：passed。
-- 全專案 production build：passed。
+- App renderer：70/70 passed。
+- Desktop Vitest：302/302 passed。
+- Desktop TypeScript typecheck：passed。
+- Desktop production build：passed。
+- 本次文件同步未重跑 Server Vitest 與 Electron Playwright；START／END 快捷導覽不改動 server、preload 或 Electron main process。
 
 ## 12. Important Constraints
 
@@ -215,7 +221,7 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 
 ## 13. Known Limitations and Follow-up
 
-- AI 對話已接上 `extractReadingSegment()`；完整區段解析、標記說明及區段練習仍未實作。
+- 標記講解與閱讀測驗已接上目前閱讀區段，但結果仍屬 AI 對話內容；本模組不另存可獨立查詢的結構化解析或練習紀錄。
 - 尚未提供鍵盤調整 START／END 的操作。
 - 尚未提供範圍歷史、復原／重做或多組範圍。
 - 初始 `start === end` 是空閱讀區段；使用者需移動 END 後才會建立可供 AI 裁切的非空範圍。
@@ -232,6 +238,12 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 - `documents/implements/F07-codex-ai-conversation.md`
 - `documents/implements/F09-send-reading-segment-on-range-change.md`
 - `documents/implements/F13-persistent-annotations-and-ai-analysis.md`
+- `documents/implements/F16-invoke-annotation-explanation-skill.md`
+- `documents/implements/F17-reading-segment-comprehension-quiz.md`
+- `documents/implements/F18-use-reading-comprehension-skill.md`
+- `documents/implements/F23-interactive-reading-practice-paper.md`
 - `documents/implements/B02-persist-range-marker-on-drag-release.md`
+- `documents/implements/F40-reader-jump-to-range-markers.md`
+- `documents/implements/B14-jump-to-reading-range-markers.md`
 
 更新範圍資料格式、定位語意、拖曳生命週期、保存流程、自動推進或 AI 裁切邊界時，必須同步更新本文件及相關 FXX／BXX 實作紀錄。
