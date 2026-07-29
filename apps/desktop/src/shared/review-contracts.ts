@@ -7,6 +7,33 @@ export interface ReviewQueueItem extends LearningItem {
   dueAt: string | null;
 }
 
+export interface ReviewLearningProgressDay {
+  date: string;
+  solidItemCount: number;
+}
+
+export interface ReviewLearningProgress {
+  periodDays: number;
+  solidItemCount: number;
+  solidItemCountDelta30Days: number;
+  buildingItemCount: number;
+  recallRate30Days: number | null;
+  recallReviewCount30Days: number;
+  daily: ReviewLearningProgressDay[];
+}
+
+export interface ReviewActivityDay {
+  date: string;
+  newCompletedCount: number;
+  dueCompletedCount: number;
+}
+
+export interface ReviewActivity {
+  periodDays: number;
+  completedReviewCount: number;
+  daily: ReviewActivityDay[];
+}
+
 export interface ReviewSummary {
   dueReviewedCount: number;
   newCount: number;
@@ -24,6 +51,8 @@ export interface ReviewSummary {
   availableLearningCount?: number;
   availableDueCount?: number;
   availableNewCount?: number;
+  learningProgress?: ReviewLearningProgress;
+  reviewActivity?: ReviewActivity;
   selectedItems: ReviewQueueItem[];
   nextDueAt: string | null;
 }

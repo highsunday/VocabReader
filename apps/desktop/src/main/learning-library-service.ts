@@ -24,6 +24,7 @@ import type {
   ConfirmReviewSessionInput,
   ConfirmReviewSessionResult,
   LearningItemReviewDetail,
+  ReviewActivity,
   ReviewHistoryEntry,
   ReviewLearningProgress,
   ReviewQueueItem,
@@ -84,6 +85,8 @@ interface ReviewProgressRow {
   learning_item_id: string;
   reviewed_at: string;
   next_due_at: string;
+  final_rating: ReviewRating;
+  next_card_json: string;
 }
 
 interface ReviewProgressState {
@@ -124,6 +127,9 @@ const cefrOrder = `
 `;
 
 const reviewScheduler = fsrs({ request_retention: 0.9 });
+const SOLID_RECALL_MINIMUM_STABILITY_DAYS = 30;
+const SOLID_RECALL_MINIMUM_RETRIEVABILITY = 0.85;
+const SOLID_RECALL_MINIMUM_SUCCESS_DAYS = 2;
 
 function validDate(value: unknown, label: string): Date {
   const date = value instanceof Date ? new Date(value) : new Date(String(value));
@@ -158,30 +164,39 @@ function reviewProgress(
   newLearningCount: number;
   dueLearningCount: number;
   learningProgress: ReviewLearningProgress;
+  reviewActivity: ReviewActivity;
 } {
   const states = new Map<string, ReviewProgressState>();
   const [todayStartIso, tomorrowStartIso] = localDayRange(now);
-  const periodDays = 30;
-  const periodStart = new Date(now);
-  periodStart.setHours(0, 0, 0, 0);
-  periodStart.setDate(periodStart.getDate() - (periodDays - 1));
-  const periodStartIso = periodStart.toISOString();
-  const daily = Array.from({ length: periodDays }, (_, index) => {
-    const date = new Date(periodStart);
-    date.setDate(date.getDate() + index);
-    return {
-      date: localDayKey(date),
-      newCompletedCount: 0,
-      dueCompletedCount: 0,
-      cumulativeLearnedCount: 0
-    };
-  });
-  const dailyByDate = new Map(daily.map((day) => [day.date, day]));
-  let learnedBeforePeriod = 0;
+  const activityPeriodDays = 30;
+  const activityPeriodStart = new Date(now);
+  activityPeriodStart.setHours(0, 0, 0, 0);
+  activityPeriodStart.setDate(
+    activityPeriodStart.getDate() - (activityPeriodDays - 1)
+  );
+  const activityDaily = Array.from(
+    { length: activityPeriodDays },
+    (_, index) => {
+      const date = new Date(activityPeriodStart);
+      date.setDate(date.getDate() + index);
+      return {
+        date: localDayKey(date),
+        newCompletedCount: 0,
+        dueCompletedCount: 0
+      };
+    }
+  );
+  const activityByDate = new Map(
+    activityDaily.map((day) => [day.date, day])
+  );
   let completedReviewCount = 0;
   let completedNewToday = 0;
   let completedDueToday = 0;
+  const eventsByItem = new Map<string, ReviewProgressRow[]>();
   for (const row of rows) {
+    const itemEvents = eventsByItem.get(row.learning_item_id) ?? [];
+    itemEvents.push(row);
+    eventsByItem.set(row.learning_item_id, itemEvents);
     const state = states.get(row.learning_item_id) ?? {
       hasCompletedNewItem: false,
       learningKind: null
@@ -189,16 +204,12 @@ function reviewProgress(
     const kind: ReviewLearningKind = state.hasCompletedNewItem ? "due" : "new";
     const completed = localDayKey(row.next_due_at) > localDayKey(row.reviewed_at);
     if (completed) {
-      const isFirstCompletion = !state.hasCompletedNewItem;
       state.hasCompletedNewItem = true;
       state.learningKind = null;
-      if (isFirstCompletion && row.reviewed_at < periodStartIso) {
-        learnedBeforePeriod += 1;
-      }
-      const progressDay = dailyByDate.get(localDayKey(row.reviewed_at));
-      if (progressDay) {
-        if (kind === "new") progressDay.newCompletedCount += 1;
-        else progressDay.dueCompletedCount += 1;
+      const activityDay = activityByDate.get(localDayKey(row.reviewed_at));
+      if (activityDay) {
+        if (kind === "new") activityDay.newCompletedCount += 1;
+        else activityDay.dueCompletedCount += 1;
         completedReviewCount += 1;
       }
       if (row.reviewed_at >= todayStartIso && row.reviewed_at < tomorrowStartIso) {
@@ -216,11 +227,75 @@ function reviewProgress(
     if (state.learningKind === "new") newLearningCount += 1;
     if (state.learningKind === "due") dueLearningCount += 1;
   }
-  let cumulativeLearnedCount = learnedBeforePeriod;
-  for (const day of daily) {
-    cumulativeLearnedCount += day.newCompletedCount;
-    day.cumulativeLearnedCount = cumulativeLearnedCount;
+
+  function isSolidAt(itemEvents: ReviewProgressRow[], at: Date): boolean {
+    const atIso = at.toISOString();
+    const eligibleEvents = itemEvents.filter((event) =>
+      event.reviewed_at <= atIso
+    );
+    const latest = eligibleEvents.at(-1);
+    if (!latest ||
+      (latest.final_rating !== "good" && latest.final_rating !== "easy")) {
+      return false;
+    }
+    const successfulDays = new Set(eligibleEvents
+      .filter(({ final_rating }) =>
+        final_rating === "good" || final_rating === "easy"
+      )
+      .map(({ reviewed_at }) => localDayKey(reviewed_at)));
+    if (successfulDays.size < SOLID_RECALL_MINIMUM_SUCCESS_DAYS) return false;
+    const card = cardFromJson(latest.next_card_json);
+    if (card.stability < SOLID_RECALL_MINIMUM_STABILITY_DAYS) return false;
+    return reviewScheduler.get_retrievability(card, at, false) >=
+      SOLID_RECALL_MINIMUM_RETRIEVABILITY;
   }
+
+  function solidCountAt(at: Date): number {
+    let count = 0;
+    for (const itemEvents of eventsByItem.values()) {
+      if (isSolidAt(itemEvents, at)) count += 1;
+    }
+    return count;
+  }
+
+  const periodDays = 90;
+  const periodStart = new Date(now);
+  periodStart.setHours(0, 0, 0, 0);
+  periodStart.setDate(periodStart.getDate() - (periodDays - 1));
+  const daily = Array.from({ length: periodDays }, (_, index) => {
+    const date = new Date(periodStart);
+    date.setDate(date.getDate() + index);
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const evaluationTime = index === periodDays - 1
+      ? now
+      : new Date(nextDay.getTime() - 1);
+    return {
+      date: localDayKey(date),
+      solidItemCount: solidCountAt(evaluationTime)
+    };
+  });
+  const solidItemCount = solidCountAt(now);
+  const comparisonTime = new Date(now);
+  comparisonTime.setDate(comparisonTime.getDate() - 30);
+  const solidItemCountDelta30Days =
+    solidItemCount - solidCountAt(comparisonTime);
+  const recallPeriodStart = new Date(now);
+  recallPeriodStart.setHours(0, 0, 0, 0);
+  recallPeriodStart.setDate(recallPeriodStart.getDate() - 29);
+  const recallPeriodStartIso = recallPeriodStart.toISOString();
+  let recalledSuccessfully = 0;
+  let recallReviewCount30Days = 0;
+  for (const itemEvents of eventsByItem.values()) {
+    itemEvents.forEach((event, index) => {
+      if (index === 0 || event.reviewed_at < recallPeriodStartIso) return;
+      recallReviewCount30Days += 1;
+      if (event.final_rating === "good" || event.final_rating === "easy") {
+        recalledSuccessfully += 1;
+      }
+    });
+  }
+
   return {
     states,
     completedNewToday,
@@ -229,10 +304,19 @@ function reviewProgress(
     dueLearningCount,
     learningProgress: {
       periodDays,
-      learnedItemCount: cumulativeLearnedCount,
-      learnedItemCountDelta: cumulativeLearnedCount - learnedBeforePeriod,
-      completedReviewCount,
+      solidItemCount,
+      solidItemCountDelta30Days,
+      buildingItemCount: Math.max(0, eventsByItem.size - solidItemCount),
+      recallRate30Days: recallReviewCount30Days === 0
+        ? null
+        : Math.round(recalledSuccessfully / recallReviewCount30Days * 100),
+      recallReviewCount30Days,
       daily
+    },
+    reviewActivity: {
+      periodDays: activityPeriodDays,
+      completedReviewCount,
+      daily: activityDaily
     }
   };
 }
@@ -732,7 +816,8 @@ export class LocalLearningLibrary {
     const now = validDate(nowInput, "current time");
     const nowIso = now.toISOString();
     const progressRows = database.prepare(`
-      SELECT e.id, e.learning_item_id, e.reviewed_at, e.next_due_at
+      SELECT e.id, e.learning_item_id, e.reviewed_at, e.next_due_at,
+        e.final_rating, e.next_card_json
       FROM learning_review_events e
       JOIN learning_items i ON i.id = e.learning_item_id
       WHERE i.status = 'active' AND e.reviewed_at <= ?
@@ -827,7 +912,8 @@ export class LocalLearningLibrary {
           reviewPaperSize: REVIEW_PAPER_SIZE.default
         };
     const progressRows = database.prepare(`
-      SELECT e.id, e.learning_item_id, e.reviewed_at, e.next_due_at
+      SELECT e.id, e.learning_item_id, e.reviewed_at, e.next_due_at,
+        e.final_rating, e.next_card_json
       FROM learning_review_events e
       JOIN learning_items i ON i.id = e.learning_item_id
       WHERE i.status = 'active' AND e.reviewed_at <= ?
@@ -918,6 +1004,7 @@ export class LocalLearningLibrary {
       availableDueCount: eligibleDueRows.length,
       availableNewCount: eligibleNewRows.length,
       learningProgress: progress.learningProgress,
+      reviewActivity: progress.reviewActivity,
       selectedItems,
       nextDueAt: nextDue.next_due_at
     };

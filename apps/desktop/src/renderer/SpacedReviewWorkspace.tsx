@@ -12,6 +12,7 @@ import type {
 } from "../shared/learning-contracts";
 import type {
   ConfirmReviewSessionResult,
+  ReviewActivity,
   ReviewDesktopApi,
   ReviewGenerationProgress,
   ReviewGrade,
@@ -50,97 +51,160 @@ function ReviewLearningGrowth({
 }: {
   progress: ReviewLearningProgress;
 }) {
-  const maximumCompleted = Math.max(
-    1,
-    ...progress.daily.map((day) =>
-      day.newCompletedCount + day.dueCompletedCount
-    )
-  );
-  const average = progress.completedReviewCount / progress.periodDays;
-  const activeDays = progress.daily.filter((day) =>
-    day.newCompletedCount + day.dueCompletedCount > 0
-  ).length;
-  const hasProgress = progress.learnedItemCount > 0 ||
-    progress.completedReviewCount > 0;
+  const chartWidth = 640;
+  const chartHeight = 190;
+  const insetX = 10;
+  const insetY = 14;
+  const values = progress.daily.map(({ solidItemCount }) => solidItemCount);
+  const observedMinimum = values.length > 0 ? Math.min(...values) : 0;
+  const observedMaximum = values.length > 0 ? Math.max(...values) : 0;
+  const minimum = observedMinimum === observedMaximum
+    ? Math.max(0, observedMinimum - 1)
+    : observedMinimum;
+  const maximum = observedMinimum === observedMaximum
+    ? Math.max(1, observedMaximum)
+    : observedMaximum;
+  const range = Math.max(1, maximum - minimum);
+  const points = progress.daily.map((day, index) => {
+    const x = progress.daily.length <= 1
+      ? insetX
+      : insetX + index / (progress.daily.length - 1) *
+        (chartWidth - insetX * 2);
+    const y = chartHeight - insetY -
+      (day.solidItemCount - minimum) / range *
+      (chartHeight - insetY * 2);
+    return { ...day, x, y };
+  });
+  const linePath = points.map((point, index) =>
+    `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`
+  ).join(" ");
+  const areaPath = points.length > 0
+    ? `M ${points[0].x.toFixed(2)} ${(chartHeight - insetY).toFixed(2)} ` +
+      `${linePath.replace(/^M /, "L ")} ` +
+      `L ${points.at(-1)!.x.toFixed(2)} ${(chartHeight - insetY).toFixed(2)} Z`
+    : "";
+  const first = progress.daily[0];
+  const last = progress.daily.at(-1);
+  const delta = progress.solidItemCountDelta30Days;
+  const deltaLabel = delta > 0
+    ? `+${delta} in the last 30 days`
+    : delta < 0
+      ? `−${Math.abs(delta)} in the last 30 days`
+      : "No change in the last 30 days";
 
   return (
     <section className="review-growth-card" aria-label="Learning growth">
-      <div className="review-growth-story">
+      <header className="review-growth-heading">
         <div>
-          <span className="review-growth-kicker">Your learning story</span>
-          <h2>You have learned</h2>
-          <div className="review-growth-total">
-            <strong>{progress.learnedItemCount}</strong>
-            <span>items</span>
-          </div>
-          {hasProgress ? (
-            <p>
-              Progress over the past {progress.periodDays} days
-              <strong> +{progress.learnedItemCountDelta}</strong>
-            </p>
-          ) : (
-            <p>Your progress begins when you complete your first learning item.</p>
-          )}
+          <span className="review-growth-kicker">Your vocabulary growth</span>
+          <h2>Results that reflect what you can recall</h2>
         </div>
-        <div className="review-growth-emblem" aria-hidden="true">
-          <i />
-          <span>Keep building</span>
-        </div>
-      </div>
+        <span>{progress.periodDays} days</span>
+      </header>
 
-      <div className="review-growth-footprint">
-        <header>
+      <div className="review-growth-outcomes">
+        <div className="review-growth-primary">
+          <span>Solid recall</span>
+          <strong>{progress.solidItemCount}</strong>
+          <small>words &amp; phrases</small>
+          <p data-direction={delta > 0 ? "up" : delta < 0 ? "down" : "flat"}>
+            {deltaLabel}
+          </p>
+        </div>
+        <dl className="review-growth-secondary">
           <div>
-            <strong>{progress.periodDays}-day learning activity</strong>
-            <small>Darker colors mean more completed that day</small>
+            <dt>Building</dt>
+            <dd>{progress.buildingItemCount}</dd>
+            <small>still strengthening</small>
           </div>
-          <span>{activeDays} active days</span>
-        </header>
-        <ol
-          className="review-growth-days"
-          aria-label={`Learning activity over the past ${progress.periodDays} days; ${progress.learnedItemCount} items learned`}
-        >
-          {progress.daily.map((day) => {
-            const completed = day.newCompletedCount + day.dueCompletedCount;
-            const level = completed === 0
-              ? 0
-              : Math.max(1, Math.ceil(completed / maximumCompleted * 4));
-            return (
-              <li
-                data-level={level}
-                aria-label={`${day.date}: ${completed} completed, including ${day.newCompletedCount} new items and ${day.dueCompletedCount} due reviews`}
-                title={`${day.date} • ${completed} completed`}
-                key={day.date}
-              >
-                <span aria-hidden="true">{Number(day.date.slice(-2))}</span>
-              </li>
-            );
-          })}
-        </ol>
-        <div className="review-growth-scale" aria-hidden="true">
-          <span>Less</span>
-          <i data-level="1" />
-          <i data-level="2" />
-          <i data-level="3" />
-          <i data-level="4" />
-          <span>More</span>
-        </div>
+          <div>
+            <dt>30-day recall</dt>
+            <dd>{progress.recallRate30Days === null
+              ? "—"
+              : `${progress.recallRate30Days}%`}</dd>
+            <small>{progress.recallReviewCount30Days > 0
+              ? `Based on ${progress.recallReviewCount30Days} follow-up reviews`
+              : "No follow-up reviews yet"}</small>
+          </div>
+        </dl>
       </div>
 
-      <dl className="review-growth-summary">
-        <div>
-          <dt>Completed in 30 days</dt>
-          <dd>{progress.completedReviewCount}<small>reviews</small></dd>
+      <div className="review-growth-chart">
+        <div className="review-growth-chart-heading">
+          <strong>Solid recall over time</strong>
+          <small>Items can move down when they need reinforcement.</small>
         </div>
-        <div>
-          <dt>Daily average</dt>
-          <dd>{average.toFixed(1)}<small>reviews</small></dd>
+        <svg
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          role="img"
+          aria-label={`${progress.periodDays}-day solid recall trend from ${first?.solidItemCount ?? 0} to ${last?.solidItemCount ?? 0}`}
+          preserveAspectRatio="none"
+        >
+          <title>
+            {`${progress.periodDays}-day solid recall trend from ${first?.solidItemCount ?? 0} to ${last?.solidItemCount ?? 0}`}
+          </title>
+          <line x1={insetX} x2={chartWidth - insetX}
+            y1={chartHeight / 2} y2={chartHeight / 2} />
+          <line x1={insetX} x2={chartWidth - insetX}
+            y1={chartHeight - insetY} y2={chartHeight - insetY} />
+          <path className="review-growth-area" d={areaPath} />
+          <path className="review-growth-line" d={linePath} />
+          {last ? (
+            <circle cx={points.at(-1)!.x} cy={points.at(-1)!.y} r="4" />
+          ) : null}
+        </svg>
+        <div className="review-growth-axis" aria-hidden="true">
+          <span>{first?.date ?? ""}</span>
+          <span>{last?.date ?? ""}</span>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function ReviewActivityCard({
+  activity
+}: {
+  activity: ReviewActivity;
+}) {
+  const completedByDay = activity.daily.map((day) =>
+    day.newCompletedCount + day.dueCompletedCount
+  );
+  const maximumCompleted = Math.max(1, ...completedByDay);
+  const activeDays = completedByDay.filter((count) => count > 0).length;
+
+  return (
+    <section className="review-activity-card" aria-label="Review activity">
+      <header>
         <div>
-          <dt>Active days</dt>
-          <dd>{activeDays}<small>days</small></dd>
+          <h2>{activity.periodDays}-day review activity</h2>
+          <p>Practice completed, separate from memory results.</p>
         </div>
-      </dl>
+        <strong>
+          {activity.completedReviewCount} reviews · {activeDays} active days
+        </strong>
+      </header>
+      <ol
+        className="review-activity-days"
+        aria-label={`Review activity over the past ${activity.periodDays} days; ${activity.completedReviewCount} completed reviews`}
+      >
+        {activity.daily.map((day) => {
+          const completed = day.newCompletedCount + day.dueCompletedCount;
+          const level = completed === 0
+            ? 0
+            : Math.max(1, Math.ceil(completed / maximumCompleted * 4));
+          return (
+            <li
+              data-level={level}
+              aria-label={`${day.date}: ${completed} completed reviews`}
+              title={`${day.date} • ${completed} completed reviews`}
+              key={day.date}
+            >
+              <span aria-hidden="true">{Number(day.date.slice(-2))}</span>
+            </li>
+          );
+        })}
+      </ol>
     </section>
   );
 }
@@ -459,6 +523,31 @@ export function SpacedReviewWorkspace({
 
       {phase === "loading" ? <p className="library-state">Loading review schedule…</p> : null}
 
+      {summary && (phase === "ready" || phase === "completed") ? (
+        <section className="review-status-strip" aria-label="Today's review status">
+          <div className="review-status-heading">
+            <strong>Today&apos;s progress</strong>
+            <small>Completed / daily limit</small>
+          </div>
+          <dl>
+            <div>
+              <dt>New items</dt>
+              <dd>
+                <strong>{summary.reviewedNewTodayCount}</strong>
+                <span>/{summary.newCompletionLimit}</span>
+              </dd>
+            </div>
+            <div>
+              <dt>Due reviews</dt>
+              <dd>
+                <strong>{summary.reviewedDueTodayCount}</strong>
+                <span>/{summary.dueReviewCompletionLimit}</span>
+              </dd>
+            </div>
+          </dl>
+        </section>
+      ) : null}
+
       {summary && phase === "ready" ? (
         summary.totalAvailable > 0 ? (
           <section
@@ -523,30 +612,10 @@ export function SpacedReviewWorkspace({
           <ReviewLearningGrowth progress={summary.learningProgress} />
         ) : null}
 
-      {summary && (phase === "ready" || phase === "completed") ? (
-        <section className="review-status-strip" aria-label="Today's review status">
-          <div className="review-status-heading">
-            <strong>Today&apos;s progress</strong>
-            <small>Completed / daily limit</small>
-          </div>
-          <dl>
-            <div>
-              <dt>New items</dt>
-              <dd>
-                <strong>{summary.reviewedNewTodayCount}</strong>
-                <span>/{summary.newCompletionLimit}</span>
-              </dd>
-            </div>
-            <div>
-              <dt>Due reviews</dt>
-              <dd>
-                <strong>{summary.reviewedDueTodayCount}</strong>
-                <span>/{summary.dueReviewCompletionLimit}</span>
-              </dd>
-            </div>
-          </dl>
-        </section>
-      ) : null}
+      {summary?.reviewActivity &&
+        (phase === "ready" || phase === "completed") ? (
+          <ReviewActivityCard activity={summary.reviewActivity} />
+        ) : null}
 
       {phase === "generating" ? (
         <section

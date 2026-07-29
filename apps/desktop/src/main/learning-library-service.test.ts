@@ -869,60 +869,46 @@ describe("LocalLearningLibrary", () => {
       reviewedNewTodayCount: 1,
       reviewedDueTodayCount: 1
     });
-    expect(summary.learningProgress?.daily.at(-1)).toMatchObject({
-      date: new Date(2026, 6, 24).toLocaleDateString("en-CA"),
-      newCompletedCount: 1,
-      dueCompletedCount: 1
-    });
   });
 
-  it("builds a 30-day learning growth series from completed active reviews", async () => {
+  it("builds a 90-day solid-recall trend instead of treating first completion as mastery", async () => {
     const library = new LocalLearningLibrary(await databasePath());
-    const [baselineItem, growingItem, unfinishedItem, trashedItem] =
+    const [solidItem, buildingItem, trashedItem] =
       (await library.listItems({
         status: "active",
         sort: "recent"
-      })).slice(0, 4);
+      })).slice(0, 3);
 
-    const baselineCompleted = await library.confirmReviewSession({
-      sessionId: "growth-baseline",
-      reviewedAt: new Date(2026, 5, 1, 9, 0).toISOString(),
+    const firstSolidReview = await library.confirmReviewSession({
+      sessionId: "solid-first",
+      reviewedAt: "2026-01-01T09:00:00.000Z",
       ratings: [{
-        itemId: baselineItem.id,
+        itemId: solidItem.id,
         aiRating: "easy",
         finalRating: "easy"
       }]
     });
-    const dueCompleted = await library.confirmReviewSession({
-      sessionId: "growth-due-completed",
-      reviewedAt: baselineCompleted.entries[0].nextDueAt,
+    const secondSolidReview = await library.confirmReviewSession({
+      sessionId: "solid-second",
+      reviewedAt: firstSolidReview.entries[0].nextDueAt,
       ratings: [{
-        itemId: baselineItem.id,
-        aiRating: "easy",
-        finalRating: "easy"
-      }]
-    });
-    const growingCompleted = await library.confirmReviewSession({
-      sessionId: "growth-new-completed",
-      reviewedAt: new Date(2026, 5, 15, 9, 0).toISOString(),
-      ratings: [{
-        itemId: growingItem.id,
+        itemId: solidItem.id,
         aiRating: "easy",
         finalRating: "easy"
       }]
     });
     await library.confirmReviewSession({
-      sessionId: "growth-unfinished",
-      reviewedAt: new Date(2026, 5, 30, 9, 0).toISOString(),
+      sessionId: "building-first",
+      reviewedAt: secondSolidReview.reviewedAt,
       ratings: [{
-        itemId: unfinishedItem.id,
-        aiRating: "forgotten",
-        finalRating: "forgotten"
+        itemId: buildingItem.id,
+        aiRating: "easy",
+        finalRating: "easy"
       }]
     });
     await library.confirmReviewSession({
-      sessionId: "growth-trashed",
-      reviewedAt: new Date(2026, 5, 20, 9, 0).toISOString(),
+      sessionId: "trashed-first",
+      reviewedAt: secondSolidReview.reviewedAt,
       ratings: [{
         itemId: trashedItem.id,
         aiRating: "easy",
@@ -931,47 +917,92 @@ describe("LocalLearningLibrary", () => {
     });
     await library.trashItem(trashedItem.id);
 
-    const summary = await library.getReviewSummary(
-      new Date(2026, 6, 1, 12, 0)
+    const now = new Date(
+      new Date(secondSolidReview.reviewedAt).getTime() + 60_000
     );
+    const summary = await library.getReviewSummary(now);
     const progress = summary.learningProgress!;
-    const newCompletionDay = progress.daily.find(({ date }) =>
-      date === new Date(growingCompleted.entries[0].reviewedAt)
-        .toLocaleDateString("en-CA")
-    );
-    const dueCompletionDay = progress.daily.find(({ date }) =>
-      date === new Date(dueCompleted.entries[0].reviewedAt)
-        .toLocaleDateString("en-CA")
-    );
 
-    expect(progress.daily).toHaveLength(30);
-    expect(progress.daily[0]).toMatchObject({
-      date: new Date(2026, 5, 2).toLocaleDateString("en-CA"),
-      cumulativeLearnedCount: 1
-    });
+    expect(progress.daily).toHaveLength(90);
     expect(progress).toMatchObject({
-      learnedItemCount: 2,
-      learnedItemCountDelta: 1,
-      completedReviewCount: 2
+      periodDays: 90,
+      solidItemCount: 1,
+      solidItemCountDelta30Days: 1,
+      buildingItemCount: 1,
+      recallRate30Days: 100,
+      recallReviewCount30Days: 1
     });
-    expect(newCompletionDay).toMatchObject({
-      newCompletedCount: 1,
-      dueCompletedCount: 0,
-      cumulativeLearnedCount: 2
+    expect(progress.daily.at(-1)).toMatchObject({
+      date: now.toLocaleDateString("en-CA"),
+      solidItemCount: 1
     });
-    expect(dueCompletionDay).toMatchObject({
-      newCompletedCount: 0,
-      dueCompletedCount: 1,
-      cumulativeLearnedCount: 1
+    expect(summary.reviewActivity).toMatchObject({
+      periodDays: 30,
+      completedReviewCount: 3
+    });
+    expect(summary.reviewActivity?.daily).toHaveLength(30);
+  });
+
+  it("moves forgotten and decayed items out of solid recall", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const [forgottenItem, decayedItem] = (await library.listItems({
+      status: "active",
+      sort: "recent"
+    })).slice(0, 2);
+
+    async function makeSolid(itemId: string, prefix: string) {
+      const first = await library.confirmReviewSession({
+        sessionId: `${prefix}-first`,
+        reviewedAt: "2026-01-01T09:00:00.000Z",
+        ratings: [{
+          itemId,
+          aiRating: "easy",
+          finalRating: "easy"
+        }]
+      });
+      return library.confirmReviewSession({
+        sessionId: `${prefix}-second`,
+        reviewedAt: first.entries[0].nextDueAt,
+        ratings: [{
+          itemId,
+          aiRating: "easy",
+          finalRating: "easy"
+        }]
+      });
+    }
+
+    const forgottenSolid = await makeSolid(forgottenItem.id, "forgotten");
+    const decayedSolid = await makeSolid(decayedItem.id, "decayed");
+    const forgottenAt = forgottenSolid.entries[0].nextDueAt;
+    await library.confirmReviewSession({
+      sessionId: "forgotten-third",
+      reviewedAt: forgottenAt,
+      ratings: [{
+        itemId: forgottenItem.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }]
     });
 
-    await library.restoreItem(trashedItem.id);
+    const justForgotten = (await library.getReviewSummary(
+      new Date(new Date(forgottenAt).getTime() + 60_000)
+    )).learningProgress!;
+    expect(justForgotten).toMatchObject({
+      solidItemCount: 1,
+      buildingItemCount: 1,
+      solidItemCountDelta30Days: -1,
+      recallRate30Days: 0,
+      recallReviewCount30Days: 1
+    });
+
+    const longAfterBothDue = new Date(
+      new Date(decayedSolid.reviewedAt).getTime() + 180 * 86_400_000
+    );
     expect((await library.getReviewSummary(
-      new Date(2026, 6, 1, 12, 0)
+      longAfterBothDue
     )).learningProgress).toMatchObject({
-      learnedItemCount: 3,
-      learnedItemCountDelta: 2,
-      completedReviewCount: 3
+      solidItemCount: 0,
+      buildingItemCount: 2
     });
   });
 

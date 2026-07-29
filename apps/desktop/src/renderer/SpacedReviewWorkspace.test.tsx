@@ -271,30 +271,48 @@ describe("SpacedReviewWorkspace", () => {
       <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
     );
 
-    expect(await screen.findByRole("region", {
+    const status = await screen.findByRole("region", {
       name: "Today's review status"
-    })).toHaveTextContent(
+    });
+    expect(status).toHaveTextContent(
       "New items3/12Due reviews5/30"
     );
+    const primaryAction = screen.getByRole("region", {
+      name: "Complete 1 questions to keep your memory moving"
+    });
+    expect(
+      status.compareDocumentPosition(primaryAction) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
-  it("shows an accessible 30-day learning footprint and achievement totals", async () => {
+  it("shows a simple, accessible 90-day solid-recall outcome", async () => {
     const api = reviewApi();
     const baseSummary = await api.getSummary();
-    const daily = Array.from({ length: 30 }, (_, index) => ({
-      date: `2026-07-${String(index + 1).padStart(2, "0")}`,
-      newCompletedCount: index === 28 ? 2 : 0,
-      dueCompletedCount: index === 29 ? 3 : 0,
-      cumulativeLearnedCount: index < 28 ? 98 : 100
+    const daily = Array.from({ length: 90 }, (_, index) => ({
+      date: new Date(Date.UTC(2026, 4, 1 + index))
+        .toISOString().slice(0, 10),
+      solidItemCount: 100 + Math.floor(index * 28 / 89)
     }));
     api.getSummary = vi.fn(async () => ({
       ...baseSummary,
       learningProgress: {
-        periodDays: 30,
-        learnedItemCount: 100,
-        learnedItemCountDelta: 2,
-        completedReviewCount: 5,
+        periodDays: 90,
+        solidItemCount: 128,
+        solidItemCountDelta30Days: 14,
+        buildingItemCount: 42,
+        recallRate30Days: 88,
+        recallReviewCount30Days: 34,
         daily
+      },
+      reviewActivity: {
+        periodDays: 30,
+        completedReviewCount: 5,
+        daily: Array.from({ length: 30 }, (_, index) => ({
+          date: `2026-07-${String(index + 1).padStart(2, "0")}`,
+          newCompletedCount: index === 28 ? 2 : 0,
+          dueCompletedCount: index === 29 ? 3 : 0
+        }))
       }
     }));
 
@@ -313,35 +331,54 @@ describe("SpacedReviewWorkspace", () => {
       primaryAction.compareDocumentPosition(growth) &
       Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
-    expect(growth).toHaveTextContent("You have learned100items");
-    expect(growth).toHaveTextContent("Progress over the past 30 days +2");
-    expect(growth).toHaveTextContent("Completed in 30 days5reviews");
-    expect(growth).toHaveTextContent("Daily average0.2reviews");
-    expect(growth).toHaveTextContent("Active days2days");
-    expect(growth).toHaveTextContent("30-day learning activity");
-    const footprint = within(growth).getByRole("list", {
-      name: /Learning activity over the past 30 days; 100 items learned/
+    expect(growth).toHaveTextContent("Solid recall128words & phrases");
+    expect(growth).toHaveTextContent("+14 in the last 30 days");
+    expect(growth).toHaveTextContent("Building42");
+    expect(growth).toHaveTextContent("30-day recall88%");
+    expect(growth).toHaveTextContent("Based on 34 follow-up reviews");
+    expect(within(growth).getByRole("img", {
+      name: /90-day solid recall trend from 100 to 128/
+    })).toBeInTheDocument();
+    expect(growth.querySelector("svg path")).toBeInTheDocument();
+    expect(growth.querySelector(".review-growth-days")).not.toBeInTheDocument();
+    expect(growth).not.toHaveTextContent("Daily average");
+    expect(growth).not.toHaveTextContent("Active days");
+    const activity = screen.getByRole("region", {
+      name: "Review activity"
     });
-    expect(within(footprint).getAllByRole("listitem")).toHaveLength(30);
-    expect(growth.querySelector("polyline")).not.toBeInTheDocument();
-    expect(growth.querySelector("rect")).not.toBeInTheDocument();
+    expect(activity).toHaveTextContent("30-day review activity");
+    expect(activity).toHaveTextContent("5 reviews · 2 active days");
+    expect(within(activity).getByRole("list", {
+      name: /Review activity over the past 30 days/
+    })).toBeInTheDocument();
+    expect(within(activity).getAllByRole("listitem")).toHaveLength(30);
   });
 
-  it("renders a safe empty learning growth state", async () => {
+  it("renders a safe empty solid-recall outcome", async () => {
     const api = reviewApi();
     const baseSummary = await api.getSummary();
     api.getSummary = vi.fn(async () => ({
       ...baseSummary,
       learningProgress: {
+        periodDays: 90,
+        solidItemCount: 0,
+        solidItemCountDelta30Days: 0,
+        buildingItemCount: 0,
+        recallRate30Days: null,
+        recallReviewCount30Days: 0,
+        daily: Array.from({ length: 90 }, (_, index) => ({
+          date: new Date(Date.UTC(2026, 4, 1 + index))
+            .toISOString().slice(0, 10),
+          solidItemCount: 0
+        }))
+      },
+      reviewActivity: {
         periodDays: 30,
-        learnedItemCount: 0,
-        learnedItemCountDelta: 0,
         completedReviewCount: 0,
         daily: Array.from({ length: 30 }, (_, index) => ({
           date: `2026-07-${String(index + 1).padStart(2, "0")}`,
           newCompletedCount: 0,
-          dueCompletedCount: 0,
-          cumulativeLearnedCount: 0
+          dueCompletedCount: 0
         }))
       }
     }));
@@ -353,12 +390,16 @@ describe("SpacedReviewWorkspace", () => {
     const growth = await screen.findByRole("region", {
       name: "Learning growth"
     });
-    expect(growth).toHaveTextContent(
-      "Your progress begins when you complete your first learning item."
-    );
-    expect(growth.querySelectorAll(
-      ".review-growth-days li[data-level='0']"
-    )).toHaveLength(30);
+    expect(growth).toHaveTextContent("Solid recall0words & phrases");
+    expect(growth).toHaveTextContent("No change in the last 30 days");
+    expect(growth).toHaveTextContent("Building0");
+    expect(growth).toHaveTextContent("30-day recall—");
+    expect(within(growth).getByRole("img", {
+      name: /90-day solid recall trend from 0 to 0/
+    })).toBeInTheDocument();
+    expect(screen.getByRole("region", {
+      name: "Review activity"
+    })).toHaveTextContent("0 reviews · 0 active days");
   });
 
   it("refreshes the simplified plan after confirming a review paper", async () => {
@@ -379,15 +420,16 @@ describe("SpacedReviewWorkspace", () => {
         backlogTotal: 1,
         totalAvailable: 1,
         learningProgress: {
-          periodDays: 30,
-          learnedItemCount: 0,
-          learnedItemCountDelta: 0,
-          completedReviewCount: 0,
-          daily: Array.from({ length: 30 }, (_, index) => ({
-            date: `2026-07-${String(index + 1).padStart(2, "0")}`,
-            newCompletedCount: 0,
-            dueCompletedCount: 0,
-            cumulativeLearnedCount: 0
+          periodDays: 90,
+          solidItemCount: 0,
+          solidItemCountDelta30Days: 0,
+          buildingItemCount: 0,
+          recallRate30Days: null,
+          recallReviewCount30Days: 0,
+          daily: Array.from({ length: 90 }, (_, index) => ({
+            date: new Date(Date.UTC(2026, 4, 1 + index))
+              .toISOString().slice(0, 10),
+            solidItemCount: 0
           }))
         },
         selectedItems: [{
@@ -421,15 +463,16 @@ describe("SpacedReviewWorkspace", () => {
         backlogTotal: 0,
         totalAvailable: 0,
         learningProgress: {
-          periodDays: 30,
-          learnedItemCount: 1,
-          learnedItemCountDelta: 1,
-          completedReviewCount: 1,
-          daily: Array.from({ length: 30 }, (_, index) => ({
-            date: `2026-07-${String(index + 1).padStart(2, "0")}`,
-            newCompletedCount: index === 23 ? 1 : 0,
-            dueCompletedCount: 0,
-            cumulativeLearnedCount: index < 23 ? 0 : 1
+          periodDays: 90,
+          solidItemCount: 1,
+          solidItemCountDelta30Days: 1,
+          buildingItemCount: 0,
+          recallRate30Days: 100,
+          recallReviewCount30Days: 1,
+          daily: Array.from({ length: 90 }, (_, index) => ({
+            date: new Date(Date.UTC(2026, 4, 1 + index))
+              .toISOString().slice(0, 10),
+            solidItemCount: index < 89 ? 0 : 1
           }))
         },
         selectedItems: [],
@@ -460,7 +503,7 @@ describe("SpacedReviewWorkspace", () => {
     );
     expect(screen.getByRole("region", {
       name: "Learning growth"
-    })).toHaveTextContent("You have learned1items");
+    })).toHaveTextContent("Solid recall1words & phrases");
     expect(api.confirmPaper).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", {
       name: "Back to review overview"
