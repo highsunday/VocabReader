@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   Check,
+  Clock3,
   LoaderCircle,
   Sparkles
 } from "lucide-react";
@@ -385,14 +386,19 @@ export function SpacedReviewWorkspace({
           </section>
         ) : (
           <section className="review-empty-state">
-            <strong>現在沒有可練習的卡片</strong>
-            <p>
-              {summary.backlogTotal > 0
-                ? "今天的複習已完成；需要時可到設定調整每日上限。"
-                : summary.nextDueAt
-                ? `下一張卡預計於 ${dueLabel(summary.nextDueAt)} 到期。`
-                : "先從閱讀內容建立學習卡，再回來開始複習。"}
-            </p>
+            <div className="review-empty-icon" aria-hidden="true">
+              <Clock3 size={25} strokeWidth={1.8} />
+            </div>
+            <div className="review-empty-copy">
+              <strong>現在沒有可練習的卡片</strong>
+              <p>
+                {summary.backlogTotal > 0
+                  ? "今天的複習已完成；需要時可到設定調整每日上限。"
+                  : summary.nextDueAt
+                  ? `下一張卡預計於 ${dueLabel(summary.nextDueAt)} 到期。`
+                  : "先從閱讀內容建立學習卡，再回來開始複習。"}
+              </p>
+            </div>
           </section>
         )
       ) : null}
