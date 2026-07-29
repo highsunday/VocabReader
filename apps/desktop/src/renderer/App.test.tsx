@@ -2605,6 +2605,76 @@ describe("App", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
+  it("keeps START and END range navigation beside the sticky annotation tool", async () => {
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 4, end: 10 } }
+    };
+    const { getChapterContent, saveReadingRange } = installLibraryApi([rangedBook]);
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>Content for one-1</p>"
+    });
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    await screen.findByLabelText("Opening 章節內容");
+    await waitFor(() => expect(screen.getByRole("button", {
+      name: "閱讀區段起點"
+    })).toHaveAttribute("data-text-offset", "4"));
+    saveReadingRange.mockClear();
+
+    const annotationDock = screen.getByRole("button", {
+      name: "開啟標記模式，目前章節 0 個標記"
+    }).closest(".annotation-tool-dock");
+    const moveToStart = screen.getByRole("button", {
+      name: "移到 START 範圍標籤"
+    });
+    const moveToEnd = screen.getByRole("button", {
+      name: "移到 END 範圍標籤"
+    });
+    expect(annotationDock).toContainElement(moveToStart);
+    expect(annotationDock).toContainElement(moveToEnd);
+    expect(moveToStart).toHaveTextContent("START");
+    expect(moveToEnd).toHaveTextContent("END");
+    expect(moveToStart.closest(".reader-toolbar")).toBeNull();
+    expect(moveToEnd.closest(".reader-toolbar")).toBeNull();
+    expect(screen.queryByRole("group", {
+      name: "章節快速移動"
+    })).not.toBeInTheDocument();
+
+    const startBoundary = document.querySelector(
+      '[data-range-boundary="start"]'
+    );
+    const endBoundary = document.querySelector(
+      '[data-range-boundary="end"]'
+    );
+    if (!startBoundary || !endBoundary) {
+      throw new Error("missing reading range boundaries");
+    }
+
+    fireEvent.click(moveToStart);
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "center" });
+    expect(scrollIntoView.mock.instances.at(-1)).toBe(startBoundary);
+
+    fireEvent.click(moveToEnd);
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "center" });
+    expect(scrollIntoView.mock.instances.at(-1)).toBe(endBoundary);
+    expect(screen.getByRole("button", { name: "閱讀區段起點" }))
+      .toHaveAttribute("data-text-offset", "4");
+    expect(screen.getByRole("button", { name: "閱讀區段終點" }))
+      .toHaveAttribute("data-text-offset", "10");
+    expect(saveReadingRange).not.toHaveBeenCalled();
+  });
+
   it("creates and removes an annotation from the existing right-click menu", async () => {
     const { getChapterContent, saveAnnotations } = installLibraryApi();
     getChapterContent.mockResolvedValue({

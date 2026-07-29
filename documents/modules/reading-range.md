@@ -2,7 +2,7 @@
 title: 閱讀區段與 START／END 範圍標籤模組
 module: reading-range
 status: active
-last_updated: 2026-07-21
+last_updated: 2026-07-29
 related_implements:
   - F05-ai-reading-range-markers
   - F06-reading-range-boundary-lines
@@ -10,6 +10,8 @@ related_implements:
   - F09-send-reading-segment-on-range-change
   - F13-persistent-annotations-and-ai-analysis
   - B02-persist-range-marker-on-drag-release
+  - F40-reader-jump-to-range-markers
+  - B14-jump-to-reading-range-markers
 ---
 
 # 閱讀區段與 START／END 範圍標籤模組
@@ -38,6 +40,7 @@ related_implements:
 - 可拖曳左側書籤，拖曳途中即時預覽，放開時保存一次。
 - 可在內文目前行開啟右鍵功能選單，把 START 或 END 移到該行。
 - START 不得位於 END 之後；拖曳或右鍵更新若越界，另一個標籤會跟到正在移動的新位置，使兩者位於同一位置。
+- 浮動標記工具旁提供 START／END 快捷按鈕，可把對應範圍標籤置中捲入視野；快捷導覽不改動或保存範圍。
 - 每個書籤向內文延伸具名分隔線；位置過近時會上下錯開，避免重疊。
 - 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍，章末停止且不跨章。
 - 已提供只擷取 START／END 之間原文的共用函式；AI 對話面板已使用此入口，完整區段解析與區段練習尚未實作。
@@ -137,6 +140,12 @@ related_implements:
 3. 新 START 從舊 END 後第一個非空白字元開始，新 END 依相同約略字數向後計算。
 4. 剩餘內容不足時 END 停在章末；到達章末後按鈕停用，不自動切換下一章。
 
+### Quick navigation to a range marker
+
+1. `START`／`END` 快捷按鈕與浮動標記工具同屬 `.annotation-tool-dock`，不放在頂端章節工具列。
+2. 點擊後查找目前章節對應的 boundary DOM，並以 `scrollIntoView({ block: "center" })` 捲入視野。
+3. 快捷導覽只改變閱讀容器的可見位置；不修改文字 offset、不呼叫範圍保存，也不切換章節。
+
 ## 8. Persistence Flow
 
 ```text
@@ -181,7 +190,7 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/renderer/reading-range.test.ts` | START／END 第一行初始化、嚴格裁切、等長推進、章末停止、點位轉 offset、START 在線前／END 在線後、標記資料不受推進影響 |
-| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、明確推進、AI 對話嚴格裁切、相同區段去重與邊界／來源變更重傳 |
+| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線與快捷導覽、浮動工具位置、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、明確推進、AI 對話嚴格裁切、相同區段去重與邊界／來源變更重傳 |
 | `apps/desktop/src/main/library-service.test.ts` | 每章範圍保存、快速連續寫入、無效範圍與不存在章節拒絕 |
 | `apps/desktop/src/main/library-ipc.test.ts` | 保存 IPC 路由及輸入格式驗證 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron preload 確實暴露 `saveReadingRange()`，安全設定與應用程式啟動回歸 |

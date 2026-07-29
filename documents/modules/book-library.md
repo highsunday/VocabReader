@@ -2,7 +2,7 @@
 title: 書籍與本機書庫模組
 module: book-library
 status: active
-last_updated: 2026-07-28
+last_updated: 2026-07-29
 related_implements:
   - F01-epub-book-library
   - F02-chapter-reading-resume
@@ -16,6 +16,8 @@ related_implements:
   - B02-persist-range-marker-on-drag-release
   - F25-adjustable-reading-and-conversation-font-sizes
   - F26-reading-layout-settings
+  - F40-reader-jump-to-range-markers
+  - B14-jump-to-reading-range-markers
   - B13-resolve-nested-epub-navigation-on-windows
 ---
 
@@ -50,7 +52,7 @@ related_implements:
 - 從書籍總覽經不可復原確認後永久刪除書籍、本機 EPUB 與閱讀進度，並自動切換至相鄰書籍或空書庫狀態。
 - 從總覽的開始／繼續閱讀按鈕或章節清單進入章節閱讀介面。
 - 從本機 EPUB 讀取指定章節，安全呈現常見文字結構、表格、清單與書內點陣圖片。
-- 在閱讀介面返回書籍總覽或切換上一章。
+- 在閱讀介面返回書籍總覽、切換上一章／下一章，或從浮動標記工具旁快速移到目前 START／END 範圍標籤。
 - 每本書保存最後所在畫面、章節與相對捲動位置，切換書籍或重新啟動後可恢復。
 - 每章保存唯一一對範圍標籤；閱讀頁可拖曳或從目前行功能選單調整，並以「完成這段，前往下一段」明確推進。
 - 每章保存不重疊的持久標記；舊索引沒有標記欄位時安全視為空集合。
@@ -96,6 +98,7 @@ related_implements:
 - 顯示書籍縮圖、書籍總覽、章節清單、安全章節內容、載入與錯誤訊息。
 - 以全域閱讀版面設定呈現安全章節內容；字級、紙張寬度與正文行距可在章節工具列
   即時預覽，標題與程式碼保留自己的行距，範圍標籤會在版面變更後重新定位。
+- 從浮動標記工具旁把 START／END 範圍標籤置中捲入視野；這項操作不切換章節，也不改動或保存範圍。
 - 在書籍總覽提供刪除入口與確認對話框；刪除成功後依原清單位置選取下一本、前一本或顯示空書庫。
 - 側欄以書籍項目作為書籍總覽入口，保留獨立的 Anki 複習入口，不顯示章節機制說明卡片。
 - 不解析 EPUB，也不直接讀寫書庫檔案。
@@ -292,17 +295,16 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 | apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、刪除、章節、閱讀狀態與閱讀區段 handler，以及輸入驗證 |
 | apps/desktop/src/main/settings-store.test.ts | 閱讀版面預設、完整保存、舊設定相容與無效欄位獨立降級 |
 | apps/desktop/src/main/settings-ipc.test.ts | 字級、紙張寬度、行距及完整設定 payload 的範圍／步進驗證 |
-| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除、章節閱讀、閱讀版面面板／即時預覽／重設／關閉、閱讀位置恢復、範圍標籤拖曳／功能選單／防交叉／推進 |
+| apps/desktop/src/renderer/App.test.tsx | 側欄書籍切換、書籍刪除、章節閱讀、START／END 快捷導覽及工具位置、閱讀版面面板／即時預覽／重設／關閉、閱讀位置恢復、範圍標籤拖曳／功能選單／防交叉／推進 |
 | apps/desktop/src/renderer/reading-range.test.ts | 約 800 字初始化、短章、嚴格裁切、等長推進、章末停止、DOM 文字位置與標記資料獨立性 |
 | apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge（含刪除與閱讀區段 API）、閱讀版面保存與 computed style、響應式紙張寬度、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
 
-最近驗證（2026-07-24）：
+最近相關驗證（2026-07-29）：
 
-- Server Vitest：3/3 passed。
-- Desktop Vitest：198/198 passed。
-- Electron Playwright：2/2 passed。
-- 全專案 TypeScript typecheck：passed。
-- 全專案 production build：passed。
+- Desktop Vitest：302/302 passed。
+- Desktop TypeScript typecheck：passed。
+- Desktop production build：passed。
+- 本次未重跑 Server Vitest 與 Electron Playwright；F40／B14 不改動 server、preload 或 Electron main process。
 
 ## 12. Known Limitations and Technical Debt
 

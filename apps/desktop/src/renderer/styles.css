@@ -1443,16 +1443,60 @@ button {
   z-index: 4;
   top: 72px;
   height: 0;
+  padding: 10px 10px 0 0;
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   pointer-events: none;
+}
+
+.range-jump-controls {
+  height: 40px;
+  border: 1px solid #d8ddd5;
+  border-radius: 999px;
+  display: inline-flex;
+  overflow: hidden;
+  background: #faf9f5;
+  box-shadow: 0 4px 14px rgb(58 51 40 / 8%);
+  pointer-events: auto;
+}
+
+.range-jump-controls button {
+  min-width: 58px;
+  height: 100%;
+  padding: 0 12px;
+  border: 0;
+  color: #657d64;
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.range-jump-controls button.end {
+  color: #9a7049;
+}
+
+.range-jump-controls button + button {
+  border-left: 1px solid #dde0d9;
+}
+
+.range-jump-controls button:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.range-jump-controls button:focus-visible {
+  position: relative;
+  outline: 2px solid color-mix(in srgb, currentColor 42%, transparent);
+  outline-offset: -3px;
 }
 
 .annotation-tool {
   position: relative;
   min-width: 84px;
   height: 40px;
-  margin: 10px 10px 0 0;
+  margin: 0;
   padding: 6px 13px 6px 10px;
   border: 1px solid #d8ddd5;
   border-radius: 999px;

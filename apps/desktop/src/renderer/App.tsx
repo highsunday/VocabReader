@@ -1115,6 +1115,12 @@ export function App() {
     persistReadingRange(advanceReadingRange(text, readingRange));
   }
 
+  function scrollToReadingRangeMarker(marker: "start" | "end") {
+    contentRef.current
+      ?.querySelector<HTMLElement>(`[data-range-boundary="${marker}"]`)
+      ?.scrollIntoView({ block: "center" });
+  }
+
   function saveCurrentReaderPosition() {
     if (mode === "reader" && selectedBook && activeChapterId) {
       persistReadingState(
@@ -1972,6 +1978,28 @@ export function App() {
               ) : chapterContent ? (
                 <div className="reading-range-workspace">
                   <div className="annotation-tool-dock">
+                    <div
+                      className="range-jump-controls"
+                      role="group"
+                      aria-label="閱讀區段快速移動"
+                    >
+                      <button
+                        className="start"
+                        type="button"
+                        aria-label="移到 START 範圍標籤"
+                        onClick={() => scrollToReadingRangeMarker("start")}
+                      >
+                        START
+                      </button>
+                      <button
+                        className="end"
+                        type="button"
+                        aria-label="移到 END 範圍標籤"
+                        onClick={() => scrollToReadingRangeMarker("end")}
+                      >
+                        END
+                      </button>
+                    </div>
                     <button
                       className={`annotation-tool${isAnnotationMode ? " active" : ""}`}
                       type="button"
