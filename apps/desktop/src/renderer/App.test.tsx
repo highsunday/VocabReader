@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatDesktopApi, ChatSnapshot } from "../shared/chat-contracts";
 import type { LibraryBook } from "../shared/library-contracts";
@@ -2468,6 +2468,75 @@ describe("App", () => {
     expect(start).toHaveAttribute("data-text-offset", "3");
     fireEvent(window, new Event("resize"));
     expect(start).toHaveAttribute("data-text-offset", "3");
+  });
+
+  it("remeasures marker positions when sidebar resizing changes the article size", async () => {
+    const savedBooks: LibraryBook[] = [{
+      ...books[0],
+      chapterRanges: { "one-1": { start: 3, end: 14 } }
+    }];
+    let resizeCallback: ResizeObserverCallback | undefined;
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    class TestResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback;
+      }
+
+      observe = observe;
+      unobserve = vi.fn();
+      disconnect = disconnect;
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    let measuredTop = 24;
+    const originalCreateRange = document.createRange.bind(document);
+    const createRange = vi.spyOn(document, "createRange").mockImplementation(() => {
+      const range = originalCreateRange();
+      Object.defineProperty(range, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({
+          bottom: measuredTop,
+          height: 0,
+          left: 0,
+          right: 0,
+          top: measuredTop,
+          width: 0,
+          x: 0,
+          y: measuredTop,
+          toJSON: () => undefined
+        } as DOMRect)
+      });
+      return range;
+    });
+
+    try {
+      installLibraryApi(savedBooks);
+      render(<App />);
+      await screen.findByRole("heading", { name: "The First Book" });
+      fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+
+      const article = await screen.findByLabelText("Opening 章節內容");
+      await screen.findByRole("button", { name: "閱讀區段起點" });
+      const startBoundary = document.querySelector<HTMLElement>(
+        '[data-range-boundary="start"]'
+      );
+      if (!startBoundary) throw new Error("START boundary is missing");
+      await waitFor(() => expect(startBoundary.style.top).toBe("24px"));
+      expect(observe).toHaveBeenCalledWith(article);
+
+      measuredTop = 96;
+      fireEvent.keyDown(screen.getByRole("separator", {
+        name: "調整 AI 對話面板寬度"
+      }), { key: "ArrowLeft" });
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver);
+      });
+
+      await waitFor(() => expect(startBoundary.style.top).toBe("96px"));
+    } finally {
+      createRange.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("advances only from the explicit completion action and stops inside the chapter", async () => {

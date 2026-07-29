@@ -538,8 +538,15 @@ export function App() {
       end: markerTopForTextOffset(article, readingRange.end, "after")
     });
     updateMarkerTops();
+    const resizeObserver = typeof ResizeObserver === "undefined"
+      ? undefined
+      : new ResizeObserver(updateMarkerTops);
+    resizeObserver?.observe(article);
     window.addEventListener("resize", updateMarkerTops);
-    return () => window.removeEventListener("resize", updateMarkerTops);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateMarkerTops);
+    };
   }, [
     chapterContent,
     readingRange,
