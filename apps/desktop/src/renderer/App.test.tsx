@@ -1952,26 +1952,26 @@ describe("App", () => {
     fireEvent.pointerDown(resizeHandle, { clientX: 920, pointerId: 2 });
     fireEvent.pointerMove(window, { clientX: 1500, pointerId: 2 });
     expect(workspace.style.getPropertyValue("--right-sidebar-width"))
-      .toBe("280px");
+      .toBe("320px");
     fireEvent.pointerUp(window, { pointerId: 2 });
 
     fireEvent.keyDown(resizeHandle, { key: "ArrowLeft" });
     expect(workspace.style.getPropertyValue("--right-sidebar-width"))
-      .toBe("296px");
+      .toBe("336px");
     fireEvent.keyDown(resizeHandle, { key: "ArrowRight" });
     expect(workspace.style.getPropertyValue("--right-sidebar-width"))
-      .toBe("280px");
+      .toBe("320px");
 
     fireEvent.pointerDown(resizeHandle, { clientX: 920, pointerId: 3 });
     fireEvent.pointerMove(window, { clientX: 820, pointerId: 3 });
     expect(workspace.style.getPropertyValue("--right-sidebar-width"))
-      .toBe("380px");
+      .toBe("420px");
     fireEvent.pointerCancel(window, { pointerId: 3 });
     expect(workspace.style.getPropertyValue("--right-sidebar-width"))
-      .toBe("280px");
-    expect(resizeHandle).toHaveAttribute("aria-valuemin", "280");
+      .toBe("320px");
+    expect(resizeHandle).toHaveAttribute("aria-valuemin", "320");
     expect(resizeHandle).toHaveAttribute("aria-valuemax", "640");
-    expect(resizeHandle).toHaveAttribute("aria-valuenow", "280");
+    expect(resizeHandle).toHaveAttribute("aria-valuenow", "320");
   });
 
   it("lists persisted books and switches to the selected book overview", async () => {
