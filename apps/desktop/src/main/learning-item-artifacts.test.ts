@@ -76,7 +76,7 @@ describe("parseLearningItemArtifacts", () => {
     ].join("\n"));
 
     expect(result.batch).toBeUndefined();
-    expect(result.error).toMatch(/學習項目草稿/);
+    expect(result.error).toMatch(/learning-item draft/);
   });
 
   it("rejects malformed draft output and never exposes a submittable batch", () => {
@@ -89,12 +89,12 @@ describe("parseLearningItemArtifacts", () => {
 
     expect(result.text).toBe("Draft ready.");
     expect(result.batch).toBeUndefined();
-    expect(result.error).toMatch(/學習項目草稿/);
+    expect(result.error).toMatch(/learning-item draft/);
   });
 
   it("extracts a typed invitation after annotation explanation", () => {
     const result = parseLearningItemArtifacts([
-      "是否要將這些內容加入生詞庫？",
+      "是否要將這些內容加入Learning Library？",
       "```learning-item-invitation",
       JSON.stringify({
         targets: [
@@ -105,7 +105,7 @@ describe("parseLearningItemArtifacts", () => {
       "```"
     ].join("\n"));
 
-    expect(result.text).toBe("是否要將這些內容加入生詞庫？");
+    expect(result.text).toBe("是否要將這些內容加入Learning Library？");
     expect(result.invitation?.targets).toEqual([
       { title: "reluctant", senseHint: "unwilling in this context" },
       { title: "take for granted", senseHint: "fail to appreciate" }
@@ -168,7 +168,7 @@ describe("parseLearningItemArtifacts", () => {
 
     const rejected = parseLearningItemArtifacts(buildIntent(51));
     expect(rejected.intent).toBeUndefined();
-    expect(rejected.error).toMatch(/學習項目建立意圖格式錯誤/);
+    expect(rejected.error).toMatch(/Invalid learning-item creation intent/);
   });
 
   it("rejects a clarification request with more than 50 targets", () => {
@@ -185,7 +185,7 @@ describe("parseLearningItemArtifacts", () => {
     ].join("\n"));
 
     expect(result.request).toBeUndefined();
-    expect(result.error).toMatch(/加入生詞庫邀請格式錯誤/);
+    expect(result.error).toMatch(/Invalid Learning Library invitation/);
   });
 
   it("validates one submission recheck decision for every draft", () => {
@@ -215,6 +215,6 @@ describe("parseLearningItemArtifacts", () => {
       "```learning-item-recheck",
       '{"decisions":[{"draftId":"draft-bank","decision":"existing"}]}',
       "```"
-    ].join("\n"))).toThrow(/重新檢查/);
+    ].join("\n"))).toThrow(/recheck/);
   });
 });

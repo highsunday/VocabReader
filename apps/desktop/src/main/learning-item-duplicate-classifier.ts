@@ -50,7 +50,7 @@ function validateDecisions(
   candidates: LearningItem[]
 ) {
   if (decisions.length !== drafts.length) {
-    throw new Error("AI 未完整分類所有學習項目草稿。");
+    throw new Error("AI did not classify every learning-item draft.");
   }
   const draftById = new Map(drafts.map((draft) => [draft.id, draft]));
   const candidateById = new Map(
@@ -58,7 +58,7 @@ function validateDecisions(
   );
   for (const decision of decisions) {
     const draft = draftById.get(decision.draftId);
-    if (!draft) throw new Error("AI 回傳了未知的學習項目草稿。");
+    if (!draft) throw new Error("AI returned an unknown learning-item draft.");
     if (decision.decision === "create") continue;
     const candidate = candidateById.get(decision.itemId ?? "");
     if (!candidate ||
@@ -66,7 +66,7 @@ function validateDecisions(
       candidate.status !== (
         decision.decision === "existing" ? "active" : "trashed"
       )) {
-      throw new Error("AI 回傳了不合法的學習項目候選判斷。");
+      throw new Error("AI returned an invalid learning-item candidate decision.");
     }
   }
   return decisions;
@@ -134,14 +134,14 @@ export async function classifyLearningItemDuplicatesWithCodex(
         if (params.turn.status === "completed") {
           resolveCompletion?.();
         } else {
-          rejectCompletion?.(new Error("AI 無法完成學習項目提交前檢查。"));
+          rejectCompletion?.(new Error("AI could not complete the pre-submission learning-item check."));
         }
       }
     }
   );
   const unsubscribeExit = client.onExit((error) => rejectCompletion?.(error));
   const timeout = setTimeout(() => {
-    rejectCompletion?.(new Error("等待 AI 重新檢查學習項目逾時。"));
+    rejectCompletion?.(new Error("Timed out waiting for AI to recheck learning items."));
   }, 120_000);
 
   try {
@@ -168,7 +168,7 @@ export async function classifyLearningItemDuplicatesWithCodex(
       ].join("\n")
     });
     threadId = idFromResult(thread, "thread");
-    if (!threadId) throw new Error("Codex 未回傳重新檢查對話識別碼。");
+    if (!threadId) throw new Error("Codex did not return a recheck conversation identifier.");
     const turn = await client.request("turn/start", {
       threadId,
       input: [{
@@ -182,7 +182,7 @@ export async function classifyLearningItemDuplicatesWithCodex(
       }]
     });
     turnId = idFromResult(turn, "turn");
-    if (!turnId) throw new Error("Codex 未回傳重新檢查回答識別碼。");
+    if (!turnId) throw new Error("Codex did not return a recheck response identifier.");
     await completion;
     return validateDecisions(
       parseLearningItemRecheck(responseText),

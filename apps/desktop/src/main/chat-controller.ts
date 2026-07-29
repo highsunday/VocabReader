@@ -73,15 +73,15 @@ export function composeDeveloperInstructions(
   const annotationSkill = annotationExplanationSkillInstructions.trim();
   const readingSkill = readingComprehensionSkillInstructions.trim();
   if (!annotationSkill) {
-    throw new Error("App 內建的標記解析 skill 內容不可為空。");
+    throw new Error("The built-in annotation explanation skill cannot be empty.");
   }
   if (!readingSkill) {
-    throw new Error("App 內建的閱讀理解 skill 內容不可為空。");
+    throw new Error("The built-in reading comprehension skill cannot be empty.");
   }
   const creationSkill = learningItemCreationSkillInstructions?.trim();
   const instructions = [
     "You are the AI Conversation Panel in an English-learning EPUB reader.",
-    "Answer in the language used by the user unless they ask otherwise.",
+    "Use the App-provided default response language for each turn unless the user explicitly asks for another language.",
     "Use only the explicitly provided reading segment and prior conversation.",
     "Never claim knowledge of text outside the provided reading segment.",
     "Do not run tools, read arbitrary files, write files, or use the network.",
@@ -145,14 +145,14 @@ function modelFrom(value: unknown): ConversationModel | null {
     typeof value.defaultReasoningEffort !== "string" ||
     !Array.isArray(value.supportedReasoningEfforts) ||
     typeof value.isDefault !== "boolean") {
-    throw new Error("Codex 模型目錄包含無法辨識的模型。");
+    throw new Error("The Codex model catalog contains an unrecognized model.");
   }
   const supportsDefault = value.supportedReasoningEfforts.some(
     (option) => isObject(option) &&
       option.reasoningEffort === value.defaultReasoningEffort
   );
   if (!supportsDefault) {
-    throw new Error("Codex 模型的預設推理強度不可用。");
+    throw new Error("The Codex model's default reasoning effort is unavailable.");
   }
   return {
     id: value.id,
@@ -188,7 +188,7 @@ function allowanceWindow(
 
 function allowanceFromSnapshot(value: unknown): AiUsageAllowance {
   if (!isObject(value)) {
-    throw new Error("Codex 額度回傳了無法辨識的資料。");
+    throw new Error("Codex returned unrecognized allowance data.");
   }
   const windows = [allowanceWindow(value.primary), allowanceWindow(value.secondary)];
   const fiveHour = windows.find(
@@ -212,14 +212,14 @@ function allowanceFromSnapshot(value: unknown): AiUsageAllowance {
         }
       : null,
     detail: fiveHour && weekly
-      ? "已取得帳戶共用額度。"
-      : "部分使用額度無法取得。"
+      ? "Shared account allowance loaded."
+      : "Some usage allowance data is unavailable."
   };
 }
 
 function allowanceFromResult(value: unknown): AiUsageAllowance {
   if (!isObject(value)) {
-    throw new Error("Codex 額度回傳了無法辨識的資料。");
+    throw new Error("Codex returned unrecognized allowance data.");
   }
   const byLimitId = isObject(value.rateLimitsByLimitId)
     ? value.rateLimitsByLimitId
@@ -241,7 +241,7 @@ function mergeAllowance(
     phase: fiveHour || weekly ? "available" : update.phase,
     fiveHour,
     weekly,
-    detail: fiveHour && weekly ? "已取得帳戶共用額度。" : update.detail
+    detail: fiveHour && weekly ? "Shared account allowance loaded." : update.detail
   };
 }
 
@@ -252,23 +252,26 @@ export function composeCodexInput(
   const text = input.text.trim();
   const context = input.context;
   const contextLines = [
-    context?.bookTitle ? `書籍：${context.bookTitle}` : "",
-    context?.chapterTitle ? `章節：${context.chapterTitle}` : "",
+    context?.bookTitle ? `Book: ${context.bookTitle}` : "",
+    context?.chapterTitle ? `Chapter: ${context.chapterTitle}` : "",
     context?.readingSegment?.trim()
-      ? `目前閱讀區段：\n${context.readingSegment.trim()}`
+      ? `Current reading segment:\n${context.readingSegment.trim()}`
       : ""
   ].filter(Boolean);
   const base = contextLines.length === 0 ? [text] : [
-    "以下是閱讀器明確提供的有限上下文。請勿假設區段之外的書籍內容：",
+    "The reader explicitly provided the following limited context. Do not assume any book content outside this segment:",
     ...(context?.readingSegment
-      ? ["這是目前版本，取代這段 AI 對話先前的閱讀區段與標記上下文。"]
+      ? ["This is the current version and replaces earlier reading-segment and annotation context in this conversation."]
       : []),
     ...contextLines,
     "",
-    `使用者問題：${text}`
+    `User question: ${text}`
   ];
+  const sourceLanguage = context?.readingSegment?.trim()
+    ? "Use the same language as the current reading segment"
+    : "Use the same language as the user's latest message";
   const language = {
-    source: "Use the same language as the current reading segment",
+    source: sourceLanguage,
     "zh-TW": "Traditional Chinese",
     en: "English",
     ja: "Japanese"
@@ -324,7 +327,14 @@ export function composeCodexInput(
       "Use only these candidates for duplicate comparison. Never request or infer other learning-library data."
     ].join("\n");
   }
-  if (input.intent !== "explainAnnotations") return base.join("\n");
+  if (input.intent !== "explainAnnotations") {
+    return [
+      ...base,
+      "",
+      `Default response language: ${language}.`,
+      "Use another language only when the user explicitly asks for it in this turn."
+    ].join("\n");
+  }
   const hasAnnotations = Boolean(
     context?.readingSegment?.includes("<reader-annotation ")
   );
@@ -365,7 +375,7 @@ function composeTurnInput(
     });
   } else if (input.intent === "createLearningItems") {
     if (!learningItemCreationSkillPath) {
-      throw new Error("App 內建的新增學習項目 skill 尚未設定。");
+      throw new Error("The built-in learning-item creation skill is not configured.");
     }
     items.push({
       type: "skill",
@@ -387,14 +397,14 @@ function validateLearningItemBatchScope(
 ) {
   const requested = new Set(targets.map(normalizedLearningItemTitle));
   if (requested.size === 0) {
-    throw new Error("學習項目草稿沒有對應的請求目標。");
+    throw new Error("The learning-item draft has no corresponding requested target.");
   }
   const covered = new Set<string>();
   for (const draft of batch.drafts) {
     const resolvedTargets = (draft.requestedTitles ?? [draft.title])
       .map(normalizedLearningItemTitle);
     if (resolvedTargets.some((target) => !requested.has(target))) {
-      throw new Error("AI 回傳了未請求的學習項目草稿。");
+      throw new Error("AI returned an unrequested learning-item draft.");
     }
     for (const target of resolvedTargets) covered.add(target);
   }
@@ -412,13 +422,13 @@ function validateLearningItemBatchScope(
         normalizedLearningItemTitle(match.title) ||
       candidate.sense.trim() !== match.sense.trim() ||
       resolvedTargets.some((target) => !requested.has(target))) {
-      throw new Error("AI 回傳了不合法的學習項目候選。");
+      throw new Error("AI returned an invalid learning-item candidate.");
     }
     matchIds.add(match.itemId);
     for (const target of resolvedTargets) covered.add(target);
   }
   if ([...requested].some((title) => !covered.has(title))) {
-    throw new Error("AI 未完整處理所有學習項目目標。");
+    throw new Error("AI did not process every learning-item target.");
   }
 }
 
@@ -433,17 +443,17 @@ export class ChatController {
   #unsubscribeNotification: (() => void) | undefined;
   #unsubscribeExit: (() => void) | undefined;
   #connection: ConnectionPhase = "disconnected";
-  #connectionDetail = "尚未連線 Codex。";
+  #connectionDetail = "Codex is not connected.";
   #account: ChatSnapshot["account"] = null;
   #threadId: string | null = null;
   #resumedThreadId: string | null = null;
   #activeTurnId: string | null = null;
   #managementBusy = false;
   #conversationError: string | null = null;
-  #allowance = unavailableAllowance("尚未取得 AI 使用額度。");
+  #allowance = unavailableAllowance("AI usage allowance is not available yet.");
   #models: ConversationModel[] = [];
   #selectedModelId: string | null = null;
-  #modelCatalogDetail = "尚未取得可用模型。";
+  #modelCatalogDetail = "Available models have not been loaded.";
   #stopRequested = false;
   #stopPromise: Promise<ChatSnapshot> | undefined;
   #turnReadyPromise: Promise<string | null> | undefined;
@@ -484,7 +494,7 @@ export class ChatController {
     } catch (error) {
       this.#conversationError = error instanceof Error
         ? error.message
-        : "無法讀取本機 AI 對話紀錄。";
+        : "Unable to load local AI conversation history.";
     }
   }
 
@@ -537,7 +547,7 @@ export class ChatController {
     const conversation = this.#conversations.find(
       (candidate) => candidate.id === conversationId
     );
-    if (!conversation) throw new Error("找不到這筆 AI 對話。");
+    if (!conversation) throw new Error("AI conversation not found.");
     this.#activateConversation(conversation);
     this.#persist();
     this.#emit();
@@ -547,7 +557,7 @@ export class ChatController {
   selectModel(modelId: string): ChatSnapshot {
     this.#assertManagementAvailable();
     const model = this.#models.find((candidate) => candidate.id === modelId);
-    if (!model) throw new Error("選取的 AI 模型目前不可用。");
+    if (!model) throw new Error("The selected AI model is currently unavailable.");
     this.#selectedModelId = model.id;
     this.#emit();
     return this.getSnapshot();
@@ -557,7 +567,7 @@ export class ChatController {
     this.#assertManagementAvailable();
     const batch = this.#pendingLearningItemBatch(input.batchId);
     const index = batch.drafts.findIndex((draft) => draft.id === input.draftId);
-    if (index < 0) throw new Error("找不到學習項目草稿。");
+    if (index < 0) throw new Error("Learning-item draft not found.");
     const current = batch.drafts[index]!;
     const validated = learningItemBatchFromUnknown({
       id: batch.id,
@@ -587,11 +597,11 @@ export class ChatController {
   ): ChatSnapshot {
     this.#assertManagementAvailable();
     if (state !== "included" && state !== "excluded") {
-      throw new Error("學習項目草稿狀態格式錯誤。");
+      throw new Error("Invalid learning-item draft state.");
     }
     const batch = this.#pendingLearningItemBatch(batchId);
     const draft = batch.drafts.find((candidate) => candidate.id === draftId);
-    if (!draft) throw new Error("找不到學習項目草稿。");
+    if (!draft) throw new Error("Learning-item draft not found.");
     draft.state = state;
     this.#touchActiveConversation();
     this.#persist();
@@ -619,7 +629,7 @@ export class ChatController {
     const preparation = message?.learningItemPreparation;
     if (!message || !preparation || preparation.status !== "failed" ||
       preparation.targets.length === 0) {
-      throw new Error("找不到可重試的學習項目草稿準備。");
+      throw new Error("No retryable learning-item preparation was found.");
     }
     if (this.#connection !== "ready" || !this.#client) await this.connect();
     if (this.#connection !== "ready" || !this.#client) {
@@ -651,14 +661,14 @@ export class ChatController {
     this.#assertManagementAvailable();
     const batch = this.#learningItemBatch(batchId);
     if (batch.status === "abandoned") {
-      throw new Error("學習項目草稿批次已放棄。");
+      throw new Error("The learning-item draft batch was discarded.");
     }
     const matchIndex = batch.trashed.findIndex(
       (candidate) => candidate.itemId === itemId
     );
-    if (matchIndex < 0) throw new Error("找不到垃圾桶中的學習項目。");
+    if (matchIndex < 0) throw new Error("Learning item not found in Trash.");
     if (!this.#options.restoreLearningItem) {
-      throw new Error("學習項目還原功能尚未設定。");
+      throw new Error("Learning-item restore is not configured.");
     }
     this.#managementBusy = true;
     this.#emit();
@@ -685,10 +695,10 @@ export class ChatController {
     this.#assertManagementAvailable();
     const batch = this.#pendingLearningItemBatch(batchId);
     const included = batch.drafts.filter((draft) => draft.state === "included");
-    if (included.length === 0) throw new Error("沒有可提交的學習項目草稿。");
+    if (included.length === 0) throw new Error("There are no learning-item drafts to submit.");
     if (!this.#options.findLearningItemCandidates ||
       !this.#options.createLearningItemsAtomically) {
-      throw new Error("學習項目提交功能尚未設定。");
+      throw new Error("Learning-item submission is not configured.");
     }
     this.#managementBusy = true;
     this.#emit();
@@ -712,7 +722,7 @@ export class ChatController {
       if (decisions && (decisionByDraftId.size !== included.length ||
         decisions.length !== included.length ||
         included.some((draft) => !decisionByDraftId.has(draft.id)))) {
-        throw new Error("AI 未完整分類所有學習項目草稿。");
+        throw new Error("AI did not classify every learning-item draft.");
       }
       for (const draft of included) {
         const title = draft.title.trim().toLocaleLowerCase();
@@ -729,7 +739,7 @@ export class ChatController {
               )
           );
           if (!duplicate) {
-            throw new Error("AI 回傳了不合法的學習項目候選判斷。");
+            throw new Error("AI returned an invalid learning-item candidate decision.");
           }
         } else if (!decisions) {
           for (const candidate of sameTitle) {
@@ -790,7 +800,7 @@ export class ChatController {
     if (this.#stopPromise) return this.#stopPromise;
     if (this.#stopRequested) return Promise.resolve(this.getSnapshot());
     if (!this.#activeTurnId || !this.#client) {
-      return Promise.reject(new Error("目前沒有可停止的 AI 回覆。"));
+      return Promise.reject(new Error("There is no AI response to stop."));
     }
     const client = this.#client;
     this.#stopRequested = true;
@@ -821,7 +831,7 @@ export class ChatController {
     const conversation = this.#conversations.find(
       (candidate) => candidate.id === conversationId
     );
-    if (!conversation) throw new Error("找不到這筆 AI 對話。");
+    if (!conversation) throw new Error("AI conversation not found.");
     if (this.#connection !== "ready" || !this.#client) await this.connect();
     if (this.#connection !== "ready" || !this.#client) {
       throw new Error(this.#connectionDetail);
@@ -869,7 +879,7 @@ export class ChatController {
       }
       this.#conversationError = error instanceof Error
         ? error.message
-        : "無法移除 AI 對話。";
+        : "Unable to remove the AI conversation.";
       throw error;
     } finally {
       this.#managementBusy = false;
@@ -886,8 +896,8 @@ export class ChatController {
 
     this.#disposeClient();
     this.#account = null;
-    this.#allowance = unavailableAllowance("尚未取得 AI 使用額度。");
-    this.#setConnection("connecting", "正在啟動 Codex…");
+    this.#allowance = unavailableAllowance("AI usage allowance is not available yet.");
+    this.#setConnection("connecting", "Starting Codex…");
     const client = this.#options.createClient();
     this.#client = client;
     this.#unsubscribeNotification = client.onNotification((notification) => {
@@ -913,7 +923,7 @@ export class ChatController {
         if (!account.account) {
           this.#setConnection(
             "auth-required",
-            "請先在這台電腦完成 Codex 或 ChatGPT 登入。"
+            "Sign in to Codex or ChatGPT on this computer first."
           );
           return this.getSnapshot();
         }
@@ -922,9 +932,9 @@ export class ChatController {
           phase: "loading",
           fiveHour: null,
           weekly: null,
-          detail: "正在取得帳戶共用額度…"
+          detail: "Loading shared account allowance…"
         };
-        this.#setConnection("ready", "Codex 已連線。");
+        this.#setConnection("ready", "Codex is connected.");
         await Promise.all([
           this.#loadAllowance(client),
           this.#loadModelCatalog(client)
@@ -934,7 +944,7 @@ export class ChatController {
         if (this.#client === client) {
           this.#setConnection(
             "error",
-            error instanceof Error ? error.message : "Codex 連線失敗。"
+            error instanceof Error ? error.message : "Codex connection failed."
           );
           this.#disposeClient();
         }
@@ -948,12 +958,12 @@ export class ChatController {
 
   async sendMessage(input: SendChatMessageInput): Promise<ChatSnapshot> {
     const text = input.text.trim();
-    if (!text) throw new Error("請輸入訊息。");
+    if (!text) throw new Error("Enter a message.");
     const requestInput = this.#continuedLearningItemInput({
       ...input,
       text
     });
-    if (this.#activeTurnId) throw new Error("請等待目前的 AI 回覆完成。");
+    if (this.#activeTurnId) throw new Error("Wait for the current AI response to finish.");
     if (this.#connection !== "ready" || !this.#client) await this.connect();
     if (this.#connection !== "ready" || !this.#client) {
       throw new Error(this.#connectionDetail);
@@ -986,7 +996,7 @@ export class ChatController {
         });
         const resumedThreadId = threadIdFrom(resumed);
         if (resumedThreadId !== this.#threadId) {
-          throw new Error("Codex 無法恢復這筆 AI 對話。");
+          throw new Error("Codex could not resume this AI conversation.");
         }
         this.#resumedThreadId = resumedThreadId;
       } else if (!this.#threadId) {
@@ -1004,7 +1014,7 @@ export class ChatController {
           developerInstructions: this.#developerInstructions
         });
         const threadId = threadIdFrom(threadResponse);
-        if (!threadId) throw new Error("Codex 未回傳對話識別碼。");
+        if (!threadId) throw new Error("Codex did not return a conversation identifier.");
         this.#threadId = threadId;
         this.#resumedThreadId = threadId;
         const timestamp = this.#now();
@@ -1053,7 +1063,7 @@ export class ChatController {
         )
       });
       const turnId = turnIdFrom(response);
-      if (!turnId) throw new Error("Codex 未回傳回答識別碼。");
+      if (!turnId) throw new Error("Codex did not return a response identifier.");
       userMessage.turnId = turnId;
       if (requestInput.intent === "createLearningItems") {
         this.#learningItemTurnScopes.set(turnId, {
@@ -1079,7 +1089,7 @@ export class ChatController {
       this.#stopRequested = false;
       this.#connectionDetail = error instanceof Error
         ? error.message
-        : "無法送出訊息。";
+        : "Unable to send the message.";
       this.#emit();
       throw error;
     }
@@ -1088,7 +1098,7 @@ export class ChatController {
   close(): void {
     this.#disposeClient();
     this.#connection = "disconnected";
-    this.#connectionDetail = "Codex 連線已關閉。";
+    this.#connectionDetail = "The Codex connection is closed.";
     this.#activeTurnId = null;
     this.#stopRequested = false;
     this.#learningItemTurnScopes.clear();
@@ -1201,7 +1211,7 @@ export class ChatController {
         try {
           const scope = this.#learningItemTurnScopes.get(params.turnId);
           if (!scope) {
-            throw new Error("學習項目草稿缺少受信任的候選範圍。");
+            throw new Error("The learning-item draft is missing its trusted candidate scope.");
           }
           validateLearningItemBatchScope(
             artifacts.batch,
@@ -1212,7 +1222,7 @@ export class ChatController {
           artifacts.batch = undefined;
           artifacts.error = error instanceof Error
             ? error.message
-            : "學習項目草稿候選驗證失敗。";
+            : "Learning-item draft candidate validation failed.";
         }
       }
       const preparationMessage = turnInput
@@ -1231,7 +1241,7 @@ export class ChatController {
           preparationMessage.learningItemPreparation.status = "failed";
           preparationMessage.learningItemPreparation.error = artifacts.error;
         } else if (turnInput?.input.intent === "createLearningItems") {
-          artifacts.error = "AI 未產生可用的學習項目草稿，請重試。";
+          artifacts.error = "AI did not produce a usable learning-item draft. Please try again.";
           preparationMessage.learningItemPreparation.status = "failed";
           preparationMessage.learningItemPreparation.error = artifacts.error;
         }
@@ -1285,7 +1295,7 @@ export class ChatController {
         this.#connectionDetail = isObject(params.turn.error) &&
           typeof params.turn.error.message === "string"
           ? params.turn.error.message
-          : "AI 回覆未完成。";
+          : "The AI response was not completed.";
         const preparation = completedTurnInput
           ? this.#messages.find(
               (message) => message.id === completedTurnInput.userMessageId
@@ -1322,7 +1332,7 @@ export class ChatController {
       this.#resolveTurnReady?.(null);
       this.#resolveTurnReady = undefined;
       this.#activeTurnId = null;
-      this.#connectionDetail = "Codex 連線已中斷，無法準備學習項目草稿。";
+      this.#connectionDetail = "The Codex connection was interrupted, so learning-item drafts could not be prepared.";
       const preparation = this.#messages.find(
         (message) => message.id === routed.userMessageId
       )?.learningItemPreparation;
@@ -1357,7 +1367,7 @@ export class ChatController {
         )
       });
       const turnId = turnIdFrom(response);
-      if (!turnId) throw new Error("Codex 未回傳回答識別碼。");
+      if (!turnId) throw new Error("Codex did not return a response identifier.");
       this.#learningItemTurnScopes.set(turnId, {
         targets: routed.targets.map(({ title }) => title),
         candidates
@@ -1377,7 +1387,7 @@ export class ChatController {
       this.#activeTurnId = null;
       const detail = error instanceof Error
         ? error.message
-        : "無法準備學習項目草稿。";
+        : "Unable to prepare learning-item drafts.";
       this.#connectionDetail = detail;
       const preparation = this.#messages.find(
         (message) => message.id === routed.userMessageId
@@ -1403,7 +1413,7 @@ export class ChatController {
 
   #assertManagementAvailable(): void {
     if (this.#activeTurnId || this.#managementBusy) {
-      throw new Error("請等待目前的 AI 回覆完成。");
+      throw new Error("Wait for the current AI response to finish.");
     }
   }
 
@@ -1429,20 +1439,20 @@ export class ChatController {
     const batch = this.#learningItemBatch(batchId);
     if (batch.status !== "pending") {
       throw new Error(batch.status === "abandoned"
-        ? "學習項目草稿批次已放棄。"
-        : "學習項目草稿批次已提交。");
+        ? "The learning-item draft batch was discarded."
+        : "The learning-item draft batch was submitted.");
     }
     return batch;
   }
 
   #learningItemBatch(batchId: string): LearningItemDraftBatch {
     const id = typeof batchId === "string" ? batchId.trim() : "";
-    if (!id) throw new Error("學習項目草稿批次格式錯誤。");
+    if (!id) throw new Error("Invalid learning-item draft batch.");
     for (const message of this.#messages) {
       if (message.learningItemBatch?.id !== id) continue;
       return message.learningItemBatch;
     }
-    throw new Error("找不到學習項目草稿批次。");
+    throw new Error("Learning-item draft batch not found.");
   }
 
   #continuedLearningItemInput(
@@ -1511,7 +1521,7 @@ export class ChatController {
   }
 
   #titleFrom(text: string): string {
-    return text.replace(/\s+/g, " ").trim().slice(0, 60) || "新對話";
+    return text.replace(/\s+/g, " ").trim().slice(0, 60) || "New conversation";
   }
 
   #createConversationId(): string {
@@ -1538,7 +1548,7 @@ export class ChatController {
     } catch (error) {
       this.#conversationError = error instanceof Error
         ? error.message
-        : "無法保存本機 AI 對話紀錄。";
+        : "Unable to save local AI conversation history.";
       throw error;
     }
   }
@@ -1558,7 +1568,7 @@ export class ChatController {
       );
     } catch (error) {
       this.#allowance = unavailableAllowance(
-        error instanceof Error ? error.message : "AI 使用額度無法取得。"
+        error instanceof Error ? error.message : "AI usage allowance is unavailable."
       );
     }
     this.#emit();
@@ -1574,7 +1584,7 @@ export class ChatController {
           includeHidden: false
         });
         if (!isObject(response) || !Array.isArray(response.data)) {
-          throw new Error("Codex 模型目錄回傳了無法辨識的資料。");
+          throw new Error("The Codex model catalog returned unrecognized data.");
         }
         for (const candidate of response.data) {
           const model = modelFrom(candidate);
@@ -1589,7 +1599,7 @@ export class ChatController {
           ? response.nextCursor
           : null;
       } while (cursor);
-      if (models.length === 0) throw new Error("沒有可用的 AI 模型。");
+      if (models.length === 0) throw new Error("No AI models are available.");
       this.#models = models.map(({ isDefault: _isDefault, ...model }) => model);
       const selectedStillExists = this.#selectedModelId && models.some(
         (model) => model.id === this.#selectedModelId
@@ -1598,13 +1608,13 @@ export class ChatController {
         this.#selectedModelId = models.find((model) => model.isDefault)?.id ??
           models[0]?.id ?? null;
       }
-      this.#modelCatalogDetail = "已取得可用對話模型。";
+      this.#modelCatalogDetail = "Available conversation models loaded.";
     } catch (error) {
       this.#models = [];
       this.#selectedModelId = null;
       this.#modelCatalogDetail = error instanceof Error
         ? error.message
-        : "無法取得可用的 AI 模型。";
+        : "Unable to load available AI models.";
     }
     this.#emit();
   }

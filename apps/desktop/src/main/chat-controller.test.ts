@@ -145,7 +145,7 @@ function managedFixture(
 async function waitUntil(check: () => boolean, timeoutMs = 1_000) {
   const deadline = Date.now() + timeoutMs;
   while (!check()) {
-    if (Date.now() > deadline) throw new Error("等待 fake Codex 回應逾時。");
+    if (Date.now() > deadline) throw new Error("Wait fake Codex 回應逾時。");
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
@@ -326,7 +326,7 @@ describe("ChatController", () => {
     await controller.sendMessage({ text: "What does this mean?" });
     await waitUntil(() => controller.getSnapshot().activeTurnId === null);
     await controller.sendMessage({
-      text: "開始閱讀測驗",
+      text: "Start reading測驗",
       intent: "practiceReading",
       context: {
         readingSegment: "<reading-segment>A short passage.</reading-segment>"
@@ -334,7 +334,7 @@ describe("ChatController", () => {
     });
     await waitUntil(() => controller.getSnapshot().activeTurnId === null);
     await controller.sendMessage({
-      text: "講解標記內容",
+      text: "Explain annotations",
       intent: "explainAnnotations",
       explanationLanguage: "zh-TW",
       context: {
@@ -486,7 +486,7 @@ describe("ChatController", () => {
     expect(snapshot.connection).toBe("auth-required");
     expect(snapshot.account).toBeNull();
     await expect(controller.sendMessage({ text: "Hello" }))
-      .rejects.toThrow(/登入/);
+      .rejects.toThrow(/Sign in/);
     controller.close();
   });
 
@@ -512,7 +512,7 @@ describe("ChatController", () => {
     ));
 
     await expect(controller.sendMessage({ text: "Too soon" }))
-      .rejects.toThrow(/等待/);
+      .rejects.toThrow(/Wait/);
     await first;
     expect(fake.requests.filter((request) => request.method === "turn/start"))
       .toHaveLength(1);
@@ -550,7 +550,7 @@ describe("ChatController", () => {
       .toBe("Explain\nthis sentence in detail");
 
     await controller.sendMessage({
-      text: "講解標記內容",
+      text: "Explain annotations",
       intent: "explainAnnotations",
       explanationLanguage: "en",
       context: {
@@ -786,7 +786,7 @@ describe("ChatController", () => {
       (message) => message.role === "assistant"
     );
     expect(assistant?.learningItemBatch).toBeUndefined();
-    expect(assistant?.artifactError).toMatch(/未請求/);
+    expect(assistant?.artifactError).toMatch(/unrequested/);
     controller.close();
   });
 
@@ -819,7 +819,7 @@ describe("ChatController", () => {
       (message) => message.role === "assistant"
     );
     expect(assistant?.learningItemBatch).toBeUndefined();
-    expect(assistant?.artifactError).toMatch(/候選/);
+    expect(assistant?.artifactError).toMatch(/candidate/);
     controller.close();
   });
 
@@ -909,7 +909,7 @@ describe("ChatController", () => {
     const candidateQueries: string[][] = [];
     const answer = (prompt: string) => prompt.includes("$create-learning-items")
       ? [
-          "已準備 **in advance** 的學習項目草稿。",
+          "已準備 **in advance** 的learning-item draft。",
           "```learning-item-result",
           JSON.stringify({
             drafts: [{
@@ -962,7 +962,7 @@ describe("ChatController", () => {
       text: "增加這張卡片"
     }, {
       role: "assistant",
-      text: "已準備 **in advance** 的學習項目草稿。",
+      text: "已準備 **in advance** 的learning-item draft。",
       learningItemBatch: {
         drafts: [{ title: "in advance" }]
       }
@@ -1442,7 +1442,7 @@ describe("ChatController", () => {
     expect(store.state.conversations[0]?.messages[0]?.learningItemBatch)
       .toEqual(submitted.messages[0]?.learningItemBatch);
     await expect(controller.submitLearningItemBatch("batch-a"))
-      .rejects.toThrow(/已提交/);
+      .rejects.toThrow(/submitted/);
     controller.close();
   });
 
@@ -1500,9 +1500,9 @@ describe("ChatController", () => {
       "batch-a",
       "draft-a",
       "excluded"
-    )).toThrow(/已放棄/);
+    )).toThrow(/discarded/);
     await expect(controller.submitLearningItemBatch("batch-a"))
-      .rejects.toThrow(/已放棄/);
+      .rejects.toThrow(/discarded/);
     expect(createLearningItemsAtomically).not.toHaveBeenCalled();
     controller.close();
   });
@@ -1612,9 +1612,9 @@ describe("ChatController", () => {
     await controller.connect();
     await controller.sendMessage({ text: "Wait" });
 
-    expect(() => controller.startNewConversation()).toThrow(/等待/);
-    expect(() => controller.selectConversation("missing")).toThrow(/等待/);
-    await expect(controller.removeConversation("missing")).rejects.toThrow(/等待/);
+    expect(() => controller.startNewConversation()).toThrow(/Wait/);
+    expect(() => controller.selectConversation("missing")).toThrow(/Wait/);
+    await expect(controller.removeConversation("missing")).rejects.toThrow(/Wait/);
     controller.close();
   });
 
@@ -1745,6 +1745,46 @@ describe("ChatController", () => {
 });
 
 describe("composeCodexInput", () => {
+  it.each([
+    ["zh-TW", "Traditional Chinese"],
+    ["en", "English"],
+    ["ja", "Japanese"]
+  ] as const)(
+    "uses the %s explanation setting as the default language for ordinary chat",
+    (explanationLanguage, expectedLanguage) => {
+      const result = composeCodexInput({
+        text: "Tell me more",
+        explanationLanguage
+      });
+
+      expect(result).toContain(`Default response language: ${expectedLanguage}.`);
+      expect(result).toContain(
+        "Use another language only when the user explicitly asks for it"
+      );
+    }
+  );
+
+  it("uses the reading segment language for source-mode ordinary chat", () => {
+    const withReadingSegment = composeCodexInput({
+      text: "Tell me more",
+      explanationLanguage: "source",
+      context: {
+        readingSegment: "A finite reading segment."
+      }
+    });
+    const withoutReadingSegment = composeCodexInput({
+      text: "Tell me more",
+      explanationLanguage: "source"
+    });
+
+    expect(withReadingSegment).toContain(
+      "Default response language: Use the same language as the current reading segment."
+    );
+    expect(withoutReadingSegment).toContain(
+      "Default response language: Use the same language as the user's latest message."
+    );
+  });
+
   it("uses only the explicitly provided reading segment and falls back to the question", () => {
     expect(composeCodexInput({
       text: "Explain it",
@@ -1757,9 +1797,9 @@ describe("composeCodexInput", () => {
     expect(composeCodexInput({
       text: "Updated context",
       context: { readingSegment: "<reading-segment>No marks.</reading-segment>" }
-    })).toContain("取代這段 AI 對話先前的閱讀區段與標記上下文");
+    })).toContain("replaces earlier reading-segment and annotation context");
     expect(composeCodexInput({ text: "General question" }))
-      .toBe("General question");
+      .toContain("General question");
   });
 
   it("keeps inline annotations as ordinary context without forcing analysis", () => {
@@ -1771,8 +1811,8 @@ describe("composeCodexInput", () => {
     });
 
     expect(result).toContain('<reader-annotation id="A1">reluctant</reader-annotation>');
-    expect(result).not.toContain("單字、片語、句子");
-    expect(result).not.toContain("講解標記內容");
+    expect(result).not.toContain("Word、Phrase、句子");
+    expect(result).not.toContain("Explain annotations");
   });
 
   it.each([
@@ -1785,7 +1825,7 @@ describe("composeCodexInput", () => {
     expectedLanguage
   ) => {
     const result = composeCodexInput({
-      text: "講解標記內容",
+      text: "Explain annotations",
       intent: "explainAnnotations",
       explanationLanguage,
       context: {
@@ -1867,7 +1907,7 @@ describe("composeCodexInput", () => {
     expectedLanguage
   ) => {
     const result = composeCodexInput({
-      text: "開始閱讀測驗",
+      text: "Start reading測驗",
       intent: "practiceReading",
       explanationLanguage,
       context: {
@@ -1885,7 +1925,7 @@ describe("composeCodexInput", () => {
 
   it("asks for a no-annotation response and supports source language", () => {
     const result = composeCodexInput({
-      text: "講解標記內容",
+      text: "Explain annotations",
       intent: "explainAnnotations",
       explanationLanguage: "source",
       context: { readingSegment: "<reading-segment>No marks.</reading-segment>" }
@@ -1898,7 +1938,7 @@ describe("composeCodexInput", () => {
   it("delegates the adaptive quiz and grading workflow to the reading skill", () => {
     const words = Array.from({ length: 301 }, () => "word").join(" ");
     const result = composeCodexInput({
-      text: "開始閱讀測驗",
+      text: "Start reading測驗",
       intent: "practiceReading",
       context: {
         readingSegment: `<reading-segment>${words}</reading-segment>`

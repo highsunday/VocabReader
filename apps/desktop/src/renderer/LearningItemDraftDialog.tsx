@@ -20,10 +20,10 @@ export function LearningItemBatchAction({
   const created = batch.createdItemIds?.length ?? 0;
   const duplicate = batch.existing.length + batch.trashed.length;
   const label = batch.status === "submitted"
-    ? `已新增 ${created} 張${duplicate ? `，已存在 ${duplicate} 張` : ""}`
+    ? `${created} added${duplicate ? `, ${duplicate} already existed` : ""}`
     : batch.status === "abandoned"
-      ? `已放棄 ${batch.drafts.length} 張草稿`
-      : `${batch.drafts.length} 張卡片待確認`;
+      ? `${batch.drafts.length} drafts discarded`
+      : `${batch.drafts.length} cards awaiting review`;
   return (
     <button
       className={`learning-item-batch-action ${batch.status}`}
@@ -34,7 +34,7 @@ export function LearningItemBatchAction({
       <span aria-hidden="true">▤</span>
       <strong>{label}</strong>
       <small>
-        {batch.status === "pending" ? "檢視與提交" : "查看結果"}
+        {batch.status === "pending" ? "Review and submit" : "View results"}
       </small>
     </button>
   );
@@ -59,17 +59,17 @@ function DraftPreview({
     <article className={`learning-item-draft ${draft.state}`}>
       <div className="learning-item-draft-heading">
         <div>
-          <span>{draft.itemType === "word" ? "單字" : "片語"} · {draft.cefr}</span>
+          <span>{draft.itemType === "word" ? "Word" : "Phrase"} • {draft.cefr}</span>
           <strong>{draft.title}</strong>
-          <small>{draft.state === "excluded" ? "已排除，不會提交" : "將會提交"}</small>
+          <small>{draft.state === "excluded" ? "Excluded from submission" : "Will be submitted"}</small>
         </div>
         {!readOnly ? (
           <button
             type="button"
             disabled={disabled}
             aria-label={draft.state === "included"
-              ? `排除 ${draft.title}`
-              : `恢復 ${draft.title}`}
+              ? `Exclude ${draft.title}`
+              : `Restore ${draft.title}`}
             onClick={() => {
               onMutate(() => api.setLearningItemDraftState(
                 batchId,
@@ -78,13 +78,13 @@ function DraftPreview({
               ));
             }}
           >
-            {draft.state === "included" ? "排除" : "恢復"}
+            {draft.state === "included" ? "Exclude" : "Restore"}
           </button>
         ) : null}
       </div>
 
       <div className="learning-item-draft-preview">
-        <span>預覽</span>
+        <span>Preview</span>
         <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
           {draft.markdownContent}
         </ReactMarkdown>
@@ -129,7 +129,7 @@ export function LearningItemDraftDialog({
     } catch (mutationError) {
       setError(mutationError instanceof Error
         ? mutationError.message
-        : "卡片操作失敗。");
+        : "Card operation failed.");
     } finally {
       setBusy(false);
     }
@@ -151,18 +151,18 @@ export function LearningItemDraftDialog({
         <header>
           <div>
             <span className="eyebrow">Cards</span>
-            <h2 id="learning-item-draft-dialog-title">確認卡片</h2>
+            <h2 id="learning-item-draft-dialog-title">Review cards</h2>
             <p>
               {submitted
-                ? `已新增 ${batch.createdItemIds?.length ?? 0} 張卡片。`
+                ? `${batch.createdItemIds?.length ?? 0} cards added.`
                 : abandoned
-                  ? "這批草稿已放棄，不會寫入生詞庫。"
-                  : `${includedCount} 張將會提交，${batch.drafts.length - includedCount} 張已排除。`}
+                  ? "This draft batch was discarded and will not be added to the Learning Library."
+                  : `${includedCount} will be submitted; ${batch.drafts.length - includedCount} excluded.`}
             </p>
           </div>
           <button
             type="button"
-            aria-label="關閉確認卡片"
+            aria-label="Close card review"
             autoFocus
             onClick={onClose}
           >
@@ -173,7 +173,7 @@ export function LearningItemDraftDialog({
         <div className="learning-item-draft-scroll">
           {batch.existing.length > 0 ? (
             <section className="learning-item-match-list">
-              <h3>已存在</h3>
+              <h3>Already exists</h3>
               {batch.existing.map((match) => (
                 <p key={match.itemId}>
                   <strong>{match.title}</strong>
@@ -184,7 +184,7 @@ export function LearningItemDraftDialog({
           ) : null}
           {batch.trashed.length > 0 ? (
             <section className="learning-item-match-list trashed">
-              <h3>已在垃圾桶</h3>
+              <h3>In Trash</h3>
               {batch.trashed.map((match) => (
                 <div key={match.itemId}>
                   <p>
@@ -195,11 +195,11 @@ export function LearningItemDraftDialog({
                     <button
                       type="button"
                       disabled={busy}
-                      aria-label={`還原 ${match.title}`}
+                      aria-label={`Restore ${match.title}`}
                       onClick={() => void mutate(() =>
                         api.restoreLearningItemMatch(batch.id, match.itemId))}
                     >
-                      還原
+                      Restore
                     </button>
                   ) : null}
                 </div>
@@ -221,7 +221,7 @@ export function LearningItemDraftDialog({
 
         <footer>
           {error ? <p role="alert">{error}</p> : confirmAbandon ? (
-            <p>放棄後這批草稿將不能提交。</p>
+            <p>This draft batch cannot be submitted after it is discarded.</p>
           ) : <span />}
           {confirmAbandon && !submitted && !abandoned ? (
             <>
@@ -230,7 +230,7 @@ export function LearningItemDraftDialog({
                 disabled={busy}
                 onClick={() => setConfirmAbandon(false)}
               >
-                取消
+                Cancel
               </button>
               <button
                 type="button"
@@ -238,13 +238,13 @@ export function LearningItemDraftDialog({
                 onClick={() => void mutate(() =>
                   api.abandonLearningItemBatch(batch.id))}
               >
-                確認放棄
+                Confirm discard
               </button>
             </>
           ) : (
             <>
               <button type="button" onClick={onClose} disabled={busy}>
-                關閉
+                Close
               </button>
               {!submitted && !abandoned ? (
                 <>
@@ -253,7 +253,7 @@ export function LearningItemDraftDialog({
                     disabled={busy}
                     onClick={() => setConfirmAbandon(true)}
                   >
-                    放棄這批草稿
+                    Discard draft batch
                   </button>
                   <button
                     type="button"
@@ -262,7 +262,7 @@ export function LearningItemDraftDialog({
                     onClick={() => void mutate(() =>
                       api.submitLearningItemBatch(batch.id))}
                   >
-                    {busy ? "提交中…" : "提交卡片"}
+                    {busy ? "Submitting…" : "Submit cards"}
                   </button>
                 </>
               ) : null}

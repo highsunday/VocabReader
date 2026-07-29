@@ -28,10 +28,10 @@ import type {
 
 const cefrLevels: CefrLevel[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
 const studyStatusLabels: Record<LearningItemStudyStatus, string> = {
-  new: "新卡",
-  learning: "學習中",
-  due: "已到期",
-  scheduled: "未到期"
+  new: "New",
+  learning: "Learning",
+  due: "Due",
+  scheduled: "Scheduled"
 };
 
 function daysUntilLocalDate(value: string, now = new Date()) {
@@ -50,16 +50,16 @@ function daysUntilLocalDate(value: string, now = new Date()) {
 }
 
 function scheduledReviewLabel(value: string | null) {
-  if (!value) return "未到期";
+  if (!value) return "Not due";
   const days = daysUntilLocalDate(value);
-  if (days <= 0) return "今天稍後";
-  if (days === 1) return "明天";
-  if (days <= 7) return `${days} 天後`;
-  if (days < 28) return `約 ${Math.floor(days / 7)} 週後`;
+  if (days <= 0) return "later today";
+  if (days === 1) return "tomorrow";
+  if (days <= 7) return `in ${days} days`;
+  if (days < 28) return `in about ${Math.floor(days / 7)} weeks`;
   if (days < 365) {
-    return `約 ${Math.max(1, Math.round(days / 30))} 個月後`;
+    return `in about ${Math.max(1, Math.round(days / 30))} months`;
   }
-  return `約 ${Math.max(1, Math.round(days / 365))} 年後`;
+  return `in about ${Math.max(1, Math.round(days / 365))} years`;
 }
 
 function cardStudyStatusLabel(item: LearningLibraryItem) {
@@ -109,10 +109,10 @@ function fieldsFor(item: LearningItem): UpdateLearningItemInput {
 }
 
 const reviewRatingLabels: Record<ReviewRating, string> = {
-  forgotten: "忘記",
-  hard: "困難",
-  good: "順利",
-  easy: "簡單"
+  forgotten: "Forgotten",
+  hard: "Hard",
+  good: "Good",
+  easy: "Easy"
 };
 
 function reviewTime(value: string | null) {
@@ -175,7 +175,7 @@ export function LearningItemDialog({
         if (active) setReviewDetail(detail);
       })
       .catch(() => {
-        if (active) setReviewDetailError("無法讀取複習歷史。");
+        if (active) setReviewDetailError("Unable to load review history.");
       });
     return () => {
       active = false;
@@ -188,7 +188,7 @@ export function LearningItemDialog({
       typeof window.speechSynthesis === "undefined" ||
       typeof SpeechSynthesisUtterance === "undefined"
     ) {
-      setPronunciationError("此裝置目前不支援語音播放。");
+      setPronunciationError("Speech playback is not supported on this device.");
       return;
     }
 
@@ -210,14 +210,14 @@ export function LearningItemDialog({
       utterance.onerror = () => {
         if (speechRequestRef.current !== requestId) return;
         setIsSpeaking(false);
-        setPronunciationError("目前無法播放發音，請稍後再試。");
+        setPronunciationError("Unable to play pronunciation. Please try again later.");
       };
       setIsSpeaking(true);
       window.speechSynthesis.speak(utterance);
     } catch {
       speechRequestRef.current += 1;
       setIsSpeaking(false);
-      setPronunciationError("目前無法播放發音，請稍後再試。");
+      setPronunciationError("Unable to play pronunciation. Please try again later.");
     }
   }
 
@@ -235,7 +235,7 @@ export function LearningItemDialog({
       await onChanged(updated);
       setDraft(undefined);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "無法儲存學習項目。");
+      setError(cause instanceof Error ? cause.message : "Unable to save the learning item.");
     } finally {
       setIsSaving(false);
     }
@@ -251,7 +251,7 @@ export function LearningItemDialog({
       onClose();
     } catch (cause) {
       setIsDeleteConfirming(false);
-      setError(cause instanceof Error ? cause.message : "無法刪除學習項目。");
+      setError(cause instanceof Error ? cause.message : "Unable to delete the learning item.");
     } finally {
       setIsSaving(false);
     }
@@ -278,7 +278,7 @@ export function LearningItemDialog({
         <div className="learning-dialog-heading">
           <div>
             <span className="learning-card-badges">
-              <em>{item.itemType === "word" ? "單字" : "片語"}</em>
+              <em>{item.itemType === "word" ? "Word" : "Phrase"}</em>
               <em>{item.cefr}</em>
             </span>
             <div className="learning-dialog-title-row">
@@ -286,8 +286,8 @@ export function LearningItemDialog({
               <button
                 type="button"
                 className={`learning-pronunciation-button${isSpeaking ? " is-speaking" : ""}`}
-                aria-label={`播放 ${item.title} 發音`}
-                title={isSpeaking ? "播放中；點擊可重新播放" : "播放英文發音"}
+                aria-label={`Play pronunciation of ${item.title}`}
+                title={isSpeaking ? "Playing; click to replay" : "Play English pronunciation"}
                 onClick={pronounceTitle}
               >
                 <Volume2 aria-hidden="true" strokeWidth={1.9} />
@@ -303,7 +303,7 @@ export function LearningItemDialog({
           <button
             type="button"
             className="learning-dialog-close"
-            aria-label="關閉卡片詳情"
+            aria-label="Close card details"
             onClick={onClose}
             autoFocus
           >
@@ -317,7 +317,7 @@ export function LearningItemDialog({
           <form className="learning-edit-form" onSubmit={save}>
             <div className="learning-edit-fields">
               <label>
-                標題
+                Title
                 <input
                   required
                   value={draft.title}
@@ -325,15 +325,15 @@ export function LearningItemDialog({
                 />
               </label>
               <label>
-                類型
+                Type
                 <select
                   value={draft.itemType}
                   onChange={(event) => updateDraft({
                     itemType: event.target.value as LearningItemType
                   })}
                 >
-                  <option value="word">單字</option>
-                  <option value="phrase">片語</option>
+                  <option value="word">Word</option>
+                  <option value="phrase">Phrase</option>
                 </select>
               </label>
               <label>
@@ -350,7 +350,7 @@ export function LearningItemDialog({
                 </select>
               </label>
               <label>
-                語義
+                Sense
                 <input
                   required
                   value={draft.sense}
@@ -360,7 +360,7 @@ export function LearningItemDialog({
             </div>
             <div className="learning-markdown-editor">
               <label>
-                Markdown 內容
+                Markdown content
                 <textarea
                   required
                   value={draft.markdownContent}
@@ -370,8 +370,8 @@ export function LearningItemDialog({
                 />
               </label>
               <section className="learning-markdown-preview">
-                <span>預覽</span>
-                <MarkdownContent label="Markdown 預覽">
+                <span>Preview</span>
+                <MarkdownContent label="Markdown preview">
                   {draft.markdownContent}
                 </MarkdownContent>
               </section>
@@ -383,10 +383,10 @@ export function LearningItemDialog({
                 onClick={() => setDraft(undefined)}
                 disabled={isSaving}
               >
-                取消
+                Cancel
               </button>
               <button type="submit" className="primary-action" disabled={isSaving}>
-                {isSaving ? "儲存中…" : "儲存"}
+                {isSaving ? "Saving…" : "Save"}
               </button>
             </div>
           </form>
@@ -396,15 +396,15 @@ export function LearningItemDialog({
               <MarkdownContent>{item.markdownContent}</MarkdownContent>
             </div>
             {reviewApi ? (
-              <section className="learning-review-detail" aria-label="複習排程">
+              <section className="learning-review-detail" aria-label="Review schedule">
                 <div className="learning-review-detail-heading">
-                  <strong>複習排程</strong>
+                  <strong>Review schedule</strong>
                   <span>{
                     reviewDetail?.status === "due"
-                      ? "已到期"
+                      ? "Due"
                       : reviewDetail?.status === "scheduled"
-                        ? "未到期"
-                        : "新項目"
+                        ? "Scheduled"
+                        : "New item"
                   }</span>
                 </div>
                 {reviewDetailError ? (
@@ -413,43 +413,80 @@ export function LearningItemDialog({
                   <>
                     <dl>
                       <div>
-                        <dt>上次複習</dt>
+                        <dt>Last reviewed</dt>
                         <dd>{reviewTime(reviewDetail.lastReviewedAt)}</dd>
                       </div>
                       <div>
-                        <dt>上次評級</dt>
+                        <dt>Last rating</dt>
                         <dd>{reviewDetail.lastFinalRating
                           ? reviewRatingLabels[reviewDetail.lastFinalRating]
                           : "—"}</dd>
                       </div>
                       <div>
-                        <dt>下次到期</dt>
+                        <dt>Next due</dt>
                         <dd>{reviewTime(reviewDetail.nextDueAt)}</dd>
                       </div>
                       <div>
-                        <dt>累計次數</dt>
+                        <dt>Total reviews</dt>
                         <dd>{reviewDetail.reviewCount}</dd>
                       </div>
                     </dl>
                     {reviewDetail.history.length ? (
                       <details>
-                        <summary>查看精簡複習歷史</summary>
+                        <summary>View review history</summary>
                         <ol>
-                          {reviewDetail.history.map((entry) => (
-                            <li key={entry.id}>
-                              <time>{reviewTime(entry.reviewedAt)}</time>
-                              <span>
-                                AI {reviewRatingLabels[entry.aiRating]} ·
-                                最終 {reviewRatingLabels[entry.finalRating]}
-                              </span>
-                              <small>下次 {reviewTime(entry.nextDueAt)}</small>
-                            </li>
-                          ))}
+                          {reviewDetail.history.map((entry) => {
+                            const answerState = entry.answer === null
+                              ? "unavailable"
+                              : entry.answer.trim()
+                                ? "saved"
+                                : "empty";
+                            const answer = answerState === "unavailable"
+                              ? "Answer wasn't saved"
+                              : answerState === "empty"
+                                ? "Not answered"
+                                : entry.answer;
+                            const rating = reviewRatingLabels[entry.finalRating];
+
+                            return (
+                              <li key={entry.id}>
+                                <div className="learning-review-history-heading">
+                                  <div className="learning-review-history-time">
+                                    <time dateTime={entry.reviewedAt}>
+                                      {reviewTime(entry.reviewedAt)}
+                                    </time>
+                                    <small className="learning-review-next">
+                                      Next review
+                                      <time dateTime={entry.nextDueAt}>
+                                        {reviewTime(entry.nextDueAt)}
+                                      </time>
+                                    </small>
+                                  </div>
+                                  <span
+                                    className="learning-review-rating"
+                                    data-rating={entry.finalRating}
+                                    aria-label={`Final result: ${rating}`}
+                                  >
+                                    {rating}
+                                  </span>
+                                </div>
+                                <div
+                                  className="learning-review-answer"
+                                  data-answer-state={answerState}
+                                >
+                                  <div className="learning-review-answer-label">
+                                    <strong>Your answer</strong>
+                                  </div>
+                                  <p>{answer}</p>
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ol>
                       </details>
                     ) : null}
                   </>
-                ) : <p>讀取排程中…</p>}
+                ) : <p>Loading schedule…</p>}
               </section>
             ) : null}
             {!readOnly ? (
@@ -460,7 +497,7 @@ export function LearningItemDialog({
                   onClick={() => setIsDeleteConfirming(true)}
                   disabled={isSaving}
                 >
-                  刪除
+                  Delete
                 </button>
                 <button
                   type="button"
@@ -468,7 +505,7 @@ export function LearningItemDialog({
                   onClick={() => setDraft(fieldsFor(item))}
                   disabled={isSaving}
                 >
-                  編輯
+                  Edit
                 </button>
               </div>
             ) : null}
@@ -489,9 +526,9 @@ export function LearningItemDialog({
             aria-describedby="delete-learning-item-description"
           >
             <span className="delete-dialog-icon" aria-hidden="true">!</span>
-            <h2 id="delete-learning-item-title">刪除「{item.title}」？</h2>
+            <h2 id="delete-learning-item-title">Delete “{item.title}”?</h2>
             <p id="delete-learning-item-description">
-              這個學習項目會移到垃圾桶，之後仍可還原。
+              This learning item will be moved to Trash and can be restored later.
             </p>
             <div className="delete-dialog-actions">
               <button
@@ -500,7 +537,7 @@ export function LearningItemDialog({
                 disabled={isSaving}
                 autoFocus
               >
-                取消
+                Cancel
               </button>
               <button
                 type="button"
@@ -508,7 +545,7 @@ export function LearningItemDialog({
                 onClick={() => void moveToTrash()}
                 disabled={isSaving}
               >
-                {isSaving ? "移動中…" : "移到垃圾桶"}
+                {isSaving ? "Moving…" : "Move to Trash"}
               </button>
             </div>
           </section>
@@ -569,7 +606,7 @@ export function LearningLibraryWorkspace({
         : { status: "trashed", sort: "recent" });
       setItems(next);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "無法載入生詞庫。");
+      setError(cause instanceof Error ? cause.message : "Unable to load the Learning Library.");
     } finally {
       setIsLoading(false);
     }
@@ -581,7 +618,7 @@ export function LearningLibraryWorkspace({
 
   useEffect(() => {
     void loadCounts().catch((cause) => {
-      setError(cause instanceof Error ? cause.message : "無法取得生詞庫數量。");
+      setError(cause instanceof Error ? cause.message : "Unable to get Learning Library counts.");
     });
   }, [loadCounts]);
 
@@ -596,7 +633,7 @@ export function LearningLibraryWorkspace({
     try {
       setSelectedItem(await api.getItem(item.id));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "無法開啟學習項目。");
+      setError(cause instanceof Error ? cause.message : "Unable to open the learning item.");
     }
   }
 
@@ -613,7 +650,7 @@ export function LearningLibraryWorkspace({
       await api.restoreItem(itemId);
       await Promise.all([loadItems(), loadCounts()]);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "無法還原學習項目。");
+      setError(cause instanceof Error ? cause.message : "Unable to restore the learning item.");
     } finally {
       setIsMutating(false);
     }
@@ -628,7 +665,7 @@ export function LearningLibraryWorkspace({
       setIsEmptyTrashConfirming(false);
       await Promise.all([loadItems(), loadCounts()]);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "無法清空垃圾桶。");
+      setError(cause instanceof Error ? cause.message : "Unable to empty Trash.");
     } finally {
       setIsMutating(false);
     }
@@ -658,12 +695,12 @@ export function LearningLibraryWorkspace({
             <div>
               <span className="eyebrow">Learning library</span>
               <h1 id="learning-library-title">
-                {view === "active" ? "生詞庫" : "垃圾桶"}
+                {view === "active" ? "Learning Library" : "Trash"}
               </h1>
               <p>
                 {view === "active"
-                  ? "整理、搜尋並持續累積值得記住的英文。"
-                  : "項目會保留到你選擇永久清空為止。"}
+                  ? "Organize, search, and build a collection of English worth remembering."
+                  : "Items stay here until you permanently empty Trash."}
               </p>
             </div>
             {view === "active" ? (
@@ -677,7 +714,7 @@ export function LearningLibraryWorkspace({
                   aria-hidden="true"
                   strokeWidth={1.8}
                 />
-                垃圾桶
+                Trash
                 <span className="trash-entry-count">{counts.trashed}</span>
               </button>
             ) : (
@@ -686,37 +723,37 @@ export function LearningLibraryWorkspace({
                 className="secondary-action"
                 onClick={() => setView("active")}
               >
-                ← 返回生詞庫
+                ← Back to Learning Library
               </button>
             )}
           </header>
 
           {view === "active" ? (
-            <div className="learning-library-controls" aria-label="生詞庫查詢與篩選">
+            <div className="learning-library-controls" aria-label="Learning Library search and filters">
               <label className="learning-search">
-                <span>搜尋標題</span>
+                <span>Search titles</span>
                 <span className="learning-search-field">
                   <Search aria-hidden="true" strokeWidth={1.8} />
                   <input
                     type="search"
-                    aria-label="搜尋卡片標題"
-                    placeholder="輸入單字或片語"
+                    aria-label="Search card titles"
+                    placeholder="Enter a word or phrase"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                   />
                 </span>
               </label>
               <label>
-                類型
+                Type
                 <select
                   value={itemType}
                   onChange={(event) => setItemType(
                     event.target.value as LearningItemType | "all"
                   )}
                 >
-                  <option value="all">全部</option>
-                  <option value="word">單字</option>
-                  <option value="phrase">片語</option>
+                  <option value="all">All</option>
+                  <option value="word">Words</option>
+                  <option value="phrase">Phrases</option>
                 </select>
               </label>
               <label>
@@ -727,50 +764,50 @@ export function LearningLibraryWorkspace({
                     event.target.value as CefrLevel | "all"
                   )}
                 >
-                  <option value="all">全部</option>
+                  <option value="all">All</option>
                   {cefrLevels.map((level) => (
                     <option value={level} key={level}>{level}</option>
                   ))}
                 </select>
               </label>
               <label>
-                學習狀態
+                Study status
                 <select
                   value={studyStatus}
                   onChange={(event) => setStudyStatus(
                     event.target.value as LearningItemStudyStatus | "all"
                   )}
                 >
-                  <option value="all">全部狀態</option>
-                  <option value="new">新卡</option>
-                  <option value="learning">學習中</option>
-                  <option value="due">已到期</option>
-                  <option value="scheduled">未到期</option>
+                  <option value="all">All statuses</option>
+                  <option value="new">New</option>
+                  <option value="learning">Learning</option>
+                  <option value="due">Due</option>
+                  <option value="scheduled">Scheduled</option>
                 </select>
               </label>
               <label>
-                排序
+                Sort
                 <select
                   value={sort}
                   onChange={(event) => setSort(event.target.value as LearningItemSort)}
                 >
-                  <option value="recent">最近新增</option>
-                  <option value="study-status">學習優先</option>
-                  <option value="next-due">下次複習時間</option>
-                  <option value="alphabetical">字母順序</option>
+                  <option value="recent">Recently added</option>
+                  <option value="study-status">Study priority</option>
+                  <option value="next-due">Next review</option>
+                  <option value="alphabetical">Alphabetical</option>
                 </select>
               </label>
             </div>
           ) : (
             <div className="learning-trash-toolbar">
-              <strong>{counts.trashed} 筆項目</strong>
+              <strong>{counts.trashed} items</strong>
               <button
                 type="button"
                 className="danger-outline-action"
                 onClick={() => setIsEmptyTrashConfirming(true)}
                 disabled={!counts.trashed || isMutating}
               >
-                清空垃圾桶
+                Empty Trash
               </button>
             </div>
           )}
@@ -784,16 +821,16 @@ export function LearningLibraryWorkspace({
           {view === "active" && !isLoading ? (
             <div className="learning-results-meta" aria-live="polite">
               <span>
-                顯示 <strong>{items.length}</strong> 筆學習項目
+                Showing <strong>{items.length}</strong> learning items
               </span>
               {filtersActive ? (
-                <button type="button" onClick={clearFilters}>清除篩選</button>
+                <button type="button" onClick={clearFilters}>Clear filters</button>
               ) : null}
             </div>
           ) : null}
 
           {isLoading ? (
-            <p className="learning-loading" role="status">生詞庫載入中…</p>
+            <p className="learning-loading" role="status">Loading Learning Library…</p>
           ) : null}
 
           {!isLoading && !items.length ? (
@@ -805,13 +842,13 @@ export function LearningLibraryWorkspace({
               </span>
               <strong>
                 {view === "trashed"
-                  ? "垃圾桶是空的"
+                  ? "Trash is empty"
                   : filtersActive
-                    ? "找不到符合條件的卡片"
-                    : "生詞庫目前沒有卡片"}
+                    ? "No cards match these filters"
+                    : "The Learning Library has no cards yet"}
               </strong>
               {view === "active" && filtersActive ? (
-                <button type="button" onClick={clearFilters}>清除篩選</button>
+                <button type="button" onClick={clearFilters}>Clear filters</button>
               ) : null}
             </div>
           ) : null}
@@ -819,7 +856,7 @@ export function LearningLibraryWorkspace({
           {!isLoading && items.length ? (
             <div
               className={view === "active" ? "learning-card-grid" : "learning-trash-list"}
-              aria-label={view === "active" ? "學習項目清單" : "垃圾桶項目"}
+              aria-label={view === "active" ? "Learning item list" : "Trash items"}
             >
               {items.map((item) => view === "active" ? (
                 <button
@@ -827,7 +864,7 @@ export function LearningLibraryWorkspace({
                   className="learning-item-card"
                   data-study-status={item.studyStatus}
                   key={item.id}
-                  aria-label={`${item.title}，${item.studyStatus === "scheduled" ? `未到期，${cardStudyStatusLabel(item)}` : cardStudyStatusLabel(item)}，${item.itemType === "word" ? "單字" : "片語"}，${item.cefr}，${item.sense}`}
+                  aria-label={`${item.title}, ${item.studyStatus === "scheduled" ? `scheduled, ${cardStudyStatusLabel(item)}` : cardStudyStatusLabel(item)}, ${item.itemType === "word" ? "word" : "phrase"}, ${item.cefr}, ${item.sense}`}
                   onClick={(event) => void openDetail(item, event.currentTarget)}
                 >
                   <span className="learning-card-badges">
@@ -835,26 +872,26 @@ export function LearningLibraryWorkspace({
                       className="learning-card-study-status"
                       data-study-status={item.studyStatus}
                       title={item.studyStatus === "scheduled"
-                        ? `未到期；下次複習在${cardStudyStatusLabel(item)}`
+                        ? `Scheduled; next review ${cardStudyStatusLabel(item)}`
                         : undefined}
                     >
                       {cardStudyStatusLabel(item)}
                     </em>
                     <em className="learning-card-type">
-                      {item.itemType === "word" ? "單字" : "片語"}
+                      {item.itemType === "word" ? "Word" : "Phrase"}
                     </em>
                     <em className="learning-card-cefr">{item.cefr}</em>
                   </span>
                   <strong>{item.title}</strong>
                   <small>{item.sense}</small>
                   <span className="learning-card-open">
-                    查看詳情 <span aria-hidden="true">→</span>
+                    View details <span aria-hidden="true">→</span>
                   </span>
                 </button>
               ) : (
                 <article className="learning-trash-item" key={item.id}>
                   <div>
-                    <span>{item.itemType === "word" ? "單字" : "片語"} · {item.cefr}</span>
+                    <span>{item.itemType === "word" ? "Word" : "Phrase"} • {item.cefr}</span>
                     <strong>{item.title}</strong>
                     <small>{item.sense}</small>
                   </div>
@@ -862,9 +899,9 @@ export function LearningLibraryWorkspace({
                     type="button"
                     onClick={() => void restore(item.id)}
                     disabled={isMutating}
-                    aria-label={`還原 ${item.title}`}
+                    aria-label={`Restore ${item.title}`}
                   >
-                    還原
+                    Restore
                   </button>
                 </article>
               ))}
@@ -892,15 +929,15 @@ export function LearningLibraryWorkspace({
             aria-labelledby="empty-learning-trash-title"
           >
             <span className="delete-dialog-icon" aria-hidden="true">!</span>
-            <h2 id="empty-learning-trash-title">永久清空垃圾桶？</h2>
-            <p>垃圾桶內的所有學習項目都會永久刪除，且無法復原。</p>
+            <h2 id="empty-learning-trash-title">Permanently empty Trash?</h2>
+            <p>All learning items in Trash will be permanently deleted and cannot be recovered.</p>
             <div className="delete-dialog-actions">
               <button
                 type="button"
                 onClick={() => setIsEmptyTrashConfirming(false)}
                 disabled={isMutating}
               >
-                取消
+                Cancel
               </button>
               <button
                 type="button"
@@ -908,7 +945,7 @@ export function LearningLibraryWorkspace({
                 onClick={() => void emptyTrash()}
                 disabled={isMutating}
               >
-                {isMutating ? "清空中…" : "永久清空"}
+                {isMutating ? "Emptying…" : "Empty permanently"}
               </button>
             </div>
           </section>

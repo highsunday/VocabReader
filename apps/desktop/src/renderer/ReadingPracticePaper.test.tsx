@@ -72,11 +72,11 @@ describe("ReadingPracticePaper", () => {
     );
 
     const action = screen.getByRole("button", {
-      name: "開啟試卷：A Walk in the Rain"
+      name: "Open paper: A Walk in the Rain"
     });
     expect(action).toHaveTextContent("A Walk in the Rain");
-    expect(action).toHaveTextContent("2 題");
-    expect(action).toHaveTextContent("開始作答");
+    expect(action).toHaveTextContent("2 questions");
+    expect(action).toHaveTextContent("Start answering");
     expect(action).toHaveAttribute("aria-expanded", "false");
 
     rerender(
@@ -87,7 +87,7 @@ describe("ReadingPracticePaper", () => {
       />
     );
     expect(action).toHaveTextContent("0/1");
-    expect(action).toHaveTextContent("查看紅筆批改");
+    expect(action).toHaveTextContent("View grading");
   });
 
   it("supports A-D selection, open-ended input and one complete submission", async () => {
@@ -105,12 +105,12 @@ describe("ReadingPracticePaper", () => {
     expect(screen.getByRole("region", { name: "A Walk in the Rain" }))
       .toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    const submit = screen.getByRole("button", { name: "提交試卷" });
+    const submit = screen.getByRole("button", { name: "Submit paper" });
     expect(submit).toBeDisabled();
-    expect(screen.getByText("還有 2 題未作答")).toBeInTheDocument();
+    expect(screen.getByText("2 questions unanswered")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("radio", { name: "A 他聽見鳥叫" }));
-    fireEvent.change(screen.getByLabelText("第 2 題回答"), {
+    fireEvent.change(screen.getByLabelText("Answer to question 2"), {
       target: { value: "雨讓重逢更有戲劇性。" }
     });
     expect(submit).toBeEnabled();
@@ -127,7 +127,7 @@ describe("ReadingPracticePaper", () => {
       "open-1 (Question 2):",
       "雨讓重逢更有戲劇性。"
     ].join("\n")));
-    expect(await screen.findByText("AI 正在紅筆批改…")).toBeInTheDocument();
+    expect(await screen.findByText("AI is grading…")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "A 他聽見鳥叫" })).toBeDisabled();
   });
 
@@ -143,11 +143,11 @@ describe("ReadingPracticePaper", () => {
     );
 
     const progress = screen.getByRole("progressbar", {
-      name: "試卷作答進度"
+      name: "Paper progress"
     });
     expect(progress).toHaveAttribute("max", "2");
     expect(progress).toHaveAttribute("value", "0");
-    expect(screen.getByText("已完成 0 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Answered 0 / 2")).toBeInTheDocument();
 
     const choice = screen.getByRole("radio", { name: "C 他看見朋友" });
     expect(choice.closest(".paper-question")).toHaveAttribute(
@@ -156,17 +156,17 @@ describe("ReadingPracticePaper", () => {
     );
     fireEvent.click(choice);
     expect(progress).toHaveAttribute("value", "1");
-    expect(screen.getByText("已完成 1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Answered 1 / 2")).toBeInTheDocument();
     expect(choice.closest(".paper-question")).toHaveAttribute(
       "data-answered",
       "true"
     );
 
-    fireEvent.change(screen.getByLabelText("第 2 題回答"), {
+    fireEvent.change(screen.getByLabelText("Answer to question 2"), {
       target: { value: "雨讓重逢更有戲劇性。" }
     });
     expect(progress).toHaveAttribute("value", "2");
-    expect(screen.getByText("已完成 2 / 2")).toBeInTheDocument();
+    expect(screen.getByText("Answered 2 / 2")).toBeInTheDocument();
   });
 
   it("keeps secondary metadata folded and groups narrow answer choices", () => {
@@ -180,15 +180,15 @@ describe("ReadingPracticePaper", () => {
       />
     );
 
-    expect(screen.getByText("2 題")).toBeInTheDocument();
+    expect(screen.getByText("2 questions")).toBeInTheDocument();
     expect(screen.getByText("B1")).toBeInTheDocument();
-    const focus = screen.getByText("本卷重點").closest("details");
+    const focus = screen.getByText("Focus").closest("details");
     expect(focus).not.toHaveAttribute("open");
-    fireEvent.click(screen.getByText("本卷重點"));
+    fireEvent.click(screen.getByText("Focus"));
     expect(focus).toHaveAttribute("open");
     expect(screen.getByText("注意因果關係與人物動機。"))
       .toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "第 1 題選項" }))
+    expect(screen.getByRole("group", { name: "Options for question 1" }))
       .toBeInTheDocument();
   });
 
@@ -225,15 +225,15 @@ describe("ReadingPracticePaper", () => {
       />
     );
 
-    expect(screen.getByText("AI 紅筆批改")).toBeInTheDocument();
-    expect(screen.getByText("✕ 正解 C")).toHaveClass("incorrect");
+    expect(screen.getByText("AI grading")).toBeInTheDocument();
+    expect(screen.getByText("✕ Correct answer: C")).toHaveClass("incorrect");
     expect(screen.getByText("文中提到他在街角認出了老朋友。"))
       .toBeInTheDocument();
-    expect(screen.getByText("修正版")).toBeInTheDocument();
+    expect(screen.getByText("Revised answer")).toBeInTheDocument();
     expect(screen.getByText("0/1")).toBeInTheDocument();
-    const summary = screen.getByText("批改總結").closest("details");
+    const summary = screen.getByText("Grading summary").closest("details");
     expect(summary).not.toHaveAttribute("open");
-    fireEvent.click(screen.getByText("批改總結"));
+    fireEvent.click(screen.getByText("Grading summary"));
     expect(summary).toHaveAttribute("open");
     expect(screen.getByText("因果連接詞")).toBeInTheDocument();
   });
@@ -252,10 +252,10 @@ describe("ReadingPracticePaper", () => {
     );
 
     expect(screen.getByRole("button", {
-      name: "開啟試卷：A Walk in the Rain"
+      name: "Open paper: A Walk in the Rain"
     })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {
-      name: "開啟試卷：A Walk in the Rain"
+      name: "Open paper: A Walk in the Rain"
     }));
     expect(onOpen).toHaveBeenCalledOnce();
     expect(screen.queryByRole("region", { name: "A Walk in the Rain" }))
@@ -272,7 +272,7 @@ describe("ReadingPracticePaper", () => {
     );
     expect(screen.getByRole("region", { name: "A Walk in the Rain" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "收起試卷" }))
+    expect(screen.getByRole("button", { name: "Collapse paper" }))
       .toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledOnce();
@@ -308,19 +308,19 @@ describe("ReadingPracticePaper", () => {
     );
 
     fireEvent.click(screen.getByRole("radio", { name: "C 他看見朋友" }));
-    fireEvent.change(screen.getByLabelText("第 2 題回答"), {
+    fireEvent.change(screen.getByLabelText("Answer to question 2"), {
       target: { value: "雨營造懷舊氣氛。" }
     });
     rerender(<ReadingPracticePaper open={false} {...props} />);
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
     expect(screen.getByRole("button", {
-      name: "開啟試卷：A Walk in the Rain"
+      name: "Open paper: A Walk in the Rain"
     })).toBeInTheDocument();
 
     rerender(<ReadingPracticePaper open {...props} />);
     expect(screen.getByRole("radio", { name: "C 他看見朋友" }))
       .toBeChecked();
-    expect(screen.getByLabelText("第 2 題回答"))
+    expect(screen.getByLabelText("Answer to question 2"))
       .toHaveValue("雨營造懷舊氣氛。");
   });
 });

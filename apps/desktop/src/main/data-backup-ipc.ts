@@ -36,7 +36,7 @@ function restoreToken(value: unknown): string {
     typeof value !== "string" ||
     !/^[a-zA-Z0-9-]{8,100}$/.test(value)
   ) {
-    throw new Error("資料還原請求格式錯誤");
+    throw new Error("Invalid data restore request");
   }
   return value;
 }
@@ -49,9 +49,9 @@ export function registerDataBackupIpc(
 ): void {
   ipc.handle("data-backup:export", async () => {
     const selection = await dialog.showSaveDialog({
-      title: "匯出 VocabReader 資料備份",
+      title: "Export VocabReader Data Backup",
       defaultPath: defaultFileName,
-      filters: [{ name: "VocabReader 資料備份", extensions: ["zip"] }]
+      filters: [{ name: "VocabReader Data Backup", extensions: ["zip"] }]
     });
     if (selection.canceled || !selection.filePath) {
       return { status: "cancelled" } satisfies ExportDataBackupResult;
@@ -64,9 +64,9 @@ export function registerDataBackupIpc(
 
   ipc.handle("data-backup:select", async () => {
     const selection = await dialog.showOpenDialog({
-      title: "匯入 VocabReader 資料備份",
+      title: "Import VocabReader Data Backup",
       properties: ["openFile"],
-      filters: [{ name: "VocabReader 資料備份", extensions: ["zip"] }]
+      filters: [{ name: "VocabReader Data Backup", extensions: ["zip"] }]
     });
     const selectedPath = selection.filePaths[0];
     if (selection.canceled || !selectedPath) {

@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -15,10 +16,10 @@ import type {
 import { SpacedReviewWorkspace } from "./SpacedReviewWorkspace";
 
 const ratingOptionsForTest = {
-  forgotten: "忘記",
-  hard: "困難",
-  good: "順利",
-  easy: "簡單"
+  forgotten: "Forgotten",
+  hard: "Hard",
+  good: "Good",
+  easy: "Easy"
 } as const;
 
 function reviewApi(): ReviewDesktopApi {
@@ -90,6 +91,7 @@ function reviewApi(): ReviewDesktopApi {
           reviewedAt: "2026-07-24T08:00:00.000Z",
           aiRating: "easy" as const,
           finalRating: "forgotten" as const,
+          answer: "",
           intervalSeconds: 60,
           nextDueAt: "2026-07-24T08:01:00.000Z"
         }]
@@ -155,18 +157,103 @@ describe("SpacedReviewWorkspace", () => {
       <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
     );
 
-    expect(await screen.findByText("現在沒有可練習的卡片"))
+    expect(await screen.findByText("No cards are ready to practice"))
       .toBeInTheDocument();
     const status = screen.getByRole("region", {
-      name: "今日複習狀態"
+      name: "Today's review status"
     });
     expect(status).toHaveTextContent(
-      "今日進度已完成／每日上限新卡2／10複習卡4／50"
+      "Today's progressCompleted / daily limitNew items2/10Due reviews4/50"
     );
     expect(screen.queryByText("今日安排")).not.toBeInTheDocument();
     expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\/ 50/)).not.toBeInTheDocument();
     expect(screen.queryByText(/名額/)).not.toBeInTheDocument();
+  });
+
+  it("shows the next due time instead of claiming a waiting backlog is completed", async () => {
+    const api = reviewApi();
+    const baseSummary = await api.getSummary();
+    api.getSummary = vi.fn(async () => ({
+      ...baseSummary,
+      newCount: 50,
+      reviewedNewTodayCount: 20,
+      newLearningCount: 6,
+      newCompletionLimit: 20,
+      newRemainingCapacity: 0,
+      backlogTotal: 50,
+      totalAvailable: 0,
+      selectedItems: [],
+      nextDueAt: new Date(Date.now() + 60_000).toISOString()
+    }));
+
+    render(
+      <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
+    );
+
+    expect(await screen.findByText(/The next card is due in 1 minutes./))
+      .toBeInTheDocument();
+    expect(screen.queryByText(
+      "Today's review is complete. Adjust daily limits in Settings if needed."
+    )).not.toBeInTheDocument();
+  });
+
+  it("refreshes the review summary when the next learning item becomes due", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-29T03:51:00.000Z"));
+    const api = reviewApi();
+    const baseSummary = await api.getSummary();
+    const waitingSummary = {
+      ...baseSummary,
+      newCount: 50,
+      reviewedNewTodayCount: 20,
+      newLearningCount: 6,
+      newCompletionLimit: 20,
+      newRemainingCapacity: 0,
+      backlogTotal: 50,
+      totalAvailable: 0,
+      selectedItems: [],
+      nextDueAt: "2026-07-29T03:52:00.000Z"
+    };
+    const availableSummary = {
+      ...waitingSummary,
+      totalAvailable: 1,
+      availableLearningCount: 1,
+      selectedItems: baseSummary.selectedItems,
+      nextDueAt: null
+    };
+    api.getSummary = vi.fn()
+      .mockResolvedValueOnce(waitingSummary)
+      .mockResolvedValueOnce(availableSummary);
+    const onAvailableCountChange = vi.fn();
+    let unmount: () => void = () => undefined;
+
+    try {
+      await act(async () => {
+        ({ unmount } = render(
+          <SpacedReviewWorkspace
+            api={api}
+            explanationLanguage="zh-TW"
+            onAvailableCountChange={onAvailableCountChange}
+          />
+        ));
+      });
+      expect(api.getSummary).toHaveBeenCalledTimes(1);
+      expect(onAvailableCountChange).toHaveBeenLastCalledWith(0);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+
+      expect(api.getSummary).toHaveBeenCalledTimes(2);
+      expect(onAvailableCountChange).toHaveBeenLastCalledWith(1);
+      expect(screen.getByRole("button", {
+        name: "Start a 1-question review"
+      })).toBeInTheDocument();
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("keeps new-card and review-card progress separate", async () => {
@@ -185,10 +272,93 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     expect(await screen.findByRole("region", {
-      name: "今日複習狀態"
+      name: "Today's review status"
     })).toHaveTextContent(
-      "新卡3／12複習卡5／30"
+      "New items3/12Due reviews5/30"
     );
+  });
+
+  it("shows an accessible 30-day learning footprint and achievement totals", async () => {
+    const api = reviewApi();
+    const baseSummary = await api.getSummary();
+    const daily = Array.from({ length: 30 }, (_, index) => ({
+      date: `2026-07-${String(index + 1).padStart(2, "0")}`,
+      newCompletedCount: index === 28 ? 2 : 0,
+      dueCompletedCount: index === 29 ? 3 : 0,
+      cumulativeLearnedCount: index < 28 ? 98 : 100
+    }));
+    api.getSummary = vi.fn(async () => ({
+      ...baseSummary,
+      learningProgress: {
+        periodDays: 30,
+        learnedItemCount: 100,
+        learnedItemCountDelta: 2,
+        completedReviewCount: 5,
+        daily
+      }
+    }));
+
+    render(
+      <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
+    );
+
+    const growth = await screen.findByRole("region", {
+      name: "Learning growth"
+    });
+    const primaryAction = screen.getByRole("region", {
+      name: "Complete 1 questions to keep your memory moving"
+    });
+    expect(primaryAction).toHaveTextContent("Start today's review");
+    expect(
+      primaryAction.compareDocumentPosition(growth) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(growth).toHaveTextContent("You have learned100items");
+    expect(growth).toHaveTextContent("Progress over the past 30 days +2");
+    expect(growth).toHaveTextContent("Completed in 30 days5reviews");
+    expect(growth).toHaveTextContent("Daily average0.2reviews");
+    expect(growth).toHaveTextContent("Active days2days");
+    expect(growth).toHaveTextContent("30-day learning activity");
+    const footprint = within(growth).getByRole("list", {
+      name: /Learning activity over the past 30 days; 100 items learned/
+    });
+    expect(within(footprint).getAllByRole("listitem")).toHaveLength(30);
+    expect(growth.querySelector("polyline")).not.toBeInTheDocument();
+    expect(growth.querySelector("rect")).not.toBeInTheDocument();
+  });
+
+  it("renders a safe empty learning growth state", async () => {
+    const api = reviewApi();
+    const baseSummary = await api.getSummary();
+    api.getSummary = vi.fn(async () => ({
+      ...baseSummary,
+      learningProgress: {
+        periodDays: 30,
+        learnedItemCount: 0,
+        learnedItemCountDelta: 0,
+        completedReviewCount: 0,
+        daily: Array.from({ length: 30 }, (_, index) => ({
+          date: `2026-07-${String(index + 1).padStart(2, "0")}`,
+          newCompletedCount: 0,
+          dueCompletedCount: 0,
+          cumulativeLearnedCount: 0
+        }))
+      }
+    }));
+
+    render(
+      <SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />
+    );
+
+    const growth = await screen.findByRole("region", {
+      name: "Learning growth"
+    });
+    expect(growth).toHaveTextContent(
+      "Your progress begins when you complete your first learning item."
+    );
+    expect(growth.querySelectorAll(
+      ".review-growth-days li[data-level='0']"
+    )).toHaveLength(30);
   });
 
   it("refreshes the simplified plan after confirming a review paper", async () => {
@@ -208,6 +378,18 @@ describe("SpacedReviewWorkspace", () => {
         dueRemainingCapacity: 50,
         backlogTotal: 1,
         totalAvailable: 1,
+        learningProgress: {
+          periodDays: 30,
+          learnedItemCount: 0,
+          learnedItemCountDelta: 0,
+          completedReviewCount: 0,
+          daily: Array.from({ length: 30 }, (_, index) => ({
+            date: `2026-07-${String(index + 1).padStart(2, "0")}`,
+            newCompletedCount: 0,
+            dueCompletedCount: 0,
+            cumulativeLearnedCount: 0
+          }))
+        },
         selectedItems: [{
           id: "item-1",
           title: "bank",
@@ -238,6 +420,18 @@ describe("SpacedReviewWorkspace", () => {
         dueRemainingCapacity: 50,
         backlogTotal: 0,
         totalAvailable: 0,
+        learningProgress: {
+          periodDays: 30,
+          learnedItemCount: 1,
+          learnedItemCountDelta: 1,
+          completedReviewCount: 1,
+          daily: Array.from({ length: 30 }, (_, index) => ({
+            date: `2026-07-${String(index + 1).padStart(2, "0")}`,
+            newCompletedCount: index === 23 ? 1 : 0,
+            dueCompletedCount: 0,
+            cumulativeLearnedCount: index < 23 ? 0 : 1
+          }))
+        },
         selectedItems: [],
         nextDueAt: "2026-07-25T08:00:00.000Z"
       });
@@ -247,27 +441,31 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "提交試卷（1 題未作答）"
+      name: "Submit paper (1 unanswered)"
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "接受評級並更新排程"
+      name: "Accept ratings and update schedule"
     }));
 
-    expect(await screen.findByRole("heading", { name: "本回合已完成" }))
+    expect(await screen.findByRole("heading", { name: "Session complete" }))
       .toBeInTheDocument();
     await waitFor(() => expect(api.getSummary).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("region", {
-      name: "今日複習狀態"
+      name: "Today's review status"
     })).toHaveTextContent(
-      "新卡1／10複習卡0／50"
+      "New items1/10Due reviews0/50"
     );
+    expect(screen.getByRole("region", {
+      name: "Learning growth"
+    })).toHaveTextContent("You have learned1items");
+    expect(api.confirmPaper).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", {
-      name: "返回複習總覽"
+      name: "Back to review overview"
     }));
-    expect(await screen.findByText("現在沒有可練習的卡片"))
+    expect(await screen.findByText("No cards are ready to practice"))
       .toBeInTheDocument();
     expect(screen.queryByText("今日安排")).not.toBeInTheDocument();
   });
@@ -301,22 +499,24 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     const generationCard = await screen.findByRole("region", {
-      name: "AI 生成試卷"
+      name: "AI paper generation"
     });
     expect(generationCard).toHaveAttribute("aria-busy", "true");
-    expect(within(generationCard).getByText("正在準備 1 題複習試卷"))
+    expect(within(generationCard).getByText("Preparing a 1-question review paper"))
       .toBeInTheDocument();
     expect(within(generationCard).getByRole("progressbar", {
-      name: "AI 生成試卷進度"
+      name: "AI paper generation progress"
     })).toBeInTheDocument();
-    expect(within(generationCard).getByText("已等待 0 秒"))
+    expect(within(generationCard).getByText("Waiting for 0 seconds"))
       .toBeInTheDocument();
     expect(screen.queryByText("AI 正在依本回合項目生成例句…"))
       .not.toBeInTheDocument();
-    expect(screen.queryByText(/Preparing/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("region", {
+      name: "AI paper generation"
+    })).toHaveLength(1);
 
     publishProgress?.({
       phase: "preparing",
@@ -324,9 +524,9 @@ describe("SpacedReviewWorkspace", () => {
       totalCount: 4
     });
     const progressbar = within(generationCard).getByRole("progressbar", {
-      name: "AI 生成試卷進度"
+      name: "AI paper generation progress"
     });
-    expect(await screen.findByText("已完成 1／4 題例句"))
+    expect(await screen.findByText("1/4 example sentences complete"))
       .toBeInTheDocument();
     expect(progressbar).toHaveAttribute("aria-valuenow", "1");
     expect(progressbar).toHaveAttribute("aria-valuemax", "4");
@@ -337,7 +537,7 @@ describe("SpacedReviewWorkspace", () => {
       completedCount: 4,
       totalCount: 4
     });
-    expect(await screen.findByText("例句已完成，正在組裝並檢查試卷"))
+    expect(await screen.findByText("Example sentences complete; assembling and validating the paper"))
       .toBeInTheDocument();
     expect(progressbar).toHaveAttribute("aria-valuenow", "4");
     expect(progressbar.firstElementChild).toHaveStyle({ width: "100%" });
@@ -358,7 +558,7 @@ describe("SpacedReviewWorkspace", () => {
     });
     expect(await screen.findByText("bank", { selector: "u" }))
       .toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "AI 生成試卷" }))
+    expect(screen.queryByRole("region", { name: "AI paper generation" }))
       .not.toBeInTheDocument();
     unmount();
     expect(unsubscribeProgress).toHaveBeenCalledOnce();
@@ -382,15 +582,15 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "取消生成"
+      name: "Cancel generation"
     }));
 
     expect(api.discardPaper).toHaveBeenCalledOnce();
     expect(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     })).toBeInTheDocument();
 
     resolvePaper?.({
@@ -431,22 +631,22 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     await screen.findByText("bank", { selector: "u" });
     fireEvent.click(screen.getByRole("button", {
-      name: "提交試卷（1 題未作答）"
+      name: "Submit paper (1 unanswered)"
     }));
 
     const gradingStatus = await screen.findByRole("status", {
-      name: "AI 正在批改試卷"
+      name: "AI is grading the paper"
     });
     expect(gradingStatus).toHaveAttribute("aria-busy", "true");
     expect(within(gradingStatus).getByRole("heading", {
-      name: "正在分析你的答案"
+      name: "Analyzing your answers"
     })).toBeInTheDocument();
     expect(within(gradingStatus).getByText(
-      "比對詞義與句子語境，並在適用時提供遣詞用句建議。"
+      "Comparing meaning with sentence context and offering expression feedback when useful."
     )).toBeInTheDocument();
 
     resolveGrade?.({
@@ -461,7 +661,7 @@ describe("SpacedReviewWorkspace", () => {
     expect(await screen.findByText("答案完整且符合語境。"))
       .toBeInTheDocument();
     expect(screen.queryByRole("status", {
-      name: "AI 正在批改試卷"
+      name: "AI is grading the paper"
     })).not.toBeInTheDocument();
   });
 
@@ -492,30 +692,30 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
-    fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
+    fireEvent.change(await screen.findByLabelText("Meaning of this word in the sentence"), {
       target: { value: "It is a place that saves people's money." }
     });
-    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit paper" }));
 
-    const meaning = await screen.findByRole("region", { name: "意思判斷" });
+    const meaning = await screen.findByRole("region", { name: "Meaning assessment" });
     expect(within(meaning).getByText("核心詞義正確。")).toBeInTheDocument();
-    expect(within(meaning).getByText("下次可以這樣回答"))
+    expect(within(meaning).getByText("A better answer for next time"))
       .toBeInTheDocument();
     expect(within(meaning).getByText(
       "A bank is a place where people keep and manage their money."
     )).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "表達建議" }))
+    expect(screen.queryByRole("region", { name: "Expression feedback" }))
       .not.toBeInTheDocument();
     expect(screen.queryByText("institution 比 place 更精確。"))
       .not.toBeInTheDocument();
-    const answerArea = screen.getByText("這個詞在句中的意思").closest("label");
-    expect(within(answerArea!).getByText("口語修正 →")).toBeInTheDocument();
+    const answerArea = screen.getByText("Meaning of this word in the sentence").closest("label");
+    expect(within(answerArea!).getByText("Expression feedback →")).toBeInTheDocument();
     expect(within(answerArea!).getByText(
       "A bank is an institution where people deposit or withdraw money."
     )).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "簡單" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Easy" })).toBeChecked();
   });
 
   it.each([
@@ -560,21 +760,21 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
-    fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
+    fireEvent.change(await screen.findByLabelText("Meaning of this word in the sentence"), {
       target: { value: expectedMessage ? "financial institution" : "金融機構" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit paper" }));
 
-    expect(await screen.findByRole("region", { name: "意思判斷" }))
+    expect(await screen.findByRole("region", { name: "Meaning assessment" }))
       .toHaveTextContent("核心詞義正確。");
-    expect(screen.queryByRole("region", { name: "表達建議" }))
+    expect(screen.queryByRole("region", { name: "Expression feedback" }))
       .not.toBeInTheDocument();
     expect(screen.queryByText(expectedMessage ?? "不會出現的訊息"))
       .not.toBeInTheDocument();
-    expect(screen.queryByText("口語修正 →")).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "簡單" })).toBeChecked();
+    expect(screen.queryByText("Expression feedback →")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Easy" })).toBeChecked();
   });
 
   it("shows the correct contextual meaning when a blank answer is graded forgotten", async () => {
@@ -602,20 +802,20 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "提交試卷（1 題未作答）"
+      name: "Submit paper (1 unanswered)"
     }));
 
-    const meaning = await screen.findByRole("region", { name: "意思判斷" });
+    const meaning = await screen.findByRole("region", { name: "Meaning assessment" });
     expect(meaning).toHaveTextContent("這題沒有作答。");
-    expect(meaning).toHaveTextContent("下次可以這樣回答");
+    expect(meaning).toHaveTextContent("A better answer for next time");
     expect(meaning).toHaveTextContent(
       "bank 在這個句子中指銀行或金融機構。"
     );
-    expect(screen.getByRole("radio", { name: "忘記" })).toBeChecked();
-    expect(screen.queryByRole("region", { name: "表達建議" }))
+    expect(screen.getByRole("radio", { name: "Forgotten" })).toBeChecked();
+    expect(screen.queryByRole("region", { name: "Expression feedback" }))
       .not.toBeInTheDocument();
   });
 
@@ -639,36 +839,36 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
-    const answer = await screen.findByLabelText("這個詞在句中的意思");
-    expect(screen.queryByRole("button", { name: "打開學習卡" }))
+    const answer = await screen.findByLabelText("Meaning of this word in the sentence");
+    expect(screen.queryByRole("button", { name: "Open learning card" }))
       .not.toBeInTheDocument();
     fireEvent.change(answer, { target: { value: "金融機構" } });
-    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit paper" }));
 
-    const meaning = await screen.findByRole("region", { name: "意思判斷" });
+    const meaning = await screen.findByRole("region", { name: "Meaning assessment" });
     const feedback = meaning.closest(".review-feedback");
     expect(feedback).toHaveAttribute("data-rating", "easy");
-    expect(feedback).toHaveAccessibleName("批改結果：簡單");
+    expect(feedback).toHaveAccessibleName("Grading result: Easy");
 
     const detailTrigger = screen.getByRole("button", {
-      name: "打開學習卡"
+      name: "Open learning card"
     });
     fireEvent.click(detailTrigger);
     expect(learning.getItem).toHaveBeenCalledWith("item-1");
     const dialog = await screen.findByRole("dialog", { name: "bank" });
     expect(within(dialog).getByRole("heading", { name: "Meaning" }))
       .toBeInTheDocument();
-    expect(within(dialog).getByRole("region", { name: "複習排程" }))
+    expect(within(dialog).getByRole("region", { name: "Review schedule" }))
       .toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "編輯" }))
+    expect(within(dialog).queryByRole("button", { name: "Edit" }))
       .not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "刪除" }))
+    expect(within(dialog).queryByRole("button", { name: "Delete" }))
       .not.toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", {
-      name: "關閉卡片詳情"
+      name: "Close card details"
     }));
     await waitFor(() => expect(detailTrigger).toHaveFocus());
 
@@ -688,10 +888,10 @@ describe("SpacedReviewWorkspace", () => {
       .not.toBeInTheDocument();
     await waitFor(() => expect(detailTrigger).toHaveFocus());
 
-    fireEvent.click(screen.getByRole("radio", { name: "困難" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Hard" }));
     expect(feedback).toHaveAttribute("data-rating", "hard");
-    expect(feedback).toHaveAccessibleName("批改結果：困難");
-    expect(screen.getByText("AI 建議：簡單")).toBeInTheDocument();
+    expect(feedback).toHaveAccessibleName("Grading result: Hard");
+    expect(screen.getByText("AI suggestion: Easy")).toBeInTheDocument();
     expect(answer).toHaveValue("金融機構");
     expect(api.generatePaper).toHaveBeenCalledTimes(1);
     expect(api.gradePaper).toHaveBeenCalledTimes(1);
@@ -760,10 +960,10 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "提交試卷（4 題未作答）"
+      name: "Submit paper (4 unanswered)"
     }));
 
     for (const [index, rating] of ratings.entries()) {
@@ -780,7 +980,7 @@ describe("SpacedReviewWorkspace", () => {
     const api = reviewApi();
     const learning = learningApi();
     learning.getItem = vi.fn(async () => {
-      throw new Error("找不到學習項目");
+      throw new Error("Learning item not found");
     });
     render(
       <SpacedReviewWorkspace
@@ -791,19 +991,19 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
-    fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
+    fireEvent.change(await screen.findByLabelText("Meaning of this word in the sentence"), {
       target: { value: "金融機構" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit paper" }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "打開學習卡"
+      name: "Open learning card"
     }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("找不到學習項目");
-    expect(screen.getByRole("radio", { name: "簡單" })).toBeChecked();
-    expect(screen.getByRole("button", { name: "接受評級並更新排程" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Learning item not found");
+    expect(screen.getByRole("radio", { name: "Easy" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Accept ratings and update schedule" }))
       .toBeEnabled();
   });
 
@@ -817,43 +1017,45 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
-    const answer = await screen.findByLabelText("這個詞在句中的意思");
+    const answer = await screen.findByLabelText("Meaning of this word in the sentence");
     fireEvent.change(answer, { target: { value: "銀行" } });
-    fireEvent.click(screen.getByRole("button", { name: "先離開" }));
+    fireEvent.click(screen.getByRole("button", { name: "Leave for now" }));
 
     expect(screen.queryByText("bank", { selector: "u" }))
       .not.toBeInTheDocument();
-    const currentPaper = screen.getByRole("region", { name: "當前試卷" });
-    expect(screen.queryByRole("heading", { name: "準備好就開始" }))
+    const currentPaper = screen.getByRole("region", { name: "Current paper" });
+    expect(screen.queryByRole("heading", {
+      name: /Complete \d+ questions to keep your memory moving/
+    }))
       .not.toBeInTheDocument();
-    expect(within(currentPaper).getByText(/已作答 1／1 題/))
+    expect(within(currentPaper).getByText(/1\/1 answered/))
       .toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /開始 \d+ 題複習/ }))
+    expect(screen.queryByRole("button", { name: /Start a \d+-question review/ }))
       .not.toBeInTheDocument();
     expect(api.discardPaper).not.toHaveBeenCalled();
 
     fireEvent.click(within(currentPaper).getByRole("button", {
-      name: "查看試卷"
+      name: "View paper"
     }));
-    expect(screen.getByText("1 題詞義回想")).toBeInTheDocument();
-    expect(await screen.findByLabelText("這個詞在句中的意思"))
+    expect(screen.getByText("1 meaning-recall questions")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Meaning of this word in the sentence"))
       .toHaveValue("銀行");
 
-    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit paper" }));
     expect(await screen.findByText("答案完整且符合語境。"))
       .toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: "忘記" }));
-    fireEvent.click(screen.getByRole("button", { name: "先離開" }));
-    expect(screen.getByRole("region", { name: "當前試卷" }))
-      .toHaveTextContent("等待確認評級");
-    fireEvent.click(screen.getByRole("button", { name: "查看試卷" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Forgotten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Leave for now" }));
+    expect(screen.getByRole("region", { name: "Current paper" }))
+      .toHaveTextContent("ratings awaiting confirmation");
+    fireEvent.click(screen.getByRole("button", { name: "View paper" }));
 
     expect(await screen.findByText("答案完整且符合語境。"))
       .toBeInTheDocument();
-    expect(screen.getByText("1 題詞義回想")).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "忘記" })).toBeChecked();
+    expect(screen.getByText("1 meaning-recall questions")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Forgotten" })).toBeChecked();
     expect(api.generatePaper).toHaveBeenCalledOnce();
     expect(api.gradePaper).toHaveBeenCalledOnce();
     expect(api.discardPaper).not.toHaveBeenCalled();
@@ -871,46 +1073,46 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     await screen.findByText("bank", { selector: "u" });
-    fireEvent.click(screen.getByRole("button", { name: "先離開" }));
+    fireEvent.click(screen.getByRole("button", { name: "Leave for now" }));
     await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
       "resumable"
     ));
 
-    fireEvent.click(screen.getByRole("button", { name: "放棄試卷" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard paper" }));
     const firstConfirmation = screen.getByRole("alertdialog", {
-      name: "放棄目前試卷？"
+      name: "Discard the current paper?"
     });
     expect(firstConfirmation).toHaveTextContent(
-      "題目、答案、AI 回饋與未確認評級都會清除"
+      "Questions, answers, AI feedback, and unconfirmed ratings will be cleared"
     );
-    expect(firstConfirmation).toHaveTextContent("無法復原");
+    expect(firstConfirmation).toHaveTextContent("cannot be recovered");
     fireEvent.click(within(firstConfirmation).getByRole("button", {
-      name: "取消"
+      name: "Cancel"
     }));
 
     expect(screen.queryByRole("alertdialog", {
-      name: "放棄目前試卷？"
+      name: "Discard the current paper?"
     })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "查看試卷" }))
+    expect(screen.getByRole("button", { name: "View paper" }))
       .toBeInTheDocument();
     expect(api.discardPaper).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "放棄試卷" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard paper" }));
     const secondConfirmation = screen.getByRole("alertdialog", {
-      name: "放棄目前試卷？"
+      name: "Discard the current paper?"
     });
     fireEvent.click(within(secondConfirmation).getByRole("button", {
-      name: "確認放棄"
+      name: "Confirm discard"
     }));
 
     await waitFor(() => expect(api.discardPaper).toHaveBeenCalledOnce());
     expect(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "查看試卷" }))
+    expect(screen.queryByRole("button", { name: "View paper" }))
       .not.toBeInTheDocument();
     expect(api.confirmPaper).not.toHaveBeenCalled();
     await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
@@ -932,18 +1134,18 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     expect(await screen.findByText("bank", { selector: "u" }))
       .toBeInTheDocument();
     await waitFor(() => expect(onStatusChange).toHaveBeenLastCalledWith(
       "resumable"
     ));
-    expect(screen.getByText("1 題未作答，提交後將評為忘記。"))
+    expect(screen.getByText("1 unanswered; they will be rated Forgotten after submission."))
       .toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", {
-      name: "提交試卷（1 題未作答）"
+      name: "Submit paper (1 unanswered)"
     }));
     expect(await screen.findByText("答案完整且符合語境。"))
       .toBeInTheDocument();
@@ -952,35 +1154,35 @@ describe("SpacedReviewWorkspace", () => {
       answers: [{ questionId: "q1", answer: "" }]
     });
 
-    fireEvent.click(screen.getByRole("radio", { name: "忘記" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Forgotten" }));
     fireEvent.click(screen.getByRole("button", {
-      name: "接受評級並更新排程"
+      name: "Accept ratings and update schedule"
     }));
     await waitFor(() => expect(api.confirmPaper).toHaveBeenCalledWith({
       paperId: "paper-1",
       ratings: [{ questionId: "q1", finalRating: "forgotten" }]
     }));
-    expect(await screen.findByRole("heading", { name: "本回合已完成" }))
+    expect(await screen.findByRole("heading", { name: "Session complete" }))
       .toBeInTheDocument();
     const completedItem = screen.getByRole("button", {
-      name: /bank.*忘記.*下次複習/
+      name: /bank.*Forgotten.*next review/i
     });
     expect(completedItem).toBeInTheDocument();
 
     fireEvent.click(completedItem);
     expect(learning.getItem).toHaveBeenCalledWith("item-1");
     const dialog = await screen.findByRole("dialog", { name: "bank" });
-    expect(within(dialog).queryByRole("button", { name: "編輯" }))
+    expect(within(dialog).queryByRole("button", { name: "Edit" }))
       .not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "刪除" }))
+    expect(within(dialog).queryByRole("button", { name: "Delete" }))
       .not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", {
-      name: "關閉卡片詳情"
+      name: "Close card details"
     }));
     await waitFor(() => expect(completedItem).toHaveFocus());
 
     expect(screen.getByText("bank")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "返回複習總覽" }))
+    expect(screen.getByRole("button", { name: "Back to review overview" }))
       .toBeEnabled();
     expect(api.generatePaper).toHaveBeenCalledTimes(1);
     expect(api.gradePaper).toHaveBeenCalledTimes(1);
@@ -989,11 +1191,11 @@ describe("SpacedReviewWorkspace", () => {
       "idle"
     ));
     fireEvent.click(screen.getByRole("button", {
-      name: "返回複習總覽"
+      name: "Back to review overview"
     }));
-    expect(await screen.findByText("現在沒有可練習的卡片"))
+    expect(await screen.findByText("No cards are ready to practice"))
       .toBeInTheDocument();
-    expect(screen.queryByText("現在可練習")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ready to practice")).not.toBeInTheDocument();
 
     unmount();
     expect(api.discardPaper).toHaveBeenCalled();
@@ -1040,7 +1242,7 @@ describe("SpacedReviewWorkspace", () => {
         {
           questionId: "q2",
           itemId: "item-2",
-          feedback: "回答很順利。",
+          feedback: "回答很Good。",
           rating: "easy" as const
         }
       ]
@@ -1057,6 +1259,7 @@ describe("SpacedReviewWorkspace", () => {
           reviewedAt: "2026-07-27T02:00:00.000Z",
           aiRating: "hard" as const,
           finalRating: "hard" as const,
+          answer: "河岸",
           intervalSeconds: 360,
           nextDueAt: "2026-07-27T02:06:00.000Z"
         },
@@ -1067,6 +1270,7 @@ describe("SpacedReviewWorkspace", () => {
           reviewedAt: "2026-07-27T02:00:00.000Z",
           aiRating: "easy" as const,
           finalRating: "easy" as const,
+          answer: "事先",
           intervalSeconds: 86_400,
           nextDueAt: "2026-07-28T02:00:00.000Z"
         }
@@ -1095,25 +1299,25 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "提交試卷（2 題未作答）"
+      name: "Submit paper (2 unanswered)"
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "接受評級並更新排程"
+      name: "Accept ratings and update schedule"
     }));
 
     const bank = await screen.findByRole("button", {
-      name: /bank.*困難.*下次複習/
+      name: /bank.*Hard.*next review/i
     });
     const phrase = screen.getByRole("button", {
-      name: /in advance.*簡單.*下次複習/
+      name: /in advance.*Easy.*next review/i
     });
     fireEvent.click(bank);
     expect(learning.getItem).toHaveBeenLastCalledWith("item-1");
     fireEvent.click((await screen.findByRole("dialog", { name: "bank" }))
-      .querySelector<HTMLButtonElement>("[aria-label='關閉卡片詳情']")!);
+      .querySelector<HTMLButtonElement>("[aria-label='Close card details']")!);
     fireEvent.click(phrase);
     expect(learning.getItem).toHaveBeenLastCalledWith("item-2");
     expect(await screen.findByRole("dialog", { name: "in advance" }))
@@ -1124,7 +1328,7 @@ describe("SpacedReviewWorkspace", () => {
     const api = reviewApi();
     const learning = learningApi();
     learning.getItem = vi.fn(async () => {
-      throw new Error("找不到學習項目");
+      throw new Error("Learning item not found");
     });
     render(
       <SpacedReviewWorkspace
@@ -1135,24 +1339,24 @@ describe("SpacedReviewWorkspace", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "提交試卷（1 題未作答）"
+      name: "Submit paper (1 unanswered)"
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "接受評級並更新排程"
+      name: "Accept ratings and update schedule"
     }));
     const completedItem = await screen.findByRole("button", {
-      name: /bank.*忘記.*下次複習/
+      name: /bank.*Forgotten.*next review/i
     });
     fireEvent.click(completedItem);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "找不到學習項目"
+      "Learning item not found"
     );
     expect(completedItem).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "返回複習總覽" }))
+    expect(screen.getByRole("button", { name: "Back to review overview" }))
       .toBeEnabled();
     expect(api.confirmPaper).toHaveBeenCalledTimes(1);
   });

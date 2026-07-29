@@ -6,6 +6,7 @@ import type {
   GenerateReviewPaperInput,
   GradeReviewPaperInput,
   LearningItemReviewDetail,
+  ReviewAnswer,
   ReviewGrade,
   ReviewGenerationProgress,
   ReviewPaper,
@@ -232,21 +233,21 @@ async function runReviewTurn(
       }
       if (notification.method === "turn/completed" && isObject(params.turn)) {
         if (params.turn.status === "completed") resolveCompletion?.();
-        else rejectCompletion?.(new Error("AI 無法完成間隔複習工作。"));
+        else rejectCompletion?.(new Error("AI could not complete the spaced-review task."));
       }
     }
   );
   const unsubscribeExit = client.onExit((error) => rejectCompletion?.(error));
   const cancel = () => {
-    rejectCompletion?.(new Error("間隔複習已取消"));
+    rejectCompletion?.(new Error("Spaced review was canceled"));
     client.close();
   };
   signal?.addEventListener("abort", cancel, { once: true });
   const timeout = setTimeout(() => {
-    rejectCompletion?.(new Error("等待 AI 間隔複習回覆逾時。"));
+    rejectCompletion?.(new Error("Timed out waiting for the AI spaced-review response."));
   }, 120_000);
   try {
-    if (signal?.aborted) throw new Error("間隔複習已取消");
+    if (signal?.aborted) throw new Error("Spaced review was canceled");
     await client.initialize({
       name: "vocabreader-spaced-review",
       title: "VocabReader Spaced Review",
@@ -272,7 +273,7 @@ async function runReviewTurn(
       ].join("\n")
     });
     threadId = idFromResult(thread, "thread");
-    if (!threadId) throw new Error("Codex 未回傳間隔複習對話識別碼。");
+    if (!threadId) throw new Error("Codex did not return a spaced-review conversation identifier.");
     const turn = await client.request("turn/start", {
       threadId,
       ...(modelSettings ?? {}),
@@ -287,9 +288,9 @@ async function runReviewTurn(
       }]
     });
     turnId = idFromResult(turn, "turn");
-    if (!turnId) throw new Error("Codex 未回傳間隔複習回答識別碼。");
+    if (!turnId) throw new Error("Codex did not return a spaced-review response identifier.");
     await completion;
-    if (!responseText) throw new Error("AI 未回傳間隔複習結果。");
+    if (!responseText) throw new Error("AI did not return a spaced-review result.");
     return responseText;
   } finally {
     clearTimeout(timeout);
@@ -305,6 +306,7 @@ export class SpacedReviewController {
     | {
         paper: ReviewPaper;
         grade?: ReviewGrade;
+        answers?: ReviewAnswer[];
         explanationLanguage: GenerateReviewPaperInput["explanationLanguage"];
       }
     | undefined;
@@ -325,11 +327,11 @@ export class SpacedReviewController {
     input: GenerateReviewPaperInput,
     onProgress?: (progress: ReviewGenerationProgress) => void
   ): Promise<ReviewPaper> {
-    if (this.#busy) throw new Error("間隔複習 AI 正在處理中");
+    if (this.#busy) throw new Error("Spaced-review AI is busy");
     if (!input || !["source", "zh-TW", "en", "ja"].includes(
       input.explanationLanguage
     )) {
-      throw new Error("複習作答語言格式錯誤");
+      throw new Error("Invalid review answer language");
     }
     this.#busy = true;
     this.#active = undefined;
@@ -338,7 +340,7 @@ export class SpacedReviewController {
     try {
       const summary = await this.options.library.getReviewSummary(this.#now());
       if (summary.selectedItems.length === 0) {
-        throw new Error("目前沒有可複習的學習項目");
+        throw new Error("No learning items are currently available for review");
       }
       const paperId = randomUUID();
       let progressText = "";
@@ -384,12 +386,12 @@ export class SpacedReviewController {
   }
 
   async gradePaper(input: GradeReviewPaperInput): Promise<ReviewGrade> {
-    if (this.#busy) throw new Error("間隔複習 AI 正在處理中");
+    if (this.#busy) throw new Error("Spaced-review AI is busy");
     const active = this.#active;
     if (!active || input?.paperId !== active.paper.paperId ||
       !Array.isArray(input.answers) ||
       input.answers.length !== active.paper.questions.length) {
-      throw new Error("複習試卷作答格式錯誤");
+      throw new Error("Invalid review-paper submission");
     }
     const questionIds = new Set(active.paper.questions.map(({ questionId }) =>
       questionId
@@ -399,7 +401,7 @@ export class SpacedReviewController {
       input.answers.some(({ questionId, answer }) =>
         !questionIds.has(questionId) || typeof answer !== "string"
       )) {
-      throw new Error("複習試卷作答格式錯誤");
+      throw new Error("Invalid review-paper submission");
     }
     this.#busy = true;
     const abortController = new AbortController();
@@ -416,6 +418,7 @@ export class SpacedReviewController {
       );
       const grade = parseReviewGrade(response, active.paper);
       active.grade = grade;
+      active.answers = structuredClone(input.answers);
       return structuredClone(grade);
     } finally {
       if (this.#abortController === abortController) {
@@ -428,29 +431,35 @@ export class SpacedReviewController {
   async confirmPaper(
     input: ConfirmReviewPaperInput
   ): Promise<ConfirmReviewSessionResult> {
-    if (this.#busy) throw new Error("間隔複習 AI 正在處理中");
+    if (this.#busy) throw new Error("Spaced-review AI is busy");
     const active = this.#active;
-    if (!active?.grade || input?.paperId !== active.paper.paperId ||
+    if (!active?.grade || !active.answers ||
+      input?.paperId !== active.paper.paperId ||
       !Array.isArray(input.ratings) ||
       input.ratings.length !== active.paper.questions.length) {
-      throw new Error("複習評級確認格式錯誤");
+      throw new Error("Invalid review-rating confirmation");
     }
     const gradeByQuestion = new Map(active.grade.results.map((result) => [
       result.questionId,
       result
+    ]));
+    const answerByQuestion = new Map(active.answers.map(({ questionId, answer }) => [
+      questionId,
+      answer
     ]));
     const seen = new Set<string>();
     const ratings = input.ratings.map(({ questionId, finalRating }) => {
       const grade = gradeByQuestion.get(questionId);
       if (!grade || seen.has(questionId) ||
         !["forgotten", "hard", "good", "easy"].includes(finalRating)) {
-        throw new Error("複習評級確認格式錯誤");
+        throw new Error("Invalid review-rating confirmation");
       }
       seen.add(questionId);
       return {
         itemId: grade.itemId,
         aiRating: grade.rating,
-        finalRating
+        finalRating,
+        answer: answerByQuestion.get(questionId) ?? ""
       };
     });
     const result = await this.options.library.confirmReviewSession({

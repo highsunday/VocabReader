@@ -15,6 +15,7 @@ import type {
   ReviewDesktopApi,
   ReviewGenerationProgress,
   ReviewGrade,
+  ReviewLearningProgress,
   ReviewPaper,
   ReviewRating,
   ReviewSummary
@@ -23,25 +24,125 @@ import type { ExplanationLanguage } from "../shared/settings-contracts";
 import { LearningItemDialog } from "./LearningLibraryWorkspace";
 
 const ratingOptions: Array<{ value: ReviewRating; label: string }> = [
-  { value: "forgotten", label: "忘記" },
-  { value: "hard", label: "困難" },
-  { value: "good", label: "順利" },
-  { value: "easy", label: "簡單" }
+  { value: "forgotten", label: "Forgotten" },
+  { value: "hard", label: "Hard" },
+  { value: "good", label: "Good" },
+  { value: "easy", label: "Easy" }
 ];
 
 export type ReviewWorkspaceStatus = "idle" | "generating" | "resumable";
 
 function dueLabel(value: string | null) {
-  if (!value) return "尚無排程";
+  if (!value) return "Not scheduled";
   const due = new Date(value);
   const milliseconds = due.getTime() - Date.now();
   if (milliseconds > 0 && milliseconds < 60 * 60 * 1000) {
-    return `${Math.max(1, Math.ceil(milliseconds / 60_000))} 分鐘後`;
+    return `in ${Math.max(1, Math.ceil(milliseconds / 60_000))} minutes`;
   }
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(due);
+}
+
+function ReviewLearningGrowth({
+  progress
+}: {
+  progress: ReviewLearningProgress;
+}) {
+  const maximumCompleted = Math.max(
+    1,
+    ...progress.daily.map((day) =>
+      day.newCompletedCount + day.dueCompletedCount
+    )
+  );
+  const average = progress.completedReviewCount / progress.periodDays;
+  const activeDays = progress.daily.filter((day) =>
+    day.newCompletedCount + day.dueCompletedCount > 0
+  ).length;
+  const hasProgress = progress.learnedItemCount > 0 ||
+    progress.completedReviewCount > 0;
+
+  return (
+    <section className="review-growth-card" aria-label="Learning growth">
+      <div className="review-growth-story">
+        <div>
+          <span className="review-growth-kicker">Your learning story</span>
+          <h2>You have learned</h2>
+          <div className="review-growth-total">
+            <strong>{progress.learnedItemCount}</strong>
+            <span>items</span>
+          </div>
+          {hasProgress ? (
+            <p>
+              Progress over the past {progress.periodDays} days
+              <strong> +{progress.learnedItemCountDelta}</strong>
+            </p>
+          ) : (
+            <p>Your progress begins when you complete your first learning item.</p>
+          )}
+        </div>
+        <div className="review-growth-emblem" aria-hidden="true">
+          <i />
+          <span>Keep building</span>
+        </div>
+      </div>
+
+      <div className="review-growth-footprint">
+        <header>
+          <div>
+            <strong>{progress.periodDays}-day learning activity</strong>
+            <small>Darker colors mean more completed that day</small>
+          </div>
+          <span>{activeDays} active days</span>
+        </header>
+        <ol
+          className="review-growth-days"
+          aria-label={`Learning activity over the past ${progress.periodDays} days; ${progress.learnedItemCount} items learned`}
+        >
+          {progress.daily.map((day) => {
+            const completed = day.newCompletedCount + day.dueCompletedCount;
+            const level = completed === 0
+              ? 0
+              : Math.max(1, Math.ceil(completed / maximumCompleted * 4));
+            return (
+              <li
+                data-level={level}
+                aria-label={`${day.date}: ${completed} completed, including ${day.newCompletedCount} new items and ${day.dueCompletedCount} due reviews`}
+                title={`${day.date} • ${completed} completed`}
+                key={day.date}
+              >
+                <span aria-hidden="true">{Number(day.date.slice(-2))}</span>
+              </li>
+            );
+          })}
+        </ol>
+        <div className="review-growth-scale" aria-hidden="true">
+          <span>Less</span>
+          <i data-level="1" />
+          <i data-level="2" />
+          <i data-level="3" />
+          <i data-level="4" />
+          <span>More</span>
+        </div>
+      </div>
+
+      <dl className="review-growth-summary">
+        <div>
+          <dt>Completed in 30 days</dt>
+          <dd>{progress.completedReviewCount}<small>reviews</small></dd>
+        </div>
+        <div>
+          <dt>Daily average</dt>
+          <dd>{average.toFixed(1)}<small>reviews</small></dd>
+        </div>
+        <div>
+          <dt>Active days</dt>
+          <dd>{activeDays}<small>days</small></dd>
+        </div>
+      </dl>
+    </section>
+  );
 }
 
 export function SpacedReviewWorkspace({
@@ -109,7 +210,7 @@ export function SpacedReviewWorkspace({
     } catch (loadError) {
       setError(loadError instanceof Error
         ? loadError.message
-        : "無法讀取間隔複習資料。");
+        : "Unable to load spaced-review data.");
       setPhase("ready");
     }
   }
@@ -137,6 +238,35 @@ export function SpacedReviewWorkspace({
     }, 1_000);
     return () => window.clearInterval(timer);
   }, [phase]);
+
+  useEffect(() => {
+    if (
+      phase !== "ready" ||
+      !summary?.nextDueAt ||
+      summary.totalAvailable > 0
+    ) return;
+    const millisecondsUntilDue =
+      new Date(summary.nextDueAt).getTime() - Date.now();
+    if (!Number.isFinite(millisecondsUntilDue)) return;
+    const timer = window.setTimeout(() => {
+      void api.getSummary().then((next) => {
+        setSummary(next);
+        onAvailableCountChange?.(next.totalAvailable);
+      }).catch(() => {
+        // A later settings change or explicit review action will retry.
+      });
+    }, Math.min(
+      Math.max(0, millisecondsUntilDue),
+      2_147_483_647
+    ));
+    return () => window.clearTimeout(timer);
+  }, [
+    api,
+    onAvailableCountChange,
+    phase,
+    summary?.nextDueAt,
+    summary?.totalAvailable
+  ]);
 
   const hasActivePaper = Boolean(
     paper && ["answering", "grading", "reviewing", "confirming"].includes(phase)
@@ -197,7 +327,7 @@ export function SpacedReviewWorkspace({
       if (generationAttemptRef.current !== attempt) return;
       setError(generationError instanceof Error
         ? generationError.message
-        : "AI 無法生成本回合試卷。");
+        : "AI could not generate this review paper.");
       setPhase("ready");
     }
   }
@@ -225,7 +355,7 @@ export function SpacedReviewWorkspace({
     } catch (abandonError) {
       setError(abandonError instanceof Error
         ? abandonError.message
-        : "無法放棄目前試卷。");
+        : "Unable to discard the current paper.");
     } finally {
       setIsAbandoning(false);
     }
@@ -252,7 +382,7 @@ export function SpacedReviewWorkspace({
     } catch (gradingError) {
       setError(gradingError instanceof Error
         ? gradingError.message
-        : "AI 無法批改本回合試卷。");
+        : "AI could not grade this review paper.");
       setPhase("answering");
     }
   }
@@ -287,7 +417,7 @@ export function SpacedReviewWorkspace({
     } catch (confirmationError) {
       setError(confirmationError instanceof Error
         ? confirmationError.message
-        : "無法更新複習排程。");
+        : "Unable to update the review schedule.");
       setPhase("reviewing");
     }
   }
@@ -304,7 +434,7 @@ export function SpacedReviewWorkspace({
     } catch (cause) {
       setError(cause instanceof Error
         ? cause.message
-        : "無法開啟學習項目。");
+        : "Unable to open the learning item.");
     }
   }
 
@@ -320,39 +450,14 @@ export function SpacedReviewWorkspace({
       <header className="spaced-review-heading">
         <div>
           <span className="eyebrow">Spaced review</span>
-          <h1 id="review-title">間隔複習</h1>
-          <p>只要開始，卡片順序與下次複習都交給系統安排。</p>
+          <h1 id="review-title">Spaced Review</h1>
+          <p>Start a session and the system will handle card order and scheduling.</p>
         </div>
       </header>
 
       {error ? <p className="library-error" role="alert">{error}</p> : null}
 
-      {phase === "loading" ? <p className="library-state">載入複習排程中…</p> : null}
-
-      {summary && (phase === "ready" || phase === "completed") ? (
-        <section className="review-status-strip" aria-label="今日複習狀態">
-          <div className="review-status-heading">
-            <strong>今日進度</strong>
-            <small>已完成／每日上限</small>
-          </div>
-          <dl>
-            <div>
-              <dt>新卡</dt>
-              <dd>
-                <strong>{summary.reviewedNewTodayCount}</strong>
-                <span>／{summary.newCompletionLimit}</span>
-              </dd>
-            </div>
-            <div>
-              <dt>複習卡</dt>
-              <dd>
-                <strong>{summary.reviewedDueTodayCount}</strong>
-                <span>／{summary.dueReviewCompletionLimit}</span>
-              </dd>
-            </div>
-          </dl>
-        </section>
-      ) : null}
+      {phase === "loading" ? <p className="library-state">Loading review schedule…</p> : null}
 
       {summary && phase === "ready" ? (
         summary.totalAvailable > 0 ? (
@@ -366,22 +471,29 @@ export function SpacedReviewWorkspace({
             <div className="review-focus-copy">
               <span className="review-focus-status">
                 <i aria-hidden="true" />
-                已為你排好
+                Today&apos;s focus
               </span>
-              <h2 id="review-focus-title">準備好就開始</h2>
-              <p>先複習最需要記住的卡片，完成後會自動安排下一次。</p>
+              <h2 id="review-focus-title">
+                Complete {summary.selectedItems.length} questions to keep your memory moving
+              </h2>
+              <p>
+                {summary.selectedItems.filter(({ reviewKind }) =>
+                  reviewKind === "new"
+                ).length} new items •
+                {" "}{summary.selectedItems.filter(({ reviewKind }) =>
+                  reviewKind === "due"
+                ).length} due reviews, already arranged for you.
+              </p>
             </div>
             <div className="review-focus-action">
-              <span>
-                本回合 <strong>{summary.selectedItems.length}</strong> 題
-              </span>
               <button
                 type="button"
-                aria-label={`開始 ${summary.selectedItems.length} 題複習`}
+                aria-label={`Start a ${summary.selectedItems.length}-question review`}
                 onClick={() => void generatePaper()}
               >
-                開始複習
+                Start today&apos;s review
               </button>
+              <span>The next review is scheduled automatically</span>
             </div>
           </section>
         ) : (
@@ -390,23 +502,56 @@ export function SpacedReviewWorkspace({
               <Clock3 size={25} strokeWidth={1.8} />
             </div>
             <div className="review-empty-copy">
-              <strong>現在沒有可練習的卡片</strong>
+              <strong>No cards are ready to practice</strong>
               <p>
-                {summary.backlogTotal > 0
-                  ? "今天的複習已完成；需要時可到設定調整每日上限。"
+                {summary.nextDueAt &&
+                summary.newLearningCount + summary.dueLearningCount > 0
+                  ? `The next card is due ${dueLabel(summary.nextDueAt)}.`
+                  : summary.backlogTotal > 0
+                  ? "Today's review is complete. Adjust daily limits in Settings if needed."
                   : summary.nextDueAt
-                  ? `下一張卡預計於 ${dueLabel(summary.nextDueAt)} 到期。`
-                  : "先從閱讀內容建立學習卡，再回來開始複習。"}
+                  ? `The next card is due ${dueLabel(summary.nextDueAt)}.`
+                  : "Create learning cards from your reading, then return to start reviewing."}
               </p>
             </div>
           </section>
         )
       ) : null}
 
+      {summary?.learningProgress &&
+        (phase === "ready" || phase === "completed") ? (
+          <ReviewLearningGrowth progress={summary.learningProgress} />
+        ) : null}
+
+      {summary && (phase === "ready" || phase === "completed") ? (
+        <section className="review-status-strip" aria-label="Today's review status">
+          <div className="review-status-heading">
+            <strong>Today&apos;s progress</strong>
+            <small>Completed / daily limit</small>
+          </div>
+          <dl>
+            <div>
+              <dt>New items</dt>
+              <dd>
+                <strong>{summary.reviewedNewTodayCount}</strong>
+                <span>/{summary.newCompletionLimit}</span>
+              </dd>
+            </div>
+            <div>
+              <dt>Due reviews</dt>
+              <dd>
+                <strong>{summary.reviewedDueTodayCount}</strong>
+                <span>/{summary.dueReviewCompletionLimit}</span>
+              </dd>
+            </div>
+          </dl>
+        </section>
+      ) : null}
+
       {phase === "generating" ? (
         <section
           className="review-generation-state"
-          aria-label="AI 生成試卷"
+          aria-label="AI paper generation"
           aria-busy="true"
         >
           <header className="review-generation-heading">
@@ -414,14 +559,14 @@ export function SpacedReviewWorkspace({
               <Sparkles size={20} />
             </span>
             <div>
-              <span>AI 生成中</span>
+              <span>AI is generating</span>
               <h2>
-                正在準備 {summary?.selectedItems.length ?? 0} 題複習試卷
+                Preparing a {summary?.selectedItems.length ?? 0}-question review paper
               </h2>
             </div>
           </header>
 
-          <ol className="review-generation-stages" aria-label="生成階段">
+          <ol className="review-generation-stages" aria-label="Generation stages">
             <li className={generationProgress.phase === "preparing"
               ? "is-active"
               : "is-complete"}>
@@ -431,8 +576,8 @@ export function SpacedReviewWorkspace({
                   : <LoaderCircle size={15} />}
               </span>
               <div>
-                <strong>產生例句</strong>
-                <small>依每個項目的特定語義建立自然例句</small>
+                <strong>Generate example sentences</strong>
+                <small>Create a natural sentence for each item&apos;s target sense</small>
               </div>
             </li>
             <li className={generationProgress.phase === "assembling"
@@ -444,8 +589,8 @@ export function SpacedReviewWorkspace({
                   : "2"}
               </span>
               <div>
-                <strong>組裝並檢查試卷</strong>
-                <small>確認題目完整且可以安全顯示</small>
+                <strong>Assemble and validate the paper</strong>
+                <small>Check that every question is complete and safe to display</small>
               </div>
             </li>
           </ol>
@@ -456,19 +601,19 @@ export function SpacedReviewWorkspace({
             aria-live="polite"
           >
             {generationProgress.phase === "preparing"
-              ? `已完成 ${generationProgress.completedCount}／${generationProgress.totalCount} 題例句`
-              : "例句已完成，正在組裝並檢查試卷"}
+              ? `${generationProgress.completedCount}/${generationProgress.totalCount} example sentences complete`
+              : "Example sentences complete; assembling and validating the paper"}
           </p>
           <div
             className="review-generation-progress"
             role="progressbar"
-            aria-label="AI 生成試卷進度"
+            aria-label="AI paper generation progress"
             aria-valuemin={0}
             aria-valuemax={generationProgress.totalCount}
             aria-valuenow={generationProgress.completedCount}
             aria-valuetext={generationProgress.phase === "preparing"
-              ? `已完成 ${generationProgress.completedCount}／${generationProgress.totalCount} 題例句`
-              : "正在組裝並檢查試卷"}
+              ? `${generationProgress.completedCount}/${generationProgress.totalCount} example sentences complete`
+              : "Assembling and validating the paper"}
           >
             <span style={{
               width: generationProgress.totalCount > 0
@@ -480,9 +625,9 @@ export function SpacedReviewWorkspace({
             }} />
           </div>
           <footer className="review-generation-footer">
-            <span>已等待 {generationElapsedSeconds} 秒</span>
+            <span>Waiting for {generationElapsedSeconds} seconds</span>
             <button type="button" onClick={cancelGeneration}>
-              取消生成
+              Cancel generation
             </button>
           </footer>
         </section>
@@ -492,17 +637,17 @@ export function SpacedReviewWorkspace({
         ["answering", "reviewing"].includes(phase) ? (
           <section
             className="review-resume-state"
-            aria-label="當前試卷"
+            aria-label="Current paper"
           >
             <span aria-hidden="true"><Check size={20} /></span>
             <div>
-              <h2>當前試卷</h2>
+              <h2>Current paper</h2>
               <p>
                 {phase === "reviewing"
-                  ? `${paper.questions.length} 題詞義回想 · 已完成作答，等待確認評級。`
-                  : `${paper.questions.length} 題詞義回想 · 已作答 ${
+                  ? `${paper.questions.length} meaning-recall questions • Answers complete; ratings awaiting confirmation.`
+                  : `${paper.questions.length} meaning-recall questions • ${
                       paper.questions.length - unansweredCount
-                    }／${paper.questions.length} 題`}
+                    }/${paper.questions.length} answered`}
               </p>
             </div>
             <div className="review-resume-actions">
@@ -511,14 +656,14 @@ export function SpacedReviewWorkspace({
                 type="button"
                 onClick={() => setIsAbandonConfirmationOpen(true)}
               >
-                放棄試卷
+                Discard paper
               </button>
               <button
                 className="review-resume-action"
                 type="button"
                 onClick={() => setIsPaperViewPaused(false)}
               >
-                查看試卷
+                View paper
               </button>
             </div>
           </section>
@@ -528,15 +673,15 @@ export function SpacedReviewWorkspace({
         ["answering", "grading", "reviewing", "confirming"].includes(phase) ? (
         <div className="spaced-review-paper">
           <div className="review-paper-progress">
-            <strong>{paper.questions.length} 題詞義回想</strong>
+            <strong>{paper.questions.length} meaning-recall questions</strong>
             <div>
-              <span>{unansweredCount} 題未作答</span>
+              <span>{unansweredCount} unanswered</span>
               {phase === "answering" || phase === "reviewing" ? (
                 <button
                   type="button"
                   onClick={() => setIsPaperViewPaused(true)}
                 >
-                  先離開
+                  Leave for now
                 </button>
               ) : null}
             </div>
@@ -563,7 +708,7 @@ export function SpacedReviewWorkspace({
                   {question.afterTarget}
                 </p>
                 <label>
-                  <span>這個詞在句中的意思</span>
+                  <span>Meaning of this word in the sentence</span>
                   <div className={`review-answer-field${
                     result?.expressionFeedback?.status === "improvable"
                       ? " has-correction"
@@ -576,11 +721,11 @@ export function SpacedReviewWorkspace({
                         ...current,
                         [question.questionId]: event.target.value
                       }))}
-                      placeholder="可以留白，未作答會評為忘記"
+                      placeholder="You may leave this blank; unanswered items are rated Forgotten"
                     />
                     {result?.expressionFeedback?.status === "improvable" ? (
                       <div className="review-answer-correction">
-                        <span>口語修正 →</span>
+                        <span>Expression feedback →</span>
                         <strong>
                           {result.expressionFeedback.suggestedAnswer}
                         </strong>
@@ -592,17 +737,17 @@ export function SpacedReviewWorkspace({
                   <aside
                     className="review-feedback"
                     data-rating={currentRating}
-                    aria-label={`批改結果：${currentRatingLabel}`}
+                    aria-label={`Grading result: ${currentRatingLabel}`}
                   >
                     <section
                       className="review-meaning-feedback"
-                      aria-label="意思判斷"
+                      aria-label="Meaning assessment"
                     >
-                      <strong>意思判斷</strong>
+                      <strong>Meaning assessment</strong>
                       <p>{result.feedback}</p>
                       {result.recommendedAnswer ? (
                         <div className="review-recommended-answer">
-                          <span>下次可以這樣回答</span>
+                          <span>A better answer for next time</span>
                           <p>{result.recommendedAnswer}</p>
                         </div>
                       ) : null}
@@ -617,11 +762,11 @@ export function SpacedReviewWorkspace({
                         )}
                       >
                         <BookOpen aria-hidden="true" size={16} strokeWidth={1.9} />
-                        打開學習卡
+                        Open learning card
                       </button>
                     ) : null}
                     <fieldset>
-                      <legend>AI 建議：{
+                      <legend>AI suggestion: {
                         ratingOptions.find(({ value }) => value === result.rating)?.label
                       }</legend>
                       {ratingOptions.map((option) => (
@@ -652,10 +797,10 @@ export function SpacedReviewWorkspace({
           {phase === "answering" ? (
             <footer className="review-paper-actions">
               {unansweredCount > 0 ? (
-                <p>{unansweredCount} 題未作答，提交後將評為忘記。</p>
-              ) : <p>所有題目都已作答。</p>}
+                <p>{unansweredCount} unanswered; they will be rated Forgotten after submission.</p>
+              ) : <p>All questions are answered.</p>}
               <button type="button" onClick={() => void submitAnswers()}>
-                提交試卷{unansweredCount ? `（${unansweredCount} 題未作答）` : ""}
+                Submit paper{unansweredCount ? ` (${unansweredCount} unanswered)` : ""}
               </button>
             </footer>
           ) : null}
@@ -663,7 +808,7 @@ export function SpacedReviewWorkspace({
             <aside
               className="review-grading-state"
               role="status"
-              aria-label="AI 正在批改試卷"
+              aria-label="AI is grading the paper"
               aria-live="polite"
               aria-busy="true"
             >
@@ -676,10 +821,10 @@ export function SpacedReviewWorkspace({
                 </span>
               </div>
               <div className="review-grading-copy">
-                <span>AI 批改中</span>
-                <h2>正在分析你的答案</h2>
+                <span>AI is grading</span>
+                <h2>Analyzing your answers</h2>
                 <p>
-                  比對詞義與句子語境，並在適用時提供遣詞用句建議。
+                  Comparing meaning with sentence context and offering expression feedback when useful.
                 </p>
                 <div className="review-grading-progress" aria-hidden="true">
                   <span />
@@ -689,15 +834,15 @@ export function SpacedReviewWorkspace({
           ) : null}
           {phase === "reviewing" || phase === "confirming" ? (
             <footer className="review-paper-actions">
-              <p>可直接接受全部 AI 建議，或調整個別評級。</p>
+              <p>Accept all AI suggestions or adjust individual ratings.</p>
               <button
                 type="button"
                 disabled={phase === "confirming"}
                 onClick={() => void confirmRatings()}
               >
                 {phase === "confirming"
-                  ? "更新排程中…"
-                  : "接受評級並更新排程"}
+                  ? "Updating schedule…"
+                  : "Accept ratings and update schedule"}
               </button>
             </footer>
           ) : null}
@@ -707,13 +852,13 @@ export function SpacedReviewWorkspace({
       {phase === "completed" && completed ? (
         <section className="review-completed">
           <span aria-hidden="true">✓</span>
-          <h2>本回合已完成</h2>
-          <p>已更新 {completed.entries.length} 個學習項目的下次複習時間。</p>
+          <h2>Session complete</h2>
+          <p>Next review times updated for {completed.entries.length} learning items.</p>
           <ul>
             {completed.entries.map((entry) => {
               const title = paper?.questions.find(
                 ({ itemId }) => itemId === entry.itemId
-              )?.title ?? "學習項目";
+              )?.title ?? "Learning item";
               const ratingLabel = ratingOptions.find(
                 ({ value }) => value === entry.finalRating
               )?.label ?? entry.finalRating;
@@ -724,7 +869,7 @@ export function SpacedReviewWorkspace({
                     type="button"
                     className="review-completed-item"
                     aria-label={
-                      `${title}，${ratingLabel}，下次複習：${nextDueLabel}`
+                      `${title}, ${ratingLabel}, next review: ${nextDueLabel}`
                     }
                     disabled={!learningApi}
                     onClick={(event) => void openItemDetail(
@@ -743,7 +888,7 @@ export function SpacedReviewWorkspace({
                     </span>
                     <span className="review-completed-schedule">
                       <span>
-                        <small>下次複習</small>
+                        <small>Next review</small>
                         <time dateTime={entry.nextDueAt}>{nextDueLabel}</time>
                       </span>
                       <BookOpen
@@ -759,11 +904,11 @@ export function SpacedReviewWorkspace({
           </ul>
           {completed.remainingAvailable > 0 ? (
             <button type="button" onClick={() => void loadSummary()}>
-              繼續下一回合（剩餘 {completed.remainingAvailable} 個）
+              Continue to next session ({completed.remainingAvailable} remaining)
             </button>
           ) : (
             <button type="button" onClick={() => void loadSummary()}>
-              返回複習總覽
+              Back to review overview
             </button>
           )}
         </section>
@@ -786,10 +931,10 @@ export function SpacedReviewWorkspace({
             aria-describedby="review-abandon-description"
           >
             <span className="delete-dialog-icon" aria-hidden="true">!</span>
-            <h2 id="review-abandon-title">放棄目前試卷？</h2>
+            <h2 id="review-abandon-title">Discard the current paper?</h2>
             <p id="review-abandon-description">
-              題目、答案、AI 回饋與未確認評級都會清除，且無法復原；
-              複習排程不會更新。
+              Questions, answers, AI feedback, and unconfirmed ratings will be
+              cleared and cannot be recovered. The review schedule will not change.
             </p>
             <div className="delete-dialog-actions">
               <button
@@ -797,7 +942,7 @@ export function SpacedReviewWorkspace({
                 disabled={isAbandoning}
                 onClick={() => setIsAbandonConfirmationOpen(false)}
               >
-                取消
+                Cancel
               </button>
               <button
                 className="danger-action"
@@ -805,7 +950,7 @@ export function SpacedReviewWorkspace({
                 disabled={isAbandoning}
                 onClick={() => void abandonCurrentPaper()}
               >
-                {isAbandoning ? "放棄中…" : "確認放棄"}
+                {isAbandoning ? "Discarding…" : "Confirm discard"}
               </button>
             </div>
           </section>

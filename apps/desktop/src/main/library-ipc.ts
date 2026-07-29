@@ -40,19 +40,19 @@ export function registerLibraryIpc(
   ipc.handle("library:list", () => library.listBooks());
   ipc.handle("library:delete", (_event, bookId) => {
     if (typeof bookId !== "string" || !bookId.trim()) {
-      throw new Error("書籍刪除請求格式錯誤");
+      throw new Error("Invalid book deletion request");
     }
     return library.deleteBook(bookId);
   });
   ipc.handle("library:chapter", (_event, bookId, chapterId) => {
     if (typeof bookId !== "string" || typeof chapterId !== "string") {
-      throw new Error("章節請求格式錯誤");
+      throw new Error("Invalid chapter request");
     }
     return library.getChapterContent(bookId, chapterId);
   });
   ipc.handle("library:save-reading-state", (_event, rawInput) => {
     if (!rawInput || typeof rawInput !== "object") {
-      throw new Error("閱讀狀態格式錯誤");
+      throw new Error("Invalid reading state");
     }
     const input = rawInput as Partial<SaveReadingStateInput>;
     if (
@@ -61,13 +61,13 @@ export function registerLibraryIpc(
       (input.chapterId !== null && typeof input.chapterId !== "string") ||
       typeof input.scrollProgress !== "number"
     ) {
-      throw new Error("閱讀狀態格式錯誤");
+      throw new Error("Invalid reading state");
     }
     return library.saveReadingState(input as SaveReadingStateInput);
   });
   ipc.handle("library:save-reading-range", (_event, rawInput) => {
     if (!rawInput || typeof rawInput !== "object") {
-      throw new Error("閱讀區段格式錯誤");
+      throw new Error("Invalid reading segment");
     }
     const input = rawInput as Partial<SaveReadingRangeInput>;
     const range = input.range;
@@ -80,13 +80,13 @@ export function registerLibraryIpc(
       range.start < 0 ||
       range.end < range.start
     ) {
-      throw new Error("閱讀區段格式錯誤");
+      throw new Error("Invalid reading segment");
     }
     return library.saveReadingRange(input as SaveReadingRangeInput);
   });
   ipc.handle("library:save-annotations", (_event, rawInput) => {
     if (!rawInput || typeof rawInput !== "object") {
-      throw new Error("標記格式錯誤");
+      throw new Error("Invalid annotation");
     }
     const input = rawInput as Partial<SaveAnnotationsInput>;
     if (
@@ -102,15 +102,15 @@ export function registerLibraryIpc(
         typeof annotation.text !== "string" || !annotation.text
       )
     ) {
-      throw new Error("標記格式錯誤");
+      throw new Error("Invalid annotation");
     }
     return library.saveAnnotations(input as SaveAnnotationsInput);
   });
   ipc.handle("library:import", async () => {
     const selection = await dialog.showOpenDialog({
-      title: "導入 EPUB",
+      title: "Import EPUB",
       properties: ["openFile"],
-      filters: [{ name: "EPUB 電子書", extensions: ["epub"] }]
+      filters: [{ name: "EPUB Books", extensions: ["epub"] }]
     });
     const selectedPath = selection.filePaths[0];
     if (selection.canceled || !selectedPath) {

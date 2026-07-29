@@ -176,7 +176,7 @@ describe("settings IPC", () => {
       reviewPaperSize: 10,
       ...settings
     }))
-      .toThrow(/應用程式設定格式錯誤/);
+      .toThrow(/Invalid application settings/);
     expect(store.save).not.toHaveBeenCalled();
   });
 
@@ -209,7 +209,7 @@ describe("settings IPC", () => {
       dailyDueReviewCompletionLimit: 50,
       reviewPaperSize: 10,
       [field]: value
-    })).toThrow(/應用程式設定格式錯誤/);
+    })).toThrow(/Invalid application settings/);
     expect(store.save).not.toHaveBeenCalled();
   });
 });

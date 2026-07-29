@@ -3,13 +3,14 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { LocalLearningLibrary } from "./learning-library-service";
 
 const temporaryDirectories: string[] = [];
 
 async function databasePath() {
-  const directory = await mkdtemp(join(tmpdir(), "lingoshelf-learning-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "vocabreader-learning-test-"));
   temporaryDirectories.push(directory);
   return join(directory, "learning.sqlite");
 }
@@ -45,6 +46,44 @@ describe("LocalLearningLibrary", () => {
     await expect(
       restarted.listItems({ status: "active", sort: "recent" })
     ).resolves.toEqual(seeded);
+  });
+
+  it("migrates a legacy review database with a nullable answer column", async () => {
+    const path = await databasePath();
+    const legacy = new LocalLearningLibrary(path);
+    await legacy.listItems({ status: "active", sort: "recent" });
+    legacy.close();
+
+    const legacyDatabase = new DatabaseSync(path);
+    const legacyColumns = legacyDatabase.prepare(
+      "PRAGMA table_info(learning_review_events)"
+    ).all() as unknown as Array<{ name: string }>;
+    if (legacyColumns.some(({ name }) => name === "answer")) {
+      legacyDatabase.exec("ALTER TABLE learning_review_events DROP COLUMN answer");
+    }
+    legacyDatabase.prepare(
+      "DELETE FROM schema_migrations WHERE version >= 4"
+    ).run();
+    legacyDatabase.close();
+
+    const migrated = new LocalLearningLibrary(path);
+    await migrated.listItems({ status: "active", sort: "recent" });
+    migrated.close();
+
+    const migratedDatabase = new DatabaseSync(path);
+    const columns = migratedDatabase.prepare(
+      "PRAGMA table_info(learning_review_events)"
+    ).all() as unknown as Array<{ name: string; notnull: number }>;
+    const migration = migratedDatabase.prepare(
+      "SELECT MAX(version) AS version FROM schema_migrations"
+    ).get() as { version: number };
+    migratedDatabase.close();
+
+    expect(columns.find(({ name }) => name === "answer")).toMatchObject({
+      name: "answer",
+      notnull: 0
+    });
+    expect(migration.version).toBe(4);
   });
 
   it("never reseeds after every example is permanently removed", async () => {
@@ -198,7 +237,7 @@ describe("LocalLearningLibrary", () => {
       cefr: "C1",
       sense: "unwilling",
       markdownContent: "content"
-    })).rejects.toThrow(/標題/);
+    })).rejects.toThrow(/title/);
   });
 
   it("moves an item to trash, restores it, and permanently empties trash", async () => {
@@ -229,7 +268,7 @@ describe("LocalLearningLibrary", () => {
     await library.trashItem(item.id);
     await expect(library.emptyTrash()).resolves.toEqual({ deleted: 1 });
     await expect(library.emptyTrash()).resolves.toEqual({ deleted: 0 });
-    await expect(library.getItem(item.id)).rejects.toThrow(/找不到/);
+    await expect(library.getItem(item.id)).rejects.toThrow(/Learning item not found/);
   });
 
   it("finds only exact normalized title candidates across active and trash", async () => {
@@ -310,7 +349,7 @@ describe("LocalLearningLibrary", () => {
     await expect(library.createItemsAtomically([
       valid,
       { ...valid, title: "" }
-    ])).rejects.toThrow(/標題/);
+    ])).rejects.toThrow(/title/);
     await expect(
       library.listItems({ status: "active", sort: "recent" })
     ).resolves.toHaveLength(before.length);
@@ -362,10 +401,16 @@ describe("LocalLearningLibrary", () => {
   });
 
   it("persists compact FSRS history and uses the final user rating", async () => {
-    const library = new LocalLearningLibrary(await databasePath());
+    const path = await databasePath();
+    const library = new LocalLearningLibrary(path);
     const happy = (await library.listItems({
       status: "active",
       search: "happy",
+      sort: "recent"
+    }))[0];
+    const bank = (await library.listItems({
+      status: "active",
+      search: "bank",
       sort: "recent"
     }))[0];
     const reviewedAt = "2026-07-24T08:00:00.000Z";
@@ -376,11 +421,21 @@ describe("LocalLearningLibrary", () => {
       ratings: [{
         itemId: happy.id,
         aiRating: "easy",
-        finalRating: "forgotten"
+        finalRating: "forgotten",
+        answer: "  金融機構\n提供存款服務  "
+      }, {
+        itemId: bank.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten",
+        answer: ""
       }]
     });
     const detail = await library.getItemReviewDetail(
       happy.id,
+      new Date(reviewedAt)
+    );
+    const blankDetail = await library.getItemReviewDetail(
+      bank.id,
       new Date(reviewedAt)
     );
 
@@ -388,7 +443,8 @@ describe("LocalLearningLibrary", () => {
       itemId: happy.id,
       aiRating: "easy",
       finalRating: "forgotten",
-      reviewedAt
+      reviewedAt,
+      answer: "  金融機構\n提供存款服務  "
     });
     expect(result.entries[0].intervalSeconds).toBeGreaterThan(0);
     expect(detail).toMatchObject({
@@ -397,9 +453,27 @@ describe("LocalLearningLibrary", () => {
       nextDueAt: result.entries[0].nextDueAt,
       history: [{
         aiRating: "easy",
-        finalRating: "forgotten"
+        finalRating: "forgotten",
+        answer: "  金融機構\n提供存款服務  "
       }]
     });
+    expect(blankDetail.history[0].answer).toBe("");
+
+    library.close();
+    const database = new DatabaseSync(path);
+    database.prepare(`
+      UPDATE learning_review_events
+      SET answer = NULL
+      WHERE learning_item_id = ?
+    `).run(happy.id);
+    database.close();
+
+    const reopened = new LocalLearningLibrary(path);
+    const legacyDetail = await reopened.getItemReviewDetail(
+      happy.id,
+      new Date(reviewedAt)
+    );
+    expect(legacyDetail.history[0].answer).toBeNull();
   });
 
   it("limits new introductions independently and uses the configured paper size", async () => {
@@ -430,6 +504,168 @@ describe("LocalLearningLibrary", () => {
     expect(summary.selectedItems.every(({ reviewKind }) =>
       reviewKind === "new"
     )).toBe(true);
+  });
+
+  it("does not reserve new-item completion capacity for same-day learning items", async () => {
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: 20,
+        dailyDueReviewCompletionLimit: 50,
+        reviewPaperSize: 10
+      })
+    });
+    for (let index = 0; index < 16; index += 1) {
+      await library.createItem({
+        title: `capacity item ${index + 1}`,
+        itemType: "word",
+        cefr: "A1",
+        sense: `capacity test item ${index + 1}`,
+        markdownContent: `## Meaning\nCapacity test item ${index + 1}.`
+      });
+    }
+    const items = await library.listItems({
+      status: "active",
+      sort: "recent"
+    });
+    const reviewedAt = new Date(2026, 6, 29, 9, 0);
+
+    await library.confirmReviewSession({
+      sessionId: "fourteen-new-items-completed",
+      reviewedAt: reviewedAt.toISOString(),
+      ratings: items.slice(0, 14).map(({ id }) => ({
+        itemId: id,
+        aiRating: "easy" as const,
+        finalRating: "easy" as const
+      }))
+    });
+    await library.confirmReviewSession({
+      sessionId: "six-new-items-learning",
+      reviewedAt: reviewedAt.toISOString(),
+      ratings: items.slice(14, 20).map(({ id }) => ({
+        itemId: id,
+        aiRating: "forgotten" as const,
+        finalRating: "forgotten" as const
+      }))
+    });
+
+    const summary = await library.getReviewSummary(
+      new Date(reviewedAt.getTime() + 1_000)
+    );
+
+    expect(summary).toMatchObject({
+      reviewedNewTodayCount: 14,
+      newLearningCount: 6,
+      newCompletionLimit: 20,
+      newRemainingCapacity: 6,
+      availableNewCount: 6,
+      totalAvailable: 6
+    });
+    expect(summary.selectedItems).toHaveLength(6);
+    expect(summary.selectedItems.every(({ reviewKind }) =>
+      reviewKind === "new"
+    )).toBe(true);
+  });
+
+  it("does not reserve due-review completion capacity for same-day relearning items", async () => {
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: 0,
+        dailyDueReviewCompletionLimit: 2,
+        reviewPaperSize: 10
+      })
+    });
+    const [relearningItem, otherDueItem, completedDueItem] =
+      (await library.listItems({
+        status: "active",
+        sort: "recent"
+      })).slice(0, 3);
+    const introduced = await library.confirmReviewSession({
+      sessionId: "introduce-three-due-items",
+      reviewedAt: new Date(2026, 6, 1, 9, 0).toISOString(),
+      ratings: [relearningItem, otherDueItem, completedDueItem].map(({ id }) => ({
+        itemId: id,
+        aiRating: "easy" as const,
+        finalRating: "easy" as const
+      }))
+    });
+    const dueAt = introduced.entries[0].nextDueAt;
+
+    await library.confirmReviewSession({
+      sessionId: "one-completed-and-one-relearning-due-item",
+      reviewedAt: dueAt,
+      ratings: [{
+        itemId: relearningItem.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }, {
+        itemId: completedDueItem.id,
+        aiRating: "easy",
+        finalRating: "easy"
+      }]
+    });
+
+    const summary = await library.getReviewSummary(
+      new Date(new Date(dueAt).getTime() + 1_000)
+    );
+
+    expect(summary).toMatchObject({
+      reviewedDueTodayCount: 1,
+      dueLearningCount: 1,
+      dueReviewCompletionLimit: 2,
+      dueRemainingCapacity: 1,
+      availableDueCount: 1,
+      totalAvailable: 1
+    });
+    expect(summary.selectedItems).toEqual([
+      expect.objectContaining({
+        id: otherDueItem.id,
+        reviewKind: "due"
+      })
+    ]);
+  });
+
+  it("keeps an already-started learning path available after the completion limit is reached", async () => {
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: 1,
+        dailyDueReviewCompletionLimit: 50,
+        reviewPaperSize: 10
+      })
+    });
+    const [completedItem, learningItem] = (await library.listItems({
+      status: "active",
+      sort: "recent"
+    })).slice(0, 2);
+    const reviewedAt = new Date(2026, 6, 29, 9, 0);
+    const result = await library.confirmReviewSession({
+      sessionId: "completion-limit-with-learning-path",
+      reviewedAt: reviewedAt.toISOString(),
+      ratings: [{
+        itemId: completedItem.id,
+        aiRating: "easy",
+        finalRating: "easy"
+      }, {
+        itemId: learningItem.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }]
+    });
+    const learningDueAt = result.entries.find(({ itemId }) =>
+      itemId === learningItem.id
+    )!.nextDueAt;
+
+    const summary = await library.getReviewSummary(learningDueAt);
+
+    expect(summary).toMatchObject({
+      reviewedNewTodayCount: 1,
+      newLearningCount: 1,
+      newRemainingCapacity: 0,
+      availableLearningCount: 1
+    });
+    expect(summary.selectedItems[0]).toMatchObject({
+      id: learningItem.id,
+      reviewKind: "new"
+    });
   });
 
   it("keeps a same-day retry in its new learning path until it reaches a later date", async () => {
@@ -463,7 +699,7 @@ describe("LocalLearningLibrary", () => {
       reviewedDueTodayCount: 0,
       newLearningCount: 1,
       dueLearningCount: 0,
-      newRemainingCapacity: 0
+      newRemainingCapacity: 1
     });
     expect(learning.selectedItems[0]).toMatchObject({
       id: item.id,
@@ -632,6 +868,110 @@ describe("LocalLearningLibrary", () => {
     expect(summary).toMatchObject({
       reviewedNewTodayCount: 1,
       reviewedDueTodayCount: 1
+    });
+    expect(summary.learningProgress?.daily.at(-1)).toMatchObject({
+      date: new Date(2026, 6, 24).toLocaleDateString("en-CA"),
+      newCompletedCount: 1,
+      dueCompletedCount: 1
+    });
+  });
+
+  it("builds a 30-day learning growth series from completed active reviews", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const [baselineItem, growingItem, unfinishedItem, trashedItem] =
+      (await library.listItems({
+        status: "active",
+        sort: "recent"
+      })).slice(0, 4);
+
+    const baselineCompleted = await library.confirmReviewSession({
+      sessionId: "growth-baseline",
+      reviewedAt: new Date(2026, 5, 1, 9, 0).toISOString(),
+      ratings: [{
+        itemId: baselineItem.id,
+        aiRating: "easy",
+        finalRating: "easy"
+      }]
+    });
+    const dueCompleted = await library.confirmReviewSession({
+      sessionId: "growth-due-completed",
+      reviewedAt: baselineCompleted.entries[0].nextDueAt,
+      ratings: [{
+        itemId: baselineItem.id,
+        aiRating: "easy",
+        finalRating: "easy"
+      }]
+    });
+    const growingCompleted = await library.confirmReviewSession({
+      sessionId: "growth-new-completed",
+      reviewedAt: new Date(2026, 5, 15, 9, 0).toISOString(),
+      ratings: [{
+        itemId: growingItem.id,
+        aiRating: "easy",
+        finalRating: "easy"
+      }]
+    });
+    await library.confirmReviewSession({
+      sessionId: "growth-unfinished",
+      reviewedAt: new Date(2026, 5, 30, 9, 0).toISOString(),
+      ratings: [{
+        itemId: unfinishedItem.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten"
+      }]
+    });
+    await library.confirmReviewSession({
+      sessionId: "growth-trashed",
+      reviewedAt: new Date(2026, 5, 20, 9, 0).toISOString(),
+      ratings: [{
+        itemId: trashedItem.id,
+        aiRating: "easy",
+        finalRating: "easy"
+      }]
+    });
+    await library.trashItem(trashedItem.id);
+
+    const summary = await library.getReviewSummary(
+      new Date(2026, 6, 1, 12, 0)
+    );
+    const progress = summary.learningProgress!;
+    const newCompletionDay = progress.daily.find(({ date }) =>
+      date === new Date(growingCompleted.entries[0].reviewedAt)
+        .toLocaleDateString("en-CA")
+    );
+    const dueCompletionDay = progress.daily.find(({ date }) =>
+      date === new Date(dueCompleted.entries[0].reviewedAt)
+        .toLocaleDateString("en-CA")
+    );
+
+    expect(progress.daily).toHaveLength(30);
+    expect(progress.daily[0]).toMatchObject({
+      date: new Date(2026, 5, 2).toLocaleDateString("en-CA"),
+      cumulativeLearnedCount: 1
+    });
+    expect(progress).toMatchObject({
+      learnedItemCount: 2,
+      learnedItemCountDelta: 1,
+      completedReviewCount: 2
+    });
+    expect(newCompletionDay).toMatchObject({
+      newCompletedCount: 1,
+      dueCompletedCount: 0,
+      cumulativeLearnedCount: 2
+    });
+    expect(dueCompletionDay).toMatchObject({
+      newCompletedCount: 0,
+      dueCompletedCount: 1,
+      cumulativeLearnedCount: 1
+    });
+
+    await library.restoreItem(trashedItem.id);
+    expect((await library.getReviewSummary(
+      new Date(2026, 6, 1, 12, 0)
+    )).learningProgress).toMatchObject({
+      learnedItemCount: 3,
+      learnedItemCountDelta: 2,
+      completedReviewCount: 3
     });
   });
 

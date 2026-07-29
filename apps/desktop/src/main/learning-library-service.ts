@@ -25,6 +25,7 @@ import type {
   ConfirmReviewSessionResult,
   LearningItemReviewDetail,
   ReviewHistoryEntry,
+  ReviewLearningProgress,
   ReviewQueueItem,
   ReviewRating,
   ReviewSummary
@@ -35,9 +36,8 @@ import {
   REVIEW_PAPER_SIZE
 } from "../shared/settings-contracts";
 
-// Schema 3 adds daily review queue tables without changing the core learning,
-// schedule, or history tables used by this build.
-export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 3;
+// Schema 4 adds persisted review answers to the append-only history.
+export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 4;
 
 interface LearningItemRow {
   id: string;
@@ -68,6 +68,7 @@ interface ReviewHistoryRow {
   reviewed_at: string;
   ai_rating: ReviewRating;
   final_rating: ReviewRating;
+  answer: string | null;
   interval_seconds: number;
   next_due_at: string;
 }
@@ -126,7 +127,7 @@ const reviewScheduler = fsrs({ request_retention: 0.9 });
 
 function validDate(value: unknown, label: string): Date {
   const date = value instanceof Date ? new Date(value) : new Date(String(value));
-  if (!Number.isFinite(date.getTime())) throw new Error(`${label}格式錯誤`);
+  if (!Number.isFinite(date.getTime())) throw new Error(`Invalid ${label}`);
   return date;
 }
 
@@ -139,7 +140,7 @@ function localDayRange(value: Date): [string, string] {
 }
 
 function localDayKey(value: Date | string): string {
-  const date = validDate(value, "日期");
+  const date = validDate(value, "date");
   return [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, "0"),
@@ -156,9 +157,28 @@ function reviewProgress(
   completedDueToday: number;
   newLearningCount: number;
   dueLearningCount: number;
+  learningProgress: ReviewLearningProgress;
 } {
   const states = new Map<string, ReviewProgressState>();
   const [todayStartIso, tomorrowStartIso] = localDayRange(now);
+  const periodDays = 30;
+  const periodStart = new Date(now);
+  periodStart.setHours(0, 0, 0, 0);
+  periodStart.setDate(periodStart.getDate() - (periodDays - 1));
+  const periodStartIso = periodStart.toISOString();
+  const daily = Array.from({ length: periodDays }, (_, index) => {
+    const date = new Date(periodStart);
+    date.setDate(date.getDate() + index);
+    return {
+      date: localDayKey(date),
+      newCompletedCount: 0,
+      dueCompletedCount: 0,
+      cumulativeLearnedCount: 0
+    };
+  });
+  const dailyByDate = new Map(daily.map((day) => [day.date, day]));
+  let learnedBeforePeriod = 0;
+  let completedReviewCount = 0;
   let completedNewToday = 0;
   let completedDueToday = 0;
   for (const row of rows) {
@@ -169,8 +189,18 @@ function reviewProgress(
     const kind: ReviewLearningKind = state.hasCompletedNewItem ? "due" : "new";
     const completed = localDayKey(row.next_due_at) > localDayKey(row.reviewed_at);
     if (completed) {
+      const isFirstCompletion = !state.hasCompletedNewItem;
       state.hasCompletedNewItem = true;
       state.learningKind = null;
+      if (isFirstCompletion && row.reviewed_at < periodStartIso) {
+        learnedBeforePeriod += 1;
+      }
+      const progressDay = dailyByDate.get(localDayKey(row.reviewed_at));
+      if (progressDay) {
+        if (kind === "new") progressDay.newCompletedCount += 1;
+        else progressDay.dueCompletedCount += 1;
+        completedReviewCount += 1;
+      }
       if (row.reviewed_at >= todayStartIso && row.reviewed_at < tomorrowStartIso) {
         if (kind === "new") completedNewToday += 1;
         else completedDueToday += 1;
@@ -186,12 +216,24 @@ function reviewProgress(
     if (state.learningKind === "new") newLearningCount += 1;
     if (state.learningKind === "due") dueLearningCount += 1;
   }
+  let cumulativeLearnedCount = learnedBeforePeriod;
+  for (const day of daily) {
+    cumulativeLearnedCount += day.newCompletedCount;
+    day.cumulativeLearnedCount = cumulativeLearnedCount;
+  }
   return {
     states,
     completedNewToday,
     completedDueToday,
     newLearningCount,
-    dueLearningCount
+    dueLearningCount,
+    learningProgress: {
+      periodDays,
+      learnedItemCount: cumulativeLearnedCount,
+      learnedItemCountDelta: cumulativeLearnedCount - learnedBeforePeriod,
+      completedReviewCount,
+      daily
+    }
   };
 }
 
@@ -221,10 +263,10 @@ function cardFromJson(value: string): Card {
   ] as const;
   if (!parsed || typeof parsed !== "object" ||
     numericFields.some((field) => !Number.isFinite(parsed[field]))) {
-    throw new Error("複習排程資料損壞");
+    throw new Error("Review schedule data is corrupted");
   }
   return {
-    due: validDate(parsed.due, "到期時間"),
+    due: validDate(parsed.due, "due date"),
     stability: parsed.stability!,
     difficulty: parsed.difficulty!,
     elapsed_days: parsed.elapsed_days!,
@@ -234,7 +276,7 @@ function cardFromJson(value: string): Card {
     lapses: parsed.lapses!,
     state: parsed.state!,
     ...(parsed.last_review
-      ? { last_review: validDate(parsed.last_review, "上次複習時間") }
+      ? { last_review: validDate(parsed.last_review, "last review time") }
       : {})
   };
 }
@@ -255,6 +297,7 @@ function historyFromRow(row: ReviewHistoryRow): ReviewHistoryEntry {
     reviewedAt: row.reviewed_at,
     aiRating: row.ai_rating,
     finalRating: row.final_rating,
+    answer: row.answer,
     intervalSeconds: row.interval_seconds,
     nextDueAt: row.next_due_at
   };
@@ -262,21 +305,21 @@ function historyFromRow(row: ReviewHistoryRow): ReviewHistoryEntry {
 
 function requiredText(value: unknown, label: string): string {
   if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`${label}格式錯誤`);
+    throw new Error(`Invalid ${label}`);
   }
   return value.trim();
 }
 
 function validateCreate(input: CreateLearningItemInput): CreateLearningItemInput {
-  if (!input || typeof input !== "object") throw new Error("學習項目格式錯誤");
-  if (!itemTypes.has(input.itemType)) throw new Error("學習項目類型格式錯誤");
-  if (!cefrLevels.has(input.cefr)) throw new Error("CEFR 格式錯誤");
+  if (!input || typeof input !== "object") throw new Error("Invalid learning item");
+  if (!itemTypes.has(input.itemType)) throw new Error("Invalid learning-item type");
+  if (!cefrLevels.has(input.cefr)) throw new Error("Invalid CEFR level");
   return {
-    title: requiredText(input.title, "標題"),
+    title: requiredText(input.title, "title"),
     itemType: input.itemType,
     cefr: input.cefr,
-    sense: requiredText(input.sense, "語義"),
-    markdownContent: requiredText(input.markdownContent, "Markdown 內容")
+    sense: requiredText(input.sense, "sense"),
+    markdownContent: requiredText(input.markdownContent, "Markdown content")
   };
 }
 
@@ -566,6 +609,7 @@ export class LocalLearningLibrary {
             CHECK (ai_rating IN ('forgotten', 'hard', 'good', 'easy')),
           final_rating TEXT NOT NULL
             CHECK (final_rating IN ('forgotten', 'hard', 'good', 'easy')),
+          answer TEXT,
           previous_card_json TEXT,
           next_card_json TEXT NOT NULL,
           interval_seconds INTEGER NOT NULL CHECK (interval_seconds >= 0),
@@ -581,6 +625,16 @@ export class LocalLearningLibrary {
         INSERT OR IGNORE INTO schema_migrations (version, applied_at)
         VALUES (2, CURRENT_TIMESTAMP);
       `);
+      const reviewEventColumns = database.prepare(
+        "PRAGMA table_info(learning_review_events)"
+      ).all() as unknown as Array<{ name: string }>;
+      if (!reviewEventColumns.some(({ name }) => name === "answer")) {
+        database.exec("ALTER TABLE learning_review_events ADD COLUMN answer TEXT");
+      }
+      database.prepare(`
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+        VALUES (4, CURRENT_TIMESTAMP)
+      `).run();
       const seeded = database.prepare(
         "SELECT value FROM learning_metadata WHERE key = 'mock_seed_v1'"
       ).get() as { value: string } | undefined;
@@ -623,7 +677,7 @@ export class LocalLearningLibrary {
     nowInput: Date | string = new Date()
   ): Promise<LearningLibraryItem[]> {
     if (!input || typeof input !== "object" || !statuses.has(input.status)) {
-      throw new Error("生詞庫狀態格式錯誤");
+      throw new Error("Invalid Learning Library status");
     }
     if (
       input.sort !== "recent" &&
@@ -631,22 +685,22 @@ export class LocalLearningLibrary {
       input.sort !== "study-status" &&
       input.sort !== "next-due"
     ) {
-      throw new Error("生詞庫排序格式錯誤");
+      throw new Error("Invalid Learning Library sort order");
     }
     if (input.itemType !== undefined && !itemTypes.has(input.itemType)) {
-      throw new Error("生詞庫類型篩選格式錯誤");
+      throw new Error("Invalid Learning Library type filter");
     }
     if (input.cefr !== undefined && !cefrLevels.has(input.cefr)) {
-      throw new Error("CEFR 篩選格式錯誤");
+      throw new Error("Invalid CEFR filter");
     }
     if (input.search !== undefined && typeof input.search !== "string") {
-      throw new Error("生詞庫搜尋格式錯誤");
+      throw new Error("Invalid Learning Library search");
     }
     if (
       input.studyStatus !== undefined &&
       !studyStatuses.has(input.studyStatus)
     ) {
-      throw new Error("學習狀態篩選格式錯誤");
+      throw new Error("Invalid study-status filter");
     }
 
     const clauses = ["i.status = ?"];
@@ -675,7 +729,7 @@ export class LocalLearningLibrary {
       WHERE ${clauses.join(" AND ")}
       ORDER BY ${order}
     `).all(...values) as unknown as ReviewQueueRow[];
-    const now = validDate(nowInput, "目前時間");
+    const now = validDate(nowInput, "current time");
     const nowIso = now.toISOString();
     const progressRows = database.prepare(`
       SELECT e.id, e.learning_item_id, e.reviewed_at, e.next_due_at
@@ -729,18 +783,18 @@ export class LocalLearningLibrary {
   }
 
   async getItem(itemId: string): Promise<LearningItem> {
-    const id = requiredText(itemId, "學習項目");
+    const id = requiredText(itemId, "learning item");
     const row = this.#open().prepare(
       "SELECT * FROM learning_items WHERE id = ?"
     ).get(id) as LearningItemRow | undefined;
-    if (!row) throw new Error("找不到學習項目");
+    if (!row) throw new Error("Learning item not found");
     return itemFromRow(row);
   }
 
   async findDuplicateCandidates(titles: string[]): Promise<LearningItem[]> {
-    if (!Array.isArray(titles)) throw new Error("候選標題格式錯誤");
+    if (!Array.isArray(titles)) throw new Error("Invalid candidate titles");
     const normalizedTitles = [...new Set(titles.map((title) =>
-      requiredText(title, "候選標題").toLocaleLowerCase()
+      requiredText(title, "candidate title").toLocaleLowerCase()
     ))];
     if (normalizedTitles.length === 0) return [];
     const order = new Map(normalizedTitles.map((title, index) => [title, index]));
@@ -760,7 +814,7 @@ export class LocalLearningLibrary {
   }
 
   async getReviewSummary(nowInput: Date | string = new Date()): Promise<ReviewSummary> {
-    const now = validDate(nowInput, "目前時間");
+    const now = validDate(nowInput, "current time");
     const nowIso = now.toISOString();
     const database = this.#open();
     const preferences = this.options.getReviewPreferences
@@ -807,14 +861,12 @@ export class LocalLearningLibrary {
     const newRemainingCapacity = Math.max(
       0,
       preferences.dailyNewItemCompletionLimit -
-        progress.completedNewToday -
-        progress.newLearningCount
+        progress.completedNewToday
     );
     const dueRemainingCapacity = Math.max(
       0,
       preferences.dailyDueReviewCompletionLimit -
-        progress.completedDueToday -
-        progress.dueLearningCount
+        progress.completedDueToday
     );
     const eligibleLearningRows = learningDueRows.filter((row) => {
       const kind = progress.states.get(row.id)?.learningKind;
@@ -865,6 +917,7 @@ export class LocalLearningLibrary {
       availableLearningCount: eligibleLearningRows.length,
       availableDueCount: eligibleDueRows.length,
       availableNewCount: eligibleNewRows.length,
+      learningProgress: progress.learningProgress,
       selectedItems,
       nextDueAt: nextDue.next_due_at
     };
@@ -874,15 +927,15 @@ export class LocalLearningLibrary {
     itemId: string,
     nowInput: Date | string = new Date()
   ): Promise<LearningItemReviewDetail> {
-    const id = requiredText(itemId, "學習項目");
-    const now = validDate(nowInput, "目前時間");
+    const id = requiredText(itemId, "learning item");
+    const now = validDate(nowInput, "current time");
     await this.getItem(id);
     const schedule = this.#open().prepare(`
       SELECT * FROM learning_review_schedules WHERE learning_item_id = ?
     `).get(id) as ReviewScheduleRow | undefined;
     const rows = this.#open().prepare(`
       SELECT id, session_id, learning_item_id, reviewed_at, ai_rating,
-        final_rating, interval_seconds, next_due_at
+        final_rating, answer, interval_seconds, next_due_at
       FROM learning_review_events
       WHERE learning_item_id = ?
       ORDER BY reviewed_at DESC, id DESC
@@ -910,27 +963,30 @@ export class LocalLearningLibrary {
   async confirmReviewSession(
     input: ConfirmReviewSessionInput
   ): Promise<ConfirmReviewSessionResult> {
-    if (!input || typeof input !== "object") throw new Error("複習回合格式錯誤");
-    const sessionId = requiredText(input.sessionId, "複習回合");
-    const reviewedAt = validDate(input.reviewedAt, "複習時間");
+    if (!input || typeof input !== "object") throw new Error("Invalid review session");
+    const sessionId = requiredText(input.sessionId, "review session");
+    const reviewedAt = validDate(input.reviewedAt, "review time");
     if (!Array.isArray(input.ratings) ||
       input.ratings.length === 0 ||
       input.ratings.length > REVIEW_PAPER_SIZE.max) {
-      throw new Error("複習評級數量格式錯誤");
+      throw new Error("Invalid review-rating count");
     }
     const ratings = input.ratings.map((rating) => {
       if (!rating || typeof rating !== "object") {
-        throw new Error("複習評級格式錯誤");
+        throw new Error("Invalid review rating");
       }
-      const itemId = requiredText(rating.itemId, "學習項目");
+      const itemId = requiredText(rating.itemId, "learning item");
       if (!reviewRatings.has(rating.aiRating) ||
         !reviewRatings.has(rating.finalRating)) {
-        throw new Error("複習評級格式錯誤");
+        throw new Error("Invalid review rating");
       }
-      return { ...rating, itemId };
+      if (rating.answer !== undefined && typeof rating.answer !== "string") {
+        throw new Error("Invalid review answer");
+      }
+      return { ...rating, itemId, answer: rating.answer ?? "" };
     });
     if (new Set(ratings.map(({ itemId }) => itemId)).size !== ratings.length) {
-      throw new Error("複習評級包含重複項目");
+      throw new Error("Review ratings contain duplicate items");
     }
 
     const database = this.#open();
@@ -946,10 +1002,10 @@ export class LocalLearningLibrary {
         status: LearningItemStatus;
       }) | undefined;
       if (!row || row.status !== "active") {
-        throw new Error("複習項目已不可用");
+        throw new Error("The review item is no longer available");
       }
       if (row.learning_item_id && row.due_at > reviewedAtIso) {
-        throw new Error("複習項目尚未到期");
+        throw new Error("The review item is not due yet");
       }
       const previousCard = row.learning_item_id
         ? cardFromJson(row.card_json)
@@ -979,9 +1035,9 @@ export class LocalLearningLibrary {
       const insertEvent = database.prepare(`
         INSERT INTO learning_review_events (
           id, session_id, learning_item_id, reviewed_at, ai_rating,
-          final_rating, previous_card_json, next_card_json,
+          final_rating, answer, previous_card_json, next_card_json,
           interval_seconds, next_due_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const upsertSchedule = database.prepare(`
         INSERT INTO learning_review_schedules (
@@ -1005,6 +1061,7 @@ export class LocalLearningLibrary {
           reviewedAtIso,
           item.rating.aiRating,
           item.rating.finalRating,
+          item.rating.answer,
           item.previousCardJson,
           item.nextCardJson,
           item.intervalSeconds,
@@ -1026,6 +1083,7 @@ export class LocalLearningLibrary {
           reviewedAt: reviewedAtIso,
           aiRating: item.rating.aiRating,
           finalRating: item.rating.finalRating,
+          answer: item.rating.answer,
           intervalSeconds: item.intervalSeconds,
           nextDueAt: item.nextDueAt
         });
@@ -1070,7 +1128,7 @@ export class LocalLearningLibrary {
     inputs: CreateLearningItemInput[]
   ): Promise<LearningItem[]> {
     if (!Array.isArray(inputs) || inputs.length === 0) {
-      throw new Error("學習項目批次格式錯誤");
+      throw new Error("Invalid learning-item batch");
     }
     const items = inputs.map(validateCreate);
     const database = this.#open();
@@ -1107,8 +1165,8 @@ export class LocalLearningLibrary {
   }
 
   async updateItem(input: UpdateLearningItemInput): Promise<LearningItem> {
-    if (!input || typeof input !== "object") throw new Error("學習項目更新格式錯誤");
-    const id = requiredText(input.itemId, "學習項目");
+    if (!input || typeof input !== "object") throw new Error("Invalid learning-item update");
+    const id = requiredText(input.itemId, "learning item");
     const item = validateCreate(input);
     const result = this.#open().prepare(`
       UPDATE learning_items SET
@@ -1124,29 +1182,29 @@ export class LocalLearningLibrary {
       new Date().toISOString(),
       id
     );
-    if (result.changes !== 1) throw new Error("找不到學習項目");
+    if (result.changes !== 1) throw new Error("Learning item not found");
     return this.getItem(id);
   }
 
   async trashItem(itemId: string): Promise<LearningItem> {
-    const id = requiredText(itemId, "學習項目");
+    const id = requiredText(itemId, "learning item");
     const now = new Date().toISOString();
     const result = this.#open().prepare(`
       UPDATE learning_items SET status = 'trashed', trashed_at = ?, updated_at = ?
       WHERE id = ? AND status = 'active'
     `).run(now, now, id);
-    if (result.changes !== 1) throw new Error("找不到可刪除的學習項目");
+    if (result.changes !== 1) throw new Error("No deletable learning item was found");
     return this.getItem(id);
   }
 
   async restoreItem(itemId: string): Promise<LearningItem> {
-    const id = requiredText(itemId, "學習項目");
+    const id = requiredText(itemId, "learning item");
     const now = new Date().toISOString();
     const result = this.#open().prepare(`
       UPDATE learning_items SET status = 'active', trashed_at = NULL, updated_at = ?
       WHERE id = ? AND status = 'trashed'
     `).run(now, id);
-    if (result.changes !== 1) throw new Error("找不到可還原的學習項目");
+    if (result.changes !== 1) throw new Error("No restorable learning item was found");
     return this.getItem(id);
   }
 

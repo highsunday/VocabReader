@@ -58,7 +58,7 @@ describe("data backup IPC", () => {
     });
     expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({
       defaultPath: "VocabReader-backup-2026-07-28-110000.zip",
-      filters: [{ name: "VocabReader 資料備份", extensions: ["zip"] }]
+      filters: [{ name: "VocabReader Data Backup", extensions: ["zip"] }]
     }));
     expect(service.exportToPath)
       .toHaveBeenCalledWith("/chosen/VocabReader-backup.zip");
@@ -115,10 +115,10 @@ describe("data backup IPC", () => {
     expect(service.selectBackupFromPath).not.toHaveBeenCalled();
     expect(() =>
       handlers.get("data-backup:restore")?.({}, "../invalid")
-    ).toThrow(/還原請求格式錯誤/);
+    ).toThrow(/Invalid data restore request/);
     expect(() =>
       handlers.get("data-backup:cancel-restore")?.({}, 42)
-    ).toThrow(/還原請求格式錯誤/);
+    ).toThrow(/Invalid data restore request/);
     expect(service.restoreBackup).not.toHaveBeenCalled();
     expect(service.cancelRestore).not.toHaveBeenCalled();
   });

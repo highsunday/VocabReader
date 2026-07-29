@@ -88,13 +88,13 @@ const ASSISTANT_PANEL_RESIZE_STEP = 16;
 
 const initialChatSnapshot: ChatSnapshot = {
   connection: "disconnected",
-  connectionDetail: "尚未連線 Codex。",
+  connectionDetail: "Codex is not connected.",
   account: null,
   allowance: {
     phase: "unavailable",
     fiveHour: null,
     weekly: null,
-    detail: "尚未取得 AI 使用額度。"
+    detail: "AI usage allowance is not available yet."
   },
   messages: [],
   threadId: null,
@@ -105,7 +105,7 @@ const initialChatSnapshot: ChatSnapshot = {
   conversationError: null,
   models: [],
   selectedModelId: null,
-  modelCatalogDetail: "尚未取得可用模型。",
+  modelCatalogDetail: "Available models have not been loaded.",
   stopRequested: false
 };
 
@@ -157,11 +157,11 @@ function desktopDataBackup(): DataBackupDesktopApi | undefined {
 
 function connectionLabel(phase: ConnectionPhase) {
   return {
-    disconnected: "尚未連線",
-    connecting: "連線中…",
-    ready: "已連線",
-    "auth-required": "需要登入",
-    error: "連線失敗"
+    disconnected: "Disconnected",
+    connecting: "Connecting…",
+    ready: "Connected",
+    "auth-required": "Sign-in required",
+    error: "Connection failed"
   }[phase];
 }
 
@@ -202,7 +202,7 @@ function ChatMessageContent({ text }: { text: string }) {
           )
         }}
       >
-        {visibleText || (text ? "試卷內容已顯示在中央。" : "…")}
+        {visibleText || (text ? "The paper is displayed in the center." : "…")}
       </ReactMarkdown>
     </div>
   );
@@ -215,7 +215,7 @@ const ChapterArticle = memo(forwardRef<HTMLElement, {
     <article
       ref={ref}
       className="chapter-content"
-      aria-label={`${content.title} 章節內容`}
+      aria-label={`${content.title} chapter content`}
       dangerouslySetInnerHTML={{ __html: content.contentHtml }}
     />
   );
@@ -385,7 +385,7 @@ export function App() {
         setBooks(storedBooks);
         if (storedBooks[0]) restoreBook(storedBooks[0]);
       })
-      .catch(() => setLibraryError("無法讀取本機書庫，請重新開啟應用程式。"));
+      .catch(() => setLibraryError("Unable to load the local Book Library. Please reopen the app."));
   }, []);
 
   useEffect(() => {
@@ -445,7 +445,7 @@ export function App() {
       .catch((error: unknown) => {
         if (!active) return;
         setChatError(
-          error instanceof Error ? error.message : "無法連線 Codex。"
+          error instanceof Error ? error.message : "Unable to connect to Codex."
         );
       });
     return () => {
@@ -477,7 +477,7 @@ export function App() {
         if (active) setSettings(stored);
       })
       .catch(() => {
-        if (active) setSettingsError("無法讀取設定，已使用原文語言。");
+        if (active) setSettingsError("Unable to load settings. Source language is being used.");
       });
     return () => {
       active = false;
@@ -513,7 +513,7 @@ export function App() {
       })
       .catch(() => {
         if (!cancelled) {
-          setChapterError("無法載入這個章節，請返回總覽後再試一次。");
+          setChapterError("Unable to load this chapter. Return to the overview and try again.");
         }
       })
       .finally(() => {
@@ -804,7 +804,7 @@ export function App() {
           : candidate
       ));
     }).catch(() => {
-      setLibraryError("無法保存閱讀位置；本次切換仍可繼續使用。");
+      setLibraryError("Unable to save the reading position. You can continue this session.");
     });
   }
 
@@ -838,7 +838,7 @@ export function App() {
           : candidate
       ));
     }).catch(() => {
-      setLibraryError("無法保存閱讀區段；本次調整仍可暫時使用。");
+      setLibraryError("Unable to save the reading segment. This adjustment remains available for this session.");
     });
   }
 
@@ -873,7 +873,7 @@ export function App() {
           : candidate
       ));
     }).catch(() => {
-      setLibraryError("無法保存標記；本次標記仍可暫時使用。");
+      setLibraryError("Unable to save the annotation. It remains available for this session.");
     });
   }
 
@@ -914,7 +914,7 @@ export function App() {
       }
     } catch {
       if (revision === settingsSaveRevisionRef.current) {
-        setSettingsError("無法保存設定，請再試一次。");
+        setSettingsError("Unable to save settings. Please try again.");
       }
     } finally {
       if (revision === settingsSaveRevisionRef.current) {
@@ -980,11 +980,11 @@ export function App() {
     try {
       const result = await api.exportBackup();
       if (result.status === "exported") {
-        setDataBackupMessage(`已匯出 ${result.fileName}`);
+        setDataBackupMessage(`Exported ${result.fileName}`);
       }
     } catch (error) {
       setDataBackupError(
-        error instanceof Error ? error.message : "無法匯出資料備份。"
+        error instanceof Error ? error.message : "Unable to export the data backup."
       );
     } finally {
       setDataBackupOperation(null);
@@ -1004,7 +1004,7 @@ export function App() {
       }
     } catch (error) {
       setDataBackupError(
-        error instanceof Error ? error.message : "無法驗證資料備份。"
+        error instanceof Error ? error.message : "Unable to validate the data backup."
       );
     } finally {
       setDataBackupOperation(null);
@@ -1022,7 +1022,7 @@ export function App() {
       setDataRestorePreview(undefined);
     } catch (error) {
       setDataBackupError(
-        error instanceof Error ? error.message : "無法取消資料還原。"
+        error instanceof Error ? error.message : "Unable to cancel data restore."
       );
     } finally {
       setDataBackupOperation(null);
@@ -1039,11 +1039,11 @@ export function App() {
     try {
       await api.restoreBackup(preview.token);
       setDataRestorePreview(undefined);
-      setDataBackupMessage("資料已還原，正在重新啟動 VocabReader…");
+      setDataBackupMessage("Data restored. Restarting VocabReader…");
     } catch (error) {
       setDataRestorePreview(undefined);
       setDataBackupError(
-        error instanceof Error ? error.message : "無法還原資料備份。"
+        error instanceof Error ? error.message : "Unable to restore the data backup."
       );
     } finally {
       setDataBackupOperation(null);
@@ -1196,7 +1196,7 @@ export function App() {
       setLibraryError(
         error instanceof Error && error.message
           ? error.message
-          : "無法導入這本 EPUB，請確認檔案未損壞且不含 DRM。"
+          : "Unable to import this EPUB. Make sure the file is not corrupted or DRM-protected."
       );
     } finally {
       setIsImporting(false);
@@ -1227,7 +1227,7 @@ export function App() {
         setMode("overview");
       }
     } catch {
-      setLibraryError("無法刪除這本書籍，請稍後再試一次。");
+      setLibraryError("Unable to delete this book. Please try again later.");
       setBookPendingDeletion(undefined);
     } finally {
       setIsDeleting(false);
@@ -1354,7 +1354,7 @@ export function App() {
       if (pendingChatScrollUserCountRef.current === previousUserCount) {
         pendingChatScrollUserCountRef.current = null;
       }
-      setChatError(error instanceof Error ? error.message : "無法送出訊息。");
+      setChatError(error instanceof Error ? error.message : "Unable to send the message.");
       return false;
     }
   }
@@ -1370,7 +1370,7 @@ export function App() {
   }
 
   async function explainAnnotations() {
-    await sendChatMessage("講解標記內容", {
+    await sendChatMessage("Explain annotations", {
       intent: "explainAnnotations",
       explanationLanguage: settings.explanationLanguage
     });
@@ -1378,7 +1378,7 @@ export function App() {
 
   async function practiceReading() {
     setExpandedReadingPracticeQuizId(undefined);
-    return sendChatMessage("開始閱讀測驗", {
+    return sendChatMessage("Start reading quiz", {
       intent: "practiceReading",
       explanationLanguage: settings.explanationLanguage
     });
@@ -1404,7 +1404,7 @@ export function App() {
     const titles = targets.map((target) => target.title);
     if (draft.trim()) setDraft("");
     await sendChatMessage(
-      titles.length ? `新增卡片：${titles.join("、")}` : "新增卡片",
+      titles.length ? `Add cards: ${titles.join(", ")}` : "Add cards",
       {
         intent: "createLearningItems",
         explanationLanguage: settings.explanationLanguage,
@@ -1435,7 +1435,7 @@ export function App() {
     } catch (error) {
       setChatError(error instanceof Error
         ? error.message
-        : "無法重試準備卡片。");
+        : "Unable to retry card preparation.");
     }
   }
 
@@ -1451,7 +1451,7 @@ export function App() {
       setChatView("conversation");
       lastProvidedReadingSegmentRef.current = undefined;
     } catch (error) {
-      setChatError(error instanceof Error ? error.message : "無法建立新對話。");
+      setChatError(error instanceof Error ? error.message : "Unable to create a new conversation.");
     } finally {
       setIsConversationActionPending(false);
     }
@@ -1469,7 +1469,7 @@ export function App() {
       setChatView("conversation");
       lastProvidedReadingSegmentRef.current = undefined;
     } catch (error) {
-      setChatError(error instanceof Error ? error.message : "無法開啟 AI 對話。");
+      setChatError(error instanceof Error ? error.message : "Unable to open the AI conversation.");
     } finally {
       setIsConversationActionPending(false);
     }
@@ -1489,7 +1489,7 @@ export function App() {
         lastProvidedReadingSegmentRef.current = undefined;
       }
     } catch (error) {
-      setChatError(error instanceof Error ? error.message : "無法移除 AI 對話。");
+      setChatError(error instanceof Error ? error.message : "Unable to remove the AI conversation.");
     } finally {
       setIsConversationActionPending(false);
     }
@@ -1503,7 +1503,7 @@ export function App() {
     try {
       setChatSnapshot(await chat.selectModel(modelId));
     } catch (error) {
-      setChatError(error instanceof Error ? error.message : "無法切換 AI 模型。");
+      setChatError(error instanceof Error ? error.message : "Unable to switch AI models.");
     } finally {
       setIsModelActionPending(false);
     }
@@ -1517,7 +1517,7 @@ export function App() {
     try {
       setChatSnapshot(await chat.stopResponse());
     } catch (error) {
-      setChatError(error instanceof Error ? error.message : "無法停止 AI 回覆。");
+      setChatError(error instanceof Error ? error.message : "Unable to stop the AI response.");
     } finally {
       setIsStopPending(false);
     }
@@ -1535,13 +1535,13 @@ export function App() {
         </div>
 
         <button
-          aria-label="導入 EPUB"
+          aria-label="Import EPUB"
           className="import-button"
           type="button"
           onClick={() => void handleImport()}
           disabled={isImporting || isDeleting || !desktopLibrary()}
         >
-          {isImporting ? "導入中…" : "＋ 導入 EPUB"}
+          {isImporting ? "Importing…" : "＋ Import EPUB"}
         </button>
       </header>
 
@@ -1566,19 +1566,19 @@ export function App() {
       >
         <aside
           className={isLeftSidebarCollapsed ? "sidebar collapsed" : "sidebar"}
-          aria-label="主要導覽"
+          aria-label="Main navigation"
         >
           <div className="sidebar-heading">
             {!isLeftSidebarCollapsed ? (
               <div className="book-summary">
-                <span className="eyebrow">我的書庫</span>
-                <strong>{books.length ? `${books.length} 本書籍` : "尚未導入書籍"}</strong>
+                <span className="eyebrow">My Library</span>
+                <strong>{books.length ? `${books.length} books` : "No books imported"}</strong>
               </div>
             ) : null}
             <button
               className="panel-toggle left-toggle"
               type="button"
-              aria-label={isLeftSidebarCollapsed ? "展開左側欄" : "摺疊左側欄"}
+              aria-label={isLeftSidebarCollapsed ? "Expand left sidebar" : "Collapse left sidebar"}
               aria-controls="left-sidebar-content"
               aria-expanded={!isLeftSidebarCollapsed}
               onClick={() => setIsLeftSidebarCollapsed((collapsed) => !collapsed)}
@@ -1592,7 +1592,7 @@ export function App() {
 
           {!isLeftSidebarCollapsed ? (
             <div className="sidebar-content" id="left-sidebar-content">
-              <div className="book-list" aria-label="已導入書籍">
+              <div className="book-list" aria-label="Imported books">
                 {books.map((book) => (
                   <button
                     className={book.id === selectedBook?.id ? "book-item active" : "book-item"}
@@ -1616,13 +1616,13 @@ export function App() {
                   <button
                     className={mode === "spaced-review" ? "nav-item active" : "nav-item"}
                     aria-label={[
-                      `間隔複習 ${reviewAvailableCount}`,
+                      `Review ${reviewAvailableCount}`,
                       reviewWorkspaceStatus === "generating"
-                        ? "試卷生成中"
+                        ? "Paper generating"
                         : reviewWorkspaceStatus === "resumable"
-                          ? "試卷已生成，可繼續"
+                          ? "Paper ready to continue"
                           : ""
-                    ].filter(Boolean).join("，")}
+                    ].filter(Boolean).join(", ")}
                     onClick={() => {
                       saveCurrentReaderPosition();
                       setMode("spaced-review");
@@ -1634,7 +1634,7 @@ export function App() {
                       strokeWidth={1.8}
                     />
                     <span className="nav-item-label">
-                      間隔複習
+                      Review
                       {reviewWorkspaceStatus === "generating" ? (
                         <LoaderCircle
                           className="review-sidebar-status generating"
@@ -1651,7 +1651,7 @@ export function App() {
                   </button>
                   <button
                     className={mode === "learning-library" ? "nav-item active" : "nav-item"}
-                    aria-label={`生詞庫 ${learningCounts.active}`}
+                    aria-label={`Library ${learningCounts.active}`}
                     onClick={() => {
                       saveCurrentReaderPosition();
                       setMode("learning-library");
@@ -1662,7 +1662,7 @@ export function App() {
                       aria-hidden="true"
                       strokeWidth={1.8}
                     />
-                    生詞庫
+                    Library
                     <em>{learningCounts.active}</em>
                   </button>
                 </nav>
@@ -1677,12 +1677,12 @@ export function App() {
                     aria-hidden="true"
                     strokeWidth={1.8}
                   />
-                  設定
+                  Settings
                 </button>
 
                 <section
                   className={`codex-account-card ${chatSnapshot.connection}`}
-                  aria-label="Codex 狀態"
+                  aria-label="Codex status"
                   title={chatSnapshot.connectionDetail}
                 >
                   <div className="codex-account-heading">
@@ -1699,26 +1699,26 @@ export function App() {
                   </div>
                   <div className="allowance-summary">
                     {([
-                      ["5 小時", chatSnapshot.allowance.fiveHour],
-                      ["一週", chatSnapshot.allowance.weekly]
+                      ["5 hours", chatSnapshot.allowance.fiveHour],
+                      ["Weekly", chatSnapshot.allowance.weekly]
                     ] as const).map(([label, allowance]) => (
                       <div
                         className="allowance-summary-row"
                         key={label}
                         title={allowance
-                          ? `${label}：剩餘 ${allowance.remainingPercent}%，${resetLabel(allowance.resetsAt)} 重置`
-                          : `${label}：${chatSnapshot.allowance.phase === "loading" ? "取得中" : "無法取得"}`}
+                          ? `${label}: ${allowance.remainingPercent}% remaining, resets ${resetLabel(allowance.resetsAt)}`
+                          : `${label}: ${chatSnapshot.allowance.phase === "loading" ? "Loading" : "Unavailable"}`}
                         aria-label={allowance
-                          ? `${label}：剩餘 ${allowance.remainingPercent}%，${resetLabel(allowance.resetsAt)} 重置`
-                          : `${label}：${chatSnapshot.allowance.phase === "loading" ? "取得中" : "無法取得"}`}
+                          ? `${label}: ${allowance.remainingPercent}% remaining, resets ${resetLabel(allowance.resetsAt)}`
+                          : `${label}: ${chatSnapshot.allowance.phase === "loading" ? "Loading" : "Unavailable"}`}
                       >
                         <span>{label}</span>
                         <strong className={`allowance-value ${allowance ? "available" : chatSnapshot.allowance.phase}`}>
                           {allowance
                             ? `${allowance.remainingPercent}%`
                             : chatSnapshot.allowance.phase === "loading"
-                              ? "取得中…"
-                              : "無法取得"}
+                              ? "Loading…"
+                              : "Unavailable"}
                         </strong>
                       </div>
                     ))}
@@ -1748,15 +1748,15 @@ export function App() {
                 <button
                   className="reader-back-button"
                   type="button"
-                  aria-label="返回總覽"
+                  aria-label="Back to overview"
                   onClick={returnToOverview}
                 >
                   <span aria-hidden="true">←</span>
-                  返回總覽
+                  Back to overview
                 </button>
 
                 <div className="reader-toolbar-context" aria-hidden="true">
-                  <span>閱讀中</span>
+                  <span>Reading</span>
                   <strong>{activeChapter?.title ?? selectedBook?.title}</strong>
                 </div>
 
@@ -1765,7 +1765,7 @@ export function App() {
                     <button
                       className="reading-layout-button"
                       type="button"
-                      aria-label="閱讀版面"
+                      aria-label="Reading layout"
                       aria-controls="reading-layout-panel"
                       aria-expanded={isReadingLayoutOpen}
                       onClick={() => setIsReadingLayoutOpen((open) => !open)}
@@ -1777,16 +1777,16 @@ export function App() {
                         id="reading-layout-panel"
                         className="reading-layout-panel"
                         role="dialog"
-                        aria-label="閱讀版面"
+                        aria-label="Reading layout"
                       >
                         <div className="reading-layout-heading">
                           <div>
                             <span className="eyebrow">Reading layout</span>
-                            <strong>閱讀版面</strong>
+                            <strong>Reading layout</strong>
                           </div>
                           <button
                             type="button"
-                            aria-label="關閉閱讀版面"
+                            aria-label="Close reading layout"
                             onClick={() => setIsReadingLayoutOpen(false)}
                           >
                             ×
@@ -1794,7 +1794,7 @@ export function App() {
                         </div>
                         <div className="reading-layout-control">
                           <div>
-                            <label htmlFor="reading-font-size">文字大小</label>
+                            <label htmlFor="reading-font-size">Text size</label>
                             <output htmlFor="reading-font-size">
                               {settings.ebookContentFontSize}px
                             </output>
@@ -1815,7 +1815,7 @@ export function App() {
                         </div>
                         <div className="reading-layout-control">
                           <div>
-                            <label htmlFor="reading-paper-width">紙張寬度</label>
+                            <label htmlFor="reading-paper-width">Page width</label>
                             <output htmlFor="reading-paper-width">
                               {settings.readingPaperWidth}px
                             </output>
@@ -1836,7 +1836,7 @@ export function App() {
                         </div>
                         <div className="reading-layout-control">
                           <div>
-                            <label htmlFor="reading-line-height">行間距</label>
+                            <label htmlFor="reading-line-height">Line spacing</label>
                             <output htmlFor="reading-line-height">
                               {settings.ebookLineHeight.toFixed(1)}×
                             </output>
@@ -1848,7 +1848,7 @@ export function App() {
                             max={EBOOK_LINE_HEIGHT.max}
                             step={EBOOK_LINE_HEIGHT.step}
                             value={settings.ebookLineHeight}
-                            aria-valuetext={`${settings.ebookLineHeight.toFixed(1)} 倍`}
+                            aria-valuetext={`${settings.ebookLineHeight.toFixed(1)} times`}
                             onChange={(event) => previewSetting(
                               "ebookLineHeight",
                               Number(event.target.value)
@@ -1860,7 +1860,7 @@ export function App() {
                           type="button"
                           onClick={resetReadingLayout}
                         >
-                          恢復預設值
+                          Restore defaults
                         </button>
                         {settingsError ? (
                           <small role="alert">{settingsError}</small>
@@ -1868,21 +1868,21 @@ export function App() {
                       </section>
                     ) : null}
                   </div>
-                  <div className="chapter-navigation" role="group" aria-label="章節導覽">
+                  <div className="chapter-navigation" role="group" aria-label="Chapter navigation">
                     <button
                       type="button"
                       onClick={openPreviousChapter}
                       disabled={!previousChapter}
                     >
                       <span aria-hidden="true">‹</span>
-                      上一章
+                      Previous chapter
                     </button>
                     <button
                       type="button"
                       onClick={openNextChapter}
                       disabled={!nextChapter}
                     >
-                      下一章
+                      Next chapter
                       <span aria-hidden="true">›</span>
                     </button>
                   </div>
@@ -1911,7 +1911,7 @@ export function App() {
                 <div className="overview-hero">
                   <div className="overview-cover">
                     {selectedBook.coverDataUrl ? (
-                      <img src={selectedBook.coverDataUrl} alt={`${selectedBook.title} 封面`} />
+                      <img src={selectedBook.coverDataUrl} alt={`${selectedBook.title} cover`} />
                     ) : (
                       <span>Aa</span>
                     )}
@@ -1921,10 +1921,10 @@ export function App() {
                     <h1 id="book-overview-title">{selectedBook.title}</h1>
                     <p className="book-author">{selectedBook.author}</p>
                     <div className="book-facts">
-                      <span>{selectedBook.chapters.length} 個章節</span>
-                      <span>{selectedBook.progressPercent}% 已閱讀</span>
+                      <span>{selectedBook.chapters.length} chapters</span>
+                      <span>{selectedBook.progressPercent}% read</span>
                     </div>
-                    <div className="progress-track" aria-label={`閱讀進度 ${selectedBook.progressPercent}%`}>
+                    <div className="progress-track" aria-label={`Reading progress ${selectedBook.progressPercent}%`}>
                       <span style={{ width: `${selectedBook.progressPercent}%` }} />
                     </div>
                     <button
@@ -1933,7 +1933,7 @@ export function App() {
                       onClick={startOrContinueReading}
                       disabled={!selectedBook.chapters.length}
                     >
-                      {selectedBook.progressPercent > 0 ? "繼續閱讀" : "開始閱讀"}
+                      {selectedBook.progressPercent > 0 ? "Continue reading" : "Start reading"}
                     </button>
                     <button
                       className="delete-book-button"
@@ -1941,7 +1941,7 @@ export function App() {
                       onClick={() => setBookPendingDeletion(selectedBook)}
                       disabled={isImporting || isDeleting}
                     >
-                      刪除書籍
+                      Delete book
                     </button>
                   </div>
                 </div>
@@ -1949,7 +1949,7 @@ export function App() {
                 <div className="chapter-list">
                   <div>
                     <span className="eyebrow">Contents</span>
-                    <h2>章節</h2>
+                    <h2>Chapters</h2>
                   </div>
                   <ol>
                     {selectedBook.chapters.map((chapter) => {
@@ -1964,11 +1964,11 @@ export function App() {
                         <button type="button" onClick={() => openChapter(chapter.id)}>
                           <span>
                             {depth > 0
-                              ? "↳ 子章節"
+                              ? "↳ Subchapter"
                               : String(chapter.order + 1).padStart(2, "0")}
                           </span>
                           <strong>{chapter.title}</strong>
-                          <em>{depth > 0 ? "閱讀此節 →" : "開始閱讀 →"}</em>
+                          <em>{depth > 0 ? "Read this section →" : "Start reading →"}</em>
                         </button>
                       </li>
                       );
@@ -1981,30 +1981,30 @@ export function App() {
                 <div className="section-heading">
                   <div>
                     <span className="eyebrow">Book library</span>
-                    <h1 id="reader-title">導入 EPUB 開始閱讀</h1>
+                    <h1 id="reader-title">Import an EPUB to start reading</h1>
                   </div>
                 </div>
                 <div className="empty-reader">
                   <span className="book-icon">Aa</span>
-                  <h2>你的閱讀空間已準備好</h2>
-                  <p>導入第一本 EPUB，書籍會保存在本機書庫並顯示於左側。</p>
-                  <div className="flow-tags" aria-label="章節學習流程">
-                    <span>閱讀標記</span>
-                    <span>AI 解析</span>
-                    <span>生詞庫</span>
-                    <span>章末選擇題</span>
+                  <h2>Your reading space is ready</h2>
+                  <p>Import your first EPUB. It will be saved locally and shown on the left.</p>
+                  <div className="flow-tags" aria-label="Chapter learning flow">
+                    <span>Read and annotate</span>
+                    <span>AI analysis</span>
+                    <span>Learning Library</span>
+                    <span>Reading quiz</span>
                   </div>
                 </div>
               </section>
             )
           ) : mode === "reader" ? (
-            <section className="reader-panel" aria-label="章節閱讀">
+            <section className="reader-panel" aria-label="Chapter reader">
               {isLoadingChapter ? (
-                <div className="chapter-status" role="status">章節載入中…</div>
+                <div className="chapter-status" role="status">Loading chapter…</div>
               ) : chapterError ? (
                 <div className="chapter-status error" role="alert">
                   <p>{chapterError}</p>
-                  <button type="button" onClick={returnToOverview}>返回總覽</button>
+                  <button type="button" onClick={returnToOverview}>Back to overview</button>
                 </div>
               ) : chapterContent ? (
                 <div className="reading-range-workspace">
@@ -2012,12 +2012,12 @@ export function App() {
                     <div
                       className="range-jump-controls"
                       role="group"
-                      aria-label="閱讀區段快速移動"
+                      aria-label="Reading segment quick navigation"
                     >
                       <button
                         className="start"
                         type="button"
-                        aria-label="移到 START 範圍標籤"
+                        aria-label="Go to START range marker"
                         onClick={() => scrollToReadingRangeMarker("start")}
                       >
                         START
@@ -2025,7 +2025,7 @@ export function App() {
                       <button
                         className="end"
                         type="button"
-                        aria-label="移到 END 範圍標籤"
+                        aria-label="Go to END range marker"
                         onClick={() => scrollToReadingRangeMarker("end")}
                       >
                         END
@@ -2035,8 +2035,8 @@ export function App() {
                       className={`annotation-tool${isAnnotationMode ? " active" : ""}`}
                       type="button"
                       aria-label={`${isAnnotationMode
-                        ? "關閉標記模式"
-                        : "開啟標記模式"}，目前章節 ${annotations.length} 個標記`}
+                        ? "Turn off annotation mode"
+                        : "Turn on annotation mode"}; ${annotations.length} annotations in this chapter`}
                       aria-pressed={isAnnotationMode}
                       onClick={() => setIsAnnotationMode((active) => !active)}
                     >
@@ -2045,7 +2045,7 @@ export function App() {
                         <path d="m12.75 6.25 5 5M5 19l-1.5 1.5H13" />
                       </svg>
                       <span className="annotation-tool-label" aria-hidden="true">
-                        {isAnnotationMode ? "標記中" : "標記"}
+                        {isAnnotationMode ? "Annotating" : "Annotate"}
                       </span>
                       <span className="annotation-tool-count" aria-hidden="true">
                         {annotations.length}
@@ -2054,7 +2054,7 @@ export function App() {
                   </div>
                   <div className="reading-range-shell">
                     {readingRange ? (
-                      <div className="reading-range-markers" aria-label="AI 可讀範圍">
+                      <div className="reading-range-markers" aria-label="AI-readable range">
                         <div
                           className={`reading-range-boundary start${rangeBoundariesOverlap ? " is-overlapping" : ""}`}
                           data-range-boundary="start"
@@ -2062,7 +2062,7 @@ export function App() {
                           style={{ top: markerTops.start }}
                         >
                           <button
-                            aria-label="閱讀區段起點"
+                            aria-label="Reading segment start"
                             className="reading-range-marker start"
                             data-text-offset={readingRange.start}
                             onPointerDown={(event) => startDraggingRangeMarker("start", event)}
@@ -2081,7 +2081,7 @@ export function App() {
                           style={{ top: markerTops.end }}
                         >
                           <button
-                            aria-label="閱讀區段終點"
+                            aria-label="Reading segment end"
                             className="reading-range-marker end"
                             data-text-offset={readingRange.end}
                             onPointerDown={(event) => startDraggingRangeMarker("end", event)}
@@ -2098,14 +2098,14 @@ export function App() {
                     <ChapterArticle ref={articleRef} content={chapterContent} />
                   </div>
                   <div className="reading-range-actions">
-                    <span>AI 只會讀取兩個書籤之間的內容</span>
+                    <span>AI only reads the content between the two markers</span>
                     <div>
                       <button
                         type="button"
                         onClick={advanceToNextReadingRange}
                         disabled={!readingRange || readingRange.end >= (articleRef.current?.textContent?.length ?? 0)}
                       >
-                        完成這段，前往下一段
+                        Finish this segment and continue
                       </button>
                     </div>
                   </div>
@@ -2121,14 +2121,14 @@ export function App() {
                         type="button"
                         onClick={() => moveRangeMarker("start", rangeMenu.offset)}
                       >
-                        將起點移到這裡
+                        Move start here
                       </button>
                       <button
                         role="menuitem"
                         type="button"
                         onClick={() => moveRangeMarker("end", rangeMenu.offset)}
                       >
-                        將終點移到這裡
+                        Move end here
                       </button>
                       {rangeMenu.selection ? (
                         <button
@@ -2136,7 +2136,7 @@ export function App() {
                           type="button"
                           onClick={() => createAnnotation(rangeMenu.selection!)}
                         >
-                          標記所選內容
+                          Annotate selection
                         </button>
                       ) : null}
                       {rangeMenu.annotationId ? (
@@ -2145,7 +2145,7 @@ export function App() {
                           type="button"
                           onClick={() => removeAnnotation(rangeMenu.annotationId!)}
                         >
-                          移除標記
+                          Remove annotation
                         </button>
                       ) : null}
                     </div>
@@ -2157,9 +2157,9 @@ export function App() {
             desktopReview() ? null : (
               <section className="learning-library-panel" aria-labelledby="review-title">
                 <span className="eyebrow">Spaced review</span>
-                <h1 id="review-title">間隔複習</h1>
+                <h1 id="review-title">Spaced Review</h1>
                 <p className="library-error" role="alert">
-                  目前無法存取本機複習排程。
+                  The local review schedule is currently unavailable.
                 </p>
               </section>
             )
@@ -2182,8 +2182,8 @@ export function App() {
             ) : (
               <section className="learning-library-panel" aria-labelledby="learning-library-title">
                 <span className="eyebrow">Learning library</span>
-                <h1 id="learning-library-title">生詞庫</h1>
-                <p className="library-error" role="alert">目前無法存取本機生詞庫。</p>
+                <h1 id="learning-library-title">Learning Library</h1>
+                <p className="library-error" role="alert">The local Learning Library is currently unavailable.</p>
               </section>
             )
           )}
@@ -2191,13 +2191,13 @@ export function App() {
 
         <aside
           className={isRightSidebarCollapsed ? "assistant-panel collapsed" : "assistant-panel"}
-          aria-label="AI 助教"
+          aria-label="AI Tutor"
         >
           {!isRightSidebarCollapsed ? (
             <div
               className="assistant-resize-handle"
               role="separator"
-              aria-label="調整 AI 對話面板寬度"
+              aria-label="Resize AI conversation panel"
               aria-orientation="vertical"
               aria-valuemin={MIN_ASSISTANT_PANEL_WIDTH}
               aria-valuemax={Math.round(assistantPanelMaximumWidth())}
@@ -2212,7 +2212,7 @@ export function App() {
               <>
                 <div>
                   <span className={`status-dot ${chatSnapshot.connection}`} />
-                  <strong>AI 助教</strong>
+                  <strong>AI Tutor</strong>
                 </div>
                 <span>
                   {mode === "reader" && readingRange &&
@@ -2220,15 +2220,15 @@ export function App() {
                       articleRef.current?.textContent ?? "",
                       readingRange
                     )
-                    ? "閱讀區段上下文"
-                    : "一般對話"}
+                    ? "Reading segment context"
+                    : "General conversation"}
                 </span>
               </>
             ) : null}
             <button
               className="panel-toggle right-toggle"
               type="button"
-              aria-label={isRightSidebarCollapsed ? "展開右側欄" : "摺疊右側欄"}
+              aria-label={isRightSidebarCollapsed ? "Expand right sidebar" : "Collapse right sidebar"}
               aria-controls="right-sidebar-content"
               aria-expanded={!isRightSidebarCollapsed}
               onClick={() => setIsRightSidebarCollapsed((collapsed) => !collapsed)}
@@ -2245,12 +2245,12 @@ export function App() {
               <div className="chat-management-bar">
                 <button
                   type="button"
-                  aria-label="新對話"
+                  aria-label="New conversation"
                   onClick={() => void startNewConversation()}
                   disabled={Boolean(chatSnapshot.activeTurnId) ||
                     chatSnapshot.managementBusy || isConversationActionPending}
                 >
-                  ＋ 新對話
+                  ＋ New conversation
                 </button>
                 <button
                   type="button"
@@ -2260,7 +2260,7 @@ export function App() {
                   disabled={Boolean(chatSnapshot.activeTurnId) ||
                     chatSnapshot.managementBusy || isConversationActionPending}
                 >
-                  對話紀錄
+                  Conversation history
                 </button>
               </div>
 
@@ -2269,14 +2269,14 @@ export function App() {
                   <div className="conversation-history-heading">
                     <div>
                       <span className="eyebrow">Conversation history</span>
-                      <h2 id="conversation-history-title">所有 AI 對話</h2>
+                      <h2 id="conversation-history-title">All AI conversations</h2>
                     </div>
-                    <span>{chatSnapshot.conversations.length} 筆</span>
+                    <span>{chatSnapshot.conversations.length}</span>
                   </div>
                   {chatSnapshot.conversations.length === 0 ? (
                     <div className="chat-empty-state">
-                      <strong>還沒有對話紀錄</strong>
-                      <p>送出第一個問題後，對話會自動保存在這裡。</p>
+                      <strong>No conversation history yet</strong>
+                      <p>Your conversations will be saved here after you send your first question.</p>
                     </div>
                   ) : (
                     <div className="conversation-list">
@@ -2284,7 +2284,7 @@ export function App() {
                         const source = [
                           conversation.source?.bookTitle,
                           conversation.source?.chapterTitle
-                        ].filter(Boolean).join(" · ");
+                        ].filter(Boolean).join(" • ");
                         return (
                           <article
                             className={conversation.id === chatSnapshot.activeConversationId
@@ -2295,19 +2295,19 @@ export function App() {
                             <button
                               className="conversation-open-button"
                               type="button"
-                              aria-label={`開啟 ${conversation.title}`}
+                              aria-label={`Open ${conversation.title}`}
                               onClick={() => void selectConversation(conversation.id)}
                               disabled={isConversationActionPending}
                             >
                               <strong>{conversation.title}</strong>
-                              <span>{source || "一般對話"}</span>
+                              <span>{source || "General conversation"}</span>
                               <small>{new Date(conversation.updatedAt).toLocaleString()}</small>
                             </button>
                             <button
                               className="conversation-remove-button"
                               type="button"
-                              aria-label={`移除 ${conversation.title}`}
-                              title="移除對話"
+                              aria-label={`Remove ${conversation.title}`}
+                              title="Remove conversation"
                               onClick={() => void removeConversation(conversation)}
                               disabled={isConversationActionPending}
                             >
@@ -2328,8 +2328,8 @@ export function App() {
                   >
                     {chatSnapshot.messages.length === 0 ? (
                       <div className="chat-empty-state">
-                        <strong>從目前閱讀內容開始提問</strong>
-                        <p>Codex 只會收到你明確選取的閱讀區段。</p>
+                        <strong>Ask about your current reading</strong>
+                        <p>Codex only receives the reading segment you explicitly selected.</p>
                       </div>
                     ) : null}
                     {chatSnapshot.messages.map((message) => {
@@ -2341,7 +2341,7 @@ export function App() {
                       );
                       return (
                         <article
-                          aria-label={message.role === "assistant" ? "AI 回覆" : "使用者訊息"}
+                          aria-label={message.role === "assistant" ? "AI response" : "User message"}
                           className={"message " + message.role}
                           key={message.id}
                         >
@@ -2351,7 +2351,7 @@ export function App() {
                               <div className="learning-item-preparation-error">
                                 <p role="alert">
                                   {message.learningItemPreparation.error ??
-                                    "準備卡片失敗。"}
+                                    "Card preparation failed."}
                                 </p>
                                 <button
                                   type="button"
@@ -2362,7 +2362,7 @@ export function App() {
                                     chatSnapshot.managementBusy ||
                                     isConversationActionPending}
                                 >
-                                  重試準備卡片
+                                  Retry card preparation
                                 </button>
                               </div>
                             ) : null}
@@ -2391,7 +2391,7 @@ export function App() {
                                 chatSnapshot.managementBusy ||
                                 isConversationActionPending}
                             >
-                              加入生詞庫
+                              Add to Learning Library
                             </button>
                           ) : null}
                           {message.learningItemBatch ? (
@@ -2414,14 +2414,14 @@ export function App() {
                         {chatSnapshot.messages.some((message) =>
                           message.learningItemPreparation?.status ===
                             "preparing")
-                          ? "正在準備卡片…"
-                          : "Codex 正在回覆…"}
+                          ? "Preparing cards…"
+                          : "Codex is responding…"}
                       </div>
                     ) : null}
                   </div>
 
                   {mode === "reader" || mode === "learning-library" ? (
-                    <div className="chat-preset-bar" aria-label="提問快捷功能">
+                    <div className="chat-preset-bar" aria-label="Question shortcuts">
                       {mode === "reader" ? (
                         <button
                           className="annotation-analysis-preset"
@@ -2436,13 +2436,13 @@ export function App() {
                             <path d="M9 2.25l1.15 3.6L13.75 7l-3.6 1.15L9 11.75 7.85 8.15 4.25 7l3.6-1.15L9 2.25Z" />
                             <path d="M14.25 11.25l.55 1.7 1.7.55-1.7.55-.55 1.7-.55-1.7-1.7-.55 1.7-.55.55-1.7Z" />
                           </svg>
-                          <span>解釋標記</span>
+                          <span>Explain annotations</span>
                         </button>
                       ) : null}
                       <button
                         className="annotation-analysis-preset learning-item-create-preset"
                         type="button"
-                        aria-label="新增卡片"
+                        aria-label="Add cards"
                         onClick={() => void createLearningItems()}
                         disabled={chatSnapshot.connection !== "ready" ||
                           Boolean(chatSnapshot.activeTurnId) ||
@@ -2453,7 +2453,7 @@ export function App() {
                           <rect x="3" y="3.25" width="9.5" height="11.5" rx="1.5" />
                           <path d="M7.75 6.25v5M5.25 8.75h5M13.75 6.25h1.5v8.5H6.5" />
                         </svg>
-                        <span>新增卡片</span>
+                        <span>Add cards</span>
                       </button>
                       {mode === "reader" ? (
                         <button
@@ -2469,7 +2469,7 @@ export function App() {
                             <path d="M4 3.25h10v11.5H4z" />
                             <path d="M6.5 6.25h5M6.5 9h5M6.5 11.75h2.75" />
                           </svg>
-                          <span>閱讀測驗</span>
+                          <span>Reading quiz</span>
                         </button>
                       ) : null}
                     </div>
@@ -2477,7 +2477,7 @@ export function App() {
 
                   <form className="chat-form" onSubmit={sendMessage}>
                     <label className="visually-hidden" htmlFor="chat-input">
-                      詢問目前內容
+                      Ask about current content
                     </label>
                     <textarea
                       id="chat-input"
@@ -2490,7 +2490,7 @@ export function App() {
                           event.currentTarget.form?.requestSubmit();
                         }
                       }}
-                      placeholder="輸入你的疑問"
+                      placeholder="Enter your question"
                       rows={3}
                       disabled={chatSnapshot.connection !== "ready" ||
                         Boolean(chatSnapshot.activeTurnId) ||
@@ -2498,7 +2498,7 @@ export function App() {
                     />
                     <div className="chat-form-actions">
                       <select
-                        aria-label="AI 模型"
+                        aria-label="AI model"
                         value={chatSnapshot.selectedModelId ?? ""}
                         title={chatSnapshot.modelCatalogDetail}
                         onChange={(event) => void selectModel(event.target.value)}
@@ -2510,7 +2510,7 @@ export function App() {
                           (chatSnapshot.models?.length ?? 0) === 0}
                       >
                         {(chatSnapshot.models?.length ?? 0) === 0 ? (
-                          <option value="">預設模型</option>
+                          <option value="">Default model</option>
                         ) : chatSnapshot.models?.map((model) => (
                           <option value={model.id} key={model.id}>
                             {model.displayName}
@@ -2522,11 +2522,11 @@ export function App() {
                           className="stop-response-button"
                           type="button"
                           aria-label={isStopPending || chatSnapshot.stopRequested
-                            ? "停止中…"
-                            : "停止"}
+                            ? "Stopping…"
+                            : "Stop"}
                           title={isStopPending || chatSnapshot.stopRequested
-                            ? "正在停止回覆"
-                            : "停止回覆"}
+                            ? "Stopping response"
+                            : "Stop response"}
                           onClick={() => void stopResponse()}
                           disabled={isStopPending || chatSnapshot.stopRequested}
                         >
@@ -2538,8 +2538,8 @@ export function App() {
                         <button
                           className="send-message-button"
                           type="submit"
-                          aria-label="送出"
-                          title="送出"
+                          aria-label="Send"
+                          title="Send"
                           disabled={chatSnapshot.connection !== "ready" ||
                             chatSnapshot.managementBusy ||
                             isConversationActionPending || !draft.trim()}
@@ -2557,7 +2557,7 @@ export function App() {
                   >
                     {chatError || chatSnapshot.conversationError ||
                       (chatSnapshot.connection === "ready"
-                        ? "Enter 送出 · Shift+Enter 換行"
+                        ? "Enter to send • Shift+Enter for a new line"
                         : chatSnapshot.connectionDetail)}
                   </small>
                 </>
@@ -2576,10 +2576,10 @@ export function App() {
             aria-labelledby="delete-dialog-title"
           >
             <span className="delete-dialog-icon" aria-hidden="true">!</span>
-            <h2 id="delete-dialog-title">刪除書籍？</h2>
+            <h2 id="delete-dialog-title">Delete book?</h2>
             <p>
-              將永久刪除《{bookPendingDeletion.title}》、本機 EPUB 與閱讀進度。
-              此操作無法復原。
+              “{bookPendingDeletion.title}”, its local EPUB, and reading progress
+              will be permanently deleted. This action cannot be undone.
             </p>
             <div className="delete-dialog-actions">
               <button
@@ -2587,7 +2587,7 @@ export function App() {
                 onClick={() => setBookPendingDeletion(undefined)}
                 disabled={isDeleting}
               >
-                取消
+                Cancel
               </button>
               <button
                 className="danger-action"
@@ -2595,7 +2595,7 @@ export function App() {
                 onClick={() => void handleDelete()}
                 disabled={isDeleting}
               >
-                {isDeleting ? "刪除中…" : "永久刪除"}
+                {isDeleting ? "Deleting…" : "Delete permanently"}
               </button>
             </div>
           </section>
@@ -2615,22 +2615,22 @@ export function App() {
             className="settings-dialog"
             role="dialog"
             aria-modal="true"
-            aria-label="設定"
+            aria-label="Settings"
           >
             <div className="settings-dialog-heading">
               <div>
-                <h2>設定</h2>
-                <p>依照用途分類，快速找到需要調整的項目。</p>
+                <h2>Settings</h2>
+                <p>Find preferences grouped by purpose.</p>
               </div>
               <button
                 type="button"
-                aria-label="關閉設定"
+                aria-label="Close Settings"
                 onClick={() => setIsSettingsOpen(false)}
               >
                 ×
               </button>
             </div>
-            <div className="settings-tabs" role="tablist" aria-label="設定分類">
+            <div className="settings-tabs" role="tablist" aria-label="Settings categories">
               <button
                 type="button"
                 role="tab"
@@ -2639,7 +2639,7 @@ export function App() {
                 aria-controls="settings-panel-general"
                 onClick={() => setActiveSettingsSection("general")}
               >
-                一般
+                General
               </button>
               <button
                 type="button"
@@ -2649,7 +2649,7 @@ export function App() {
                 aria-controls="settings-panel-review"
                 onClick={() => setActiveSettingsSection("review")}
               >
-                間隔複習
+                Spaced Review
               </button>
               <button
                 type="button"
@@ -2659,7 +2659,7 @@ export function App() {
                 aria-controls="settings-panel-account"
                 onClick={() => setActiveSettingsSection("account")}
               >
-                帳戶
+                Account
               </button>
             </div>
             {activeSettingsSection === "account" ? (
@@ -2670,29 +2670,29 @@ export function App() {
                 aria-labelledby="settings-tab-account"
               >
                 <div className="settings-section-intro">
-                  <h3>帳戶</h3>
-                  <p>確認目前與 VocabReader 連線的 Codex 帳戶。</p>
+                  <h3>Account</h3>
+                  <p>Review the Codex account currently connected to VocabReader.</p>
                 </div>
                 <div className="settings-control codex-account-setting">
                   <div className="settings-control-heading">
-                    <span className="settings-control-label">Codex 帳戶</span>
+                    <span className="settings-control-label">Codex account</span>
                     <span className="codex-connection-label">
                       {connectionLabel(chatSnapshot.connection)}
                     </span>
                   </div>
                   <div
                     className="settings-account-value"
-                    aria-label="Codex 帳戶信箱"
+                    aria-label="Codex account email"
                   >
                     <span
                       className={`codex-status-dot ${chatSnapshot.connection}`}
                       aria-hidden="true"
                     />
                     <strong>
-                      {chatSnapshot.account?.email ?? "未提供信箱資訊"}
+                      {chatSnapshot.account?.email ?? "Email unavailable"}
                     </strong>
                   </div>
-                  <p>帳戶由 Codex 管理，此處僅供確認。</p>
+                  <p>Your account is managed by Codex and shown here for reference.</p>
                 </div>
               </section>
             ) : null}
@@ -2704,33 +2704,34 @@ export function App() {
                 aria-labelledby="settings-tab-general"
               >
                 <div className="settings-section-intro">
-                  <h3>一般</h3>
-                  <p>調整 AI 回覆使用的語言與閱讀舒適度。</p>
+                  <h3>General</h3>
+                  <p>Adjust the language used by AI responses and your reading comfort.</p>
                 </div>
                 <div className="settings-control">
-                  <label htmlFor="explanation-language">講解語言</label>
+                  <label htmlFor="explanation-language">Explanation language</label>
                   <select
                     id="explanation-language"
-                    aria-label="講解語言"
+                    aria-label="Explanation language"
                     value={settings.explanationLanguage}
                     disabled={isSettingsSaving}
                     onChange={(event) => saveExplanationLanguage(
                       event.target.value as ExplanationLanguage
                     )}
                   >
-                    <option value="source">原文語言（預設）</option>
-                    <option value="zh-TW">繁體中文</option>
+                    <option value="source">Source language (default)</option>
+                    <option value="zh-TW">Traditional Chinese</option>
                     <option value="en">English</option>
-                    <option value="ja">日本語</option>
+                    <option value="ja">Japanese</option>
                   </select>
                   <p>
-                    影響之後的標記講解與閱讀測驗，不改變一般問答或既有回覆。
+                    Applies to new AI conversations, annotation explanations, reading
+                    quizzes, and learning items. Existing responses are unchanged.
                   </p>
                 </div>
                 <div className="settings-control font-size-setting">
                   <div className="settings-control-heading">
                     <label htmlFor="ai-conversation-font-size">
-                      AI 對話文字大小
+                      AI conversation text size
                     </label>
                     <output htmlFor="ai-conversation-font-size">
                       {settings.aiConversationFontSize}px
@@ -2749,13 +2750,14 @@ export function App() {
                       Number(event.target.value)
                     )}
                   />
-                  <p>只調整使用者訊息與 AI 回覆正文。</p>
+                  <p>Adjusts user messages and AI response content only.</p>
                 </div>
                 <section className="settings-control data-backup-setting">
-                  <h3>資料備份</h3>
+                  <h3>Data backup</h3>
                   <p>
-                    匯出或完整還原書籍、閱讀進度、標記、學習項目與複習紀錄。
-                    AI 對話、設定及 Codex 登入不包含在備份中。
+                    Export or fully restore books, reading progress, annotations,
+                    learning items, and review history. AI conversations, settings,
+                    and Codex sign-in are not included.
                   </p>
                   <div className="data-backup-actions">
                     <button
@@ -2765,8 +2767,8 @@ export function App() {
                         !desktopDataBackup()}
                     >
                       {dataBackupOperation === "exporting"
-                        ? "匯出中…"
-                        : "匯出備份"}
+                        ? "Exporting…"
+                        : "Export backup"}
                     </button>
                     <button
                       type="button"
@@ -2775,8 +2777,8 @@ export function App() {
                         !desktopDataBackup()}
                     >
                       {dataBackupOperation === "selecting"
-                        ? "驗證中…"
-                        : "匯入備份"}
+                        ? "Validating…"
+                        : "Import backup"}
                     </button>
                   </div>
                   {dataBackupMessage ? (
@@ -2800,17 +2802,17 @@ export function App() {
                 aria-labelledby="settings-tab-review"
               >
                 <div className="settings-section-intro">
-                  <h3>間隔複習</h3>
-                  <p>安排每天的學習份量，以及每次作答的題數。</p>
+                  <h3>Spaced Review</h3>
+                  <p>Set your daily study volume and questions per paper.</p>
                 </div>
                 <fieldset className="settings-number-list">
-                  <legend className="visually-hidden">間隔複習</legend>
+                  <legend className="visually-hidden">Spaced Review</legend>
                   <div className="settings-number-control">
                     <div>
                       <label htmlFor="daily-new-item-completion-limit">
-                        每日新項目完成上限
+                        Daily new-item completion limit
                       </label>
-                      <p>排到隔天或更晚才算完成；0 代表暫停。</p>
+                      <p>Counts as complete when scheduled for tomorrow or later; 0 pauses new items.</p>
                     </div>
                     <input
                       id="daily-new-item-completion-limit"
@@ -2828,9 +2830,9 @@ export function App() {
                   <div className="settings-number-control">
                     <div>
                       <label htmlFor="daily-due-review-completion-limit">
-                        每日到期複習完成上限
+                        Daily due-review completion limit
                       </label>
-                      <p>與新項目額度分開計算；0 代表暫停。</p>
+                      <p>Calculated separately from new items; 0 pauses due reviews.</p>
                     </div>
                     <input
                       id="daily-due-review-completion-limit"
@@ -2847,8 +2849,8 @@ export function App() {
                   </div>
                   <div className="settings-number-control">
                     <div>
-                      <label htmlFor="review-paper-size">每份試卷題數</label>
-                      <p>可設定 1–20 題；額度不足時會自動減少。</p>
+                      <label htmlFor="review-paper-size">Questions per paper</label>
+                      <p>Choose 1–20; the paper shrinks automatically when fewer items are available.</p>
                     </div>
                     <input
                       id="review-paper-size"
@@ -2882,35 +2884,36 @@ export function App() {
           >
             <span className="delete-dialog-icon" aria-hidden="true">!</span>
             <h2 id="data-restore-dialog-title">
-              取代目前的閱讀與學習資料？
+              Replace current reading and learning data?
             </h2>
             <p id="data-restore-dialog-description">
-              這份備份會完整取代目前裝置的書籍、閱讀進度、標記、學習項目、
-              垃圾桶與複習紀錄；兩邊資料不會合併。
+              This backup will completely replace this device&apos;s books, reading
+              progress, annotations, learning items, Trash, and review history.
+              The two datasets will not be merged.
             </p>
             <dl className="data-restore-summary">
               <div>
-                <dt>書庫</dt>
-                <dd>{dataRestorePreview.books} 本書籍</dd>
+                <dt>Book Library</dt>
+                <dd>{dataRestorePreview.books} books</dd>
               </div>
               <div>
-                <dt>生詞庫</dt>
+                <dt>Learning Library</dt>
                 <dd>
-                  {dataRestorePreview.activeLearningItems} 個使用中學習項目
+                  {dataRestorePreview.activeLearningItems} active learning items
                 </dd>
               </div>
               <div>
-                <dt>垃圾桶</dt>
-                <dd>{dataRestorePreview.trashedLearningItems} 個垃圾桶項目</dd>
+                <dt>Trash</dt>
+                <dd>{dataRestorePreview.trashedLearningItems} trashed items</dd>
               </div>
               <div>
-                <dt>備份時間</dt>
+                <dt>Backup time</dt>
                 <dd>{new Date(dataRestorePreview.createdAt).toLocaleString()}</dd>
               </div>
             </dl>
             <p>
-              還原成功後 VocabReader 會自動重新啟動。AI 對話、全域設定與
-              Codex 登入維持不變。
+              VocabReader will restart automatically after a successful restore.
+              AI conversations, global settings, and Codex sign-in remain unchanged.
             </p>
             <div className="delete-dialog-actions">
               <button
@@ -2921,8 +2924,8 @@ export function App() {
                   dataBackupOperation === "cancelling"}
               >
                 {dataBackupOperation === "cancelling"
-                  ? "取消中…"
-                  : "取消匯入"}
+                  ? "Canceling…"
+                  : "Cancel import"}
               </button>
               <button
                 className="danger-action"
@@ -2931,8 +2934,8 @@ export function App() {
                 disabled={Boolean(dataBackupOperation)}
               >
                 {dataBackupOperation === "restoring"
-                  ? "還原中…"
-                  : "確認取代並重新啟動"}
+                  ? "Restoring…"
+                  : "Replace and restart"}
               </button>
             </div>
           </section>

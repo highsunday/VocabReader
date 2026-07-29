@@ -95,7 +95,7 @@ describe("spaced review artifacts", () => {
 \`\`\`review-paper
 {"paperId":"paper-1","questions":[{"questionId":"q1","itemId":"unknown","title":"bank","sense":"financial institution","cefr":"A2","beforeTarget":"","targetText":"bank","afterTarget":"."}]}
 \`\`\`
-`, "paper-1", [item])).toThrow(/範圍/);
+`, "paper-1", [item])).toThrow(/outside/);
 
     const paper = parseReviewPaper(`
 \`\`\`review-paper
@@ -106,6 +106,6 @@ describe("spaced review artifacts", () => {
 \`\`\`review-grade
 {"paperId":"other-paper","results":[]}
 \`\`\`
-`, paper)).toThrow(/完整覆蓋/);
+`, paper)).toThrow(/does not cover/);
   });
 });

@@ -63,7 +63,7 @@ describe("LearningItemDraftDialog", () => {
     );
 
     fireEvent.click(screen.getByRole("button", {
-      name: "2 張卡片待確認"
+      name: "2 cards awaiting review"
     }));
     expect(open).toHaveBeenCalledWith("batch-a");
 
@@ -77,7 +77,7 @@ describe("LearningItemDraftDialog", () => {
         onOpen={open}
       />
     );
-    expect(screen.getByText(/已新增 1 張/)).toBeInTheDocument();
+    expect(screen.getByText(/1 added, 2 already existed/)).toBeInTheDocument();
   });
 
   it("shows read-only previews while preserving exclude, restore and submit actions", async () => {
@@ -92,47 +92,47 @@ describe("LearningItemDraftDialog", () => {
       />
     );
 
-    expect(screen.getByRole("dialog", { name: "確認卡片" }))
+    expect(screen.getByRole("dialog", { name: "Review cards" }))
       .toBeInTheDocument();
-    expect(screen.getByText("已存在")).toBeInTheDocument();
-    expect(screen.getByText("已在垃圾桶")).toBeInTheDocument();
+    expect(screen.getByText("Already exists")).toBeInTheDocument();
+    expect(screen.getByText("In Trash")).toBeInTheDocument();
     expect(screen.getByText("不情願。")).toBeInTheDocument();
     expect(screen.getByText("視為理所當然。")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByText("Markdown 內容")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", {
-      name: "儲存 reluctant 的修改"
+      name: "Save reluctant 的修改"
     })).not.toBeInTheDocument();
 
     expect(screen.getByRole("button", {
-      name: "排除 reluctant"
+      name: "Exclude reluctant"
     })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", {
-      name: "排除 reluctant"
+      name: "Exclude reluctant"
     }));
     expect(chat.setLearningItemDraftState)
       .toHaveBeenCalledWith("batch-a", "draft-a", "excluded");
     await waitFor(() => expect(screen.getByRole("button", {
-      name: "恢復 take for granted"
+      name: "Restore take for granted"
     })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", {
-      name: "恢復 take for granted"
+      name: "Restore take for granted"
     }));
     expect(chat.setLearningItemDraftState)
       .toHaveBeenCalledWith("batch-a", "draft-b", "included");
 
     await waitFor(() => expect(
-      screen.getByRole("button", { name: "還原 happy" })
+      screen.getByRole("button", { name: "Restore happy" })
     ).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "還原 happy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore happy" }));
     expect(chat.restoreLearningItemMatch)
       .toHaveBeenCalledWith("batch-a", "item-happy");
 
     await waitFor(() => expect(screen.getByRole("button", {
-      name: "提交卡片"
+      name: "Submit cards"
     })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "提交卡片" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit cards" }));
     expect(chat.submitLearningItemBatch).toHaveBeenCalledWith("batch-a");
     expect(chat.updateLearningItemDraft).not.toHaveBeenCalled();
   });
@@ -149,11 +149,11 @@ describe("LearningItemDraftDialog", () => {
     );
 
     fireEvent.click(screen.getByRole("button", {
-      name: "放棄這批草稿"
+      name: "Discard draft batch"
     }));
     expect(chat.abandonLearningItemBatch).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", {
-      name: "確認放棄"
+      name: "Confirm discard"
     }));
     await waitFor(() => expect(chat.abandonLearningItemBatch)
       .toHaveBeenCalledWith("batch-a"));
@@ -166,10 +166,10 @@ describe("LearningItemDraftDialog", () => {
         onSnapshot={vi.fn()}
       />
     );
-    expect(screen.getByText(/這批草稿已放棄/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "提交卡片" }))
+    expect(screen.getByText(/This draft batch was discarded/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit cards" }))
       .not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "排除 reluctant" }))
+    expect(screen.queryByRole("button", { name: "Exclude reluctant" }))
       .not.toBeInTheDocument();
   });
 });

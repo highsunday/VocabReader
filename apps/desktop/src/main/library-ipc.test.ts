@@ -156,10 +156,10 @@ describe("library IPC", () => {
     registerLibraryIpc(ipc, dialog, library);
 
     expect(() => handlers.get("library:delete")?.({}, "")).toThrow(
-      /書籍刪除請求格式錯誤/
+      /Invalid book deletion request/
     );
     expect(() => handlers.get("library:delete")?.({}, 42)).toThrow(
-      /書籍刪除請求格式錯誤/
+      /Invalid book deletion request/
     );
     expect(library.deleteBook).not.toHaveBeenCalled();
   });
@@ -186,7 +186,7 @@ describe("library IPC", () => {
       bookId: book.id,
       chapterId: "chapter-id",
       range: { start: 90, end: 10 }
-    })).toThrow(/閱讀區段格式錯誤/);
+    })).toThrow(/Invalid reading segment/);
     expect(library.saveReadingRange).not.toHaveBeenCalled();
   });
 
@@ -212,7 +212,7 @@ describe("library IPC", () => {
       bookId: book.id,
       chapterId: "chapter-id",
       annotations: [{ id: "", start: 8, end: 2, text: "" }]
-    })).toThrow(/標記格式錯誤/);
+    })).toThrow(/Invalid annotation/);
     expect(library.saveAnnotations).not.toHaveBeenCalled();
   });
 });

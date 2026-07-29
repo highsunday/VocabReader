@@ -28,7 +28,7 @@ export function registerSettingsIpc(
   ipc.handle("settings:get", () => store.load());
   ipc.handle("settings:save", (_event, rawSettings) => {
     if (!rawSettings || typeof rawSettings !== "object") {
-      throw new Error("應用程式設定格式錯誤");
+      throw new Error("Invalid application settings");
     }
     const settings = rawSettings as Partial<AppSettings>;
     if (
@@ -41,7 +41,7 @@ export function registerSettingsIpc(
       !isDailyReviewCompletionLimit(settings.dailyDueReviewCompletionLimit) ||
       !isReviewPaperSize(settings.reviewPaperSize)
     ) {
-      throw new Error("應用程式設定格式錯誤");
+      throw new Error("Invalid application settings");
     }
     return store.save({
       explanationLanguage: settings.explanationLanguage,

@@ -107,13 +107,13 @@ describe("chat IPC", () => {
       }]
     });
     await handlers.get("chat:send")?.({}, {
-      text: "開始閱讀測驗",
+      text: "Start reading測驗",
       intent: "practiceReading",
       explanationLanguage: "ja",
       context: { readingSegment: "inside" }
     });
     expect(controller.sendMessage).toHaveBeenCalledWith({
-      text: "開始閱讀測驗",
+      text: "Start reading測驗",
       intent: "practiceReading",
       explanationLanguage: "ja",
       context: { readingSegment: "inside" }
@@ -121,17 +121,17 @@ describe("chat IPC", () => {
     expect(() => handlers.get("chat:send")?.({}, {
       text: "bad",
       context: { readingSegment: 42 }
-    })).toThrow(/上下文格式錯誤/);
+    })).toThrow(/Invalid AI context/);
     expect(() => handlers.get("chat:send")?.({}, {
       text: "bad",
       intent: "arbitrary-system-prompt",
       explanationLanguage: "klingon"
-    })).toThrow(/AI 訊息格式錯誤/);
+    })).toThrow(/Invalid AI message/);
     expect(() => handlers.get("chat:send")?.({}, {
       text: "bad",
       intent: "createLearningItems",
       learningItemTargets: [{ title: "", arbitrary: "data" }]
-    })).toThrow(/AI 訊息格式錯誤/);
+    })).toThrow(/Invalid AI message/);
     const draftInput = {
       batchId: "batch-a",
       draftId: "draft-a",
@@ -178,7 +178,7 @@ describe("chat IPC", () => {
     expect(controller.selectModel).toHaveBeenCalledWith("gpt-reader");
     expect(controller.stopResponse).toHaveBeenCalledOnce();
     expect(() => handlers.get("chat:select")?.({}, ""))
-      .toThrow(/對話識別碼/);
+      .toThrow(/conversation identifier/);
     expect(unsubscribe).toBe(listener);
   });
 });

@@ -198,6 +198,35 @@ function controllerWithClient(createClient: () => CodexAppServerClient) {
 }
 
 describe("SpacedReviewController", () => {
+  it("does not persist review answers when a graded paper is discarded", async () => {
+    const library = reviewLibrary();
+    const controller = new SpacedReviewController({
+      createClient: fakeClient,
+      workingDirectory: "/tmp/review-runtime",
+      skillPath: "/tmp/review-runtime/.agents/skills/practice-spaced-review/SKILL.md",
+      skillInstructions: "bounded review instructions",
+      now: () => new Date("2026-07-24T08:00:00.000Z"),
+      library
+    });
+
+    const paper = await controller.generatePaper({
+      explanationLanguage: "zh-TW"
+    });
+    await controller.gradePaper({
+      paperId: paper.paperId,
+      answers: [{ questionId: "q1", answer: "河岸" }]
+    });
+
+    controller.discardPaper();
+
+    expect(library.confirmReviewSession).not.toHaveBeenCalled();
+    await expect(controller.confirmPaper({
+      paperId: paper.paperId,
+      ratings: [{ questionId: "q1", finalRating: "forgotten" }]
+    })).rejects.toThrow("Invalid review-rating confirmation");
+    expect(library.confirmReviewSession).not.toHaveBeenCalled();
+  });
+
   it("reports only fully streamed review questions as completed", async () => {
     const secondItem = {
       ...defaultReviewItem,
@@ -450,12 +479,13 @@ describe("SpacedReviewController", () => {
       ratings: [{
         itemId: "item-1",
         aiRating: "easy",
-        finalRating: "hard"
+        finalRating: "hard",
+        answer: "銀行"
       }]
     });
     await expect(controller.gradePaper({
       paperId: paper.paperId,
       answers: [{ questionId: "q1", answer: "銀行" }]
-    })).rejects.toThrow(/格式/);
+    })).rejects.toThrow("Invalid review-paper submission");
   });
 });

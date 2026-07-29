@@ -115,7 +115,7 @@ describe("LearningLibraryWorkspace", () => {
         lastReviewedAt: "2026-07-24T08:00:00.000Z",
         lastFinalRating: "good" as const,
         nextDueAt: "2026-07-26T08:00:00.000Z",
-        reviewCount: 1,
+        reviewCount: 3,
         history: [{
           id: "event-1",
           sessionId: "session-1",
@@ -123,8 +123,29 @@ describe("LearningLibraryWorkspace", () => {
           reviewedAt: "2026-07-24T08:00:00.000Z",
           aiRating: "easy" as const,
           finalRating: "good" as const,
+          answer: "金融機構\n提供存款與貸款服務",
           intervalSeconds: 172800,
           nextDueAt: "2026-07-26T08:00:00.000Z"
+        }, {
+          id: "event-2",
+          sessionId: "session-2",
+          itemId: activeItems[0].id,
+          reviewedAt: "2026-07-23T08:00:00.000Z",
+          aiRating: "forgotten" as const,
+          finalRating: "forgotten" as const,
+          answer: "",
+          intervalSeconds: 600,
+          nextDueAt: "2026-07-23T08:10:00.000Z"
+        }, {
+          id: "event-3",
+          sessionId: "session-3",
+          itemId: activeItems[0].id,
+          reviewedAt: "2026-07-22T08:00:00.000Z",
+          aiRating: "hard" as const,
+          finalRating: "hard" as const,
+          answer: null,
+          intervalSeconds: 86400,
+          nextDueAt: "2026-07-23T08:00:00.000Z"
         }]
       })),
       onGenerationProgress: vi.fn(() => () => undefined)
@@ -134,12 +155,30 @@ describe("LearningLibraryWorkspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
     const schedule = within(await screen.findByRole("dialog", {
       name: "bank"
-    })).getByRole("region", { name: "複習排程" });
-    expect(await within(schedule).findByText("未到期")).toBeInTheDocument();
-    expect(within(schedule).getByText("順利")).toBeInTheDocument();
-    fireEvent.click(within(schedule).getByText("查看精簡複習歷史"));
-    expect(within(schedule).getByText(/AI 簡單 · 最終 順利/))
+    })).getByRole("region", { name: "Review schedule" });
+    expect(await within(schedule).findByText("Scheduled")).toBeInTheDocument();
+    expect(within(schedule).getByText("Good", { selector: "dd" }))
       .toBeInTheDocument();
+    fireEvent.click(within(schedule).getByText("View review history"));
+    const historyItems = within(schedule).getAllByRole("listitem");
+    expect(within(historyItems[0]).getByText("Good")).toHaveAttribute(
+      "data-rating",
+      "good"
+    );
+    expect(within(historyItems[0]).queryByText(/AI Easy|Final Good/))
+      .not.toBeInTheDocument();
+    const savedAnswer = within(historyItems[0]).getByText(/金融機構/)
+      .closest(".learning-review-answer");
+    expect(savedAnswer).toHaveAttribute("data-answer-state", "saved");
+    expect(savedAnswer).toHaveTextContent(
+      /金融機構\s+提供存款與貸款服務/
+    );
+    expect(within(historyItems[1]).getByText("Not answered")
+      .closest(".learning-review-answer"))
+      .toHaveAttribute("data-answer-state", "empty");
+    expect(within(historyItems[2]).getByText("Answer wasn't saved")
+      .closest(".learning-review-answer"))
+      .toHaveAttribute("data-answer-state", "unavailable");
   });
 
   it("loads cards and combines title, type, CEFR, and sort controls", async () => {
@@ -147,23 +186,23 @@ describe("LearningLibraryWorkspace", () => {
     render(<LearningLibraryWorkspace api={learning} />);
 
     expect(await screen.findByRole("button", { name: /bank/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /垃圾桶/ }).querySelector("svg"))
+    expect(screen.getByRole("button", { name: /Trash/ }).querySelector("svg"))
       .toBeInTheDocument();
     const scrollRegion = screen.getByTestId("learning-library-scroll-region");
     expect(scrollRegion).not.toContainElement(
-      screen.getByLabelText("生詞庫查詢與篩選")
+      screen.getByLabelText("Learning Library search and filters")
     );
-    expect(scrollRegion).toContainElement(screen.getByLabelText("學習項目清單"));
-    fireEvent.change(screen.getByRole("searchbox", { name: "搜尋卡片標題" }), {
+    expect(scrollRegion).toContainElement(screen.getByLabelText("Learning item list"));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search card titles" }), {
       target: { value: "take" }
     });
-    fireEvent.change(screen.getByLabelText("類型"), {
+    fireEvent.change(screen.getByLabelText("Type"), {
       target: { value: "phrase" }
     });
     fireEvent.change(screen.getByLabelText("CEFR"), {
       target: { value: "B2" }
     });
-    fireEvent.change(screen.getByLabelText("排序"), {
+    fireEvent.change(screen.getByLabelText("Sort"), {
       target: { value: "alphabetical" }
     });
 
@@ -183,20 +222,20 @@ describe("LearningLibraryWorkspace", () => {
     render(<LearningLibraryWorkspace api={learning} />);
 
     const dueCard = await screen.findByRole("button", {
-      name: /bank，已到期/
+      name: /bank, Due/
     });
     const scheduledCard = screen.getByRole("button", {
-      name: /take for granted，未到期，2 天後/
+      name: /take for granted, scheduled, in 2 days/
     });
     expect(dueCard).toHaveAttribute("data-study-status", "due");
     expect(scheduledCard).toHaveAttribute("data-study-status", "scheduled");
-    expect(within(dueCard).getByText("已到期")).toBeInTheDocument();
-    expect(within(scheduledCard).getByText("2 天後")).toHaveAttribute(
+    expect(within(dueCard).getByText("Due")).toBeInTheDocument();
+    expect(within(scheduledCard).getByText("in 2 days")).toHaveAttribute(
       "title",
-      "未到期；下次複習在2 天後"
+      "Scheduled; next review in 2 days"
     );
 
-    fireEvent.change(screen.getByLabelText("學習狀態"), {
+    fireEvent.change(screen.getByLabelText("Study status"), {
       target: { value: "due" }
     });
     await waitFor(() => expect(learning.listItems).toHaveBeenCalledWith({
@@ -205,15 +244,15 @@ describe("LearningLibraryWorkspace", () => {
       studyStatus: "due",
       sort: "recent"
     }));
-    expect(screen.getByRole("button", { name: /bank，已到期/ }))
+    expect(screen.getByRole("button", { name: /bank, Due/ }))
       .toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /take for granted/ }))
       .not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("學習狀態"), {
+    fireEvent.change(screen.getByLabelText("Study status"), {
       target: { value: "all" }
     });
-    fireEvent.change(screen.getByLabelText("排序"), {
+    fireEvent.change(screen.getByLabelText("Sort"), {
       target: { value: "study-status" }
     });
     await waitFor(() => expect(learning.listItems).toHaveBeenCalledWith({
@@ -245,17 +284,17 @@ describe("LearningLibraryWorkspace", () => {
     render(<LearningLibraryWorkspace api={learning} />);
 
     for (const label of [
-      "明天",
-      "2 天後",
-      "7 天後",
-      "約 1 週後",
-      "約 2 週後",
-      "約 1 個月後",
-      "約 1 年後"
+      "tomorrow",
+      "in 2 days",
+      "in 7 days",
+      "in about 1 weeks",
+      "in about 2 weeks",
+      "in about 1 months",
+      "in about 1 years"
     ]) {
       expect(await screen.findByText(label)).toBeInTheDocument();
     }
-    expect(screen.getByLabelText("學習狀態")).toHaveTextContent("未到期");
+    expect(screen.getByLabelText("Study status")).toHaveTextContent("Scheduled");
   });
 
   it("opens a centered safe Markdown detail and closes only at modal boundaries", async () => {
@@ -312,7 +351,7 @@ describe("LearningLibraryWorkspace", () => {
       render(<LearningLibraryWorkspace api={learning} />);
       fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
       const pronounce = await screen.findByRole("button", {
-        name: "播放 bank 發音"
+        name: "Play pronunciation of bank"
       });
 
       fireEvent.click(pronounce);
@@ -326,12 +365,12 @@ describe("LearningLibraryWorkspace", () => {
         pitch: 1
       });
 
-      fireEvent.click(screen.getByRole("button", { name: "關閉卡片詳情" }));
+      fireEvent.click(screen.getByRole("button", { name: "Close card details" }));
       fireEvent.click(screen.getByRole("button", { name: /take for granted/ }));
       expect(await screen.findByRole("dialog", { name: "take for granted" }))
         .toBeInTheDocument();
       const pronouncePhrase = screen.getByRole("button", {
-        name: "播放 take for granted 發音"
+        name: "Play pronunciation of take for granted"
       });
       fireEvent.click(pronouncePhrase);
       expect(speak).toHaveBeenCalledTimes(2);
@@ -350,24 +389,24 @@ describe("LearningLibraryWorkspace", () => {
     const learning = api();
     render(<LearningLibraryWorkspace api={learning} />);
     fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "編輯" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
 
-    fireEvent.change(screen.getByLabelText("標題"), {
+    fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "river bank" }
     });
-    fireEvent.change(screen.getByLabelText("Markdown 內容"), {
+    fireEvent.change(screen.getByLabelText("Markdown content"), {
       target: { value: "## Meaning\n河岸地帶。" }
     });
-    expect(screen.getByLabelText("Markdown 預覽")).toHaveTextContent("河岸地帶");
-    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.getByLabelText("Markdown preview")).toHaveTextContent("河岸地帶");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
     expect(learning.updateItem).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "編輯" }));
-    fireEvent.change(screen.getByLabelText("標題"), {
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "river bank" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "儲存" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(learning.updateItem).toHaveBeenCalledWith(
       expect.objectContaining({ itemId: "item-bank", title: "river bank" })
     ));
@@ -378,64 +417,66 @@ describe("LearningLibraryWorkspace", () => {
     render(<LearningLibraryWorkspace api={learning} />);
     fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
     await screen.findByRole("dialog", { name: "bank" });
-    fireEvent.click(screen.getByRole("button", { name: "刪除" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     const deleteConfirmation = screen.getByRole("alertdialog", {
-      name: "刪除「bank」？"
+      name: "Delete “bank”?"
     });
-    expect(deleteConfirmation).toHaveTextContent("移到垃圾桶");
-    expect(deleteConfirmation).toHaveTextContent("仍可還原");
+    expect(deleteConfirmation).toHaveTextContent("Move to Trash");
+    expect(deleteConfirmation).toHaveTextContent("can be restored later");
     expect(learning.trashItem).not.toHaveBeenCalled();
 
-    fireEvent.click(within(deleteConfirmation).getByRole("button", { name: "取消" }));
+    fireEvent.click(within(deleteConfirmation).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("alertdialog", {
-      name: "刪除「bank」？"
+      name: "Delete “bank”?"
     })).not.toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
     expect(learning.trashItem).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "刪除" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("alertdialog", {
-      name: "刪除「bank」？"
+      name: "Delete “bank”?"
     })).not.toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "刪除" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     fireEvent.click(within(
-      screen.getByRole("alertdialog", { name: "刪除「bank」？" })
-    ).getByRole("button", { name: "移到垃圾桶" }));
+      screen.getByRole("alertdialog", { name: "Delete “bank”?" })
+    ).getByRole("button", { name: "Move to Trash" }));
     await waitFor(() => expect(learning.trashItem).toHaveBeenCalledWith("item-bank"));
 
-    fireEvent.click(screen.getByRole("button", { name: /垃圾桶/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Trash/ }));
     expect(await screen.findByText("side of a river")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "還原 bank" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore bank" }));
     await waitFor(() => expect(learning.restoreItem).toHaveBeenCalledWith("item-trashed"));
 
-    fireEvent.click(screen.getByRole("button", { name: "清空垃圾桶" }));
-    const confirmation = screen.getByRole("dialog", { name: "永久清空垃圾桶？" });
-    expect(confirmation).toHaveTextContent("無法復原");
-    fireEvent.click(within(confirmation).getByRole("button", { name: "取消" }));
+    fireEvent.click(screen.getByRole("button", { name: "Empty Trash" }));
+    const confirmation = screen.getByRole("dialog", {
+      name: "Permanently empty Trash?"
+    });
+    expect(confirmation).toHaveTextContent("cannot be recovered");
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel" }));
     expect(learning.emptyTrash).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "清空垃圾桶" }));
+    fireEvent.click(screen.getByRole("button", { name: "Empty Trash" }));
     fireEvent.click(within(
-      screen.getByRole("dialog", { name: "永久清空垃圾桶？" })
-    ).getByRole("button", { name: "永久清空" }));
+      screen.getByRole("dialog", { name: "Permanently empty Trash?" })
+    ).getByRole("button", { name: "Empty permanently" }));
     await waitFor(() => expect(learning.emptyTrash).toHaveBeenCalledOnce());
   });
 
   it("keeps the detail open and reports an error when moving to trash fails", async () => {
     const learning = api();
-    learning.trashItem.mockRejectedValueOnce(new Error("暫時無法移到垃圾桶"));
+    learning.trashItem.mockRejectedValueOnce(new Error("Unable to move to Trash temporarily"));
     render(<LearningLibraryWorkspace api={learning} />);
     fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "刪除" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
     fireEvent.click(within(
-      screen.getByRole("alertdialog", { name: "刪除「bank」？" })
-    ).getByRole("button", { name: "移到垃圾桶" }));
+      screen.getByRole("alertdialog", { name: "Delete “bank”?" })
+    ).getByRole("button", { name: "Move to Trash" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("暫時無法移到垃圾桶");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to move to Trash temporarily");
     expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
     expect(learning.trashItem).toHaveBeenCalledOnce();
   });

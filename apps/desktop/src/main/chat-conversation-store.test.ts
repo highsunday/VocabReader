@@ -80,7 +80,7 @@ describe("LocalChatConversationStore", () => {
     await writeFile(path, "{corrupt", "utf8");
     const store = new LocalChatConversationStore(directory);
 
-    expect(() => store.load()).toThrow(/對話紀錄/);
+    expect(() => store.load()).toThrow(/AI conversation history/);
     expect(await readFile(path, "utf8")).toBe("{corrupt");
   });
 
@@ -147,7 +147,7 @@ describe("LocalChatConversationStore", () => {
         status: "failed",
         targets: [{ title: "apple" }, { title: "banana" }],
         explanationLanguage: "zh-TW",
-        error: "上次準備卡片的流程未完成，請重試。"
+        error: "The previous card preparation did not finish. Please retry."
       });
     expect(JSON.parse(await readFile(path, "utf8")).version).toBe(2);
   });

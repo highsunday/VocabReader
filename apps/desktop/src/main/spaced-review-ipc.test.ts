@@ -70,10 +70,10 @@ describe("spaced review IPC", () => {
     expect(JSON.stringify(send.mock.calls)).not.toContain("paperId");
     expect(() => handlers.get("review:generate")?.({}, {
       explanationLanguage: "arbitrary"
-    })).toThrow(/生成格式/);
+    })).toThrow(/Invalid review-paper generation/);
     expect(() => handlers.get("review:confirm")?.({}, {
       paperId: "paper-1",
       ratings: [{ questionId: "q1", finalRating: "perfect" }]
-    })).toThrow(/確認格式/);
+    })).toThrow(/review-rating confirmation/);
   });
 });

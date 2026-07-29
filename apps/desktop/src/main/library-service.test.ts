@@ -368,7 +368,7 @@ describe("LocalBookLibrary", () => {
     const library = new LocalBookLibrary(libraryPath);
 
     await expect(library.importFromPath(invalidPath)).rejects.toThrow(
-      /無法解析這本 EPUB/
+      /Unable to parse this EPUB/
     );
     expect(await library.listBooks()).toEqual([]);
     await expect(readFile(join(libraryPath, "index.json"), "utf8")).resolves.toBe("[]\n");
@@ -560,12 +560,12 @@ describe("LocalBookLibrary", () => {
       bookId: imported.book.id,
       chapterId: "missing-chapter",
       range: { start: 0, end: 10 }
-    })).rejects.toThrow(/找不到章節/);
+    })).rejects.toThrow(/Chapter not found/);
     await expect(library.saveReadingRange({
       bookId: imported.book.id,
       chapterId: imported.book.chapters[0].id,
       range: { start: 20, end: 10 }
-    })).rejects.toThrow(/閱讀區段格式錯誤/);
+    })).rejects.toThrow(/Invalid reading segment/);
     expect((await library.listBooks())[0].chapterRanges).toEqual({});
   });
 
@@ -601,7 +601,7 @@ describe("LocalBookLibrary", () => {
     const imported = await library.importFromPath(epubPath);
     if (imported.status === "cancelled") throw new Error("unexpected cancellation");
 
-    await expect(library.deleteBook("missing-book")).rejects.toThrow(/找不到書籍/);
+    await expect(library.deleteBook("missing-book")).rejects.toThrow(/Book not found/);
     await expect(library.listBooks()).resolves.toEqual([imported.book]);
   });
 
@@ -615,7 +615,7 @@ describe("LocalBookLibrary", () => {
 
     await expect(
       library.getChapterContent(imported.book.id, "missing-chapter")
-    ).rejects.toThrow(/找不到章節/);
+    ).rejects.toThrow(/Chapter not found/);
     expect((await library.listBooks())[0].readingState.view).toBe("overview");
   });
 

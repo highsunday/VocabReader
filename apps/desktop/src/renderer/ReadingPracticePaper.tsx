@@ -37,18 +37,18 @@ export function ReadingPracticePaperAction({
     <button
       className={`reading-practice-paper-action ${grade ? "graded" : "ready"}`}
       type="button"
-      aria-label={`開啟試卷：${quiz.title}`}
+      aria-label={`Open paper: ${quiz.title}`}
       aria-expanded="false"
       onClick={onOpen}
     >
       <span className="paper-action-icon" aria-hidden="true">▧</span>
       <span>
-        <small>{grade ? "Reading paper · 已批改" : "Reading paper · 已準備"}</small>
+        <small>{grade ? "Reading paper • Graded" : "Reading paper • Ready"}</small>
         <strong>{quiz.title}</strong>
         <em>
-          {questionCount} 題 · {grade
-            ? `${grade.summary.score} · 查看紅筆批改`
-            : "開始作答"}
+          {questionCount} questions • {grade
+            ? `${grade.summary.score} • View grading`
+            : "Start answering"}
         </em>
       </span>
       <span className="paper-action-arrow" aria-hidden="true">→</span>
@@ -123,13 +123,13 @@ export function ReadingPracticePaper({
       if (sent) {
         setSubmittedQuizId(quiz.quizId);
       } else {
-        setSubmissionError("試卷未送出，答案已保留，請稍後再試。");
+        setSubmissionError("The paper was not submitted. Your answers are saved; please try again later.");
       }
     } catch (submitError) {
       setSubmissionError(
         submitError instanceof Error
           ? submitError.message
-          : "試卷未送出，答案已保留，請稍後再試。"
+          : "The paper was not submitted. Your answers are saved; please try again later."
       );
     } finally {
       setIsSubmitting(false);
@@ -146,19 +146,19 @@ export function ReadingPracticePaper({
         <div className="paper-heading-copy">
           <div className="paper-heading-topline">
             <span className="paper-kicker">
-              {grade ? "AI 紅筆批改" : "Reading paper"}
+              {grade ? "AI grading" : "Reading paper"}
             </span>
-            <span className="paper-question-count">{questionCount} 題</span>
+            <span className="paper-question-count">{questionCount} questions</span>
           </div>
           <h2>{quiz.title}</h2>
           <div className="paper-meta">
             <strong>{quiz.cefr}</strong>
-            <span>{quiz.multipleChoice.length} 選擇題</span>
-            <span>{quiz.openEnded.length} 問答題</span>
+            <span>{quiz.multipleChoice.length} multiple choice</span>
+            <span>{quiz.openEnded.length} open-ended</span>
           </div>
           <details className="paper-focus">
             <summary>
-              <span>本卷重點</span>
+              <span>Focus</span>
               <span aria-hidden="true">⌄</span>
             </summary>
             <p>{quiz.difficultySummary}</p>
@@ -167,26 +167,26 @@ export function ReadingPracticePaper({
         <button
           className="paper-collapse-button"
           type="button"
-          aria-label="收起試卷"
+          aria-label="Collapse paper"
           aria-expanded="true"
           onClick={onClose}
         >
-          <span>收起</span>
+          <span>Collapse</span>
           <span aria-hidden="true">⌃</span>
         </button>
       </header>
 
       <div className="paper-progress-overview">
         <div>
-          <span>作答進度</span>
+          <span>Progress</span>
           <strong>
             {grade
-              ? `已批改 ${questionCount} / ${questionCount}`
-              : `已完成 ${answeredCount} / ${questionCount}`}
+              ? `Graded ${questionCount} / ${questionCount}`
+              : `Answered ${answeredCount} / ${questionCount}`}
           </strong>
         </div>
         <progress
-          aria-label="試卷作答進度"
+          aria-label="Paper progress"
           max={questionCount}
           value={progressValue}
         />
@@ -197,8 +197,8 @@ export function ReadingPracticePaper({
           <details className="reading-practice-summary">
             <summary>
               <span>
-                <strong>批改總結</strong>
-                <small>閱讀理解、書面表達與複習重點</small>
+                <strong>Grading summary</strong>
+                <small>Reading comprehension, written expression, and review focus</small>
               </span>
               <span className="paper-score">
                 <small>Score</small>
@@ -208,11 +208,11 @@ export function ReadingPracticePaper({
             </summary>
             <div className="reading-practice-summary-content">
               <p>
-                <strong>閱讀理解</strong>
+                <strong>Reading comprehension</strong>
                 <span>{grade.summary.reading}</span>
               </p>
               <p>
-                <strong>書面表達</strong>
+                <strong>Written expression</strong>
                 <span>{grade.summary.writing}</span>
               </p>
               <div className="paper-review-points">
@@ -227,8 +227,8 @@ export function ReadingPracticePaper({
         <section aria-labelledby="multiple-choice-heading">
           <div className="paper-section-heading">
             <span>Part A</span>
-            <h3 id="multiple-choice-heading">選擇題</h3>
-            <small>選出一個最合適的答案</small>
+            <h3 id="multiple-choice-heading">Multiple choice</h3>
+            <small>Choose the best answer</small>
           </div>
           {quiz.multipleChoice.map((question) => {
             const questionGrade = grade?.multipleChoice.find(
@@ -250,7 +250,7 @@ export function ReadingPracticePaper({
                 <div
                   className="paper-options"
                   role="group"
-                  aria-label={`第 ${question.number} 題選項`}
+                  aria-label={`Options for question ${question.number}`}
                 >
                   {ANSWER_LABELS.map((label) => (
                     <label
@@ -282,8 +282,8 @@ export function ReadingPracticePaper({
                       : "incorrect"}
                     >
                       {questionGrade.correct
-                        ? "✓ 答對"
-                        : `✕ 正解 ${questionGrade.correctAnswer}`}
+                        ? "✓ Correct"
+                        : `✕ Correct answer: ${questionGrade.correctAnswer}`}
                     </strong>
                     <p>{questionGrade.feedback}</p>
                   </aside>
@@ -296,8 +296,8 @@ export function ReadingPracticePaper({
         <section aria-labelledby="open-ended-heading">
           <div className="paper-section-heading">
             <span>Part B</span>
-            <h3 id="open-ended-heading">問答題</h3>
-            <small>用自己的話完整回答</small>
+            <h3 id="open-ended-heading">Open-ended questions</h3>
+            <small>Answer fully in your own words</small>
           </div>
           {quiz.openEnded.map((question) => {
             const questionGrade = grade?.openEnded.find(
@@ -318,14 +318,14 @@ export function ReadingPracticePaper({
                 </div>
                 <label>
                   <span className="visually-hidden">
-                    第 {question.number} 題回答
+                    Answer to question {question.number}
                   </span>
                   <textarea
-                    aria-label={`第 ${question.number} 題回答`}
+                    aria-label={`Answer to question ${question.number}`}
                     rows={5}
                     value={answers[question.id] ?? ""}
                     disabled={locked}
-                    placeholder="在這裡輸入你的回答…"
+                    placeholder="Enter your answer here…"
                     onChange={(event) => setAnswers((current) => ({
                       ...current,
                       [question.id]: event.target.value
@@ -342,7 +342,7 @@ export function ReadingPracticePaper({
                     </strong>
                     <p>{questionGrade.feedback}</p>
                     <div>
-                      <span>修正版</span>
+                      <span>Revised answer</span>
                       <p>{questionGrade.correctedAnswer}</p>
                     </div>
                   </aside>
@@ -355,15 +355,15 @@ export function ReadingPracticePaper({
 
       <footer className="reading-practice-paper-footer">
         {grade ? (
-          <span className="paper-marked-status">批改完成 · 答案已鎖定</span>
+          <span className="paper-marked-status">Grading complete • Answers locked</span>
         ) : marking || isSubmitting ? (
           <span className="paper-marking-status" role="status">
-            AI 正在紅筆批改…
+            AI is grading…
           </span>
         ) : unansweredCount > 0 ? (
-          <span>還有 {unansweredCount} 題未作答</span>
+          <span>{unansweredCount} questions unanswered</span>
         ) : (
-          <span>所有題目已完成，可以交卷。</span>
+          <span>All questions are answered. You can submit the paper.</span>
         )}
         {submissionError ? (
           <small role="alert">{submissionError}</small>
@@ -374,7 +374,7 @@ export function ReadingPracticePaper({
             onClick={() => void submitPaper()}
             disabled={unansweredCount > 0 || locked}
           >
-            {isSubmitting ? "提交中…" : "提交試卷"}
+            {isSubmitting ? "Submitting…" : "Submit paper"}
           </button>
         ) : null}
       </footer>

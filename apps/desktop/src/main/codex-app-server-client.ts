@@ -52,7 +52,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function parseAccount(value: unknown): AccountReadResult {
   if (!isObject(value) || typeof value.requiresOpenaiAuth !== "boolean") {
-    throw new Error("Codex account/read 回傳了無法辨識的資料。");
+    throw new Error("Codex account/read returned unrecognized data.");
   }
   if (value.account === null) {
     return {
@@ -61,7 +61,7 @@ function parseAccount(value: unknown): AccountReadResult {
     };
   }
   if (!isObject(value.account) || typeof value.account.type !== "string") {
-    throw new Error("Codex account/read 回傳了無效帳戶。");
+    throw new Error("Codex account/read returned an invalid account.");
   }
   return {
     requiresOpenaiAuth: value.requiresOpenaiAuth,
@@ -155,7 +155,7 @@ export class SpawnedCodexAppServerClient implements CodexAppServerClient {
     this.#child.once("error", (error) => this.#handleExit(error));
     this.#child.once("exit", (code) => {
       this.#handleExit(new Error(
-        `Codex app-server 已結束${code === null ? "" : `（代碼 ${code}）`}。`
+        `Codex app-server exited${code === null ? "" : ` (code ${code})`}.`
       ));
     });
   }
@@ -197,7 +197,7 @@ export class SpawnedCodexAppServerClient implements CodexAppServerClient {
     this.#closed = true;
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timer);
-      pending.reject(new Error("Codex app-server 連線已關閉。"));
+      pending.reject(new Error("The Codex app-server connection is closed."));
     }
     this.#pending.clear();
     this.#lines.close();
@@ -206,7 +206,7 @@ export class SpawnedCodexAppServerClient implements CodexAppServerClient {
 
   #request(method: string, params?: Record<string, unknown>): Promise<unknown> {
     if (this.#closed) {
-      return Promise.reject(new Error("Codex app-server 連線已關閉。"));
+      return Promise.reject(new Error("The Codex app-server connection is closed."));
     }
     const id = ++this.#requestId;
     const timeoutMs = method === "thread/start"
@@ -215,7 +215,7 @@ export class SpawnedCodexAppServerClient implements CodexAppServerClient {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#pending.delete(id);
-        reject(new Error(`等待 Codex ${method} 回應逾時。`));
+        reject(new Error(`Timed out waiting for Codex ${method}.`));
       }, timeoutMs);
       this.#pending.set(id, { resolve, reject, timer });
       this.#write({ id, method, ...(params ? { params } : {}) });

@@ -25,7 +25,7 @@ export function registerSpacedReviewIpc(
       !["source", "zh-TW", "en", "ja"].includes(
         input.explanationLanguage as string
       )) {
-      throw new Error("複習試卷生成格式錯誤");
+      throw new Error("Invalid review-paper generation request");
     }
     const sender = (event as ReviewIpcEvent).sender;
     return controller.generatePaper(
@@ -48,7 +48,7 @@ export function registerSpacedReviewIpc(
         typeof answer.questionId !== "string" ||
         typeof answer.answer !== "string"
       )) {
-      throw new Error("複習試卷作答格式錯誤");
+      throw new Error("Invalid review-paper submission");
     }
     return controller.gradePaper({
       paperId: input.paperId,
@@ -68,7 +68,7 @@ export function registerSpacedReviewIpc(
           rating.finalRating as string
         )
       )) {
-      throw new Error("複習評級確認格式錯誤");
+      throw new Error("Invalid review-rating confirmation");
     }
     return controller.confirmPaper({
       paperId: input.paperId,
@@ -82,7 +82,7 @@ export function registerSpacedReviewIpc(
   ipc.handle("review:discard", () => controller.discardPaper());
   ipc.handle("review:item-detail", (_event, itemId) => {
     if (typeof itemId !== "string" || !itemId.trim()) {
-      throw new Error("學習項目請求格式錯誤");
+      throw new Error("Invalid learning-item request");
     }
     return controller.getItemDetail(itemId);
   });

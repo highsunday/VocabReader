@@ -61,7 +61,7 @@ function parseLearningItemPreparation(
     (value.status !== "preparing" &&
       value.status !== "failed" &&
       value.status !== "completed")) {
-    throw new Error("本機 AI 對話紀錄格式錯誤。");
+    throw new Error("Invalid local AI conversation history.");
   }
   const targets = learningItemInvitationFromUnknown(value).targets;
   const explanationLanguage = value.explanationLanguage;
@@ -70,10 +70,10 @@ function parseLearningItemPreparation(
     explanationLanguage !== "zh-TW" &&
     explanationLanguage !== "en" &&
     explanationLanguage !== "ja") {
-    throw new Error("本機 AI 對話紀錄格式錯誤。");
+    throw new Error("Invalid local AI conversation history.");
   }
   if (value.error !== undefined && typeof value.error !== "string") {
-    throw new Error("本機 AI 對話紀錄格式錯誤。");
+    throw new Error("Invalid local AI conversation history.");
   }
   const interrupted = value.status === "preparing";
   const status: LearningItemPreparation["status"] = interrupted
@@ -96,7 +96,7 @@ function parseLearningItemPreparation(
     ...((interrupted || storedError)
       ? {
           error: interrupted
-            ? "上次準備卡片的流程未完成，請重試。"
+            ? "The previous card preparation did not finish. Please retry."
             : storedError
         }
       : {})
@@ -110,7 +110,7 @@ function parseMessage(value: unknown): ChatMessage {
     (value.role !== "user" && value.role !== "assistant") ||
     typeof value.text !== "string" ||
     (status !== "streaming" && status !== "completed" && status !== "failed")) {
-    throw new Error("本機 AI 對話紀錄格式錯誤。");
+    throw new Error("Invalid local AI conversation history.");
   }
   const message: ChatMessage = {
     id: value.id,
@@ -141,7 +141,7 @@ function parseMessage(value: unknown): ChatMessage {
   }
   if (value.artifactError !== undefined) {
     if (typeof value.artifactError !== "string") {
-      throw new Error("本機 AI 對話紀錄格式錯誤。");
+      throw new Error("Invalid local AI conversation history.");
     }
     message.artifactError = value.artifactError;
   }
@@ -150,17 +150,17 @@ function parseMessage(value: unknown): ChatMessage {
 
 function parseSource(value: unknown): StoredConversationSource | null {
   if (value === null) return null;
-  if (!isObject(value)) throw new Error("本機 AI 對話紀錄格式錯誤。");
+  if (!isObject(value)) throw new Error("Invalid local AI conversation history.");
   const source: StoredConversationSource = {};
   if (value.bookTitle !== undefined) {
     if (typeof value.bookTitle !== "string") {
-      throw new Error("本機 AI 對話紀錄格式錯誤。");
+      throw new Error("Invalid local AI conversation history.");
     }
     source.bookTitle = value.bookTitle;
   }
   if (value.chapterTitle !== undefined) {
     if (typeof value.chapterTitle !== "string") {
-      throw new Error("本機 AI 對話紀錄格式錯誤。");
+      throw new Error("Invalid local AI conversation history.");
     }
     source.chapterTitle = value.chapterTitle;
   }
@@ -172,7 +172,7 @@ function parseConversation(value: unknown): StoredChatConversation {
     typeof value.threadId !== "string" || typeof value.title !== "string" ||
     !isFiniteNumber(value.createdAt) || !isFiniteNumber(value.updatedAt) ||
     !Array.isArray(value.messages)) {
-    throw new Error("本機 AI 對話紀錄格式錯誤。");
+    throw new Error("Invalid local AI conversation history.");
   }
   return {
     id: value.id,
@@ -190,7 +190,7 @@ function parseState(value: unknown): StoredChatState {
     !(typeof value.selectedConversationId === "string" ||
       value.selectedConversationId === null) ||
     !Array.isArray(value.conversations)) {
-    throw new Error("本機 AI 對話紀錄格式錯誤。");
+    throw new Error("Invalid local AI conversation history.");
   }
   return {
     version: 2,
@@ -213,10 +213,10 @@ export class LocalChatConversationStore implements ChatConversationStore {
       return parseState(JSON.parse(readFileSync(this.#path, "utf8")));
     } catch (error) {
       if (isObject(error) && error.code === "ENOENT") return emptyState();
-      if (error instanceof Error && error.message.includes("AI 對話紀錄")) {
+      if (error instanceof Error && error.message.includes("AI conversation history")) {
         throw error;
       }
-      throw new Error("無法讀取本機 AI 對話紀錄。", { cause: error });
+      throw new Error("Unable to load local AI conversation history.", { cause: error });
     }
   }
 

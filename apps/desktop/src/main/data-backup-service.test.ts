@@ -401,7 +401,7 @@ describe("DataBackupService", () => {
     const newerPath = join(root, "newer.zip");
     await writeFile(newerPath, await newer.generateAsync({ type: "nodebuffer" }));
     await expect(service.selectBackupFromPath(newerPath))
-      .rejects.toThrow(/版本/);
+      .rejects.toThrow(/newer format/);
 
     const tampered = await JSZip.loadAsync(await readFile(validPath));
     tampered.file("library/index.json", "[{\"tampered\":true}]");
@@ -421,7 +421,7 @@ describe("DataBackupService", () => {
       await unsafe.generateAsync({ type: "nodebuffer" })
     );
     await expect(service.selectBackupFromPath(unsafePath))
-      .rejects.toThrow(/不安全|路徑|未宣告/);
+      .rejects.toThrow(/unsafe file path/);
 
     const invalidIndex = await JSZip.loadAsync(await readFile(validPath));
     const invalidBooks = JSON.parse(
@@ -449,7 +449,7 @@ describe("DataBackupService", () => {
       await invalidIndex.generateAsync({ type: "nodebuffer" })
     );
     await expect(service.selectBackupFromPath(invalidIndexPath))
-      .rejects.toThrow(/書庫索引|閱讀區段/);
+      .rejects.toThrow(/Book Library index|reading segment/);
 
     expect(await readFile(join(libraryPath, "index.json"), "utf8"))
       .toBe(originalIndex);
@@ -495,7 +495,7 @@ describe("DataBackupService", () => {
     });
   });
 
-  it("exports and previews an existing supported schema version 3 database", async () => {
+  it("exports and previews an existing supported schema version 4 database", async () => {
     const root = await temporaryDirectory();
     const libraryPath = join(root, "library");
     const learningDatabasePath = join(
@@ -510,11 +510,11 @@ describe("DataBackupService", () => {
     learning.close();
     const database = new DatabaseSync(learningDatabasePath);
     database.prepare(`
-      INSERT INTO schema_migrations (version, applied_at)
-      VALUES (3, CURRENT_TIMESTAMP)
+      INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+      VALUES (4, CURRENT_TIMESTAMP)
     `).run();
     database.close();
-    const archivePath = join(root, "schema-v3.zip");
+    const archivePath = join(root, "schema-v4.zip");
     const service = new DataBackupService({
       libraryPath,
       learningDatabasePath,
@@ -540,11 +540,11 @@ describe("DataBackupService", () => {
     const newerDatabase = new DatabaseSync(learningDatabasePath);
     newerDatabase.prepare(`
       INSERT INTO schema_migrations (version, applied_at)
-      VALUES (4, CURRENT_TIMESTAMP)
+      VALUES (5, CURRENT_TIMESTAMP)
     `).run();
     newerDatabase.close();
-    await expect(service.exportToPath(join(root, "schema-v4.zip")))
-      .rejects.toThrow("備份使用較新的生詞庫版本");
+    await expect(service.exportToPath(join(root, "schema-v5.zip")))
+      .rejects.toThrow("The backup uses a newer Learning Library version");
   });
 
   it("rolls both data domains back when replacement fails", async () => {

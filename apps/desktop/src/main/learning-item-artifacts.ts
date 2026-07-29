@@ -32,7 +32,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function requiredString(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) {
-    throw new Error("學習項目草稿格式錯誤");
+    throw new Error("Invalid learning-item draft");
   }
   return value.trim();
 }
@@ -40,7 +40,7 @@ function requiredString(value: unknown): string {
 function requestedTitlesFromUnknown(value: unknown): string[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
-    throw new Error("學習項目草稿格式錯誤");
+    throw new Error("Invalid learning-item draft");
   }
   return value.map(requiredString);
 }
@@ -51,7 +51,7 @@ function draftFromUnknown(
 ): LearningItemDraft {
   if (!isObject(value) || !itemTypes.has(value.itemType as LearningItemType) ||
     !cefrLevels.has(value.cefr as CefrLevel)) {
-    throw new Error("學習項目草稿格式錯誤");
+    throw new Error("Invalid learning-item draft");
   }
   const requestedTitles = requestedTitlesFromUnknown(value.requestedTitles);
   return {
@@ -67,7 +67,7 @@ function draftFromUnknown(
       : value.state === "included" || value.state === "excluded"
         ? value.state
         : (() => {
-            throw new Error("學習項目草稿格式錯誤");
+            throw new Error("Invalid learning-item draft");
           })()
   };
 }
@@ -77,7 +77,7 @@ function matchFromUnknown(
   expectedStatus: "active" | "trashed"
 ): LearningItemMatch {
   if (!isObject(value) || value.status !== expectedStatus) {
-    throw new Error("學習項目草稿格式錯誤");
+    throw new Error("Invalid learning-item draft");
   }
   const requestedTitles = requestedTitlesFromUnknown(value.requestedTitles);
   return {
@@ -95,7 +95,7 @@ export function learningItemBatchFromUnknown(
 ): LearningItemDraftBatch {
   if (!isObject(value) || !Array.isArray(value.drafts) ||
     !Array.isArray(value.existing) || !Array.isArray(value.trashed)) {
-    throw new Error("學習項目草稿格式錯誤");
+    throw new Error("Invalid learning-item draft");
   }
   const status = value.status === undefined
     ? "pending"
@@ -103,7 +103,7 @@ export function learningItemBatchFromUnknown(
         value.status === "abandoned"
       ? value.status
       : (() => {
-          throw new Error("學習項目草稿格式錯誤");
+          throw new Error("Invalid learning-item draft");
         })();
   const batch: LearningItemDraftBatch = {
     id: typeof value.id === "string" && value.id ? value.id : createId(),
@@ -115,21 +115,21 @@ export function learningItemBatchFromUnknown(
   if (value.submittedAt !== undefined) {
     if (typeof value.submittedAt !== "number" ||
       !Number.isFinite(value.submittedAt)) {
-      throw new Error("學習項目草稿格式錯誤");
+      throw new Error("Invalid learning-item draft");
     }
     batch.submittedAt = value.submittedAt;
   }
   if (value.abandonedAt !== undefined) {
     if (typeof value.abandonedAt !== "number" ||
       !Number.isFinite(value.abandonedAt)) {
-      throw new Error("學習項目草稿格式錯誤");
+      throw new Error("Invalid learning-item draft");
     }
     batch.abandonedAt = value.abandonedAt;
   }
   if (value.createdItemIds !== undefined) {
     if (!Array.isArray(value.createdItemIds) ||
       !value.createdItemIds.every((id) => typeof id === "string" && id)) {
-      throw new Error("學習項目草稿格式錯誤");
+      throw new Error("Invalid learning-item draft");
     }
     batch.createdItemIds = [...value.createdItemIds];
   }
@@ -141,15 +141,15 @@ export function learningItemInvitationFromUnknown(
 ): { targets: LearningItemTarget[] } {
   if (!isObject(value) || !Array.isArray(value.targets) ||
     value.targets.length > 50) {
-    throw new Error("加入生詞庫邀請格式錯誤");
+    throw new Error("Invalid Learning Library invitation");
   }
   return {
     targets: value.targets.map((target) => {
-      if (!isObject(target)) throw new Error("加入生詞庫邀請格式錯誤");
+      if (!isObject(target)) throw new Error("Invalid Learning Library invitation");
       const title = requiredString(target.title);
       if (target.senseHint !== undefined &&
         typeof target.senseHint !== "string") {
-        throw new Error("加入生詞庫邀請格式錯誤");
+        throw new Error("Invalid Learning Library invitation");
       }
       return {
         title,
@@ -195,7 +195,7 @@ export function parseLearningItemArtifacts(
   try {
     if (resultBlock.count > 1 || invitationBlock.count > 1 ||
       requestBlock.count > 1 || intentBlock.count > 1) {
-      throw new Error("學習項目草稿格式錯誤");
+      throw new Error("Invalid learning-item draft");
     }
     if (resultBlock.raw !== undefined) {
       parsed.batch = learningItemBatchFromUnknown(
@@ -218,12 +218,12 @@ export function parseLearningItemArtifacts(
       if (!isObject(value) || value.intent !== "createLearningItems" ||
         Object.keys(value).some((key) =>
           key !== "intent" && key !== "targets")) {
-        throw new Error("學習項目建立意圖格式錯誤");
+        throw new Error("Invalid learning-item creation intent");
       }
       try {
         parsed.intent = learningItemInvitationFromUnknown(value);
       } catch {
-        throw new Error("學習項目建立意圖格式錯誤");
+        throw new Error("Invalid learning-item creation intent");
       }
     }
   } catch (error) {
@@ -233,7 +233,7 @@ export function parseLearningItemArtifacts(
     parsed.intent = undefined;
     parsed.error = error instanceof Error
       ? error.message
-      : "學習項目草稿格式錯誤";
+      : "Invalid learning-item draft";
   }
   return parsed;
 }
@@ -244,31 +244,31 @@ export function parseLearningItemRecheck(
   const block = extractSingleBlock(sourceText, "learning-item-recheck");
   try {
     if (block.count !== 1 || block.raw === undefined) {
-      throw new Error("學習項目重新檢查格式錯誤");
+      throw new Error("Invalid learning-item recheck");
     }
     const value: unknown = JSON.parse(block.raw);
     if (!isObject(value) || !Array.isArray(value.decisions)) {
-      throw new Error("學習項目重新檢查格式錯誤");
+      throw new Error("Invalid learning-item recheck");
     }
     const draftIds = new Set<string>();
     return value.decisions.map((candidate) => {
       if (!isObject(candidate)) {
-        throw new Error("學習項目重新檢查格式錯誤");
+        throw new Error("Invalid learning-item recheck");
       }
       const draftId = requiredString(candidate.draftId);
       if (draftIds.has(draftId)) {
-        throw new Error("學習項目重新檢查格式錯誤");
+        throw new Error("Invalid learning-item recheck");
       }
       draftIds.add(draftId);
       if (candidate.decision === "create") {
         if (candidate.itemId !== undefined) {
-          throw new Error("學習項目重新檢查格式錯誤");
+          throw new Error("Invalid learning-item recheck");
         }
         return { draftId, decision: "create" };
       }
       if (candidate.decision !== "existing" &&
         candidate.decision !== "trashed") {
-        throw new Error("學習項目重新檢查格式錯誤");
+        throw new Error("Invalid learning-item recheck");
       }
       return {
         draftId,
@@ -277,6 +277,6 @@ export function parseLearningItemRecheck(
       };
     });
   } catch {
-    throw new Error("學習項目重新檢查格式錯誤");
+    throw new Error("Invalid learning-item recheck");
   }
 }

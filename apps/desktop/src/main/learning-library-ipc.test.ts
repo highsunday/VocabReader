@@ -80,8 +80,8 @@ describe("learning library IPC", () => {
       status: "active",
       studyStatus: "mastered",
       sort: "recent"
-    })).toThrow(/查詢格式錯誤/);
-    expect(() => handlers.get("learning:get")?.({}, "")).toThrow(/請求格式錯誤/);
+    })).toThrow(/Invalid Learning Library query/);
+    expect(() => handlers.get("learning:get")?.({}, "")).toThrow(/learning-item request/);
     expect(() => handlers.get("learning:update")?.({}, {
       itemId: item.id,
       title: item.title,
@@ -89,9 +89,13 @@ describe("learning library IPC", () => {
       cefr: "B2",
       sense: item.sense,
       markdownContent: item.markdownContent
-    })).toThrow(/更新格式錯誤/);
-    expect(() => handlers.get("learning:trash")?.({}, " ")).toThrow(/刪除格式錯誤/);
-    expect(() => handlers.get("learning:restore")?.({}, null)).toThrow(/還原格式錯誤/);
+    })).toThrow(/learning-item update/);
+    expect(() => handlers.get("learning:trash")?.({}, " ")).toThrow(
+      /learning-item deletion/
+    );
+    expect(() => handlers.get("learning:restore")?.({}, null)).toThrow(
+      /learning-item restore/
+    );
 
     expect(library.listItems).not.toHaveBeenCalled();
     expect(library.updateItem).not.toHaveBeenCalled();

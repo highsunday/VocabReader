@@ -61,11 +61,11 @@ function fencedJson(source: string, name: "review-paper" | "review-grade"): unkn
   const matches = [...source.matchAll(
     new RegExp(`\\\`\\\`\\\`${name}\\s*\\n([\\s\\S]*?)\\n\\\`\\\`\\\``, "g")
   )];
-  if (matches.length !== 1) throw new Error(`AI ${name} 格式錯誤`);
+  if (matches.length !== 1) throw new Error(`Invalid AI ${name}`);
   try {
     return JSON.parse(matches[0][1]);
   } catch {
-    throw new Error(`AI ${name} JSON 格式錯誤`);
+    throw new Error(`Invalid AI ${name} JSON`);
   }
 }
 
@@ -78,7 +78,7 @@ export function parseReviewPaper(
   if (!isObject(value) || value.paperId !== paperId ||
     !Array.isArray(value.questions) ||
     value.questions.length !== items.length) {
-    throw new Error("AI 複習試卷未完整覆蓋本回合");
+    throw new Error("The AI review paper does not cover the full session");
   }
   const itemById = new Map(items.map((item) => [item.id, item]));
   const questionIds = new Set<string>();
@@ -93,7 +93,7 @@ export function parseReviewPaper(
       !text(question.beforeTarget) ||
       !nonEmpty(question.targetText) ||
       !text(question.afterTarget)) {
-      throw new Error("AI 複習題格式錯誤");
+      throw new Error("Invalid AI review question");
     }
     const item = itemById.get(question.itemId);
     if (!item ||
@@ -102,7 +102,7 @@ export function parseReviewPaper(
       question.cefr !== item.cefr ||
       questionIds.has(question.questionId) ||
       itemIds.has(question.itemId)) {
-      throw new Error("AI 複習題超出本回合範圍");
+      throw new Error("AI review question is outside this session");
     }
     questionIds.add(question.questionId);
     itemIds.add(question.itemId);
@@ -118,7 +118,7 @@ export function parseReviewPaper(
     };
   });
   if (itemIds.size !== items.length) {
-    throw new Error("AI 複習試卷未完整覆蓋本回合");
+    throw new Error("The AI review paper does not cover the full session");
   }
   return { paperId, questions };
 }
@@ -131,7 +131,7 @@ export function parseReviewGrade(
   if (!isObject(value) || value.paperId !== paper.paperId ||
     !Array.isArray(value.results) ||
     value.results.length !== paper.questions.length) {
-    throw new Error("AI 複習批改未完整覆蓋試卷");
+    throw new Error("AI grading does not cover the full paper");
   }
   const questions = new Map(paper.questions.map((question) => [
     question.questionId,
@@ -144,12 +144,12 @@ export function parseReviewGrade(
       !nonEmpty(result.itemId) ||
       !nonEmpty(result.feedback) ||
       !ratings.has(result.rating as ReviewRating)) {
-      throw new Error("AI 複習批改格式錯誤");
+      throw new Error("Invalid AI review grading");
     }
     const question = questions.get(result.questionId);
     if (!question || question.itemId !== result.itemId ||
       seen.has(result.questionId)) {
-      throw new Error("AI 複習批改超出目前試卷");
+      throw new Error("AI grading is outside the current paper");
     }
     seen.add(result.questionId);
     return {

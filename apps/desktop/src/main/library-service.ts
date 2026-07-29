@@ -111,7 +111,7 @@ function resolveArchivePath(baseDirectory: string, href: string): string {
   }
   const resolved = posix.normalize(posix.join(baseDirectory, decoded));
   if (resolved === ".." || resolved.startsWith("../") || posix.isAbsolute(resolved)) {
-    throw new Error("EPUB 包含不安全的檔案路徑");
+    throw new Error("The EPUB contains an unsafe file path");
   }
   return resolved;
 }
@@ -413,7 +413,7 @@ function distinctChapters(chapters: BookChapter[]): BookChapter[] {
 
 async function requiredTextFile(zip: JSZip, path: string, label: string) {
   const file = zip.file(path);
-  if (!file) throw new Error(`缺少 ${label}`);
+  if (!file) throw new Error(`Missing ${label}`);
   return file.async("text");
 }
 
@@ -437,10 +437,10 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
   const zip = await JSZip.loadAsync(contents);
   const mimetype = await requiredTextFile(zip, "mimetype", "mimetype");
   if (mimetype.trim() !== "application/epub+zip") {
-    throw new Error("檔案不是標準 EPUB");
+    throw new Error("The file is not a standard EPUB");
   }
   if (zip.file("META-INF/rights.xml") || zip.file("META-INF/encryption.xml")) {
-    throw new Error("不支援受 DRM 保護的 EPUB");
+    throw new Error("DRM-protected EPUB files are not supported");
   }
 
   const containerXml = await requiredTextFile(
@@ -452,14 +452,14 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
   const rootfiles = asRecord(asRecord(container).rootfiles);
   const rootfile = asRecord(asArray(rootfiles.rootfile)[0]);
   const packagePath = attribute(rootfile, "full-path");
-  if (!packagePath) throw new Error("container.xml 未指定 package document");
+  if (!packagePath) throw new Error("container.xml does not specify a package document");
 
   const packageXml = await requiredTextFile(zip, packagePath, "package document");
   const packageDocument = asRecord(asRecord(xmlParser.parse(packageXml)).package);
   const metadata = asRecord(packageDocument.metadata);
   const title = textValue(asArray(metadata.title)[0]);
-  if (!title) throw new Error("EPUB 缺少書名");
-  const author = textValue(asArray(metadata.creator)[0]) || "未知作者";
+  if (!title) throw new Error("The EPUB has no title");
+  const author = textValue(asArray(metadata.creator)[0]) || "Unknown author";
   const packageDirectory = posix.dirname(packagePath);
 
   const manifestItems = asArray(asRecord(packageDocument.manifest).item)
@@ -539,7 +539,7 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
       fragment
     };
   }));
-  if (!chapters.length) throw new Error("EPUB 沒有可閱讀的章節");
+  if (!chapters.length) throw new Error("The EPUB has no readable chapters");
 
   return { title, author, coverDataUrl, chapters };
 }
@@ -635,8 +635,8 @@ export class LocalBookLibrary {
     try {
       parsed = await parseEpub(contents);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "格式無法辨識";
-      throw new Error(`無法解析這本 EPUB：${detail}`);
+      const detail = error instanceof Error ? error.message : "unrecognized format";
+      throw new Error(`Unable to parse this EPUB: ${detail}`);
     }
 
     const book: LibraryBook = {
@@ -665,7 +665,7 @@ export class LocalBookLibrary {
     const operation = this.#stateWriteQueue.then(async () => {
       const books = await this.listBooks();
       const book = books.find((candidate) => candidate.id === bookId);
-      if (!book) throw new Error("找不到書籍");
+      if (!book) throw new Error("Book not found");
 
       await this.#saveBooks(books.filter((candidate) => candidate.id !== bookId));
       try {
@@ -685,16 +685,16 @@ export class LocalBookLibrary {
   ): Promise<ChapterContent> {
     const books = await this.listBooks();
     const book = books.find((candidate) => candidate.id === bookId);
-    if (!book) throw new Error("找不到書籍");
+    if (!book) throw new Error("Book not found");
     const chapter = book.chapters.find(
       (candidate) => candidate.id === requestedChapterId
     );
-    if (!chapter) throw new Error("找不到章節");
+    if (!chapter) throw new Error("Chapter not found");
 
     const epub = await readFile(join(this.#booksPath, book.id, "book.epub"));
     const zip = await JSZip.loadAsync(epub);
     const file = zip.file(chapter.href);
-    if (!file) throw new Error("章節內容遺失");
+    if (!file) throw new Error("Chapter content is missing");
     const contentHtml = await sanitizeChapterHtml(
       zip,
       chapter.href,
@@ -713,12 +713,12 @@ export class LocalBookLibrary {
     const operation = this.#stateWriteQueue.then(async () => {
       const books = await this.listBooks();
       const index = books.findIndex((book) => book.id === input.bookId);
-      if (index < 0) throw new Error("找不到書籍");
+      if (index < 0) throw new Error("Book not found");
       const book = books[index];
       const chapter = input.chapterId
         ? book.chapters.find((candidate) => candidate.id === input.chapterId)
         : undefined;
-      if (input.chapterId && !chapter) throw new Error("找不到章節");
+      if (input.chapterId && !chapter) throw new Error("Chapter not found");
       const scrollProgress = Number.isFinite(input.scrollProgress)
         ? Math.min(1, Math.max(0, input.scrollProgress))
         : 0;
@@ -750,13 +750,13 @@ export class LocalBookLibrary {
     const operation = this.#stateWriteQueue.then(async () => {
       const books = await this.listBooks();
       const index = books.findIndex((book) => book.id === input.bookId);
-      if (index < 0) throw new Error("找不到書籍");
+      if (index < 0) throw new Error("Book not found");
       const book = books[index];
       if (!book.chapters.some((chapter) => chapter.id === input.chapterId)) {
-        throw new Error("找不到章節");
+        throw new Error("Chapter not found");
       }
       if (!validReadingRange(input.range)) {
-        throw new Error("閱讀區段格式錯誤");
+        throw new Error("Invalid reading segment");
       }
       const updated: LibraryBook = {
         ...book,
@@ -777,14 +777,14 @@ export class LocalBookLibrary {
     const operation = this.#stateWriteQueue.then(async () => {
       const books = await this.listBooks();
       const index = books.findIndex((book) => book.id === input.bookId);
-      if (index < 0) throw new Error("找不到書籍");
+      if (index < 0) throw new Error("Book not found");
       const book = books[index];
       if (!book.chapters.some((chapter) => chapter.id === input.chapterId)) {
-        throw new Error("找不到章節");
+        throw new Error("Chapter not found");
       }
       if (!Array.isArray(input.annotations) ||
         input.annotations.some((annotation) => !validAnnotation(annotation))) {
-        throw new Error("標記格式錯誤");
+        throw new Error("Invalid annotation");
       }
       if (annotationsOverlap(input.annotations)) return book;
       const annotations = [...input.annotations].sort(

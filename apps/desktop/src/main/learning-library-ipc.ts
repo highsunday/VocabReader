@@ -73,23 +73,23 @@ export function registerLearningLibraryIpc(
   library: LearningLibrary
 ): void {
   ipc.handle("learning:list", (_event, input) => {
-    if (!validListInput(input)) throw new Error("生詞庫查詢格式錯誤");
+    if (!validListInput(input)) throw new Error("Invalid Learning Library query");
     return library.listItems(input);
   });
   ipc.handle("learning:get", (_event, itemId) => {
-    if (!nonEmptyString(itemId)) throw new Error("學習項目請求格式錯誤");
+    if (!nonEmptyString(itemId)) throw new Error("Invalid learning-item request");
     return library.getItem(itemId);
   });
   ipc.handle("learning:update", (_event, input) => {
-    if (!validUpdate(input)) throw new Error("學習項目更新格式錯誤");
+    if (!validUpdate(input)) throw new Error("Invalid learning-item update");
     return library.updateItem(input);
   });
   ipc.handle("learning:trash", (_event, itemId) => {
-    if (!nonEmptyString(itemId)) throw new Error("學習項目刪除格式錯誤");
+    if (!nonEmptyString(itemId)) throw new Error("Invalid learning-item deletion");
     return library.trashItem(itemId);
   });
   ipc.handle("learning:restore", (_event, itemId) => {
-    if (!nonEmptyString(itemId)) throw new Error("學習項目還原格式錯誤");
+    if (!nonEmptyString(itemId)) throw new Error("Invalid learning-item restore");
     return library.restoreItem(itemId);
   });
   ipc.handle("learning:empty-trash", () => library.emptyTrash());

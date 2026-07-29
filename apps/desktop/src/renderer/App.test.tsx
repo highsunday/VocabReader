@@ -253,7 +253,7 @@ function initialReadySnapshot(): ChatSnapshot {
       phase: "available",
       fiveHour: null,
       weekly: null,
-      detail: "已取得帳戶共用額度。"
+      detail: "已取得Account共用額度。"
     },
     messages: [],
     threadId: null,
@@ -269,28 +269,28 @@ describe("App", () => {
     installLibraryApi();
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
 
-    expect(await screen.findByRole("heading", { name: "資料備份" }))
+    expect(await screen.findByRole("heading", { name: "Data backup" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "匯出備份" }))
+    expect(screen.getByRole("button", { name: "Export backup" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "匯入備份" }))
+    expect(screen.getByRole("button", { name: "Import backup" }))
       .toBeInTheDocument();
-    expect(screen.getByText(/書籍、閱讀進度、標記、學習項目與複習紀錄/))
+    expect(screen.getByText(/books, reading progress, annotations,\s+learning items, and review history/i))
       .toBeInTheDocument();
   });
 
   it("exports a data backup and reports the selected ZIP filename", async () => {
     const { dataBackup } = installLibraryApi();
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "匯出備份" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export backup" }));
 
     await waitFor(() => expect(dataBackup.exportBackup).toHaveBeenCalledOnce());
     expect(await screen.findByText(
-      "已匯出 VocabReader-backup-2026-07-28.zip"
+      "Exported VocabReader-backup-2026-07-28.zip"
     )).toBeInTheDocument();
   });
 
@@ -308,21 +308,21 @@ describe("App", () => {
       }
     });
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "匯入備份" }));
+    fireEvent.click(screen.getByRole("button", { name: "Import backup" }));
 
     expect(await screen.findByRole("heading", {
-      name: "取代目前的閱讀與學習資料？"
+      name: "Replace current reading and learning data?"
     })).toBeInTheDocument();
     const confirmation = screen.getByRole("alertdialog");
-    expect(confirmation).toHaveTextContent("2 本書籍");
-    expect(confirmation).toHaveTextContent("8 個使用中學習項目");
-    expect(confirmation).toHaveTextContent("1 個垃圾桶項目");
-    expect(confirmation).toHaveTextContent(/不會合併/);
+    expect(confirmation).toHaveTextContent("2 books");
+    expect(confirmation).toHaveTextContent("8 active learning items");
+    expect(confirmation).toHaveTextContent("1 trashed items");
+    expect(confirmation).toHaveTextContent(/will not be merged/);
     expect(dataBackup.restoreBackup).not.toHaveBeenCalled();
 
-    const cancelButton = screen.getByRole("button", { name: "取消匯入" });
+    const cancelButton = screen.getByRole("button", { name: "Cancel import" });
     await waitFor(() => expect(cancelButton).toHaveFocus());
     fireEvent.keyDown(document, { key: "Escape" });
 
@@ -330,7 +330,7 @@ describe("App", () => {
       expect(dataBackup.cancelRestore).toHaveBeenCalledWith("preview-token")
     );
     expect(screen.queryByRole("heading", {
-      name: "取代目前的閱讀與學習資料？"
+      name: "Replace current reading and learning data?"
     })).not.toBeInTheDocument();
     expect(dataBackup.restoreBackup).not.toHaveBeenCalled();
   });
@@ -349,14 +349,14 @@ describe("App", () => {
       }
     });
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
-    fireEvent.click(screen.getByRole("button", { name: "匯入備份" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Import backup" }));
     await screen.findByRole("heading", {
-      name: "取代目前的閱讀與學習資料？"
+      name: "Replace current reading and learning data?"
     });
 
     fireEvent.click(screen.getByRole("button", {
-      name: "確認取代並重新啟動"
+      name: "Replace and restart"
     }));
 
     await waitFor(() =>
@@ -375,22 +375,22 @@ describe("App", () => {
       })
     );
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "匯出備份" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export backup" }));
 
-    expect(await screen.findByRole("button", { name: "匯出中…" }))
+    expect(await screen.findByRole("button", { name: "Exporting…" }))
       .toBeDisabled();
-    expect(screen.getByRole("button", { name: "匯入備份" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Import backup" })).toBeDisabled();
     finishExport({ status: "cancelled" });
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "匯出備份" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Export backup" })).toBeEnabled()
     );
 
     dataBackup.selectBackup.mockRejectedValue(
       new Error("備份 ZIP checksum 不符")
     );
-    fireEvent.click(screen.getByRole("button", { name: "匯入備份" }));
+    fireEvent.click(screen.getByRole("button", { name: "Import backup" }));
 
     expect(await screen.findByRole("alert"))
       .toHaveTextContent("備份 ZIP checksum 不符");
@@ -405,7 +405,7 @@ describe("App", () => {
         phase: "available" as const,
         fiveHour: { remainingPercent: 76, resetsAt: 1_800_000_000 },
         weekly: { remainingPercent: 62, resetsAt: 1_800_100_000 },
-        detail: "已取得帳戶共用額度。"
+        detail: "已取得Account共用額度。"
       },
       messages: [],
       threadId: null,
@@ -443,14 +443,14 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: "設定" }))
+    expect(await screen.findByRole("button", { name: "Settings" }))
       .toBeInTheDocument();
     expect(screen.getByText("Codex", { selector: ".codex-account-name" }))
       .toBeInTheDocument();
-    expect(screen.getByText("已連線", { selector: ".codex-connection-label" }))
+    expect(screen.getByText("Connected", { selector: ".codex-connection-label" }))
       .toBeInTheDocument();
     expect(screen.queryByText("reader@example.com")).not.toBeInTheDocument();
-    expect(screen.queryByText(/已連線：/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Connected:/)).not.toBeInTheDocument();
     expect(screen.queryByText("plus", {
       selector: ".codex-account-type"
     })).not.toBeInTheDocument();
@@ -461,33 +461,33 @@ describe("App", () => {
     expect(document.querySelector(".allowance-summary")).toBeInTheDocument();
     expect(document.querySelectorAll(".allowance-summary-row")).toHaveLength(2);
     expect(document.querySelector(".allowance-track")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "設定" }));
-    expect(screen.getByRole("dialog", { name: "設定" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "帳戶" }));
-    expect(screen.getByText("Codex 帳戶")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
+    expect(screen.getByText("Codex account")).toBeInTheDocument();
     expect(screen.getByText("reader@example.com")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "關閉設定" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close Settings" }));
 
-    expect(screen.getByLabelText("AI 模型")).toHaveValue("gpt-default");
-    fireEvent.change(screen.getByLabelText("AI 模型"), {
+    expect(screen.getByLabelText("AI model")).toHaveValue("gpt-default");
+    fireEvent.change(screen.getByLabelText("AI model"), {
       target: { value: "gpt-reader" }
     });
     await waitFor(() => expect(selectModel).toHaveBeenCalledWith("gpt-reader"));
 
-    const input = screen.getByLabelText("詢問目前內容");
-    expect(input).toHaveAttribute("placeholder", "輸入你的疑問");
-    expect(screen.getByText("詢問目前內容")).toHaveClass("visually-hidden");
-    expect(screen.getByLabelText("AI 模型")).toHaveProperty(
+    const input = screen.getByLabelText("Ask about current content");
+    expect(input).toHaveAttribute("placeholder", "Enter your question");
+    expect(screen.getByText("Ask about current content")).toHaveClass("visually-hidden");
+    expect(screen.getByLabelText("AI model")).toHaveProperty(
       "parentElement",
       document.querySelector(".chat-form-actions")
     );
-    expect(screen.getByText("Enter 送出 · Shift+Enter 換行"))
+    expect(screen.getByText("Enter to send • Shift+Enter for a new line"))
       .toHaveClass("chat-form-hint");
 
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "這句話的文法是什麼？" }
     });
-    const sendButton = screen.getByRole("button", { name: "送出" });
+    const sendButton = screen.getByRole("button", { name: "Send" });
     expect(sendButton).toHaveClass("send-message-button");
     expect(sendButton.querySelector("svg")).toBeInTheDocument();
     fireEvent.click(sendButton);
@@ -508,20 +508,20 @@ describe("App", () => {
     });
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
-    expect(screen.getByRole("tab", { name: "一般" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("tab", { name: "General" }))
       .toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("spinbutton", {
-      name: "每日新項目完成上限"
+      name: "Daily new-item completion limit"
     })).not.toBeInTheDocument();
     const conversationSize = screen.getByRole("slider", {
-      name: "AI 對話文字大小"
+      name: "AI conversation text size"
     });
     expect(conversationSize).toHaveAttribute("min", "12");
     expect(conversationSize).toHaveAttribute("max", "24");
     expect(conversationSize).toHaveValue("13");
     expect(screen.queryByRole("slider", {
-      name: "電子書內文字大小"
+      name: "Text size"
     })).not.toBeInTheDocument();
 
     fireEvent.change(conversationSize, { target: { value: "18" } });
@@ -549,18 +549,18 @@ describe("App", () => {
     const { review, saveSettings } = installLibraryApi();
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
-    fireEvent.click(screen.getByRole("tab", { name: "間隔複習" }));
-    expect(screen.getByRole("tab", { name: "間隔複習" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Spaced Review" }));
+    expect(screen.getByRole("tab", { name: "Spaced Review" }))
       .toHaveAttribute("aria-selected", "true");
     const newLimit = screen.getByRole("spinbutton", {
-      name: "每日新項目完成上限"
+      name: "Daily new-item completion limit"
     });
     const dueLimit = screen.getByRole("spinbutton", {
-      name: "每日到期複習完成上限"
+      name: "Daily due-review completion limit"
     });
     const paperSize = screen.getByRole("spinbutton", {
-      name: "每份試卷題數"
+      name: "Questions per paper"
     });
     expect(newLimit).toHaveValue(10);
     expect(dueLimit).toHaveValue(50);
@@ -596,13 +596,13 @@ describe("App", () => {
     });
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
-    const dialog = screen.getByRole("dialog", { name: "設定" });
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    const dialog = screen.getByRole("dialog", { name: "Settings" });
     fireEvent.click(dialog);
     expect(dialog).toBeInTheDocument();
 
     fireEvent.click(dialog.parentElement!);
-    expect(screen.queryByRole("dialog", { name: "設定" }))
+    expect(screen.queryByRole("dialog", { name: "Settings" }))
       .not.toBeInTheDocument();
   });
 
@@ -611,16 +611,16 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("heading", { name: "The First Book" });
-    expect(screen.queryByRole("button", { name: "閱讀版面" }))
+    expect(screen.queryByRole("button", { name: "Reading layout" }))
       .not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
+    await screen.findByLabelText("Opening chapter content");
 
-    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
-    const layoutDialog = screen.getByRole("dialog", { name: "閱讀版面" });
-    const ebookSize = screen.getByRole("slider", { name: "文字大小" });
-    const paperWidth = screen.getByRole("slider", { name: "紙張寬度" });
-    const lineHeight = screen.getByRole("slider", { name: "行間距" });
+    fireEvent.click(screen.getByRole("button", { name: "Reading layout" }));
+    const layoutDialog = screen.getByRole("dialog", { name: "Reading layout" });
+    const ebookSize = screen.getByRole("slider", { name: "Text size" });
+    const paperWidth = screen.getByRole("slider", { name: "Page width" });
+    const lineHeight = screen.getByRole("slider", { name: "Line spacing" });
 
     expect(layoutDialog).toBeInTheDocument();
     expect(ebookSize).toHaveAttribute("min", "16");
@@ -658,7 +658,7 @@ describe("App", () => {
       reviewPaperSize: 10
     }));
 
-    fireEvent.click(screen.getByRole("button", { name: "恢復預設值" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore defaults" }));
     expect(ebookSize).toHaveValue("19");
     expect(paperWidth).toHaveValue("760");
     expect(lineHeight).toHaveValue("1.9");
@@ -674,26 +674,26 @@ describe("App", () => {
     }));
 
     fireEvent.click(screen.getByRole("button", {
-      name: "關閉閱讀版面"
+      name: "Close reading layout"
     }));
-    expect(screen.queryByRole("dialog", { name: "閱讀版面" }))
+    expect(screen.queryByRole("dialog", { name: "Reading layout" }))
       .not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
-    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
-    expect(screen.queryByRole("dialog", { name: "閱讀版面" }))
+    fireEvent.click(screen.getByRole("button", { name: "Reading layout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reading layout" }));
+    expect(screen.queryByRole("dialog", { name: "Reading layout" }))
       .not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reading layout" }));
     fireEvent.pointerDown(document.body);
-    expect(screen.queryByRole("dialog", { name: "閱讀版面" }))
+    expect(screen.queryByRole("dialog", { name: "Reading layout" }))
       .not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "閱讀版面" }));
-    expect(screen.getByRole("dialog", { name: "閱讀版面" }))
+    fireEvent.click(screen.getByRole("button", { name: "Reading layout" }));
+    expect(screen.getByRole("dialog", { name: "Reading layout" }))
       .toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "閱讀版面" }))
+    expect(screen.queryByRole("dialog", { name: "Reading layout" }))
       .not.toBeInTheDocument();
   });
 
@@ -713,7 +713,7 @@ describe("App", () => {
     });
     render(<App />);
 
-    const input = await screen.findByLabelText("詢問目前內容");
+    const input = await screen.findByLabelText("Ask about current content");
     fireEvent.change(input, { target: { value: "中文選字" } });
     fireEvent.keyDown(input, {
       key: "Enter",
@@ -756,16 +756,16 @@ describe("App", () => {
     });
     render(<App />);
 
-    const progress = await screen.findByText("Codex 正在回覆…");
+    const progress = await screen.findByText("Codex is responding…");
     expect(progress).toHaveClass("chat-reply-status");
     expect(progress.closest(".messages")).toBeInTheDocument();
-    expect(screen.getByText("Enter 送出 · Shift+Enter 換行"))
+    expect(screen.getByText("Enter to send • Shift+Enter for a new line"))
       .toBeInTheDocument();
-    expect(screen.getByLabelText("AI 模型")).toBeDisabled();
+    expect(screen.getByLabelText("AI model")).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "停止" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await waitFor(() => expect(stopResponse).toHaveBeenCalledOnce());
-    expect(screen.getByRole("button", { name: "停止中…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
   });
 
   it("scrolls the AI conversation to a newly sent user message only once", async () => {
@@ -820,10 +820,10 @@ describe("App", () => {
     messages.scrollTop = 180;
     readingContent.scrollTop = 240;
 
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "Latest question" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await screen.findByText("Latest question");
     await waitFor(() => expect(messages.scrollTop).toBe(1200));
@@ -890,7 +890,7 @@ describe("App", () => {
 
     expect(await screen.findByText("database busy")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {
-      name: "重試準備卡片"
+      name: "Retry card preparation"
     }));
     await waitFor(() => expect(retryLearningItemPreparation)
       .toHaveBeenCalledWith("user-create-a"));
@@ -930,12 +930,12 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     await screen.findByText("Content for one-1");
-    await waitFor(() => expect(screen.getByLabelText("詢問目前內容"))
+    await waitFor(() => expect(screen.getByLabelText("Ask about current content"))
       .not.toBeDisabled());
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "Explain this sentence" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
       text: "Explain this sentence",
@@ -981,13 +981,13 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     await screen.findByText("Content for one-1");
-    await waitFor(() => expect(screen.getByLabelText("詢問目前內容"))
+    await waitFor(() => expect(screen.getByLabelText("Ask about current content"))
       .not.toBeDisabled());
 
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "First question" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
     expect(sendMessage).toHaveBeenNthCalledWith(1, {
       text: "First question",
@@ -999,24 +999,24 @@ describe("App", () => {
       }
     });
 
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "Follow-up" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
     expect(sendMessage).toHaveBeenNthCalledWith(2, {
       text: "Follow-up",
       explanationLanguage: "source"
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "完成這段，前往下一段" }));
+    fireEvent.click(screen.getByRole("button", { name: "Finish this segment and continue" }));
     await waitFor(() => expect(screen.getByRole("button", {
-      name: "閱讀區段起點"
+      name: "Reading segment start"
     })).not.toHaveAttribute("data-text-offset", "0"));
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "New range" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(3));
     expect(sendMessage).toHaveBeenNthCalledWith(3, {
@@ -1029,10 +1029,10 @@ describe("App", () => {
       }
     });
 
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "New range follow-up" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(4));
     expect(sendMessage).toHaveBeenNthCalledWith(4, {
       text: "New range follow-up",
@@ -1077,18 +1077,18 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     await screen.findByText("Content for one-1");
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "Opening question" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next chapter" }));
     await screen.findByText("Content for one-2");
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "New chapter question" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
     expect(sendMessage).toHaveBeenNthCalledWith(2, {
@@ -1138,15 +1138,15 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     await screen.findByText("Content for one-1");
 
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "Failed question" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByText("bridge unavailable")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "Retry question" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
     expect(sendMessage.mock.calls[0]?.[0].context?.readingSegment)
@@ -1155,42 +1155,64 @@ describe("App", () => {
       .toBe("<reading-segment>Content</reading-segment>");
   });
 
+  it("uses concise Review and Library labels in the sidebar", async () => {
+    installLibraryApi();
+    render(<App />);
+
+    const reviewButton = await screen.findByRole("button", {
+      name: /^Review 1/
+    });
+    const libraryButton = screen.getByRole("button", {
+      name: /^Library 1/
+    });
+
+    expect(reviewButton).toHaveTextContent(/Review\s*1/);
+    expect(libraryButton).toHaveTextContent(/Library\s*1/);
+    expect(screen.queryByRole("button", {
+      name: /^Spaced Review/
+    })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", {
+      name: /^Learning Library/
+    })).not.toBeInTheDocument();
+  });
+
   it("opens the persistent learning library while keeping the AI assistant", async () => {
     installLibraryApi();
     render(<App />);
 
     await screen.findByRole("heading", { name: "The First Book" });
-    expect(await screen.findByRole("button", { name: /生詞庫 1/ }))
+    expect(await screen.findByRole("button", { name: /Library 1/ }))
       .toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Library 1/ }));
 
-    expect(await screen.findByRole("heading", { name: "生詞庫" }))
+    expect(await screen.findByRole("heading", { name: "Learning Library" }))
       .toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /reluctant/ }))
       .toBeInTheDocument();
-    expect(screen.getByLabelText("AI 助教")).toBeInTheDocument();
-    expect(screen.queryByText("Anki 式間隔複習")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("AI Tutor")).toBeInTheDocument();
+    expect(screen.queryByText("Anki 式Spaced Review")).not.toBeInTheDocument();
   });
 
   it("opens the independent spaced review workspace without generating automatically", async () => {
     const { review } = installLibraryApi();
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: /間隔複習 1/ }))
+    expect(await screen.findByRole("button", { name: /Review 1/ }))
       .toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /間隔複習 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Review 1/ }));
 
-    expect(await screen.findByRole("heading", { name: "間隔複習" }))
+    expect(await screen.findByRole("heading", { name: "Spaced Review" }))
       .toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("spaced-review-content");
     expect(screen.getByRole("main")).not.toHaveClass(
       "learning-library-content"
     );
-    expect(screen.getByRole("region", { name: "準備好就開始" }))
-      .toHaveTextContent("本回合 1 題");
+    expect(screen.getByRole("region", {
+      name: "Complete 1 questions to keep your memory moving"
+    })).toHaveTextContent("1 new items • 0 due reviews");
     expect(review.generatePaper).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("AI 助教")).toBeInTheDocument();
+    expect(screen.getByLabelText("AI Tutor")).toBeInTheDocument();
   });
 
   it("continues generating a review paper while another workspace is open", async () => {
@@ -1204,17 +1226,17 @@ describe("App", () => {
     const { unmount } = render(<App />);
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /間隔複習 1/
+      name: /Review 1/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
     expect(await screen.findByRole("region", {
-      name: "AI 生成試卷"
+      name: "AI paper generation"
     })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
-    expect(await screen.findByRole("heading", { name: "生詞庫" }))
+    fireEvent.click(screen.getByRole("button", { name: /Library 1/ }));
+    expect(await screen.findByRole("heading", { name: "Learning Library" }))
       .toBeInTheDocument();
     expect(review.discardPaper).not.toHaveBeenCalled();
 
@@ -1231,7 +1253,7 @@ describe("App", () => {
         afterTarget: " to leave."
       }]
     });
-    fireEvent.click(screen.getByRole("button", { name: /間隔複習 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Review 1/ }));
 
     expect(await screen.findByText("reluctant", { selector: "u" }))
       .toBeInTheDocument();
@@ -1262,31 +1284,31 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /間隔複習 1/
+      name: /Review 1/
     }));
     expect(document.querySelector(".review-sidebar-status"))
       .not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
 
-    expect(await screen.findByRole("button", { name: /試卷生成中/ }))
+    expect(await screen.findByRole("button", { name: /Paper generating/ }))
       .toBeInTheDocument();
     expect(document.querySelector(".review-sidebar-status.generating"))
       .toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "取消生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel generation" }));
     expect(await screen.findByRole("button", {
-      name: "間隔複習 1"
+      name: "Review 1"
     })).toBeInTheDocument();
     expect(document.querySelector(".review-sidebar-status"))
       .not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
 
     expect(await screen.findByRole("button", {
-      name: /試卷已生成，可繼續/
+      name: /Paper ready to continue/
     })).toBeInTheDocument();
     expect(document.querySelector(".review-sidebar-status.resumable"))
       .toBeInTheDocument();
@@ -1310,19 +1332,19 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /間隔複習 1/
+      name: /Review 1/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
-    const answer = await screen.findByLabelText("這個詞在句中的意思");
+    const answer = await screen.findByLabelText("Meaning of this word in the sentence");
     fireEvent.change(answer, { target: { value: "不情願的" } });
 
-    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
-    await screen.findByRole("heading", { name: "生詞庫" });
-    fireEvent.click(screen.getByRole("button", { name: /間隔複習 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Library 1/ }));
+    await screen.findByRole("heading", { name: "Learning Library" });
+    fireEvent.click(screen.getByRole("button", { name: /Review 1/ }));
 
-    expect(await screen.findByLabelText("這個詞在句中的意思"))
+    expect(await screen.findByLabelText("Meaning of this word in the sentence"))
       .toHaveValue("不情願的");
     expect(review.generatePaper).toHaveBeenCalledOnce();
   });
@@ -1354,24 +1376,24 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", {
-      name: /間隔複習 1/
+      name: /Review 1/
     }));
     fireEvent.click(await screen.findByRole("button", {
-      name: /開始 \d+ 題複習/
+      name: /Start a \d+-question review/
     }));
-    fireEvent.change(await screen.findByLabelText("這個詞在句中的意思"), {
+    fireEvent.change(await screen.findByLabelText("Meaning of this word in the sentence"), {
       target: { value: "不情願的" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "提交試卷" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit paper" }));
     expect(await screen.findByText("核心語義正確。")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: "困難" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Hard" }));
 
-    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
-    await screen.findByRole("heading", { name: "生詞庫" });
-    fireEvent.click(screen.getByRole("button", { name: /間隔複習 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Library 1/ }));
+    await screen.findByRole("heading", { name: "Learning Library" });
+    fireEvent.click(screen.getByRole("button", { name: /Review 1/ }));
 
     expect(await screen.findByText("核心語義正確。")).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "困難" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Hard" })).toBeChecked();
     expect(review.gradePaper).toHaveBeenCalledOnce();
   });
 
@@ -1381,20 +1403,20 @@ describe("App", () => {
 
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
+    await screen.findByLabelText("Opening chapter content");
 
-    const readerPresetBar = screen.getByLabelText("提問快捷功能");
+    const readerPresetBar = screen.getByLabelText("Question shortcuts");
     expect(Array.from(readerPresetBar.querySelectorAll("button")).map(
       (button) => button.textContent?.trim()
-    )).toEqual(["解釋標記", "新增卡片", "閱讀測驗"]);
+    )).toEqual(["Explain annotations", "Add cards", "Reading quiz"]);
 
-    fireEvent.click(screen.getByRole("button", { name: /生詞庫 1/ }));
-    await screen.findByRole("heading", { name: "生詞庫" });
+    fireEvent.click(screen.getByRole("button", { name: /Library 1/ }));
+    await screen.findByRole("heading", { name: "Learning Library" });
 
-    const libraryPresetBar = screen.getByLabelText("提問快捷功能");
+    const libraryPresetBar = screen.getByLabelText("Question shortcuts");
     expect(Array.from(libraryPresetBar.querySelectorAll("button")).map(
       (button) => button.textContent?.trim()
-    )).toEqual(["新增卡片"]);
+    )).toEqual(["Add cards"]);
   });
 
   it("starts learning-card creation and opens invitation and draft actions", async () => {
@@ -1419,7 +1441,7 @@ describe("App", () => {
         id: "assistant-invitation",
         turnId: "turn-invitation",
         role: "assistant",
-        text: "要把這些單字和片語加入卡片庫嗎？",
+        text: "要把這些Word和Phrase加入卡片庫嗎？",
         status: "completed",
         learningItemInvitation: {
           targets: [{ title: "bank", senseHint: "river bank" }]
@@ -1446,32 +1468,32 @@ describe("App", () => {
     });
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /生詞庫/ }));
-    await screen.findByRole("heading", { name: "生詞庫" });
+    fireEvent.click(await screen.findByRole("button", { name: /^Library/ }));
+    await screen.findByRole("heading", { name: "Learning Library" });
 
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "bank,\nlook into" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "新增卡片" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add cards" }));
     await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(1, {
-      text: "新增卡片：bank、look into",
+      text: "Add cards: bank, look into",
       intent: "createLearningItems",
       explanationLanguage: "source",
       learningItemTargets: [{ title: "bank" }, { title: "look into" }]
     }));
 
-    fireEvent.click(screen.getByRole("button", { name: "加入生詞庫" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to Learning Library" }));
     await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(2, {
-      text: "新增卡片：bank",
+      text: "Add cards: bank",
       intent: "createLearningItems",
       explanationLanguage: "source",
       learningItemTargets: [{ title: "bank", senseHint: "river bank" }]
     }));
 
     fireEvent.click(screen.getByRole("button", {
-      name: "1 張卡片待確認"
+      name: "1 cards awaiting review"
     }));
-    expect(screen.getByRole("dialog", { name: "確認卡片" }))
+    expect(screen.getByRole("dialog", { name: "Review cards" }))
       .toBeInTheDocument();
     expect(screen.getByText("look into")).toBeInTheDocument();
   });
@@ -1487,21 +1509,21 @@ describe("App", () => {
     });
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /生詞庫/ }));
-    await screen.findByRole("heading", { name: "生詞庫" });
+    fireEvent.click(await screen.findByRole("button", { name: /^Library/ }));
+    await screen.findByRole("heading", { name: "Learning Library" });
 
     const creationRequests = [
       "add this card",
       "Could you save this as a flashcard?",
-      "把這個加入生詞庫",
+      "把這個加入Learning Library",
       "幫我做成學習卡片"
     ];
     for (const text of creationRequests) {
       const expectedCall = sendMessage.mock.calls.length + 1;
-      fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      fireEvent.change(screen.getByLabelText("Ask about current content"), {
         target: { value: text }
       });
-      fireEvent.click(screen.getByRole("button", { name: "送出" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
       await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(expectedCall));
       expect(sendMessage).toHaveBeenNthCalledWith(expectedCall, {
         text,
@@ -1517,10 +1539,10 @@ describe("App", () => {
     ];
     for (const text of ordinaryMessages) {
       const expectedCall = sendMessage.mock.calls.length + 1;
-      fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      fireEvent.change(screen.getByLabelText("Ask about current content"), {
         target: { value: text }
       });
-      fireEvent.click(screen.getByRole("button", { name: "送出" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
       await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(expectedCall));
       expect(sendMessage).toHaveBeenNthCalledWith(expectedCall, {
         text,
@@ -1536,7 +1558,7 @@ describe("App", () => {
         id: "assistant-empty-invitation",
         turnId: "turn-invitation",
         role: "assistant",
-        text: "這次沒有可直接加入的單字或片語。",
+        text: "這次沒有可直接加入的Word或Phrase。",
         status: "completed",
         learningItemInvitation: { targets: [] }
       }]
@@ -1550,9 +1572,9 @@ describe("App", () => {
     });
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "加入生詞庫" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add to Learning Library" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
-      text: "新增卡片",
+      text: "Add cards",
       intent: "createLearningItems",
       explanationLanguage: "source"
     }));
@@ -1563,14 +1585,14 @@ describe("App", () => {
 
     expect(screen.queryByRole("button", { name: /書籍總覽/ }))
       .not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /生詞庫/ }).querySelector("svg"))
+    expect(screen.getByRole("button", { name: /^Library/ }).querySelector("svg"))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "設定" }).querySelector("svg"))
+    expect(screen.getByRole("button", { name: "Settings" }).querySelector("svg"))
       .toBeInTheDocument();
     expect(screen.queryByText("章節機制")).not.toBeInTheDocument();
     expect(screen.queryByText("閱讀與劃線")).not.toBeInTheDocument();
     expect(screen.queryByText("AI 集中解析")).not.toBeInTheDocument();
-    expect(screen.queryByText("加入生詞庫")).not.toBeInTheDocument();
+    expect(screen.queryByText("加入Learning Library")).not.toBeInTheDocument();
     expect(screen.queryByText("Anki 複習是另一套獨立排程。"))
       .not.toBeInTheDocument();
   });
@@ -1617,13 +1639,13 @@ describe("App", () => {
     });
     render(<App />);
 
-    await waitFor(() => expect(screen.getByLabelText("詢問目前內容"))
+    await waitFor(() => expect(screen.getByLabelText("Ask about current content"))
       .not.toBeDisabled());
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "這句話的文法是什麼？" }
     });
-    expect(screen.getByRole("button", { name: "送出" })).not.toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    expect(screen.getByRole("button", { name: "Send" })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("這句話的文法是什麼？"))
       .toBeInTheDocument();
@@ -1686,20 +1708,20 @@ describe("App", () => {
     render(<App />);
     await screen.findByText("Latest question", { selector: ".message-content p" });
 
-    fireEvent.click(screen.getByRole("button", { name: "對話紀錄" }));
-    expect(screen.getByRole("heading", { name: "所有 AI 對話" }))
+    fireEvent.click(screen.getByRole("button", { name: "Conversation history" }));
+    expect(screen.getByRole("heading", { name: "All AI conversations" }))
       .toBeInTheDocument();
-    expect(screen.getByText("The First Book · Opening")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "開啟 Older question" }));
+    expect(screen.getByText("The First Book • Opening")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open Older question" }));
     await waitFor(() => expect(selectConversation).toHaveBeenCalledWith("older"));
 
-    fireEvent.click(screen.getByRole("button", { name: "對話紀錄" }));
-    fireEvent.click(screen.getByRole("button", { name: "移除 Older question" }));
-    expect(screen.queryByRole("dialog", { name: "移除 AI 對話？" }))
+    fireEvent.click(screen.getByRole("button", { name: "Conversation history" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove Older question" }));
+    expect(screen.queryByRole("dialog", { name: "Remove AI conversation?" }))
       .not.toBeInTheDocument();
     await waitFor(() => expect(removeConversation).toHaveBeenCalledWith("older"));
 
-    fireEvent.click(screen.getByRole("button", { name: "新對話" }));
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
     await waitFor(() => expect(startNewConversation).toHaveBeenCalledOnce());
   });
 
@@ -1764,8 +1786,8 @@ describe("App", () => {
 
     render(<App />);
 
-    const userMessage = await screen.findByLabelText("使用者訊息");
-    const assistantMessage = screen.getByLabelText("AI 回覆");
+    const userMessage = await screen.findByLabelText("User message");
+    const assistantMessage = screen.getByLabelText("AI response");
     expect(userMessage).toHaveClass("user");
     expect(assistantMessage).toHaveClass("assistant");
     expect(userMessage.querySelector(":scope > .message-role"))
@@ -1822,17 +1844,17 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByLabelText("AI 回覆")).toHaveTextContent("…");
-    expect(screen.getByRole("button", { name: "新對話" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "對話紀錄" })).toBeDisabled();
+    expect(await screen.findByLabelText("AI response")).toHaveTextContent("…");
+    expect(screen.getByRole("button", { name: "New conversation" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Conversation history" })).toBeDisabled();
   });
 
   it("collapses and expands the left and right sidebars independently", () => {
     render(<App />);
 
     const workspace = document.querySelector(".workspace");
-    const leftToggle = screen.getByRole("button", { name: "摺疊左側欄" });
-    const rightToggle = screen.getByRole("button", { name: "摺疊右側欄" });
+    const leftToggle = screen.getByRole("button", { name: "Collapse left sidebar" });
+    const rightToggle = screen.getByRole("button", { name: "Collapse right sidebar" });
     expect(leftToggle.closest(".sidebar-heading")).toBeInTheDocument();
     expect(rightToggle.closest(".assistant-heading")).toBeInTheDocument();
     expect(leftToggle.querySelector("svg")).toBeInTheDocument();
@@ -1840,18 +1862,18 @@ describe("App", () => {
 
     fireEvent.click(leftToggle);
     expect(workspace).toHaveClass("left-collapsed");
-    expect(screen.getByRole("button", { name: "展開左側欄" }))
+    expect(screen.getByRole("button", { name: "Expand left sidebar" }))
       .toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByLabelText("主要導覽")).toHaveClass("collapsed");
-    expect(screen.getByLabelText("AI 助教")).not.toHaveClass("collapsed");
+    expect(screen.getByLabelText("Main navigation")).toHaveClass("collapsed");
+    expect(screen.getByLabelText("AI Tutor")).not.toHaveClass("collapsed");
 
     fireEvent.click(rightToggle);
     expect(workspace).toHaveClass("left-collapsed", "right-collapsed");
-    expect(screen.getByRole("button", { name: "展開右側欄" }))
+    expect(screen.getByRole("button", { name: "Expand right sidebar" }))
       .toHaveAttribute("aria-expanded", "false");
 
-    fireEvent.click(screen.getByRole("button", { name: "展開左側欄" }));
-    fireEvent.click(screen.getByRole("button", { name: "展開右側欄" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand left sidebar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand right sidebar" }));
     expect(workspace).not.toHaveClass("left-collapsed");
     expect(workspace).not.toHaveClass("right-collapsed");
   });
@@ -1874,7 +1896,7 @@ describe("App", () => {
     });
 
     const resizeHandle = screen.getByRole("separator", {
-      name: "調整 AI 對話面板寬度"
+      name: "Resize AI conversation panel"
     });
     expect(workspace.style.getPropertyValue("--right-sidebar-width"))
       .toBe("360px");
@@ -1885,18 +1907,18 @@ describe("App", () => {
       .toBe("460px");
     fireEvent.pointerUp(window, { clientX: 820, pointerId: 1 });
 
-    fireEvent.click(screen.getByRole("button", { name: "摺疊右側欄" }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse right sidebar" }));
     expect(workspace.style.getPropertyValue("--right-sidebar-width"))
       .toBe("48px");
     expect(screen.queryByRole("separator", {
-      name: "調整 AI 對話面板寬度"
+      name: "Resize AI conversation panel"
     })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "展開右側欄" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand right sidebar" }));
     expect(workspace.style.getPropertyValue("--right-sidebar-width"))
       .toBe("460px");
     expect(screen.getByRole("separator", {
-      name: "調整 AI 對話面板寬度"
+      name: "Resize AI conversation panel"
     })).toBeInTheDocument();
   });
 
@@ -1918,7 +1940,7 @@ describe("App", () => {
     });
 
     const resizeHandle = screen.getByRole("separator", {
-      name: "調整 AI 對話面板寬度"
+      name: "Resize AI conversation panel"
     });
 
     fireEvent.pointerDown(resizeHandle, { clientX: 920, pointerId: 1 });
@@ -1962,8 +1984,8 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", { name: "The First Book" })
     ).toBeInTheDocument();
-    expect(screen.getByText("2 個章節")).toBeInTheDocument();
-    expect(screen.getByText("30% 已閱讀")).toBeInTheDocument();
+    expect(screen.getByText("2 chapters")).toBeInTheDocument();
+    expect(screen.getByText("30% read")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /The Second Book/ }));
 
@@ -1971,7 +1993,7 @@ describe("App", () => {
       screen.getByRole("heading", { name: "The Second Book" })
     ).toBeInTheDocument();
     expect(screen.getByText("Beginnings")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "開始閱讀" }))
+    expect(screen.getByRole("button", { name: "Start reading" }))
       .toBeInTheDocument();
   });
 
@@ -2004,8 +2026,8 @@ describe("App", () => {
     const subchapterRow = subchapterTitle.closest("li");
     expect(subchapterRow).toHaveClass("subchapter");
     expect(subchapterRow).toHaveAttribute("data-depth", "1");
-    expect(subchapterRow).toHaveTextContent("子章節");
-    expect(subchapterRow).toHaveTextContent("閱讀此節 →");
+    expect(subchapterRow).toHaveTextContent("Subchapter");
+    expect(subchapterRow).toHaveTextContent("Read this section →");
     expect(screen.getByText("Chapter 1 The American Sound").closest("li"))
       .not.toHaveClass("subchapter");
   });
@@ -2028,7 +2050,7 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("button", { name: /The First Book/ });
 
-    fireEvent.click(screen.getByRole("button", { name: "導入 EPUB" }));
+    fireEvent.click(screen.getByRole("button", { name: "Import EPUB" }));
 
     await waitFor(() => expect(importBook).toHaveBeenCalledOnce());
     expect(
@@ -2043,14 +2065,14 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
 
-    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete book" }));
 
-    const dialog = screen.getByRole("dialog", { name: "刪除書籍？" });
+    const dialog = screen.getByRole("dialog", { name: "Delete book?" });
     expect(dialog).toHaveTextContent("The First Book");
-    expect(dialog).toHaveTextContent("無法復原");
+    expect(dialog).toHaveTextContent("cannot be undone");
     expect(deleteBook).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "The First Book" }))
       .toBeInTheDocument();
@@ -2062,8 +2084,8 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
 
-    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
-    fireEvent.click(screen.getByRole("button", { name: "永久刪除" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete book" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
 
     await waitFor(() => expect(deleteBook).toHaveBeenCalledWith("book-one"));
     expect(await screen.findByRole("heading", { name: "The Second Book" }))
@@ -2078,8 +2100,8 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /The Second Book/ }));
 
-    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
-    fireEvent.click(screen.getByRole("button", { name: "永久刪除" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete book" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
 
     expect(await screen.findByRole("heading", { name: "The First Book" }))
       .toBeInTheDocument();
@@ -2090,13 +2112,13 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
 
-    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
-    fireEvent.click(screen.getByRole("button", { name: "永久刪除" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete book" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
 
     expect(
-      await screen.findByRole("heading", { name: "導入 EPUB 開始閱讀" })
+      await screen.findByRole("heading", { name: "Import an EPUB to start reading" })
     ).toBeInTheDocument();
-    expect(screen.getByText("尚未導入書籍")).toBeInTheDocument();
+    expect(screen.getByText("No books imported")).toBeInTheDocument();
   });
 
   it("keeps the book visible and reports an error when deletion fails", async () => {
@@ -2105,11 +2127,11 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
 
-    fireEvent.click(screen.getByRole("button", { name: "刪除書籍" }));
-    fireEvent.click(screen.getByRole("button", { name: "永久刪除" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete book" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "無法刪除這本書籍"
+      "Unable to delete this book. Please try again later."
     );
     expect(screen.getByRole("heading", { name: "The First Book" }))
       .toBeInTheDocument();
@@ -2128,17 +2150,17 @@ describe("App", () => {
     expect(getChapterContent).toHaveBeenCalledWith("book-one", "one-2");
     expect(screen.queryByText("Chapter workspace")).not.toBeInTheDocument();
     expect(screen.getAllByText("A New Road")).toHaveLength(1);
-    expect(screen.queryByRole("button", { name: "完成本章" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "下一章" })).toBeDisabled();
-    const toolbar = screen.getByRole("group", { name: "章節導覽" })
+    expect(screen.queryByRole("button", { name: "Finish chapter" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next chapter" })).toBeDisabled();
+    const toolbar = screen.getByRole("group", { name: "Chapter navigation" })
       .closest(".reader-toolbar");
     expect(toolbar?.parentElement).toHaveClass("content", "reader-content");
 
-    fireEvent.click(screen.getByRole("button", { name: "上一章" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous chapter" }));
     expect(await screen.findByText("Content for one-1")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "上一章" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Previous chapter" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next chapter" }));
     expect(await screen.findByText("Content for one-2")).toBeInTheDocument();
     expect(getChapterContent).toHaveBeenLastCalledWith("book-one", "one-2");
   });
@@ -2171,7 +2193,7 @@ describe("App", () => {
     });
     content.scrollTop = 400;
 
-    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next chapter" }));
 
     expect(await screen.findByText("Content for one-2")).toBeInTheDocument();
     expect(content.scrollTop).toBe(0);
@@ -2195,7 +2217,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /01Introduction/ }));
     expect(await screen.findByText("Content for shared")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next chapter" }));
 
     expect(await screen.findByText("Content for chapter-one")).toBeInTheDocument();
     expect(getChapterContent).toHaveBeenLastCalledWith("book-one", "chapter-one");
@@ -2208,7 +2230,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     await screen.findByText("Content for one-1");
 
-    fireEvent.click(screen.getByRole("button", { name: "返回總覽" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to overview" }));
 
     expect(screen.getByRole("heading", { name: "The First Book" })).toBeInTheDocument();
     expect(saveReadingState).toHaveBeenCalledWith({
@@ -2254,9 +2276,9 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
 
-    expect(await screen.findByRole("button", { name: "閱讀區段起點" }))
+    expect(await screen.findByRole("button", { name: "Reading segment start" }))
       .toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /閱讀區段(起點|終點)/ }))
+    expect(screen.getAllByRole("button", { name: /Reading segment (start|end)/ }))
       .toHaveLength(2);
     expect(screen.getByText("START", { selector: ".reading-range-divider-label" }))
       .toBeInTheDocument();
@@ -2274,7 +2296,7 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByRole("button", { name: "閱讀區段起點" });
+    await screen.findByRole("button", { name: "Reading segment start" });
 
     const startBoundary = document.querySelector('[data-range-boundary="start"]');
     const endBoundary = document.querySelector('[data-range-boundary="end"]');
@@ -2300,7 +2322,7 @@ describe("App", () => {
     saveReadingRange.mockClear();
 
     fireEvent.contextMenu(second, { clientX: 120, clientY: 180 });
-    const moveStart = screen.getByRole("menuitem", { name: "將起點移到這裡" });
+    const moveStart = screen.getByRole("menuitem", { name: "Move start here" });
     fireEvent.pointerDown(moveStart);
     expect(screen.getByRole("menu")).toBeInTheDocument();
     fireEvent.click(moveStart);
@@ -2331,7 +2353,7 @@ describe("App", () => {
     fireEvent.contextMenu(second, { clientX: 120, clientY: 180 });
     expect(screen.getByRole("menu")).toBeInTheDocument();
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "返回總覽" }));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Back to overview" }));
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
@@ -2360,7 +2382,7 @@ describe("App", () => {
       value: elementFromPoint
     });
 
-    const marker = await screen.findByRole("button", { name: "閱讀區段起點" });
+    const marker = await screen.findByRole("button", { name: "Reading segment start" });
     expect(marker).not.toHaveAttribute("draggable");
     fireEvent.pointerDown(marker, { pointerId: 1, clientX: 12, clientY: 40 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 50, clientY: 100 });
@@ -2401,7 +2423,7 @@ describe("App", () => {
       value: vi.fn().mockReturnValue(second)
     });
 
-    const marker = await screen.findByRole("button", { name: "閱讀區段起點" });
+    const marker = await screen.findByRole("button", { name: "Reading segment start" });
     fireEvent.pointerDown(marker, { pointerId: 1, clientX: 12, clientY: 40 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 50, clientY: 100 });
     expect(marker).toHaveAttribute("data-text-offset", "20");
@@ -2432,10 +2454,10 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     const second = await screen.findByText("Second readable line.");
-    await screen.findByRole("button", { name: "閱讀區段起點" });
+    await screen.findByRole("button", { name: "Reading segment start" });
 
     fireEvent.contextMenu(second);
-    const moveStart = screen.getByRole("menuitem", { name: "將起點移到這裡" });
+    const moveStart = screen.getByRole("menuitem", { name: "Move start here" });
     expect(moveStart).toBeEnabled();
     fireEvent.click(moveStart);
 
@@ -2467,7 +2489,7 @@ describe("App", () => {
       value: vi.fn().mockReturnValue(second)
     });
 
-    const marker = await screen.findByRole("button", { name: "閱讀區段起點" });
+    const marker = await screen.findByRole("button", { name: "Reading segment start" });
     fireEvent.pointerDown(marker, { pointerId: 1, clientX: 12, clientY: 40 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 50, clientY: 100 });
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 50, clientY: 100 });
@@ -2476,7 +2498,7 @@ describe("App", () => {
       expect.objectContaining({ range: { start: 20, end: 20 } })
     ));
     expect(marker).toHaveAttribute("data-text-offset", "20");
-    expect(screen.getByRole("button", { name: "閱讀區段終點" }))
+    expect(screen.getByRole("button", { name: "Reading segment end" }))
       .toHaveAttribute("data-text-offset", "20");
     Object.defineProperty(document, "elementFromPoint", {
       configurable: true,
@@ -2501,17 +2523,17 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     const second = await screen.findByText("Second readable line.");
-    await screen.findByRole("button", { name: "閱讀區段起點" });
+    await screen.findByRole("button", { name: "Reading segment start" });
 
     fireEvent.contextMenu(second);
-    const moveEnd = screen.getByRole("menuitem", { name: "將終點移到這裡" });
+    const moveEnd = screen.getByRole("menuitem", { name: "Move end here" });
     expect(moveEnd).toBeEnabled();
     fireEvent.click(moveEnd);
 
     await waitFor(() => expect(saveReadingRange).toHaveBeenCalledWith(
       expect.objectContaining({ range: { start: 20, end: 20 } })
     ));
-    expect(screen.getByRole("button", { name: "閱讀區段起點" }))
+    expect(screen.getByRole("button", { name: "Reading segment start" }))
       .toHaveAttribute("data-text-offset", "20");
   });
 
@@ -2528,9 +2550,9 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
 
-    expect(await screen.findByRole("button", { name: "閱讀區段起點" }))
+    expect(await screen.findByRole("button", { name: "Reading segment start" }))
       .toHaveAttribute("data-text-offset", "0");
-    expect(screen.getByRole("button", { name: "閱讀區段終點" }))
+    expect(screen.getByRole("button", { name: "Reading segment end" }))
       .toHaveAttribute("data-text-offset", "0");
   });
 
@@ -2544,7 +2566,7 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
 
-    const start = await screen.findByRole("button", { name: "閱讀區段起點" });
+    const start = await screen.findByRole("button", { name: "Reading segment start" });
     expect(start).toHaveAttribute("data-text-offset", "3");
     fireEvent(window, new Event("resize"));
     expect(start).toHaveAttribute("data-text-offset", "3");
@@ -2595,8 +2617,8 @@ describe("App", () => {
       await screen.findByRole("heading", { name: "The First Book" });
       fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
 
-      const article = await screen.findByLabelText("Opening 章節內容");
-      await screen.findByRole("button", { name: "閱讀區段起點" });
+      const article = await screen.findByLabelText("Opening chapter content");
+      await screen.findByRole("button", { name: "Reading segment start" });
       const startBoundary = document.querySelector<HTMLElement>(
         '[data-range-boundary="start"]'
       );
@@ -2606,7 +2628,7 @@ describe("App", () => {
 
       measuredTop = 96;
       fireEvent.keyDown(screen.getByRole("separator", {
-        name: "調整 AI 對話面板寬度"
+        name: "Resize AI conversation panel"
       }), { key: "ArrowLeft" });
       act(() => {
         resizeCallback?.([], {} as ResizeObserver);
@@ -2631,17 +2653,17 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByRole("button", { name: "閱讀區段起點" });
+    await screen.findByRole("button", { name: "Reading segment start" });
     await waitFor(() => expect(saveReadingRange).toHaveBeenCalled());
     saveReadingRange.mockClear();
 
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "Explain this range" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(saveReadingRange).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "完成這段，前往下一段" }));
+    fireEvent.click(screen.getByRole("button", { name: "Finish this segment and continue" }));
     await waitFor(() => expect(saveReadingRange).toHaveBeenCalledWith(
       expect.objectContaining({
         range: expect.objectContaining({ start: expect.any(Number), end: expect.any(Number) })
@@ -2665,14 +2687,14 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    const article = await screen.findByLabelText("Opening 章節內容");
+    const article = await screen.findByLabelText("Opening chapter content");
 
     const modeButton = screen.getByRole("button", {
-      name: "開啟標記模式，目前章節 0 個標記"
+      name: "Turn on annotation mode; 0 annotations in this chapter"
     });
     fireEvent.click(modeButton);
     expect(screen.getByRole("button", {
-      name: "關閉標記模式，目前章節 0 個標記"
+      name: "Turn off annotation mode; 0 annotations in this chapter"
     }))
       .toHaveAttribute("aria-pressed", "true");
 
@@ -2688,7 +2710,7 @@ describe("App", () => {
     expect(article.querySelector("mark[data-annotation-id]")?.textContent)
       .toBe("reluctant");
     expect(screen.getByRole("button", {
-      name: "關閉標記模式，目前章節 1 個標記"
+      name: "Turn off annotation mode; 1 annotations in this chapter"
     })).toBeInTheDocument();
 
     selectText(article, "reluctant to admit");
@@ -2697,10 +2719,10 @@ describe("App", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", {
-      name: "關閉標記模式，目前章節 1 個標記"
+      name: "Turn off annotation mode; 1 annotations in this chapter"
     }));
     expect(screen.getByRole("button", {
-      name: "開啟標記模式，目前章節 1 個標記"
+      name: "Turn on annotation mode; 1 annotations in this chapter"
     }))
       .toHaveAttribute("aria-pressed", "false");
   });
@@ -2730,14 +2752,14 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
+    await screen.findByLabelText("Opening chapter content");
 
     const tool = await screen.findByRole("button", {
-      name: "開啟標記模式，目前章節 1 個標記"
+      name: "Turn on annotation mode; 1 annotations in this chapter"
     });
     expect(tool.closest(".annotation-tool-dock")).toBeInTheDocument();
     expect(tool.querySelector(".annotation-tool-count")).toHaveTextContent("1");
-    expect(tool.querySelector(".annotation-tool-label")).toHaveTextContent("標記");
+    expect(tool.querySelector(".annotation-tool-label")).toHaveTextContent("Annotate");
     expect(tool).not.toHaveAttribute("aria-describedby");
     expect(tool).not.toHaveAttribute("title");
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
@@ -2747,10 +2769,10 @@ describe("App", () => {
 
     fireEvent.click(tool);
     expect(screen.getByRole("button", {
-      name: "關閉標記模式，目前章節 1 個標記"
+      name: "Turn off annotation mode; 1 annotations in this chapter"
     })).toHaveAttribute("aria-pressed", "true");
     expect(tool.querySelector(".annotation-tool-label"))
-      .toHaveTextContent("標記中");
+      .toHaveTextContent("Annotating");
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
@@ -2775,20 +2797,20 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
+    await screen.findByLabelText("Opening chapter content");
     await waitFor(() => expect(screen.getByRole("button", {
-      name: "閱讀區段起點"
+      name: "Reading segment start"
     })).toHaveAttribute("data-text-offset", "4"));
     saveReadingRange.mockClear();
 
     const annotationDock = screen.getByRole("button", {
-      name: "開啟標記模式，目前章節 0 個標記"
+      name: "Turn on annotation mode; 0 annotations in this chapter"
     }).closest(".annotation-tool-dock");
     const moveToStart = screen.getByRole("button", {
-      name: "移到 START 範圍標籤"
+      name: "Go to START range marker"
     });
     const moveToEnd = screen.getByRole("button", {
-      name: "移到 END 範圍標籤"
+      name: "Go to END range marker"
     });
     expect(annotationDock).toContainElement(moveToStart);
     expect(annotationDock).toContainElement(moveToEnd);
@@ -2796,9 +2818,9 @@ describe("App", () => {
     expect(moveToEnd).toHaveTextContent("END");
     expect(moveToStart.closest(".reader-toolbar")).toBeNull();
     expect(moveToEnd.closest(".reader-toolbar")).toBeNull();
-    expect(screen.queryByRole("group", {
-      name: "章節快速移動"
-    })).not.toBeInTheDocument();
+    expect(document.querySelector(
+      ".reader-toolbar .range-jump-controls"
+    )).toBeNull();
 
     const startBoundary = document.querySelector(
       '[data-range-boundary="start"]'
@@ -2817,9 +2839,9 @@ describe("App", () => {
     fireEvent.click(moveToEnd);
     expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "center" });
     expect(scrollIntoView.mock.instances.at(-1)).toBe(endBoundary);
-    expect(screen.getByRole("button", { name: "閱讀區段起點" }))
+    expect(screen.getByRole("button", { name: "Reading segment start" }))
       .toHaveAttribute("data-text-offset", "4");
-    expect(screen.getByRole("button", { name: "閱讀區段終點" }))
+    expect(screen.getByRole("button", { name: "Reading segment end" }))
       .toHaveAttribute("data-text-offset", "10");
     expect(saveReadingRange).not.toHaveBeenCalled();
   });
@@ -2836,32 +2858,32 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    const article = await screen.findByLabelText("Opening 章節內容");
+    const article = await screen.findByLabelText("Opening chapter content");
 
     selectText(article, "the truth");
     fireEvent.contextMenu(article.querySelector("p")!, {
       clientX: 120,
       clientY: 180
     });
-    expect(screen.getByRole("menuitem", { name: "將起點移到這裡" }))
+    expect(screen.getByRole("menuitem", { name: "Move start here" }))
       .toBeInTheDocument();
-    fireEvent.click(screen.getByRole("menuitem", { name: "標記所選內容" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Annotate selection" }));
     await waitFor(() => expect(saveAnnotations).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("button", {
-      name: "開啟標記模式，目前章節 1 個標記"
+      name: "Turn on annotation mode; 1 annotations in this chapter"
     })).toBeInTheDocument();
 
     const mark = article.querySelector("mark[data-annotation-id]") as HTMLElement;
     expect(mark.textContent).toBe("the truth");
     fireEvent.contextMenu(mark, { clientX: 140, clientY: 190 });
-    fireEvent.click(screen.getByRole("menuitem", { name: "移除標記" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove annotation" }));
 
     await waitFor(() => expect(saveAnnotations).toHaveBeenLastCalledWith(
       expect.objectContaining({ annotations: [] })
     ));
     expect(article.querySelector("mark[data-annotation-id]")).not.toBeInTheDocument();
     expect(screen.getByRole("button", {
-      name: "開啟標記模式，目前章節 0 個標記"
+      name: "Turn on annotation mode; 0 annotations in this chapter"
     })).toBeInTheDocument();
   });
 
@@ -2897,13 +2919,13 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
+    await screen.findByLabelText("Opening chapter content");
 
     const ask = async (text: string) => {
-      fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      fireEvent.change(screen.getByLabelText("Ask about current content"), {
         target: { value: text }
       });
-      fireEvent.click(screen.getByRole("button", { name: "送出" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
       await waitFor(() => expect(sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({ text })
       ));
@@ -2924,10 +2946,10 @@ describe("App", () => {
       explanationLanguage: "source"
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "解釋標記" }));
+    fireEvent.click(screen.getByRole("button", { name: "Explain annotations" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(3));
     expect(sendMessage).toHaveBeenNthCalledWith(3, {
-      text: "講解標記內容",
+      text: "Explain annotations",
       intent: "explainAnnotations",
       explanationLanguage: "source",
       context: {
@@ -2937,9 +2959,9 @@ describe("App", () => {
       }
     });
 
-    const article = screen.getByLabelText("Opening 章節內容");
+    const article = screen.getByLabelText("Opening chapter content");
     fireEvent.click(screen.getByRole("button", {
-      name: /^開啟標記模式/
+      name: /^Turn on annotation mode/
     }));
     selectText(article, "that the plan had failed.");
     fireEvent.mouseUp(article);
@@ -2955,13 +2977,13 @@ describe("App", () => {
 
     let mark = article.querySelector("mark[data-annotation-id]") as HTMLElement;
     fireEvent.contextMenu(mark, { clientX: 140, clientY: 190 });
-    fireEvent.click(screen.getByRole("menuitem", { name: "移除標記" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove annotation" }));
     await waitFor(() => expect(article.querySelectorAll(
       "mark[data-annotation-id]"
     )).toHaveLength(1));
     mark = article.querySelector("mark[data-annotation-id]") as HTMLElement;
     fireEvent.contextMenu(mark, { clientX: 140, clientY: 190 });
-    fireEvent.click(screen.getByRole("menuitem", { name: "移除標記" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove annotation" }));
     await waitFor(() => expect(article.querySelectorAll(
       "mark[data-annotation-id]"
     )).toHaveLength(0));
@@ -3003,8 +3025,8 @@ describe("App", () => {
     });
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "設定" }));
-    fireEvent.change(screen.getByLabelText("講解語言"), {
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    fireEvent.change(screen.getByLabelText("Explanation language"), {
       target: { value: "ja" }
     });
     await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({
@@ -3017,17 +3039,17 @@ describe("App", () => {
       dailyDueReviewCompletionLimit: 50,
       reviewPaperSize: 10
     }));
-    fireEvent.click(screen.getByRole("button", { name: "關閉設定" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close Settings" }));
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    const article = await screen.findByLabelText("Opening 章節內容");
+    const article = await screen.findByLabelText("Opening chapter content");
     await waitFor(() => expect(article.querySelector(
       'mark[data-annotation-id="a1"]'
     )).toHaveTextContent("reluctant"));
 
-    fireEvent.click(screen.getByRole("button", { name: "解釋標記" }));
+    fireEvent.click(screen.getByRole("button", { name: "Explain annotations" }));
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
-      text: "講解標記內容",
+      text: "Explain annotations",
       intent: "explainAnnotations",
       explanationLanguage: "ja",
       context: {
@@ -3037,10 +3059,10 @@ describe("App", () => {
       }
     }));
 
-    fireEvent.click(screen.getByRole("button", { name: "閱讀測驗" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reading quiz" }));
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
-      text: "開始閱讀測驗",
+      text: "Start reading quiz",
       intent: "practiceReading",
       explanationLanguage: "ja",
       context: {
@@ -3075,17 +3097,17 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
+    await screen.findByLabelText("Opening chapter content");
     await waitFor(() => expect(screen.getByRole("button", {
-      name: "閱讀區段終點"
+      name: "Reading segment end"
     })).toHaveAttribute("data-text-offset", String(chapterText.length)));
-    const preset = await screen.findByRole("button", { name: "解釋標記" });
+    const preset = await screen.findByRole("button", { name: "Explain annotations" });
 
     expect(preset).toBeEnabled();
     fireEvent.click(preset);
 
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
-      text: "講解標記內容",
+      text: "Explain annotations",
       intent: "explainAnnotations",
       explanationLanguage: "source",
       context: {
@@ -3120,24 +3142,24 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    await screen.findByLabelText("Opening 章節內容");
+    await screen.findByLabelText("Opening chapter content");
 
-    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+    fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "First question" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
 
-    const preset = screen.getByRole("button", { name: "閱讀測驗" });
+    const preset = screen.getByRole("button", { name: "Reading quiz" });
     expect(preset).toBeEnabled();
     expect(preset).toHaveClass("reading-practice-preset");
     fireEvent.click(preset);
 
-    expect(screen.queryByRole("dialog", { name: "閱讀測驗試卷" }))
+    expect(screen.queryByRole("dialog", { name: "Reading quiz paper" }))
       .not.toBeInTheDocument();
 
     await waitFor(() => expect(sendMessage).toHaveBeenNthCalledWith(2, {
-      text: "開始閱讀測驗",
+      text: "Start reading quiz",
       intent: "practiceReading",
       explanationLanguage: "source",
       context: {
@@ -3206,26 +3228,26 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    const article = await screen.findByLabelText("Opening 章節內容");
+    const article = await screen.findByLabelText("Opening chapter content");
 
     expect(screen.queryByRole("region", { name: "The Old Bridge" }))
       .not.toBeInTheDocument();
     const paperArtifact = await screen.findByRole("button", {
-      name: "開啟試卷：The Old Bridge"
+      name: "Open paper: The Old Bridge"
     });
     const assistantMessage = paperArtifact.closest("article");
-    expect(paperArtifact).toHaveTextContent("2 題");
+    expect(paperArtifact).toHaveTextContent("2 questions");
     fireEvent.click(paperArtifact);
 
     const paper = screen.getByRole("region", { name: "The Old Bridge" });
     expect(assistantMessage).toContainElement(paper);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(article).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "收起試卷" }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse paper" }));
     expect(screen.queryByRole("region", { name: "The Old Bridge" }))
       .not.toBeInTheDocument();
     expect(screen.getByRole("button", {
-      name: "開啟試卷：The Old Bridge"
+      name: "Open paper: The Old Bridge"
     })).toBeInTheDocument();
   });
 
@@ -3245,18 +3267,18 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     fireEvent.click(await screen.findByRole("button", {
-      name: "開啟標記模式，目前章節 1 個標記"
+      name: "Turn on annotation mode; 1 annotations in this chapter"
     }));
     expect(screen.getByRole("button", {
-      name: "關閉標記模式，目前章節 1 個標記"
+      name: "Turn off annotation mode; 1 annotations in this chapter"
     }))
       .toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "下一章" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next chapter" }));
 
     await screen.findByText("Content for one-2");
     expect(await screen.findByRole("button", {
-      name: "開啟標記模式，目前章節 2 個標記"
+      name: "Turn on annotation mode; 2 annotations in this chapter"
     }))
       .toHaveAttribute("aria-pressed", "false");
   });

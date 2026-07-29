@@ -33,17 +33,17 @@ function validCefr(value: unknown): value is CefrLevel {
 
 function parseSendInput(value: unknown): SendChatMessageInput {
   if (!isObject(value) || typeof value.text !== "string") {
-    throw new Error("AI 訊息格式錯誤。");
+    throw new Error("Invalid AI message.");
   }
   if (value.intent !== undefined &&
     value.intent !== "explainAnnotations" &&
     value.intent !== "practiceReading" &&
     value.intent !== "createLearningItems") {
-    throw new Error("AI 訊息格式錯誤。");
+    throw new Error("Invalid AI message.");
   }
   if (value.explanationLanguage !== undefined &&
     !isExplanationLanguage(value.explanationLanguage)) {
-    throw new Error("AI 訊息格式錯誤。");
+    throw new Error("Invalid AI message.");
   }
   const intent = value.intent === "explainAnnotations"
     ? "explainAnnotations" as const
@@ -57,7 +57,7 @@ function parseSendInput(value: unknown): SendChatMessageInput {
     if (intent !== "createLearningItems" ||
       !Array.isArray(value.learningItemTargets) ||
       value.learningItemTargets.length > 50) {
-      throw new Error("AI 訊息格式錯誤。");
+      throw new Error("Invalid AI message.");
     }
     learningItemTargets = value.learningItemTargets.map((target) => {
       if (!isObject(target) || !nonEmptyString(target.title) ||
@@ -65,7 +65,7 @@ function parseSendInput(value: unknown): SendChatMessageInput {
           key !== "title" && key !== "senseHint") ||
         (target.senseHint !== undefined &&
           typeof target.senseHint !== "string")) {
-        throw new Error("AI 訊息格式錯誤。");
+        throw new Error("Invalid AI message.");
       }
       return {
         title: target.title.trim(),
@@ -83,12 +83,12 @@ function parseSendInput(value: unknown): SendChatMessageInput {
     ...(learningItemTargets ? { learningItemTargets } : {})
   };
   if (value.context === undefined) return { text: value.text, ...extras };
-  if (!isObject(value.context)) throw new Error("AI 上下文格式錯誤。");
+  if (!isObject(value.context)) throw new Error("Invalid AI context.");
   const context: NonNullable<SendChatMessageInput["context"]> = {};
   for (const key of ["bookTitle", "chapterTitle", "readingSegment"] as const) {
     const field = value.context[key];
     if (field !== undefined && typeof field !== "string") {
-      throw new Error("AI 上下文格式錯誤。");
+      throw new Error("Invalid AI context.");
     }
     if (typeof field === "string") context[key] = field;
   }
@@ -97,7 +97,7 @@ function parseSendInput(value: unknown): SendChatMessageInput {
 
 function parseConversationId(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) {
-    throw new Error("AI 對話識別碼格式錯誤。");
+    throw new Error("Invalid AI conversation identifier.");
   }
   return value;
 }
@@ -107,7 +107,7 @@ function parseDraftUpdate(value: unknown): UpdateLearningItemDraftInput {
     !nonEmptyString(value.draftId) || !nonEmptyString(value.title) ||
     !validItemType(value.itemType) || !validCefr(value.cefr) ||
     !nonEmptyString(value.sense) || !nonEmptyString(value.markdownContent)) {
-    throw new Error("學習項目草稿更新格式錯誤。");
+    throw new Error("Invalid learning-item draft update.");
   }
   return {
     batchId: value.batchId.trim(),
@@ -128,7 +128,7 @@ function parseDraftState(value: unknown): {
   if (!isObject(value) || !nonEmptyString(value.batchId) ||
     !nonEmptyString(value.draftId) ||
     (value.state !== "included" && value.state !== "excluded")) {
-    throw new Error("學習項目草稿狀態格式錯誤。");
+    throw new Error("Invalid learning-item draft state.");
   }
   return {
     batchId: value.batchId.trim(),
@@ -140,7 +140,7 @@ function parseDraftState(value: unknown): {
 function parseRestoreMatch(value: unknown) {
   if (!isObject(value) || !nonEmptyString(value.batchId) ||
     !nonEmptyString(value.itemId)) {
-    throw new Error("學習項目還原格式錯誤。");
+    throw new Error("Invalid learning-item restore request.");
   }
   return {
     batchId: value.batchId.trim(),

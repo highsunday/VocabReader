@@ -104,11 +104,11 @@ function databaseCounts(databasePath: string): {
       integrity_check?: string;
     };
     if (integrity.integrity_check !== "ok") {
-      throw new Error("生詞庫資料庫完整性檢查失敗");
+      throw new Error("Learning Library database integrity check failed");
     }
     const foreignKeyProblem = database.prepare("PRAGMA foreign_key_check").get();
     if (foreignKeyProblem) {
-      throw new Error("生詞庫資料庫關聯完整性檢查失敗");
+      throw new Error("Learning Library database relationship integrity check failed");
     }
     const migration = database.prepare(
       "SELECT MAX(version) AS version FROM schema_migrations"
@@ -117,7 +117,7 @@ function databaseCounts(databasePath: string): {
       Number(migration.version ?? 0) >
       MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION
     ) {
-      throw new Error("備份使用較新的生詞庫版本");
+      throw new Error("The backup uses a newer Learning Library version");
     }
     const rows = database.prepare(`
       SELECT status, COUNT(*) AS count
@@ -166,7 +166,7 @@ function validateBookState(candidate: Partial<LibraryBook>): void {
         candidate.epubParseVersion < 1 ||
         candidate.epubParseVersion > 2))
   ) {
-    throw new Error("書庫索引包含無效書籍狀態");
+    throw new Error("The Book Library index contains an invalid book state");
   }
   const readingState = record(candidate.readingState);
   if (
@@ -176,7 +176,7 @@ function validateBookState(candidate: Partial<LibraryBook>): void {
       typeof readingState.chapterId !== "string") ||
     !validFiniteNumber(readingState.scrollProgress, 0, 1)
   ) {
-    throw new Error("書庫索引包含無效閱讀狀態");
+    throw new Error("The Book Library index contains an invalid reading state");
   }
   const chapterIds = new Set<string>();
   for (const rawChapter of candidate.chapters ?? []) {
@@ -196,23 +196,23 @@ function validateBookState(candidate: Partial<LibraryBook>): void {
       Number(chapter.depth) < 0 ||
       (chapter.fragment !== null && typeof chapter.fragment !== "string")
     ) {
-      throw new Error("書庫索引包含無效章節");
+      throw new Error("The Book Library index contains an invalid chapter");
     }
     chapterIds.add(chapter.id);
   }
-  if (!chapterIds.size) throw new Error("書庫索引包含沒有章節的書籍");
+  if (!chapterIds.size) throw new Error("The Book Library index contains a book with no chapters");
   for (const chapterId of [
     candidate.lastChapterId,
     readingState.chapterId
   ]) {
     if (chapterId !== null && !chapterIds.has(String(chapterId))) {
-      throw new Error("書庫索引的閱讀狀態指向未知章節");
+      throw new Error("The Book Library reading state points to an unknown chapter");
     }
   }
   const ranges = candidate.chapterRanges === undefined
     ? {}
     : record(candidate.chapterRanges);
-  if (!ranges) throw new Error("書庫索引的閱讀區段格式錯誤");
+  if (!ranges) throw new Error("The Book Library index contains an invalid reading segment");
   for (const [chapterId, rawRange] of Object.entries(ranges)) {
     const range = record(rawRange);
     if (
@@ -223,18 +223,18 @@ function validateBookState(candidate: Partial<LibraryBook>): void {
       Number(range.start) < 0 ||
       Number(range.end) < Number(range.start)
     ) {
-      throw new Error("書庫索引的閱讀區段格式錯誤");
+      throw new Error("The Book Library index contains an invalid reading segment");
     }
   }
   const annotationsByChapter = candidate.chapterAnnotations === undefined
     ? {}
     : record(candidate.chapterAnnotations);
-  if (!annotationsByChapter) throw new Error("書庫索引的標記格式錯誤");
+  if (!annotationsByChapter) throw new Error("The Book Library index contains invalid annotations");
   for (const [chapterId, rawAnnotations] of Object.entries(
     annotationsByChapter
   )) {
     if (!chapterIds.has(chapterId) || !Array.isArray(rawAnnotations)) {
-      throw new Error("書庫索引的標記格式錯誤");
+      throw new Error("The Book Library index contains invalid annotations");
     }
     const rangesInChapter: Array<{ start: number; end: number }> = [];
     const annotationIds = new Set<string>();
@@ -252,7 +252,7 @@ function validateBookState(candidate: Partial<LibraryBook>): void {
         typeof annotation.text !== "string" ||
         !annotation.text
       ) {
-        throw new Error("書庫索引的標記格式錯誤");
+        throw new Error("The Book Library index contains invalid annotations");
       }
       annotationIds.add(annotation.id);
       rangesInChapter.push({
@@ -266,7 +266,7 @@ function validateBookState(candidate: Partial<LibraryBook>): void {
     if (rangesInChapter.some((range, index) =>
       index > 0 && range.start < rangesInChapter[index - 1].end
     )) {
-      throw new Error("書庫索引包含重疊標記");
+      throw new Error("The Book Library index contains overlapping annotations");
     }
   }
 }
@@ -276,9 +276,9 @@ function parseBookIndex(bytes: Buffer): LibraryBook[] {
   try {
     value = JSON.parse(bytes.toString("utf8"));
   } catch {
-    throw new Error("書庫索引格式錯誤");
+    throw new Error("Invalid Book Library index");
   }
-  if (!Array.isArray(value)) throw new Error("書庫索引格式錯誤");
+  if (!Array.isArray(value)) throw new Error("Invalid Book Library index");
   for (const book of value) {
     const candidate = book as Partial<LibraryBook>;
     if (
@@ -293,7 +293,7 @@ function parseBookIndex(bytes: Buffer): LibraryBook[] {
       !candidate.readingState ||
       typeof candidate.readingState !== "object"
     ) {
-      throw new Error("書庫索引包含無效書籍");
+      throw new Error("The Book Library index contains an invalid book");
     }
     validateBookState(candidate);
   }
@@ -311,19 +311,19 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
   try {
     value = JSON.parse(bytes.toString("utf8"));
   } catch {
-    throw new Error("VocabReader 備份格式錯誤");
+    throw new Error("Invalid VocabReader backup");
   }
   const manifest = record(value);
   const counts = record(manifest?.counts);
   if (manifest?.format !== backupFormat) {
-    throw new Error("這不是 VocabReader 資料備份");
+    throw new Error("This is not a VocabReader data backup");
   }
   if (manifest.version !== backupFormatVersion) {
     throw new Error(
       typeof manifest.version === "number" &&
       manifest.version > backupFormatVersion
-        ? "備份格式版本較新，請先更新 VocabReader"
-        : "VocabReader 備份格式版本不受支援"
+        ? "This backup uses a newer format. Update VocabReader first"
+        : "This VocabReader backup format is not supported"
     );
   }
   if (
@@ -340,7 +340,7 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
     Number(counts.trashedLearningItems) < 0 ||
     !Array.isArray(manifest.files)
   ) {
-    throw new Error("VocabReader 備份 manifest 格式錯誤");
+    throw new Error("Invalid VocabReader backup manifest");
   }
   const files: ManifestFile[] = manifest.files.map((rawFile) => {
     const file = record(rawFile);
@@ -352,7 +352,7 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
       typeof file.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/.test(file.sha256)
     ) {
-      throw new Error("VocabReader 備份 manifest 檔案資訊錯誤");
+      throw new Error("Invalid file information in the VocabReader backup manifest");
     }
     return {
       path: file.path,
@@ -361,7 +361,7 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
     };
   });
   if (new Set(files.map((file) => file.path)).size !== files.length) {
-    throw new Error("VocabReader 備份 manifest 含重複檔案");
+    throw new Error("The VocabReader backup manifest contains duplicate files");
   }
   return {
     format: backupFormat,
@@ -446,7 +446,7 @@ export class DataBackupService {
   }
 
   async exportToPath(destinationPath: string): Promise<ExportDataBackupResult> {
-    if (this.#busy) throw new Error("另一個資料備份操作正在進行");
+    if (this.#busy) throw new Error("Another data-backup operation is in progress");
     this.#busy = true;
     let temporaryDirectory: string | undefined;
     let partialPath: string | undefined;
@@ -492,7 +492,7 @@ export class DataBackupService {
           join(this.options.libraryPath, "books", book.id, "book.epub")
         );
         if (sha256(epubBytes) !== book.id) {
-          throw new Error(`書籍《${book.title ?? book.id}》內容驗證失敗`);
+          throw new Error(`Content validation failed for “${book.title ?? book.id}”`);
         }
         payloads.push({
           path: `library/books/${book.id}/book.epub`,
@@ -546,7 +546,7 @@ export class DataBackupService {
   }
 
   async selectBackupFromPath(archivePath: string): Promise<DataBackupPreview> {
-    if (this.#busy) throw new Error("另一個資料備份操作正在進行");
+    if (this.#busy) throw new Error("Another data-backup operation is in progress");
     this.#busy = true;
     let preparedDirectory: string | undefined;
     try {
@@ -557,17 +557,17 @@ export class DataBackupService {
       await this.#clearPreparedRestores();
       const archive = await readFile(archivePath);
       if (archive.byteLength > maximumArchiveBytes) {
-        throw new Error("備份 ZIP 超過允許大小");
+        throw new Error("The backup ZIP exceeds the allowed size");
       }
       let zip: JSZip;
       try {
         zip = await JSZip.loadAsync(archive);
       } catch {
-        throw new Error("無法讀取 VocabReader 備份 ZIP");
+        throw new Error("Unable to read the VocabReader backup ZIP");
       }
       const entries = Object.values(zip.files);
       if (entries.length > maximumEntryCount) {
-        throw new Error("備份 ZIP 包含過多檔案");
+        throw new Error("The backup ZIP contains too many files");
       }
       for (const entry of entries) {
         const safetyPath = entry.dir && entry.name.endsWith("/")
@@ -584,7 +584,7 @@ export class DataBackupService {
           (typeof entry.unixPermissions === "number" &&
             (entry.unixPermissions & 0o170000) === 0o120000)
         ) {
-          throw new Error("備份 ZIP 包含不安全的檔案路徑");
+          throw new Error("The backup ZIP contains an unsafe file path");
         }
         const uncompressedSize = (
           entry as JSZip.JSZipObject & {
@@ -595,11 +595,11 @@ export class DataBackupService {
           typeof uncompressedSize === "number" &&
           uncompressedSize > maximumEntryBytes
         ) {
-          throw new Error("備份 ZIP 的單一檔案超過允許大小");
+          throw new Error("A file in the backup ZIP exceeds the allowed size");
         }
       }
       const manifestEntry = zip.file("manifest.json");
-      if (!manifestEntry) throw new Error("這不是 VocabReader 資料備份");
+      if (!manifestEntry) throw new Error("This is not a VocabReader data backup");
       const manifestBytes = await manifestEntry.async("nodebuffer");
       const manifest = parseManifest(manifestBytes);
       const declaredPaths = new Set(manifest.files.map((file) => file.path));
@@ -615,26 +615,26 @@ export class DataBackupService {
           !archivePaths.has(path) || !allowedPayloadPath(path)
         )
       ) {
-        throw new Error("備份 ZIP 包含未宣告或不允許的檔案");
+        throw new Error("The backup ZIP contains an undeclared or disallowed file");
       }
       const payloads = new Map<string, Buffer>();
       let extractedBytes = 0;
       for (const declared of manifest.files) {
         const entry = zip.file(declared.path);
-        if (!entry) throw new Error(`備份缺少必要檔案：${declared.path}`);
+        if (!entry) throw new Error(`The backup is missing required file: ${declared.path}`);
         const bytes = await entry.async("nodebuffer");
         extractedBytes += bytes.byteLength;
         if (
           bytes.byteLength > maximumEntryBytes ||
           extractedBytes > maximumExtractedBytes
         ) {
-          throw new Error("備份 ZIP 解壓後超過允許大小");
+          throw new Error("The extracted backup ZIP exceeds the allowed size");
         }
         if (
           bytes.byteLength !== declared.bytes ||
           sha256(bytes) !== declared.sha256
         ) {
-          throw new Error(`備份檔案完整性 checksum 不符：${declared.path}`);
+          throw new Error(`Backup file checksum mismatch: ${declared.path}`);
         }
         payloads.set(declared.path, bytes);
       }
@@ -643,20 +643,20 @@ export class DataBackupService {
         "learning-library/learning-items.sqlite"
       );
       if (!indexBytes || !learningBytes) {
-        throw new Error("備份缺少書庫或生詞庫資料");
+        throw new Error("The backup is missing Book Library or Learning Library data");
       }
       const books = parseBookIndex(indexBytes);
       if (books.length !== manifest.counts.books) {
-        throw new Error("備份書籍數量與 manifest 不符");
+        throw new Error("The backup book count does not match the manifest");
       }
       const bookIds = new Set<string>();
       for (const book of books) {
-        if (bookIds.has(book.id)) throw new Error("備份書庫包含重複書籍");
+        if (bookIds.has(book.id)) throw new Error("The backup Book Library contains duplicate books");
         bookIds.add(book.id);
         const bookPath = `library/books/${book.id}/book.epub`;
         const epub = payloads.get(bookPath);
         if (!epub || sha256(epub) !== book.id) {
-          throw new Error(`備份書籍《${book.title}》內容驗證失敗`);
+          throw new Error(`Backup content validation failed for “${book.title}”`);
         }
       }
       if (
@@ -664,7 +664,7 @@ export class DataBackupService {
           path.startsWith("library/books/")
         ).length !== books.length
       ) {
-        throw new Error("備份含有未列入書庫索引的 EPUB");
+        throw new Error("The backup contains an EPUB not listed in the Book Library index");
       }
       for (const [path, bytes] of payloads) {
         const destination = join(preparedDirectory, path);
@@ -682,7 +682,7 @@ export class DataBackupService {
         actualCounts.trashedLearningItems !==
           manifest.counts.trashedLearningItems
       ) {
-        throw new Error("備份生詞庫數量與 manifest 不符");
+        throw new Error("The backup Learning Library count does not match the manifest");
       }
       const token = randomUUID();
       const preview: DataBackupPreview = {
@@ -710,7 +710,7 @@ export class DataBackupService {
   }
 
   async cancelRestore(token: string): Promise<void> {
-    if (this.#busy) throw new Error("另一個資料備份操作正在進行");
+    if (this.#busy) throw new Error("Another data-backup operation is in progress");
     this.#busy = true;
     try {
       const prepared = this.#preparedRestores.get(token);
@@ -723,9 +723,9 @@ export class DataBackupService {
   }
 
   async restoreBackup(token: string): Promise<void> {
-    if (this.#busy) throw new Error("另一個資料備份操作正在進行");
+    if (this.#busy) throw new Error("Another data-backup operation is in progress");
     const prepared = this.#preparedRestores.get(token);
-    if (!prepared) throw new Error("資料還原預覽已失效，請重新選取備份");
+    if (!prepared) throw new Error("The restore preview expired. Select the backup again");
     this.#busy = true;
     const currentLibraryPath = this.options.libraryPath;
     const currentLearningPath = dirname(this.options.learningDatabasePath);
