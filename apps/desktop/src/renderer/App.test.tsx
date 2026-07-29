@@ -768,6 +768,86 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "停止中…" })).toBeDisabled();
   });
 
+  it("scrolls the AI conversation to a newly sent user message only once", async () => {
+    const previousMessage = {
+      id: "user-previous",
+      turnId: "turn-previous",
+      role: "user" as const,
+      text: "Earlier question",
+      status: "completed" as const
+    };
+    const initialSnapshot: ChatSnapshot = {
+      ...initialReadySnapshot(),
+      messages: [previousMessage],
+      threadId: "thread-1"
+    };
+    const sentSnapshot: ChatSnapshot = {
+      ...initialSnapshot,
+      messages: [
+        previousMessage,
+        {
+          id: "user-latest",
+          turnId: "turn-latest",
+          role: "user",
+          text: "Latest question",
+          status: "completed"
+        }
+      ],
+      activeTurnId: "turn-latest"
+    };
+    let publishSnapshot:
+      ((snapshot: ChatSnapshot) => void) | undefined;
+    const sendMessage = vi.fn().mockResolvedValue(sentSnapshot);
+    installLibraryApi(books, {
+      getState: vi.fn().mockResolvedValue(initialSnapshot),
+      connect: vi.fn().mockResolvedValue(initialSnapshot),
+      sendMessage,
+      onStateChanged: vi.fn((listener) => {
+        publishSnapshot = listener;
+        return () => undefined;
+      })
+    });
+    render(<App />);
+
+    await screen.findByText("Earlier question");
+    const messages = document.querySelector<HTMLElement>(".messages");
+    const readingContent = screen.getByRole("main");
+    if (!messages) throw new Error("missing AI conversation scroller");
+    Object.defineProperties(messages, {
+      scrollHeight: { configurable: true, value: 1200 },
+      clientHeight: { configurable: true, value: 300 }
+    });
+    messages.scrollTop = 180;
+    readingContent.scrollTop = 240;
+
+    fireEvent.change(screen.getByLabelText("詢問目前內容"), {
+      target: { value: "Latest question" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送出" }));
+
+    await screen.findByText("Latest question");
+    await waitFor(() => expect(messages.scrollTop).toBe(1200));
+    expect(readingContent.scrollTop).toBe(240);
+
+    messages.scrollTop = 160;
+    act(() => publishSnapshot?.({
+      ...sentSnapshot,
+      messages: [
+        ...sentSnapshot.messages,
+        {
+          id: "assistant-latest",
+          turnId: "turn-latest",
+          role: "assistant",
+          text: "Streaming answer",
+          status: "streaming"
+        }
+      ]
+    }));
+
+    await screen.findByText("Streaming answer");
+    expect(messages.scrollTop).toBe(160);
+  });
+
   it("shows a retry action for failed learning-item preparation", async () => {
     const failedSnapshot: ChatSnapshot = {
       ...initialReadySnapshot(),

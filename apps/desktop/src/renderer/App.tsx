@@ -296,6 +296,8 @@ export function App() {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement>(null);
   const articleRef = useRef<HTMLElement>(null);
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
+  const pendingChatScrollUserCountRef = useRef<number | null>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
   const readingLayoutRef = useRef<HTMLDivElement>(null);
   const dataRestoreCancelRef = useRef<HTMLButtonElement>(null);
@@ -451,6 +453,20 @@ export function App() {
       unsubscribe?.();
     };
   }, []);
+
+  useEffect(() => {
+    const previousUserCount = pendingChatScrollUserCountRef.current;
+    if (previousUserCount === null) return;
+    const currentUserCount = chatSnapshot.messages.reduce(
+      (count, message) => count + (message.role === "user" ? 1 : 0),
+      0
+    );
+    if (currentUserCount <= previousUserCount || !chatMessagesRef.current) {
+      return;
+    }
+    chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    pendingChatScrollUserCountRef.current = null;
+  }, [chatSnapshot.messages]);
 
   useEffect(() => {
     const api = desktopSettings();
@@ -1321,6 +1337,11 @@ export function App() {
       ...extras,
       ...(Object.keys(context).length ? { context } : {})
     };
+    const previousUserCount = chatSnapshot.messages.reduce(
+      (count, message) => count + (message.role === "user" ? 1 : 0),
+      0
+    );
+    pendingChatScrollUserCountRef.current = previousUserCount;
     setChatError("");
     try {
       const snapshot = await chat.sendMessage(input);
@@ -1330,6 +1351,9 @@ export function App() {
       setChatSnapshot(snapshot);
       return true;
     } catch (error) {
+      if (pendingChatScrollUserCountRef.current === previousUserCount) {
+        pendingChatScrollUserCountRef.current = null;
+      }
       setChatError(error instanceof Error ? error.message : "無法送出訊息。");
       return false;
     }
@@ -2297,7 +2321,11 @@ export function App() {
                 </section>
               ) : (
                 <>
-                  <div className="messages" aria-live="polite">
+                  <div
+                    className="messages"
+                    aria-live="polite"
+                    ref={chatMessagesRef}
+                  >
                     {chatSnapshot.messages.length === 0 ? (
                       <div className="chat-empty-state">
                         <strong>從目前閱讀內容開始提問</strong>

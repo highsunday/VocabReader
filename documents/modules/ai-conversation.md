@@ -28,6 +28,7 @@ related_implements:
   - F28-ai-graded-spaced-review-paper
   - F34-route-multilingual-learning-item-intent-with-ai
   - B12-launch-codex-app-server-on-windows
+  - B16-scroll-ai-conversation-after-user-message
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -76,6 +77,9 @@ related_implements:
 - 使用安全的 Markdown Renderer 呈現 CommonMark 與 GitHub Flavored Markdown；原始 HTML 不會插入 DOM，表格與程式碼在窄側欄中可水平捲動。
 - 左側窄欄狀態卡顯示 Codex、右上角連線標籤與上下排列的五小時／每週額度；不顯示信箱或含帳戶資料的「已連線」明細。
 - AI 回覆中狀態位於對話訊息流底部；提問框固定呈現「輸入你的疑問」與 Enter／Shift+Enter 提示，並避免輸入法組字期間 Enter 誤送。
+- 使用者送出新訊息且該 user message 加入訊息流後，AI 對話訊息區會自動移至最新
+  內容；這是一次性捲動，不會因後續 assistant 串流更新持續搶回使用者位置，也不
+  影響中央閱讀內容的獨立捲動。
 - AI 對話面板左邊界可用滑鼠拖曳或方向鍵調整寬度；展開寬度限制於 280–640px 並保護中央閱讀區，摺疊後展開會恢復本次工作階段的調整寬度。
 - 「設定」提供講解語言、AI 對話文字大小與電子書內文字大小；模型選擇仍直接位於 AI 對話提問框，不提供推理強度設定。
 - 生詞庫工作區沿用同一套右側 AI 對話面板與全域對話生命週期，並與閱讀頁共同提供
@@ -158,6 +162,9 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 在提問框呈現模型選擇、鍵盤操作提示與停止按鈕；回覆中狀態顯示於訊息流，IME composition Enter 不觸發送出。
 - 管理 AI 對話面板的工作階段寬度、拖曳／鍵盤調整、安全邊界與摺疊恢復；不經 IPC 保存。
 - 以安全的 Markdown 元件呈現 user／assistant 訊息，並在串流尚無文字時保留「…」占位。
+- 以送出前的 user message 數量辨識真正新增的使用者訊息，只在新增後對 AI 對話
+  訊息區執行一次自動捲動；Codex `starting` 狀態與後續 assistant delta 不消耗或
+  重複這次捲動意圖。
 - 在右側面板的對話內容與全域清單之間切換，顯示對話標題、最近來源及更新時間。
 - AI 回覆與範圍標籤狀態分離；送出或完成訊息不推進 START／END。
 - 只解析固定 `reading-practice-quiz`／`reading-practice-grade` fenced JSON；不完整串流、錯誤 schema、quiz id 不符或未覆蓋每題的結果不會改變試卷完成狀態。artifact 原文仍隨 AI 訊息保存，但不在窄側欄重複顯示。
