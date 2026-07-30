@@ -1441,49 +1441,73 @@ button {
 .annotation-tool-dock {
   position: sticky;
   z-index: 4;
-  top: 72px;
+  top: 84px;
   height: 0;
-  padding: 10px 10px 0 0;
+  padding: 8px 8px 0 0;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
   pointer-events: none;
 }
 
-.range-jump-controls {
-  height: 40px;
+.reading-range-actions-group {
+  height: 36px;
+  padding: 2px;
   border: 1px solid #d8ddd5;
-  border-radius: 999px;
+  border-radius: 12px;
   display: inline-flex;
-  overflow: hidden;
-  background: #faf9f5;
-  box-shadow: 0 4px 14px rgb(58 51 40 / 8%);
+  align-items: center;
+  gap: 0;
+  background: rgb(250 249 245 / 94%);
+  box-shadow: 0 3px 10px rgb(58 51 40 / 7%);
+  backdrop-filter: blur(10px);
   pointer-events: auto;
 }
 
-.range-jump-controls button {
-  min-width: 58px;
-  height: 100%;
-  padding: 0 12px;
+.range-jump-controls {
+  height: 30px;
   border: 0;
+  border-radius: 9px 0 0 9px;
+  display: inline-flex;
+  overflow: hidden;
+  background: transparent;
+}
+
+.range-jump-controls button {
+  min-width: 52px;
+  height: 100%;
+  padding: 0 9px;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   color: #657d64;
   background: transparent;
   cursor: pointer;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: 0;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.range-jump-controls button span:first-child {
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .range-jump-controls button.end {
-  color: #9a7049;
+  color: #8a684a;
 }
 
 .range-jump-controls button + button {
-  border-left: 1px solid #dde0d9;
+  border-left: 1px solid #e1e4de;
 }
 
 .range-jump-controls button:hover {
-  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: #3f5847;
+  background: #edf1eb;
 }
 
 .range-jump-controls button:focus-visible {
@@ -1493,20 +1517,19 @@ button {
 }
 
 .annotation-tool {
-  position: relative;
-  min-width: 84px;
-  height: 40px;
+  min-width: 96px;
+  height: 36px;
   margin: 0;
-  padding: 6px 13px 6px 10px;
+  padding: 0 11px;
   border: 1px solid #d8ddd5;
-  border-radius: 999px;
+  border-radius: 11px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   color: #526158;
-  background: #faf9f5;
-  box-shadow: 0 4px 14px rgb(58 51 40 / 8%);
+  background: rgb(250 249 245 / 94%);
+  box-shadow: 0 3px 10px rgb(58 51 40 / 7%);
   cursor: pointer;
   pointer-events: auto;
   transition: border-color 160ms ease, color 160ms ease,
@@ -1516,32 +1539,30 @@ button {
 .annotation-tool:hover {
   border-color: #c8d0c8;
   color: #46554b;
-  box-shadow: 0 6px 18px rgb(58 51 40 / 10%);
-  transform: translateY(-2px);
+  background: #edf1eb;
+  box-shadow: 0 4px 12px rgb(58 51 40 / 9%);
 }
 
 .annotation-tool:active {
-  box-shadow: 0 3px 10px rgb(58 51 40 / 10%);
-  transform: translateY(0) scale(0.97);
+  background: #e5ebe3;
+  transform: scale(0.98);
 }
 
 .annotation-tool:focus-visible {
-  outline: 3px solid rgb(99 122 106 / 20%);
-  outline-offset: 3px;
+  outline: 2px solid rgb(99 122 106 / 28%);
+  outline-offset: -2px;
 }
 
 .annotation-tool.active {
   border-color: #ded1a4;
   color: #6e5b28;
-  background: #f6edcf;
-  box-shadow:
-    0 0 0 2px rgb(216 197 129 / 10%),
-    0 5px 15px rgb(117 83 24 / 8%);
+  background: #f3e8c5;
+  box-shadow: 0 3px 10px rgb(117 83 24 / 8%);
 }
 
 .annotation-tool svg {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
   flex: 0 0 auto;
   fill: none;
   stroke: currentColor;
@@ -1551,29 +1572,25 @@ button {
 }
 
 .annotation-tool-label {
-  min-width: 32px;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 780;
-  letter-spacing: 0.03em;
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: 0;
   line-height: 1;
   white-space: nowrap;
 }
 
 .annotation-tool-count {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 16px;
-  height: 16px;
+  min-width: 17px;
+  height: 17px;
   padding: 0 4px;
-  border: 2px solid #fffdf8;
-  border-radius: 9px;
+  border: 0;
+  border-radius: 999px;
   display: inline-grid;
   place-items: center;
   color: #526158;
   background: #e2e8e1;
-  box-shadow: 0 2px 5px rgb(42 53 44 / 12%);
+  box-shadow: none;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 9px;
   font-weight: 800;
@@ -1585,13 +1602,75 @@ button {
   background: #eadca9;
 }
 
+.range-advance-action {
+  min-width: 112px;
+  height: 30px;
+  margin: 0;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-left: 1px solid #6f8875;
+  border-radius: 0 9px 9px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #f9fbf7;
+  background: #496752;
+  box-shadow: none;
+  cursor: pointer;
+  pointer-events: auto;
+  font-size: 11px;
+  font-weight: 780;
+  letter-spacing: 0.01em;
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.range-advance-action span:last-child {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  transition: transform 160ms ease;
+}
+
+.range-advance-action:hover:not(:disabled) {
+  background: #3e5b47;
+  box-shadow: none;
+  transform: none;
+}
+
+.range-advance-action:hover:not(:disabled) span:last-child {
+  transform: translateX(2px);
+}
+
+.range-advance-action:active:not(:disabled) {
+  box-shadow: none;
+  transform: scale(0.98);
+}
+
+.range-advance-action:focus-visible {
+  outline: 2px solid rgb(73 103 82 / 32%);
+  outline-offset: -2px;
+}
+
+.range-advance-action:disabled {
+  border-color: #c9cec7;
+  color: #8c948d;
+  background: #e8ebe6;
+  box-shadow: none;
+  cursor: default;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .annotation-tool {
+  .annotation-tool,
+  .range-advance-action,
+  .range-advance-action span:last-child {
     transition: none;
   }
 
   .annotation-tool:hover,
-  .annotation-tool:active {
+  .annotation-tool:active,
+  .range-advance-action:hover,
+  .range-advance-action:active {
     transform: none;
   }
 }
@@ -4601,36 +4680,6 @@ button {
   border-radius: 50%;
   background: currentColor;
   box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 12%, transparent);
-}
-
-.reading-range-actions {
-  margin: 14px 0 0 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  color: #697069;
-  font-size: 13px;
-}
-
-.reading-range-actions button {
-  padding: 9px 13px;
-  border: 1px solid #879b83;
-  border-radius: 9px;
-  color: #334333;
-  background: #f2f7ef;
-  cursor: pointer;
-}
-
-.reading-range-actions button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.reading-range-actions > div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .reading-range-menu {

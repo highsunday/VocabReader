@@ -2009,26 +2009,40 @@ export function App() {
               ) : chapterContent ? (
                 <div className="reading-range-workspace">
                   <div className="annotation-tool-dock">
-                    <div
-                      className="range-jump-controls"
-                      role="group"
-                      aria-label="Reading segment quick navigation"
-                    >
-                      <button
-                        className="start"
-                        type="button"
-                        aria-label="Go to START range marker"
-                        onClick={() => scrollToReadingRangeMarker("start")}
+                    <div className="reading-range-actions-group">
+                      <div
+                        className="range-jump-controls"
+                        role="group"
+                        aria-label="Reading segment quick navigation"
                       >
-                        START
-                      </button>
+                        <button
+                          className="start"
+                          type="button"
+                          aria-label="Go to START range marker"
+                          onClick={() => scrollToReadingRangeMarker("start")}
+                        >
+                          <span aria-hidden="true">↑</span>
+                          <span>Start</span>
+                        </button>
+                        <button
+                          className="end"
+                          type="button"
+                          aria-label="Go to END range marker"
+                          onClick={() => scrollToReadingRangeMarker("end")}
+                        >
+                          <span aria-hidden="true">↓</span>
+                          <span>End</span>
+                        </button>
+                      </div>
                       <button
-                        className="end"
+                        className="range-advance-action"
                         type="button"
-                        aria-label="Go to END range marker"
-                        onClick={() => scrollToReadingRangeMarker("end")}
+                        aria-label="Go to next reading segment"
+                        onClick={advanceToNextReadingRange}
+                        disabled={!readingRange || readingRange.end >= (articleRef.current?.textContent?.length ?? 0)}
                       >
-                        END
+                        <span>Next segment</span>
+                        <span aria-hidden="true">→</span>
                       </button>
                     </div>
                     <button
@@ -2047,9 +2061,11 @@ export function App() {
                       <span className="annotation-tool-label" aria-hidden="true">
                         {isAnnotationMode ? "Annotating" : "Annotate"}
                       </span>
-                      <span className="annotation-tool-count" aria-hidden="true">
-                        {annotations.length}
-                      </span>
+                      {annotations.length > 0 ? (
+                        <span className="annotation-tool-count" aria-hidden="true">
+                          {annotations.length}
+                        </span>
+                      ) : null}
                     </button>
                   </div>
                   <div className="reading-range-shell">
@@ -2096,18 +2112,6 @@ export function App() {
                       </div>
                     ) : null}
                     <ChapterArticle ref={articleRef} content={chapterContent} />
-                  </div>
-                  <div className="reading-range-actions">
-                    <span>AI only reads the content between the two markers</span>
-                    <div>
-                      <button
-                        type="button"
-                        onClick={advanceToNextReadingRange}
-                        disabled={!readingRange || readingRange.end >= (articleRef.current?.textContent?.length ?? 0)}
-                      >
-                        Finish this segment and continue
-                      </button>
-                    </div>
                   </div>
                   {rangeMenu ? (
                     <div

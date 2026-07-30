@@ -1009,7 +1009,7 @@ describe("App", () => {
       explanationLanguage: "source"
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Finish this segment and continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Go to next reading segment" }));
     await waitFor(() => expect(screen.getByRole("button", {
       name: "Reading segment start"
     })).not.toHaveAttribute("data-text-offset", "0"));
@@ -2663,7 +2663,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(saveReadingRange).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Finish this segment and continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Go to next reading segment" }));
     await waitFor(() => expect(saveReadingRange).toHaveBeenCalledWith(
       expect.objectContaining({
         range: expect.objectContaining({ start: expect.any(Number), end: expect.any(Number) })
@@ -2814,8 +2814,14 @@ describe("App", () => {
     });
     expect(annotationDock).toContainElement(moveToStart);
     expect(annotationDock).toContainElement(moveToEnd);
-    expect(moveToStart).toHaveTextContent("START");
-    expect(moveToEnd).toHaveTextContent("END");
+    expect(annotationDock).toContainElement(screen.getByRole("button", {
+      name: "Go to next reading segment"
+    }));
+    expect(moveToStart).toHaveTextContent("↑Start");
+    expect(moveToEnd).toHaveTextContent("↓End");
+    expect(screen.queryByText(
+      "AI only reads the content between the two markers"
+    )).not.toBeInTheDocument();
     expect(moveToStart.closest(".reader-toolbar")).toBeNull();
     expect(moveToEnd.closest(".reader-toolbar")).toBeNull();
     expect(document.querySelector(
