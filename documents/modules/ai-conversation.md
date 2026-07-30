@@ -29,6 +29,7 @@ related_implements:
   - F34-route-multilingual-learning-item-intent-with-ai
   - B12-launch-codex-app-server-on-windows
   - B16-scroll-ai-conversation-after-user-message
+  - F43-refresh-codex-allowance-every-minute
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -56,6 +57,9 @@ related_implements:
 - 顯示 disconnected、connecting、ready、auth-required 與 error 連線階段。
 - 依 300 與 10,080 分鐘視窗辨識五小時與每週額度；缺值、載入中與確實 0% 保持不同語意。
 - 合併 `account/rateLimits/updated` 的 partial live update，不建立 AI turn。
+- Codex ready 且初次額度載入完成後，每 60 秒主動執行
+  `account/rateLimits/read`；暫時失敗保留最後有效資料並於下個週期重試，client
+  結束、替換或 Controller 關閉時停止輪詢。
 - 分頁讀取 `model/list` 的可見模型，以 server default 作為初始選擇；目錄失敗時仍可使用 Codex 預設模型對話。
 - 使用者可在 AI 未回覆時切換模型；新 thread 與後續 turn 都使用目前模型及該模型的預設推理強度。
 - 空白新對話送出第一個問題後才建立產品對話與 Codex thread；後續追問在相同 thread 建立新 turn。
@@ -215,6 +219,8 @@ App ready
   → account/rateLimits/read + paginated model/list
   → 依 windowDurationMins 正規化五小時／每週
   → ChatSnapshot 經 IPC 推送 Renderer
+  → ready 期間每 60 秒重新 account/rateLimits/read
+  → 驗證成功後發布新 ChatSnapshot
 ```
 
 Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading，UI 顯示「取得中…」，不會把未完成讀取誤顯示成「無法取得」。
@@ -294,7 +300,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 |---|---|
 | `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、重啟 streaming 正規化與損壞資料隔離 |
 | `apps/desktop/src/main/codex-app-server-client.test.ts` | Windows Desktop native CLI discovery、npm shim fallback 與非 Windows 啟動 |
-| `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、三個 skills、creation 候選範圍、持久澄清與批次生命週期 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、每分鐘額度刷新與停止清理、三個 skills、creation 候選範圍、持久澄清與批次生命週期 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill 的 CEFR、8–12／1–3 題、混合題型、批改、語言與 final review 契約 |
 | `apps/desktop/src/main/bundled-skill.test.ts` | 四份 App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 與預設意圖白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
@@ -303,15 +309,11 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/renderer/reading-practice-artifact.test.ts` | 試卷／批改 artifact 驗證、串流容錯與提交格式 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、四份 runtime skills、typed bridges 與 Node 隔離 |
 
-最近驗證（2026-07-28）：
+最近驗證（2026-07-30）：
 
-- Windows／非 Windows transport focused Vitest：5/5 passed。
-- Desktop Vitest：241 tests passed；既有 `learning-library-service.test.ts` 因 Vitest
-  jsdom 無法 bundle `node:sqlite` 而未收集，與 transport 修正無關。
+- Desktop Vitest：323 tests passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
-- 真實 Windows production Electron：透過 Codex Desktop native CLI 冷啟動 3/3
-  ready，帳戶型別為 ChatGPT。
 
 ## 10. Known Limitations and Follow-up
 
@@ -353,5 +355,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/B12-launch-codex-app-server-on-windows.md`
 - `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
 - `documents/implements/F28-ai-graded-spaced-review-paper.md`
+- `documents/implements/F43-refresh-codex-allowance-every-minute.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

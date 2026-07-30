@@ -459,6 +459,8 @@ export class ChatController {
   #turnReadyPromise: Promise<string | null> | undefined;
   #resolveTurnReady: ((turnId: string | null) => void) | undefined;
   #connectPromise: Promise<ChatSnapshot> | undefined;
+  #allowanceRefreshTimer: ReturnType<typeof setInterval> | undefined;
+  #allowanceRefreshClientInFlight: CodexAppServerClient | undefined;
   readonly #learningItemTurnScopes = new Map<string, {
     targets: string[];
     candidates: LearningItem[];
@@ -905,6 +907,7 @@ export class ChatController {
     });
     this.#unsubscribeExit = client.onExit((error) => {
       if (this.#client !== client) return;
+      this.#stopAllowancePolling(client);
       this.#client = undefined;
       this.#activeTurnId = null;
       this.#stopRequested = false;
@@ -939,6 +942,9 @@ export class ChatController {
           this.#loadAllowance(client),
           this.#loadModelCatalog(client)
         ]);
+        if (this.#client === client && this.#connection === "ready") {
+          this.#startAllowancePolling(client);
+        }
         return this.getSnapshot();
       } catch (error) {
         if (this.#client === client) {
@@ -1561,17 +1567,51 @@ export class ChatController {
     }
   }
 
-  async #loadAllowance(client: CodexAppServerClient): Promise<void> {
+  async #loadAllowance(
+    client: CodexAppServerClient,
+    preserveCurrentOnError = false
+  ): Promise<void> {
     try {
-      this.#allowance = allowanceFromResult(
+      const allowance = allowanceFromResult(
         await client.request("account/rateLimits/read")
       );
+      if (this.#client !== client) return;
+      this.#allowance = allowance;
     } catch (error) {
+      if (this.#client !== client) return;
+      if (preserveCurrentOnError) return;
       this.#allowance = unavailableAllowance(
         error instanceof Error ? error.message : "AI usage allowance is unavailable."
       );
     }
     this.#emit();
+  }
+
+  #startAllowancePolling(client: CodexAppServerClient): void {
+    this.#stopAllowancePolling();
+    this.#allowanceRefreshTimer = setInterval(() => {
+      if (this.#client !== client ||
+        this.#connection !== "ready" ||
+        this.#allowanceRefreshClientInFlight === client) {
+        return;
+      }
+      this.#allowanceRefreshClientInFlight = client;
+      void this.#loadAllowance(client, true).finally(() => {
+        if (this.#allowanceRefreshClientInFlight === client) {
+          this.#allowanceRefreshClientInFlight = undefined;
+        }
+      });
+    }, 60_000);
+  }
+
+  #stopAllowancePolling(client?: CodexAppServerClient): void {
+    if (this.#allowanceRefreshTimer) {
+      clearInterval(this.#allowanceRefreshTimer);
+      this.#allowanceRefreshTimer = undefined;
+    }
+    if (!client || this.#allowanceRefreshClientInFlight === client) {
+      this.#allowanceRefreshClientInFlight = undefined;
+    }
   }
 
   async #loadModelCatalog(client: CodexAppServerClient): Promise<void> {
@@ -1629,11 +1669,12 @@ export class ChatController {
   }
 
   #disposeClient(): void {
+    const client = this.#client;
+    this.#stopAllowancePolling(client);
     this.#unsubscribeNotification?.();
     this.#unsubscribeExit?.();
     this.#unsubscribeNotification = undefined;
     this.#unsubscribeExit = undefined;
-    const client = this.#client;
     this.#client = undefined;
     client?.close();
   }

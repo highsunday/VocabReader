@@ -453,6 +453,60 @@ describe("ChatController", () => {
     controller.close();
   });
 
+  it("refreshes the account allowance every minute and stops after close", async () => {
+    vi.useFakeTimers();
+    try {
+      const { fake, controller } = fixture({
+        rateLimitsResult: (readCount: number) => {
+          if (readCount === 2) return new Error("temporary allowance failure");
+          return {
+            rateLimits: {
+              primary: {
+                usedPercent: readCount === 1 ? 28 : readCount === 3 ? 33 : 34,
+                windowDurationMins: 10_080,
+                resetsAt: 1_800_000_000
+              },
+              secondary: null
+            },
+            rateLimitsByLimitId: null
+          };
+        }
+      });
+      await controller.connect();
+      expect(controller.getSnapshot().allowance.weekly?.remainingPercent)
+        .toBe(72);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(fake.requests.filter(
+        (request) => request.method === "account/rateLimits/read"
+      )).toHaveLength(2);
+      expect(controller.getSnapshot().allowance.weekly?.remainingPercent)
+        .toBe(72);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(fake.requests.filter(
+        (request) => request.method === "account/rateLimits/read"
+      )).toHaveLength(3);
+      expect(controller.getSnapshot().allowance.weekly?.remainingPercent)
+        .toBe(67);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(fake.requests.filter(
+        (request) => request.method === "account/rateLimits/read"
+      )).toHaveLength(4);
+      expect(controller.getSnapshot().allowance.weekly?.remainingPercent)
+        .toBe(66);
+
+      controller.close();
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(fake.requests.filter(
+        (request) => request.method === "account/rateLimits/read"
+      )).toHaveLength(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("distinguishes an unavailable allowance window from a zero-percent window", async () => {
     const { controller } = fixture({
       rateLimitsResult: {

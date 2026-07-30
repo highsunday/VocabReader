@@ -10,7 +10,7 @@ export interface RecordedCodexRequest {
 
 interface FakeCodexOptions {
   accountResult?: unknown;
-  rateLimitsResult?: unknown;
+  rateLimitsResult?: unknown | ((readCount: number) => unknown);
   modelListError?: string;
   threadStartDelayMs?: number;
   turnDelayMs?: number;
@@ -30,6 +30,7 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
   let buffer = "";
   let threadCount = 0;
   let turnCount = 0;
+  let rateLimitsReadCount = 0;
 
   Object.assign(events, {
     stdin,
@@ -59,7 +60,15 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
           requiresOpenaiAuth: true
         });
       } else if (message.method === "account/rateLimits/read") {
-        respond(message.id, options.rateLimitsResult ?? {
+        rateLimitsReadCount += 1;
+        const rateLimitsResult = typeof options.rateLimitsResult === "function"
+          ? options.rateLimitsResult(rateLimitsReadCount)
+          : options.rateLimitsResult;
+        if (rateLimitsResult instanceof Error) {
+          respondError(message.id, rateLimitsResult.message);
+          continue;
+        }
+        respond(message.id, rateLimitsResult ?? {
           rateLimits: allowanceSnapshot(10, 20),
           rateLimitsByLimitId: { codex: allowanceSnapshot(24, 38) }
         });
