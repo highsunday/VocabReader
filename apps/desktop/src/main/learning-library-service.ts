@@ -1078,7 +1078,7 @@ export class LocalLearningLibrary {
 
     const database = this.#open();
     const reviewedAtIso = reviewedAt.toISOString();
-    const pending = ratings.map((rating) => {
+    const pending = ratings.flatMap((rating) => {
       const row = database.prepare(`
         SELECT i.status, s.learning_item_id, s.due_at, s.card_json,
           s.review_count, s.last_reviewed_at, s.last_final_rating
@@ -1089,7 +1089,7 @@ export class LocalLearningLibrary {
         status: LearningItemStatus;
       }) | undefined;
       if (!row || row.status !== "active") {
-        throw new Error("The review item is no longer available");
+        return [];
       }
       if (row.learning_item_id && row.due_at > reviewedAtIso) {
         throw new Error("The review item is not due yet");
@@ -1103,7 +1103,7 @@ export class LocalLearningLibrary {
         ratingForFsrs(rating.finalRating)
       );
       const nextDueAt = result.card.due.toISOString();
-      return {
+      return [{
         rating,
         previousCardJson: row.learning_item_id ? cardJson(previousCard) : null,
         nextCardJson: cardJson(result.card),
@@ -1113,7 +1113,7 @@ export class LocalLearningLibrary {
           Math.round((result.card.due.getTime() - reviewedAt.getTime()) / 1000)
         ),
         reviewCount: row.learning_item_id ? row.review_count + 1 : 1
-      };
+      }];
     });
 
     const entries: ReviewHistoryEntry[] = [];

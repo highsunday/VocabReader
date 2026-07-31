@@ -476,6 +476,112 @@ describe("LocalLearningLibrary", () => {
     expect(legacyDetail.history[0].answer).toBeNull();
   });
 
+  it("confirms active review items after another paper item is trashed", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const [trashedItem, activeItem] = (await library.listItems({
+      status: "active",
+      sort: "recent"
+    })).slice(0, 2);
+    const reviewedAt = "2026-07-24T08:00:00.000Z";
+
+    await library.trashItem(trashedItem.id);
+    const result = await library.confirmReviewSession({
+      sessionId: "review-session-with-trashed-item",
+      reviewedAt,
+      ratings: [{
+        itemId: trashedItem.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten",
+        answer: "removed answer"
+      }, {
+        itemId: activeItem.id,
+        aiRating: "good",
+        finalRating: "good",
+        answer: "active answer"
+      }]
+    });
+
+    expect(result.entries).toEqual([
+      expect.objectContaining({
+        itemId: activeItem.id,
+        answer: "active answer"
+      })
+    ]);
+    expect(await library.getItemReviewDetail(trashedItem.id)).toMatchObject({
+      reviewCount: 0,
+      history: []
+    });
+    expect(await library.getItemReviewDetail(activeItem.id)).toMatchObject({
+      reviewCount: 1,
+      history: [expect.objectContaining({ answer: "active answer" })]
+    });
+  });
+
+  it("confirms active review items after another paper item is permanently deleted", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const [deletedItem, activeItem] = (await library.listItems({
+      status: "active",
+      sort: "recent"
+    })).slice(0, 2);
+
+    await library.trashItem(deletedItem.id);
+    await expect(library.emptyTrash()).resolves.toEqual({ deleted: 1 });
+    const result = await library.confirmReviewSession({
+      sessionId: "review-session-with-deleted-item",
+      reviewedAt: "2026-07-24T08:00:00.000Z",
+      ratings: [{
+        itemId: deletedItem.id,
+        aiRating: "forgotten",
+        finalRating: "forgotten",
+        answer: "deleted answer"
+      }, {
+        itemId: activeItem.id,
+        aiRating: "easy",
+        finalRating: "easy",
+        answer: "active answer"
+      }]
+    });
+
+    expect(result.entries).toEqual([
+      expect.objectContaining({
+        itemId: activeItem.id,
+        answer: "active answer"
+      })
+    ]);
+    expect(await library.getItemReviewDetail(activeItem.id)).toMatchObject({
+      reviewCount: 1,
+      history: [expect.objectContaining({ answer: "active answer" })]
+    });
+  });
+
+  it("confirms with no history when every paper item is trashed", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const items = (await library.listItems({
+      status: "active",
+      sort: "recent"
+    })).slice(0, 2);
+
+    for (const item of items) await library.trashItem(item.id);
+    const result = await library.confirmReviewSession({
+      sessionId: "review-session-with-no-active-items",
+      reviewedAt: "2026-07-24T08:00:00.000Z",
+      ratings: items.map(({ id }) => ({
+        itemId: id,
+        aiRating: "forgotten" as const,
+        finalRating: "forgotten" as const,
+        answer: "removed answer"
+      }))
+    });
+
+    expect(result.entries).toEqual([]);
+    for (const item of items) {
+      expect(await library.getItemReviewDetail(item.id)).toMatchObject({
+        reviewCount: 0,
+        history: []
+      });
+    }
+  });
+
   it("limits new introductions independently and uses the configured paper size", async () => {
     const library = new LocalLearningLibrary(await databasePath(), {
       getReviewPreferences: async () => ({
