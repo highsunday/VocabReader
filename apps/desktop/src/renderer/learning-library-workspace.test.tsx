@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type {
   LearningDesktopApi,
   LearningItem,
   LearningItemListInput,
-  LearningLibraryItem
+  LearningItemSummary
 } from "../shared/learning-contracts";
 import type { ReviewDesktopApi } from "../shared/review-contracts";
 import { LearningLibraryWorkspace } from "./LearningLibraryWorkspace";
@@ -14,6 +14,7 @@ const activeItems: LearningItem[] = [
     id: "item-bank",
     title: "bank",
     itemType: "word",
+      language: "en" as const,
     cefr: "A2",
     sense: "side of a river",
     markdownContent: [
@@ -35,6 +36,7 @@ const activeItems: LearningItem[] = [
     id: "item-phrase",
     title: "take for granted",
     itemType: "phrase",
+      language: "en" as const,
     cefr: "B2",
     sense: "fail to appreciate",
     markdownContent: "## Meaning\n視為理所當然。",
@@ -52,41 +54,47 @@ const trashedItem: LearningItem = {
   trashedAt: "2026-01-03T00:00:00.000Z"
 };
 
-const activeLibraryItems: LearningLibraryItem[] = [
-  {
-    ...activeItems[0],
-    studyStatus: "due",
-    nextDueAt: "2026-07-24T08:00:00.000Z"
-  },
-  {
-    ...activeItems[1],
-    studyStatus: "scheduled",
-    nextDueAt: new Date(Date.now() + 2 * 86_400_000).toISOString()
-  }
+function summary(
+  item: LearningItem,
+  studyStatus: LearningItemSummary["studyStatus"],
+  nextDueAt: string | null
+): LearningItemSummary {
+  const { markdownContent: _markdownContent, ...fields } = item;
+  return { ...fields, studyStatus, nextDueAt };
+}
+
+const activeLibraryItems: LearningItemSummary[] = [
+  summary(activeItems[0], "due", "2026-07-24T08:00:00.000Z"),
+  summary(
+    activeItems[1],
+    "scheduled",
+    new Date(Date.now() + 2 * 86_400_000).toISOString()
+  )
 ];
 
-const trashedLibraryItem: LearningLibraryItem = {
-  ...trashedItem,
-  studyStatus: "new",
-  nextDueAt: null
-};
+const trashedLibraryItem = summary(trashedItem, "new", null);
 
 function api() {
-  const listItems = vi.fn(async (input: LearningItemListInput) => {
-    if (input.status === "trashed") return [trashedLibraryItem];
+  const listItems = vi.fn<LearningDesktopApi["listItems"]>(async (input) => {
+    if (input.status === "trashed") {
+      return { items: [trashedLibraryItem], nextCursor: null };
+    }
     const filtered = activeLibraryItems.filter((item) => {
       const search = input.search?.toLowerCase() ?? "";
       return (!search || item.title.toLowerCase().includes(search)) &&
         (!input.itemType || item.itemType === input.itemType) &&
+        (!input.language || item.language === input.language) &&
         (!input.cefr || item.cefr === input.cefr) &&
         (!input.studyStatus || item.studyStatus === input.studyStatus);
     });
-    return input.sort === "alphabetical"
+    const items = input.sort === "alphabetical"
       ? filtered.toSorted((left, right) => left.title.localeCompare(right.title))
       : filtered;
+    return { items, nextCursor: null };
   });
   return {
     listItems,
+    countItems: vi.fn(async () => ({ active: 2, trashed: 1 })),
     getItem: vi.fn(async (itemId: string) =>
       [...activeItems, trashedItem].find((item) => item.id === itemId) ?? activeItems[0]
     ),
@@ -153,9 +161,11 @@ describe("LearningLibraryWorkspace", () => {
     render(<LearningLibraryWorkspace api={api()} reviewApi={reviewApi} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
-    const schedule = within(await screen.findByRole("dialog", {
-      name: "bank"
-    })).getByRole("region", { name: "Review schedule" });
+    const dialog = await screen.findByRole("dialog", { name: "bank" });
+    const schedule = within(dialog).getByRole("region", { name: "Review schedule" });
+    const scrollRegion = dialog.querySelector(".learning-dialog-scroll");
+    expect(scrollRegion).toContainElement(schedule);
+    expect(scrollRegion).toContainElement(dialog.querySelector(".learning-dialog-content"));
     expect(await within(schedule).findByText("Scheduled")).toBeInTheDocument();
     expect(within(schedule).getByText("Good", { selector: "dd" }))
       .toBeInTheDocument();
@@ -214,6 +224,263 @@ describe("LearningLibraryWorkspace", () => {
       sort: "alphabetical"
     }));
     expect(await screen.findByRole("button", { name: /take for granted/ }))
+      .toBeInTheDocument();
+  });
+
+  it("filters active learning items by language and clears the language query", async () => {
+    const learning = api();
+    render(<LearningLibraryWorkspace api={learning} />);
+    await screen.findByRole("button", { name: /bank/ });
+
+    fireEvent.change(screen.getByLabelText("Language"), {
+      target: { value: "ja" }
+    });
+    await waitFor(() => expect(learning.listItems).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "active", language: "ja" })
+    ));
+
+    fireEvent.change(screen.getByLabelText("Language"), {
+      target: { value: "all" }
+    });
+    await waitFor(() => {
+      const latest = learning.listItems.mock.calls.at(-1)?.[0];
+      expect(latest).not.toHaveProperty("language");
+    });
+  });
+
+  it("automatically appends the next page near the bottom without result counts", async () => {
+    let intersectionCallback: IntersectionObserverCallback | undefined;
+    class TestIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback;
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+      readonly root = null;
+      readonly rootMargin = "0px";
+      readonly thresholds = [0];
+    }
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    try {
+      const learning = api();
+      learning.listItems.mockImplementation(async (input) => input.cursor
+        ? { items: [activeLibraryItems[1]], nextCursor: null }
+        : { items: [activeLibraryItems[0]], nextCursor: "page-2" });
+      render(<LearningLibraryWorkspace api={learning} />);
+
+      expect(await screen.findByRole("button", { name: /bank/ }))
+        .toBeInTheDocument();
+      expect(screen.queryByText(/Showing \d+/)).not.toBeInTheDocument();
+
+      act(() => {
+        intersectionCallback?.(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        );
+      });
+
+      expect(await screen.findByRole("button", { name: /take for granted/ }))
+        .toBeInTheDocument();
+      expect(learning.listItems).toHaveBeenCalledWith(expect.objectContaining({
+        status: "active",
+        sort: "recent",
+        cursor: "page-2"
+      }));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("automatically pages through Trash with the same bounded flow", async () => {
+    let intersectionCallback: IntersectionObserverCallback | undefined;
+    class TestIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback;
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+      readonly root = null;
+      readonly rootMargin = "0px";
+      readonly thresholds = [0];
+    }
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    try {
+      const secondTrashItem = {
+        ...trashedLibraryItem,
+        id: "item-trashed-2",
+        title: "second trashed item"
+      };
+      const learning = api();
+      learning.countItems.mockResolvedValue({ active: 2, trashed: 2 });
+      learning.listItems.mockImplementation(async (input) => {
+        if (input.status === "active") {
+          return { items: activeLibraryItems, nextCursor: null };
+        }
+        return input.cursor
+          ? { items: [secondTrashItem], nextCursor: null }
+          : { items: [trashedLibraryItem], nextCursor: "trash-page-2" };
+      });
+      render(<LearningLibraryWorkspace api={learning} />);
+      await screen.findByRole("button", { name: /bank/ });
+      fireEvent.click(screen.getByRole("button", { name: /Trash/ }));
+      expect(await screen.findByRole("button", { name: "Restore bank" }))
+        .toBeInTheDocument();
+
+      act(() => {
+        intersectionCallback?.(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        );
+      });
+
+      expect(await screen.findByRole("button", {
+        name: "Restore second trashed item"
+      })).toBeInTheDocument();
+      expect(learning.listItems).toHaveBeenCalledWith({
+        status: "trashed",
+        sort: "recent",
+        cursor: "trash-page-2"
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps mounted learning-item cards bounded while retaining a large loaded page", async () => {
+    const learning = api();
+    const manyItems = Array.from({ length: 50 }, (_, index) => ({
+      ...activeLibraryItems[0],
+      id: `bounded-${index}`,
+      title: `bounded item ${index}`
+    }));
+    learning.listItems.mockResolvedValue({
+      items: manyItems,
+      nextCursor: null
+    });
+
+    const { container } = render(<LearningLibraryWorkspace api={learning} />);
+    const focused = await screen.findByRole("button", { name: /bounded item 0/ });
+
+    let mounted = container.querySelectorAll(".learning-item-card");
+    expect(mounted.length).toBeGreaterThan(0);
+    expect(mounted.length).toBeLessThan(50);
+
+    focused.focus();
+    const scrollRegion = screen.getByTestId("learning-library-scroll-region");
+    scrollRegion.scrollTop = 2_000;
+    fireEvent.scroll(scrollRegion);
+    expect(screen.getByRole("button", { name: /bounded item 0/ })).toHaveFocus();
+    mounted = container.querySelectorAll(".learning-item-card");
+    expect(mounted.length).toBeLessThan(50);
+  });
+
+  it("keeps loaded cards visible and retries a failed automatic page", async () => {
+    let intersectionCallback: IntersectionObserverCallback | undefined;
+    class TestIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback;
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+      readonly root = null;
+      readonly rootMargin = "0px";
+      readonly thresholds = [0];
+    }
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    try {
+      const learning = api();
+      let pageAttempts = 0;
+      learning.listItems.mockImplementation(async (input) => {
+        if (!input.cursor) {
+          return { items: [activeLibraryItems[0]], nextCursor: "page-2" };
+        }
+        pageAttempts += 1;
+        if (pageAttempts === 1) throw new Error("temporary page failure");
+        return { items: [activeLibraryItems[1]], nextCursor: null };
+      });
+      render(<LearningLibraryWorkspace api={learning} />);
+      expect(await screen.findByRole("button", { name: /bank/ }))
+        .toBeInTheDocument();
+
+      act(() => {
+        intersectionCallback?.(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        );
+      });
+
+      const error = await screen.findByRole("alert");
+      expect(error).toHaveTextContent("Couldn’t load more");
+      expect(screen.getByRole("button", { name: /bank/ })).toBeInTheDocument();
+      fireEvent.click(within(error).getByRole("button", { name: "Retry" }));
+      expect(await screen.findByRole("button", { name: /take for granted/ }))
+        .toBeInTheDocument();
+      expect(pageAttempts).toBe(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("ignores a stale response after filters start a newer query", async () => {
+    let resolveStale: ((value: Awaited<ReturnType<LearningDesktopApi["listItems"]>>) => void) |
+      undefined;
+    const stale = new Promise<Awaited<ReturnType<LearningDesktopApi["listItems"]>>>(
+      (resolve) => {
+        resolveStale = resolve;
+      }
+    );
+    const freshItem = {
+      ...activeLibraryItems[0],
+      id: "fresh-query",
+      title: "fresh query"
+    };
+    const staleItem = {
+      ...activeLibraryItems[0],
+      id: "stale-query",
+      title: "stale query"
+    };
+    const learning = api();
+    learning.listItems.mockImplementation(async (input) => {
+      if (input.itemType === "word" && !input.cefr) return stale;
+      if (input.itemType === "word" && input.cefr === "A1") {
+        return { items: [freshItem], nextCursor: null };
+      }
+      return { items: activeLibraryItems, nextCursor: null };
+    });
+    render(<LearningLibraryWorkspace api={learning} />);
+    await screen.findByRole("button", { name: /bank/ });
+
+    fireEvent.change(screen.getByLabelText("Type"), {
+      target: { value: "word" }
+    });
+    await waitFor(() => expect(learning.listItems).toHaveBeenCalledWith(
+      expect.objectContaining({ itemType: "word" })
+    ));
+    fireEvent.change(screen.getByLabelText("CEFR"), {
+      target: { value: "A1" }
+    });
+    expect(await screen.findByRole("button", { name: /fresh query/ }))
+      .toBeInTheDocument();
+
+    await act(async () => {
+      resolveStale?.({ items: [staleItem], nextCursor: null });
+      await stale;
+    });
+    expect(screen.queryByRole("button", { name: /stale query/ }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /fresh query/ }))
       .toBeInTheDocument();
   });
 
@@ -277,9 +544,10 @@ describe("LearningLibraryWorkspace", () => {
         nextDueAt: due.toISOString()
       };
     });
-    learning.listItems.mockImplementation(async (input) =>
-      input.status === "active" ? scheduledItems : []
-    );
+    learning.listItems.mockImplementation(async (input) => ({
+      items: input.status === "active" ? scheduledItems : [],
+      nextCursor: null
+    }));
 
     render(<LearningLibraryWorkspace api={learning} />);
 
@@ -389,6 +657,9 @@ describe("LearningLibraryWorkspace", () => {
     const learning = api();
     render(<LearningLibraryWorkspace api={learning} />);
     fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
+    const scrollRegion = screen.getByTestId("learning-library-scroll-region");
+    scrollRegion.scrollTop = 420;
+    fireEvent.scroll(scrollRegion);
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
 
     fireEvent.change(screen.getByLabelText("Title"), {
@@ -406,10 +677,20 @@ describe("LearningLibraryWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "river bank" }
     });
+    fireEvent.change(within(
+      screen.getByRole("dialog", { name: "bank" })
+    ).getByLabelText("Language"), {
+      target: { value: "ja" }
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(learning.updateItem).toHaveBeenCalledWith(
-      expect.objectContaining({ itemId: "item-bank", title: "river bank" })
+      expect.objectContaining({
+        itemId: "item-bank",
+        title: "river bank",
+        language: "ja"
+      })
     ));
+    await waitFor(() => expect(scrollRegion.scrollTop).toBe(420));
   });
 
   it("confirms before moving a card to trash, then restores and empties trash", async () => {

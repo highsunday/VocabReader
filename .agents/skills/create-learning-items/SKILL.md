@@ -113,9 +113,17 @@ For every new word or phrase, provide:
 - `title`
 - `requestedTitles`: one or more exact requested titles resolved by this entry
 - `itemType`: `word` or `phrase`
+- `language`: `en`, `ja`, `zh-TW`, or `other`, inferred from the canonical title itself
 - `cefr`: `A1`, `A2`, `B1`, `B2`, `C1`, or `C2`
 - `sense`: a short English semantic identifier
 - `markdownContent`
+
+Classify `language` independently for every draft. Use `en` for English titles,
+`ja` for Japanese titles, `zh-TW` for Traditional Chinese titles, and `other`
+for every other language or a title that cannot be reliably assigned to the
+first three categories. Base this on the canonical title and relevant sense
+context, not on the request, reading-segment, interface, or explanation
+language. A single batch may contain multiple language values.
 
 The Markdown content must contain:
 
@@ -138,6 +146,7 @@ End a successful preparation or recheck response with exactly one fenced `learni
       "title": "reluctant",
       "requestedTitles": ["reluctant"],
       "itemType": "word",
+      "language": "en",
       "cefr": "B2",
       "sense": "unwilling or hesitant",
       "markdownContent": "## Meaning\n..."

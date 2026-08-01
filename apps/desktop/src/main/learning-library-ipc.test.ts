@@ -6,6 +6,7 @@ const item: LearningItem = {
   id: "item-1",
   title: "reluctant",
   itemType: "word",
+      language: "en" as const,
   cefr: "B2",
   sense: "unwilling",
   markdownContent: "## Meaning\n不情願。",
@@ -18,7 +19,11 @@ const item: LearningItem = {
 function setup() {
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
   const library = {
-    listItems: vi.fn().mockResolvedValue([item]),
+    listItemPage: vi.fn().mockResolvedValue({
+      items: [{ ...item, markdownContent: undefined }],
+      nextCursor: "next-page"
+    }),
+    countItems: vi.fn().mockResolvedValue({ active: 1, trashed: 0 }),
     getItem: vi.fn().mockResolvedValue(item),
     updateItem: vi.fn().mockResolvedValue(item),
     trashItem: vi.fn().mockResolvedValue({ ...item, status: "trashed" }),
@@ -34,12 +39,13 @@ function setup() {
 }
 
 describe("learning library IPC", () => {
-  it("registers only the typed list/get/update/trash/restore/empty operations", async () => {
+  it("registers typed paged-list/count/get/update/trash/restore/empty operations", async () => {
     const { handlers, library } = setup();
     const listInput = {
       status: "active",
       search: "rel",
       itemType: "word",
+      language: "en" as const,
       cefr: "B2",
       studyStatus: "learning",
       sort: "study-status"
@@ -48,12 +54,14 @@ describe("learning library IPC", () => {
       itemId: item.id,
       title: item.title,
       itemType: item.itemType,
+      language: "en" as const,
       cefr: item.cefr,
       sense: item.sense,
       markdownContent: item.markdownContent
     };
 
     expect([...handlers.keys()].sort()).toEqual([
+      "learning:counts",
       "learning:empty-trash",
       "learning:get",
       "learning:list",
@@ -61,7 +69,13 @@ describe("learning library IPC", () => {
       "learning:trash",
       "learning:update"
     ]);
-    await expect(handlers.get("learning:list")?.({}, listInput)).resolves.toEqual([item]);
+    await expect(handlers.get("learning:list")?.({}, listInput)).resolves.toMatchObject({
+      nextCursor: "next-page"
+    });
+    await expect(handlers.get("learning:counts")?.({})).resolves.toEqual({
+      active: 1,
+      trashed: 0
+    });
     await expect(handlers.get("learning:get")?.({}, item.id)).resolves.toEqual(item);
     await expect(handlers.get("learning:update")?.({}, updateInput)).resolves.toEqual(item);
     await expect(handlers.get("learning:trash")?.({}, item.id))
@@ -69,7 +83,8 @@ describe("learning library IPC", () => {
     await expect(handlers.get("learning:restore")?.({}, item.id)).resolves.toEqual(item);
     await expect(handlers.get("learning:empty-trash")?.({})).resolves.toEqual({ deleted: 1 });
 
-    expect(library.listItems).toHaveBeenCalledWith(listInput);
+    expect(library.listItemPage).toHaveBeenCalledWith(listInput);
+    expect(library.countItems).toHaveBeenCalledOnce();
     expect(library.updateItem).toHaveBeenCalledWith(updateInput);
   });
 
@@ -81,12 +96,27 @@ describe("learning library IPC", () => {
       studyStatus: "mastered",
       sort: "recent"
     })).toThrow(/Invalid Learning Library query/);
+    expect(() => handlers.get("learning:list")?.({}, {
+      status: "active",
+      language: "fr",
+      sort: "recent"
+    })).toThrow(/Invalid Learning Library query/);
     expect(() => handlers.get("learning:get")?.({}, "")).toThrow(/learning-item request/);
     expect(() => handlers.get("learning:update")?.({}, {
       itemId: item.id,
       title: item.title,
       itemType: "sentence",
+      language: "en" as const,
       cefr: "B2",
+      sense: item.sense,
+      markdownContent: item.markdownContent
+    })).toThrow(/learning-item update/);
+    expect(() => handlers.get("learning:update")?.({}, {
+      itemId: item.id,
+      title: item.title,
+      itemType: item.itemType,
+      language: "fr",
+      cefr: item.cefr,
       sense: item.sense,
       markdownContent: item.markdownContent
     })).toThrow(/learning-item update/);
@@ -97,7 +127,7 @@ describe("learning library IPC", () => {
       /learning-item restore/
     );
 
-    expect(library.listItems).not.toHaveBeenCalled();
+    expect(library.listItemPage).not.toHaveBeenCalled();
     expect(library.updateItem).not.toHaveBeenCalled();
     expect(library.trashItem).not.toHaveBeenCalled();
     expect(library.restoreItem).not.toHaveBeenCalled();

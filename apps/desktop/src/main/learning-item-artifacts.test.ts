@@ -15,6 +15,7 @@ describe("parseLearningItemArtifacts", () => {
           title: "reluctant",
           requestedTitles: ["reluctant"],
           itemType: "word",
+      language: "en" as const,
           cefr: "B2",
           sense: "unwilling or hesitant",
           markdownContent: "## Meaning\n不情願。\n\n## Examples\n1. She was reluctant."
@@ -56,6 +57,70 @@ describe("parseLearningItemArtifacts", () => {
     });
   });
 
+  it("requires and preserves the AI-classified language for every draft", () => {
+    const valid = parseLearningItemArtifacts([
+      "Cards are ready.",
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "食べる",
+          requestedTitles: ["食べました"],
+          itemType: "word",
+          language: "ja",
+          cefr: "A1",
+          sense: "to eat",
+          markdownContent: "## Meaning\n食べ物を口にする。"
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```"
+    ].join("\n"), () => "draft-ja");
+
+    expect(valid.error).toBeUndefined();
+    expect(valid.batch?.drafts[0]).toMatchObject({
+      id: "draft-ja",
+      language: "ja"
+    });
+
+    const missing = parseLearningItemArtifacts([
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "bonjour",
+          itemType: "word",
+          cefr: "A1",
+          sense: "hello",
+          markdownContent: "## Meaning\nHello."
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```"
+    ].join("\n"));
+    const unsupported = parseLearningItemArtifacts([
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "bonjour",
+          itemType: "word",
+          language: "fr",
+          cefr: "A1",
+          sense: "hello",
+          markdownContent: "## Meaning\nHello."
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```"
+    ].join("\n"));
+
+    expect(missing.error).toMatch(/learning-item draft/);
+    expect(missing.batch).toBeUndefined();
+    expect(unsupported.error).toMatch(/learning-item draft/);
+    expect(unsupported.batch).toBeUndefined();
+  });
+
   it("rejects malformed requested-title mappings", () => {
     const result = parseLearningItemArtifacts([
       "Draft ready.",
@@ -65,6 +130,7 @@ describe("parseLearningItemArtifacts", () => {
           title: "dog",
           requestedTitles: [],
           itemType: "word",
+      language: "en" as const,
           cefr: "A1",
           sense: "domesticated animal",
           markdownContent: "## Meaning\nA common animal."

@@ -56,6 +56,7 @@ function reviewApi(): ReviewDesktopApi {
         id: "item-1",
         title: "bank",
         itemType: "word" as const,
+      language: "en" as const,
         cefr: "A2" as const,
         sense: "financial institution",
         markdownContent: "## Meaning\n銀行",
@@ -112,11 +113,13 @@ function reviewApi(): ReviewDesktopApi {
 
 function learningApi() {
   return {
-    listItems: vi.fn(async () => []),
+    listItems: vi.fn(async () => ({ items: [], nextCursor: null })),
+    countItems: vi.fn(async () => ({ active: 0, trashed: 0 })),
     getItem: vi.fn(async (itemId: string) => ({
       id: itemId,
       title: "bank",
       itemType: "word" as const,
+      language: "en" as const,
       cefr: "A2" as const,
       sense: "financial institution",
       markdownContent: "## Meaning\n銀行／金融機構",
@@ -436,6 +439,7 @@ describe("SpacedReviewWorkspace", () => {
           id: "item-1",
           title: "bank",
           itemType: "word" as const,
+      language: "en" as const,
           cefr: "A2" as const,
           sense: "financial institution",
           markdownContent: "## Meaning\n銀行",
@@ -973,6 +977,7 @@ describe("SpacedReviewWorkspace", () => {
         id: question.itemId,
         title: question.title,
         itemType: "word" as const,
+      language: "en" as const,
         cefr: "A2" as const,
         sense: question.sense,
         markdownContent: "## Meaning\nMeaning",
@@ -1323,6 +1328,7 @@ describe("SpacedReviewWorkspace", () => {
       id: itemId,
       title: itemId === "item-1" ? "bank" : "in advance",
       itemType: itemId === "item-1" ? "word" as const : "phrase" as const,
+      language: "en" as const,
       cefr: itemId === "item-1" ? "A2" as const : "B1" as const,
       sense: itemId === "item-1"
         ? "financial institution"

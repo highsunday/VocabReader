@@ -14,9 +14,11 @@ import type {
   CefrLevel,
   LearningDesktopApi,
   LearningItem,
+  LearningItemLanguage,
+  LearningItemListInput,
+  LearningItemSummary,
   LearningItemSort,
   LearningItemStudyStatus,
-  LearningLibraryItem,
   LearningItemType,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
@@ -27,6 +29,12 @@ import type {
 } from "../shared/review-contracts";
 
 const cefrLevels: CefrLevel[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const languageLabels: Record<LearningItemLanguage, string> = {
+  en: "English",
+  ja: "Japanese",
+  "zh-TW": "Traditional Chinese",
+  other: "Other language"
+};
 const studyStatusLabels: Record<LearningItemStudyStatus, string> = {
   new: "New",
   learning: "Learning",
@@ -62,7 +70,7 @@ function scheduledReviewLabel(value: string | null) {
   return `in about ${Math.max(1, Math.round(days / 365))} years`;
 }
 
-function cardStudyStatusLabel(item: LearningLibraryItem) {
+function cardStudyStatusLabel(item: LearningItemSummary) {
   return item.studyStatus === "scheduled"
     ? scheduledReviewLabel(item.nextDueAt)
     : studyStatusLabels[item.studyStatus];
@@ -102,6 +110,7 @@ function fieldsFor(item: LearningItem): UpdateLearningItemInput {
     itemId: item.id,
     title: item.title,
     itemType: item.itemType,
+    language: item.language,
     cefr: item.cefr,
     sense: item.sense,
     markdownContent: item.markdownContent
@@ -279,6 +288,7 @@ export function LearningItemDialog({
           <div>
             <span className="learning-card-badges">
               <em>{item.itemType === "word" ? "Word" : "Phrase"}</em>
+              <em>{languageLabels[item.language]}</em>
               <em>{item.cefr}</em>
             </span>
             <div className="learning-dialog-title-row">
@@ -337,6 +347,19 @@ export function LearningItemDialog({
                 </select>
               </label>
               <label>
+                Language
+                <select
+                  value={draft.language}
+                  onChange={(event) => updateDraft({
+                    language: event.target.value as LearningItemLanguage
+                  })}
+                >
+                  {Object.entries(languageLabels).map(([value, label]) => (
+                    <option value={value} key={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
                 CEFR
                 <select
                   value={draft.cefr}
@@ -392,103 +415,105 @@ export function LearningItemDialog({
           </form>
         ) : (
           <>
-            <div className="learning-dialog-content">
-              <MarkdownContent>{item.markdownContent}</MarkdownContent>
-            </div>
-            {reviewApi ? (
-              <section className="learning-review-detail" aria-label="Review schedule">
-                <div className="learning-review-detail-heading">
-                  <strong>Review schedule</strong>
-                  <span>{
-                    reviewDetail?.status === "due"
-                      ? "Due"
-                      : reviewDetail?.status === "scheduled"
-                        ? "Scheduled"
-                        : "New item"
-                  }</span>
-                </div>
-                {reviewDetailError ? (
-                  <p className="library-error" role="status">{reviewDetailError}</p>
-                ) : reviewDetail ? (
-                  <>
-                    <dl>
-                      <div>
-                        <dt>Last reviewed</dt>
-                        <dd>{reviewTime(reviewDetail.lastReviewedAt)}</dd>
-                      </div>
-                      <div>
-                        <dt>Last rating</dt>
-                        <dd>{reviewDetail.lastFinalRating
-                          ? reviewRatingLabels[reviewDetail.lastFinalRating]
-                          : "—"}</dd>
-                      </div>
-                      <div>
-                        <dt>Next due</dt>
-                        <dd>{reviewTime(reviewDetail.nextDueAt)}</dd>
-                      </div>
-                      <div>
-                        <dt>Total reviews</dt>
-                        <dd>{reviewDetail.reviewCount}</dd>
-                      </div>
-                    </dl>
-                    {reviewDetail.history.length ? (
-                      <details>
-                        <summary>View review history</summary>
-                        <ol>
-                          {reviewDetail.history.map((entry) => {
-                            const answerState = entry.answer === null
-                              ? "unavailable"
-                              : entry.answer.trim()
-                                ? "saved"
-                                : "empty";
-                            const answer = answerState === "unavailable"
-                              ? "Answer wasn't saved"
-                              : answerState === "empty"
-                                ? "Not answered"
-                                : entry.answer;
-                            const rating = reviewRatingLabels[entry.finalRating];
+            <div className="learning-dialog-scroll">
+              <div className="learning-dialog-content">
+                <MarkdownContent>{item.markdownContent}</MarkdownContent>
+              </div>
+              {reviewApi ? (
+                <section className="learning-review-detail" aria-label="Review schedule">
+                  <div className="learning-review-detail-heading">
+                    <strong>Review schedule</strong>
+                    <span>{
+                      reviewDetail?.status === "due"
+                        ? "Due"
+                        : reviewDetail?.status === "scheduled"
+                          ? "Scheduled"
+                          : "New item"
+                    }</span>
+                  </div>
+                  {reviewDetailError ? (
+                    <p className="library-error" role="status">{reviewDetailError}</p>
+                  ) : reviewDetail ? (
+                    <>
+                      <dl>
+                        <div>
+                          <dt>Last reviewed</dt>
+                          <dd>{reviewTime(reviewDetail.lastReviewedAt)}</dd>
+                        </div>
+                        <div>
+                          <dt>Last rating</dt>
+                          <dd>{reviewDetail.lastFinalRating
+                            ? reviewRatingLabels[reviewDetail.lastFinalRating]
+                            : "—"}</dd>
+                        </div>
+                        <div>
+                          <dt>Next due</dt>
+                          <dd>{reviewTime(reviewDetail.nextDueAt)}</dd>
+                        </div>
+                        <div>
+                          <dt>Total reviews</dt>
+                          <dd>{reviewDetail.reviewCount}</dd>
+                        </div>
+                      </dl>
+                      {reviewDetail.history.length ? (
+                        <details>
+                          <summary>View review history</summary>
+                          <ol>
+                            {reviewDetail.history.map((entry) => {
+                              const answerState = entry.answer === null
+                                ? "unavailable"
+                                : entry.answer.trim()
+                                  ? "saved"
+                                  : "empty";
+                              const answer = answerState === "unavailable"
+                                ? "Answer wasn't saved"
+                                : answerState === "empty"
+                                  ? "Not answered"
+                                  : entry.answer;
+                              const rating = reviewRatingLabels[entry.finalRating];
 
-                            return (
-                              <li key={entry.id}>
-                                <div className="learning-review-history-heading">
-                                  <div className="learning-review-history-time">
-                                    <time dateTime={entry.reviewedAt}>
-                                      {reviewTime(entry.reviewedAt)}
-                                    </time>
-                                    <small className="learning-review-next">
-                                      Next review
-                                      <time dateTime={entry.nextDueAt}>
-                                        {reviewTime(entry.nextDueAt)}
+                              return (
+                                <li key={entry.id}>
+                                  <div className="learning-review-history-heading">
+                                    <div className="learning-review-history-time">
+                                      <time dateTime={entry.reviewedAt}>
+                                        {reviewTime(entry.reviewedAt)}
                                       </time>
-                                    </small>
+                                      <small className="learning-review-next">
+                                        Next review
+                                        <time dateTime={entry.nextDueAt}>
+                                          {reviewTime(entry.nextDueAt)}
+                                        </time>
+                                      </small>
+                                    </div>
+                                    <span
+                                      className="learning-review-rating"
+                                      data-rating={entry.finalRating}
+                                      aria-label={`Final result: ${rating}`}
+                                    >
+                                      {rating}
+                                    </span>
                                   </div>
-                                  <span
-                                    className="learning-review-rating"
-                                    data-rating={entry.finalRating}
-                                    aria-label={`Final result: ${rating}`}
+                                  <div
+                                    className="learning-review-answer"
+                                    data-answer-state={answerState}
                                   >
-                                    {rating}
-                                  </span>
-                                </div>
-                                <div
-                                  className="learning-review-answer"
-                                  data-answer-state={answerState}
-                                >
-                                  <div className="learning-review-answer-label">
-                                    <strong>Your answer</strong>
+                                    <div className="learning-review-answer-label">
+                                      <strong>Your answer</strong>
+                                    </div>
+                                    <p>{answer}</p>
                                   </div>
-                                  <p>{answer}</p>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ol>
-                      </details>
-                    ) : null}
-                  </>
-                ) : <p>Loading schedule…</p>}
-              </section>
-            ) : null}
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        </details>
+                      ) : null}
+                    </>
+                  ) : <p>Loading schedule…</p>}
+                </section>
+              ) : null}
+            </div>
             {!readOnly ? (
               <div className="learning-dialog-actions">
                 <button
@@ -565,56 +590,94 @@ export function LearningLibraryWorkspace({
   onCountsChange?: (counts: { active: number; trashed: number }) => void;
 }) {
   const [view, setView] = useState<"active" | "trashed">("active");
-  const [items, setItems] = useState<LearningLibraryItem[]>([]);
+  const [items, setItems] = useState<LearningItemSummary[]>([]);
   const [counts, setCounts] = useState({ active: 0, trashed: 0 });
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [itemType, setItemType] = useState<LearningItemType | "all">("all");
+  const [language, setLanguage] =
+    useState<LearningItemLanguage | "all">("all");
   const [cefr, setCefr] = useState<CefrLevel | "all">("all");
   const [studyStatus, setStudyStatus] =
     useState<LearningItemStudyStatus | "all">("all");
   const [sort, setSort] = useState<LearningItemSort>("recent");
   const [selectedItem, setSelectedItem] = useState<LearningItem>();
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState("");
   const [error, setError] = useState("");
   const [isEmptyTrashConfirming, setIsEmptyTrashConfirming] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const scrollRegionRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const queryGenerationRef = useRef(0);
+  const [scrollMetrics, setScrollMetrics] = useState({
+    top: 0,
+    height: 720,
+    width: 900
+  });
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const loadCounts = useCallback(async () => {
-    const [active, trashed] = await Promise.all([
-      api.listItems({ status: "active", sort: "recent" }),
-      api.listItems({ status: "trashed", sort: "recent" })
-    ]);
-    const next = { active: active.length, trashed: trashed.length };
+    const next = await api.countItems();
     setCounts(next);
     onCountsChange?.(next);
   }, [api, onCountsChange]);
 
-  const loadItems = useCallback(async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const next = await api.listItems(view === "active"
-        ? {
-            status: "active",
-            search,
-            ...(itemType === "all" ? {} : { itemType }),
-            ...(cefr === "all" ? {} : { cefr }),
-            ...(studyStatus === "all" ? {} : { studyStatus }),
-            sort
-          }
-        : { status: "trashed", sort: "recent" });
-      setItems(next);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to load the Learning Library.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [api, cefr, itemType, search, sort, studyStatus, view]);
+  const listInput = useCallback((cursor?: string): LearningItemListInput =>
+    view === "active"
+      ? {
+          status: "active",
+          search: debouncedSearch,
+          ...(itemType === "all" ? {} : { itemType }),
+          ...(language === "all" ? {} : { language }),
+          ...(cefr === "all" ? {} : { cefr }),
+          ...(studyStatus === "all" ? {} : { studyStatus }),
+          sort,
+          ...(cursor ? { cursor } : {})
+        }
+      : {
+          status: "trashed",
+          sort: "recent",
+          ...(cursor ? { cursor } : {})
+        }, [cefr, debouncedSearch, itemType, language, sort, studyStatus, view]);
 
   useEffect(() => {
-    void loadItems();
-  }, [loadItems]);
+    const generation = ++queryGenerationRef.current;
+    setIsLoading(true);
+    setIsLoadingMore(false);
+    setNextCursor(null);
+    setLoadMoreError("");
+    setError("");
+    setItems([]);
+    const scrollRegion = scrollRegionRef.current;
+    if (scrollRegion) scrollRegion.scrollTop = 0;
+    setScrollMetrics((current) => ({ ...current, top: 0 }));
+    void api.listItems(listInput()).then((page) => {
+      if (generation !== queryGenerationRef.current) return;
+      setItems(page.items);
+      setNextCursor(page.nextCursor);
+    }).catch((cause) => {
+      if (generation !== queryGenerationRef.current) return;
+      setError(cause instanceof Error
+        ? cause.message
+        : "Unable to load the Learning Library.");
+    }).finally(() => {
+      if (generation === queryGenerationRef.current) setIsLoading(false);
+    });
+    return () => {
+      if (generation === queryGenerationRef.current) {
+        queryGenerationRef.current += 1;
+      }
+    };
+  }, [api, listInput]);
 
   useEffect(() => {
     void loadCounts().catch((cause) => {
@@ -622,12 +685,76 @@ export function LearningLibraryWorkspace({
     });
   }, [loadCounts]);
 
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || isLoading || isLoadingMore) return;
+    const generation = queryGenerationRef.current;
+    const cursor = nextCursor;
+    setIsLoadingMore(true);
+    setLoadMoreError("");
+    try {
+      const page = await api.listItems(listInput(cursor));
+      if (generation !== queryGenerationRef.current) return;
+      setItems((current) => {
+        const existing = new Set(current.map((item) => item.id));
+        return [
+          ...current,
+          ...page.items.filter((item) => !existing.has(item.id))
+        ];
+      });
+      setNextCursor(page.nextCursor);
+    } catch (cause) {
+      if (generation !== queryGenerationRef.current) return;
+      setLoadMoreError(cause instanceof Error
+        ? cause.message
+        : "Unable to load more learning items.");
+    } finally {
+      if (generation === queryGenerationRef.current) setIsLoadingMore(false);
+    }
+  }, [api, isLoading, isLoadingMore, listInput, nextCursor]);
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    const root = scrollRegionRef.current;
+    if (!sentinel || !root || !nextCursor || loadMoreError ||
+      typeof IntersectionObserver === "undefined") {
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+    }, {
+      root,
+      rootMargin: "0px 0px 420px 0px"
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore, loadMoreError, nextCursor]);
+
+  useLayoutEffect(() => {
+    const region = scrollRegionRef.current;
+    if (!region) return;
+    const update = () => setScrollMetrics({
+      top: region.scrollTop,
+      height: region.clientHeight || 720,
+      width: region.clientWidth || 900
+    });
+    update();
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(update);
+    observer?.observe(region);
+    window.addEventListener("resize", update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
   function closeDetail() {
     setSelectedItem(undefined);
     requestAnimationFrame(() => triggerRef.current?.focus());
   }
 
-  async function openDetail(item: LearningItem, trigger: HTMLElement) {
+  async function openDetail(item: LearningItemSummary, trigger: HTMLElement) {
     triggerRef.current = trigger;
     setError("");
     try {
@@ -637,9 +764,39 @@ export function LearningLibraryWorkspace({
     }
   }
 
+  async function reloadLoadedItemsPreservingPosition() {
+    const generation = ++queryGenerationRef.current;
+    const scrollTop = scrollRegionRef.current?.scrollTop ?? 0;
+    const targetCount = Math.max(50, items.length);
+    const refreshed: LearningItemSummary[] = [];
+    let cursor: string | undefined;
+    setIsLoadingMore(false);
+    setError("");
+    setLoadMoreError("");
+    try {
+      do {
+        const page = await api.listItems(listInput(cursor));
+        if (generation !== queryGenerationRef.current) return;
+        refreshed.push(...page.items);
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor && refreshed.length < targetCount);
+      setItems(refreshed);
+      setNextCursor(cursor ?? null);
+      requestAnimationFrame(() => {
+        if (scrollRegionRef.current) scrollRegionRef.current.scrollTop = scrollTop;
+        setScrollMetrics((current) => ({ ...current, top: scrollTop }));
+      });
+    } catch (cause) {
+      if (generation !== queryGenerationRef.current) return;
+      setError(cause instanceof Error
+        ? cause.message
+        : "Unable to refresh the Learning Library.");
+    }
+  }
+
   async function refreshAfterChange(item?: LearningItem) {
     if (item?.status === "active") setSelectedItem(item);
-    await Promise.all([loadItems(), loadCounts()]);
+    await Promise.all([reloadLoadedItemsPreservingPosition(), loadCounts()]);
   }
 
   async function restore(itemId: string) {
@@ -648,7 +805,7 @@ export function LearningLibraryWorkspace({
     setError("");
     try {
       await api.restoreItem(itemId);
-      await Promise.all([loadItems(), loadCounts()]);
+      await Promise.all([reloadLoadedItemsPreservingPosition(), loadCounts()]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to restore the learning item.");
     } finally {
@@ -663,7 +820,7 @@ export function LearningLibraryWorkspace({
     try {
       await api.emptyTrash();
       setIsEmptyTrashConfirming(false);
-      await Promise.all([loadItems(), loadCounts()]);
+      await Promise.all([reloadLoadedItemsPreservingPosition(), loadCounts()]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to empty Trash.");
     } finally {
@@ -674,6 +831,7 @@ export function LearningLibraryWorkspace({
   const filtersActive = Boolean(
     search ||
     itemType !== "all" ||
+    language !== "all" ||
     cefr !== "all" ||
     studyStatus !== "all" ||
     sort !== "recent"
@@ -682,9 +840,123 @@ export function LearningLibraryWorkspace({
   function clearFilters() {
     setSearch("");
     setItemType("all");
+    setLanguage("all");
     setCefr("all");
     setStudyStatus("all");
     setSort("recent");
+  }
+
+  const columns = view === "active"
+    ? Math.max(1, Math.floor((scrollMetrics.width - 64 + 14) / (218 + 14)))
+    : 1;
+  const rowHeight = view === "active" ? 186 : 86;
+  const totalRows = Math.ceil(items.length / columns);
+  const overscanRows = 3;
+  const startRow = Math.max(
+    0,
+    Math.floor(scrollMetrics.top / rowHeight) - overscanRows
+  );
+  const endRow = Math.min(
+    totalRows,
+    Math.ceil((scrollMetrics.top + scrollMetrics.height) / rowHeight) +
+      overscanRows
+  );
+  const startIndex = startRow * columns;
+  const endIndex = Math.min(items.length, endRow * columns);
+  const visibleItems = items.slice(startIndex, endIndex);
+  const virtualHeight = totalRows * rowHeight;
+  const focusedIndex = focusedItemId
+    ? items.findIndex((item) => item.id === focusedItemId)
+    : -1;
+  const focusedItem = focusedIndex >= 0 &&
+    (focusedIndex < startIndex || focusedIndex >= endIndex)
+    ? items[focusedIndex]
+    : null;
+  const focusedRow = focusedIndex >= 0
+    ? Math.floor(focusedIndex / columns)
+    : 0;
+  const focusedColumn = focusedIndex >= 0
+    ? focusedIndex % columns
+    : 0;
+
+  useLayoutEffect(() => {
+    if (!focusedItemId || document.activeElement !== document.body) return;
+    const container = scrollRegionRef.current;
+    const holder = Array.from(
+      container?.querySelectorAll<HTMLElement>("[data-learning-item-id]") ?? []
+    ).find((element) => element.dataset.learningItemId === focusedItemId);
+    const target = holder instanceof HTMLButtonElement
+      ? holder
+      : holder?.querySelector<HTMLButtonElement>("button");
+    target?.focus({ preventScroll: true });
+  }, [endIndex, focusedItemId, startIndex, view]);
+
+  function renderSummary(item: LearningItemSummary) {
+    return view === "active" ? (
+      <button
+        type="button"
+        className="learning-item-card"
+        data-learning-item-id={item.id}
+        data-study-status={item.studyStatus}
+        key={item.id}
+        aria-label={`${item.title}, ${item.studyStatus === "scheduled" ? `scheduled, ${cardStudyStatusLabel(item)}` : cardStudyStatusLabel(item)}, ${item.itemType === "word" ? "word" : "phrase"}, ${languageLabels[item.language]}, ${item.cefr}, ${item.sense}`}
+        onFocus={() => setFocusedItemId(item.id)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            setFocusedItemId((current) => current === item.id ? null : current);
+          }
+        }}
+        onClick={(event) => void openDetail(item, event.currentTarget)}
+      >
+        <span className="learning-card-badges">
+          <em
+            className="learning-card-study-status"
+            data-study-status={item.studyStatus}
+            title={item.studyStatus === "scheduled"
+              ? `Scheduled; next review ${cardStudyStatusLabel(item)}`
+              : undefined}
+          >
+            {cardStudyStatusLabel(item)}
+          </em>
+          <em className="learning-card-type">
+            {item.itemType === "word" ? "Word" : "Phrase"}
+          </em>
+          <em className="learning-card-language">{languageLabels[item.language]}</em>
+          <em className="learning-card-cefr">{item.cefr}</em>
+        </span>
+        <strong>{item.title}</strong>
+        <small>{item.sense}</small>
+        <span className="learning-card-open">
+          View details <span aria-hidden="true">→</span>
+        </span>
+      </button>
+    ) : (
+      <article
+        className="learning-trash-item"
+        data-learning-item-id={item.id}
+        key={item.id}
+        onFocus={() => setFocusedItemId(item.id)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            setFocusedItemId((current) => current === item.id ? null : current);
+          }
+        }}
+      >
+        <div>
+          <span>{item.itemType === "word" ? "Word" : "Phrase"} • {languageLabels[item.language]} • {item.cefr}</span>
+          <strong>{item.title}</strong>
+          <small>{item.sense}</small>
+        </div>
+        <button
+          type="button"
+          onClick={() => void restore(item.id)}
+          disabled={isMutating}
+          aria-label={`Restore ${item.title}`}
+        >
+          Restore
+        </button>
+      </article>
+    );
   }
 
   return (
@@ -699,7 +971,7 @@ export function LearningLibraryWorkspace({
               </h1>
               <p>
                 {view === "active"
-                  ? "Organize, search, and build a collection of English worth remembering."
+                  ? "Organize, search, and build a collection of words and phrases worth remembering."
                   : "Items stay here until you permanently empty Trash."}
               </p>
             </div>
@@ -754,6 +1026,20 @@ export function LearningLibraryWorkspace({
                   <option value="all">All</option>
                   <option value="word">Words</option>
                   <option value="phrase">Phrases</option>
+                </select>
+              </label>
+              <label>
+                Language
+                <select
+                  value={language}
+                  onChange={(event) => setLanguage(
+                    event.target.value as LearningItemLanguage | "all"
+                  )}
+                >
+                  <option value="all">All languages</option>
+                  {Object.entries(languageLabels).map(([value, label]) => (
+                    <option value={value} key={value}>{label}</option>
+                  ))}
                 </select>
               </label>
               <label>
@@ -814,20 +1100,27 @@ export function LearningLibraryWorkspace({
         </div>
       </div>
 
-      <div className="learning-library-scroll-region" data-testid="learning-library-scroll-region">
+      <div
+        className="learning-library-scroll-region"
+        data-testid="learning-library-scroll-region"
+        ref={scrollRegionRef}
+        aria-busy={isLoading || isLoadingMore}
+        onScroll={(event) => {
+          const {
+            scrollTop,
+            clientHeight,
+            clientWidth
+          } = event.currentTarget;
+          setScrollMetrics((current) => ({
+            ...current,
+            top: scrollTop,
+            height: clientHeight || current.height,
+            width: clientWidth || current.width
+          }));
+        }}
+      >
         <div className="learning-library-results">
           {error ? <p className="library-error" role="alert">{error}</p> : null}
-
-          {view === "active" && !isLoading ? (
-            <div className="learning-results-meta" aria-live="polite">
-              <span>
-                Showing <strong>{items.length}</strong> learning items
-              </span>
-              {filtersActive ? (
-                <button type="button" onClick={clearFilters}>Clear filters</button>
-              ) : null}
-            </div>
-          ) : null}
 
           {isLoading ? (
             <p className="learning-loading" role="status">Loading Learning Library…</p>
@@ -855,56 +1148,68 @@ export function LearningLibraryWorkspace({
 
           {!isLoading && items.length ? (
             <div
-              className={view === "active" ? "learning-card-grid" : "learning-trash-list"}
-              aria-label={view === "active" ? "Learning item list" : "Trash items"}
+              className="learning-virtual-space"
+              style={{ height: virtualHeight }}
+              data-testid="learning-virtual-space"
             >
-              {items.map((item) => view === "active" ? (
-                <button
-                  type="button"
-                  className="learning-item-card"
-                  data-study-status={item.studyStatus}
-                  key={item.id}
-                  aria-label={`${item.title}, ${item.studyStatus === "scheduled" ? `scheduled, ${cardStudyStatusLabel(item)}` : cardStudyStatusLabel(item)}, ${item.itemType === "word" ? "word" : "phrase"}, ${item.cefr}, ${item.sense}`}
-                  onClick={(event) => void openDetail(item, event.currentTarget)}
+              <div
+                className={[
+                  view === "active" ? "learning-card-grid" : "learning-trash-list",
+                  "learning-virtual-window"
+                ].join(" ")}
+                data-testid="learning-virtual-window"
+                aria-label={view === "active" ? "Learning item list" : "Trash items"}
+                style={{
+                  top: startRow * rowHeight,
+                  ...(view === "active"
+                    ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }
+                    : {})
+                }}
+              >
+                {visibleItems.map(renderSummary)}
+              </div>
+              {focusedItem ? (
+                <div
+                  className={[
+                    view === "active" ? "learning-card-grid" : "learning-trash-list",
+                    "learning-virtual-window",
+                    "learning-focus-keeper"
+                  ].join(" ")}
+                  style={{
+                    top: focusedRow * rowHeight,
+                    ...(view === "active"
+                      ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }
+                      : {})
+                  }}
                 >
-                  <span className="learning-card-badges">
-                    <em
-                      className="learning-card-study-status"
-                      data-study-status={item.studyStatus}
-                      title={item.studyStatus === "scheduled"
-                        ? `Scheduled; next review ${cardStudyStatusLabel(item)}`
-                        : undefined}
-                    >
-                      {cardStudyStatusLabel(item)}
-                    </em>
-                    <em className="learning-card-type">
-                      {item.itemType === "word" ? "Word" : "Phrase"}
-                    </em>
-                    <em className="learning-card-cefr">{item.cefr}</em>
-                  </span>
-                  <strong>{item.title}</strong>
-                  <small>{item.sense}</small>
-                  <span className="learning-card-open">
-                    View details <span aria-hidden="true">→</span>
-                  </span>
-                </button>
-              ) : (
-                <article className="learning-trash-item" key={item.id}>
-                  <div>
-                    <span>{item.itemType === "word" ? "Word" : "Phrase"} • {item.cefr}</span>
-                    <strong>{item.title}</strong>
-                    <small>{item.sense}</small>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void restore(item.id)}
-                    disabled={isMutating}
-                    aria-label={`Restore ${item.title}`}
-                  >
-                    Restore
-                  </button>
-                </article>
-              ))}
+                  {view === "active"
+                    ? Array.from({ length: focusedColumn }, (_, index) => (
+                        <span aria-hidden="true" key={`focus-spacer-${index}`} />
+                      ))
+                    : null}
+                  {renderSummary(focusedItem)}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!isLoading && nextCursor ? (
+            <div
+              className="learning-load-more-sentinel"
+              data-testid="learning-load-more-sentinel"
+              ref={loadMoreSentinelRef}
+              aria-hidden="true"
+            />
+          ) : null}
+          {isLoadingMore ? (
+            <p className="learning-load-more-status" role="status">
+              Loading more learning items…
+            </p>
+          ) : null}
+          {loadMoreError ? (
+            <div className="learning-load-more-error" role="alert">
+              <span>Couldn’t load more learning items.</span>
+              <button type="button" onClick={() => void loadMore()}>Retry</button>
             </div>
           ) : null}
         </div>

@@ -9,6 +9,10 @@ status: implemented
 
 # Feature Specification - 在間隔複習批改中加入學習語言表達建議
 
+> 後續變更：F41 已讓確認後的原始**複習作答**進入精簡複習歷史。本文件中
+> 「答案不持久化」的敘述只代表 F32 當時的邊界；改善後表達、改善原因與其他詳細
+> 回饋仍不保存。現行規則以 `F41-persist-review-answers-in-history.md` 為準。
+
 ## 1. Feature Overview
 
 目前**複習試卷**提交後，AI 只判斷每題答案是否正確表達例句中的目標語義，並依

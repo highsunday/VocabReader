@@ -5,10 +5,12 @@ import annotationExplanationSkillMarkdown from "../../../../.agents/skills/expla
 import learningItemCreationSkillMarkdown from "../../../../.agents/skills/create-learning-items/SKILL.md";
 import readingComprehensionSkillMarkdown from "../../../../.agents/skills/practice-reading-comprehension/SKILL.md";
 import spacedReviewSkillMarkdown from "../../../../.agents/skills/practice-spaced-review/SKILL.md";
+import sentencePracticeSkillMarkdown from "../../../../.agents/skills/practice-integrated-sentences/SKILL.md";
 import {
   installBundledAnnotationSkill,
   installBundledLearningItemCreationSkill,
   installBundledReadingComprehensionSkill,
+  installBundledSentencePracticeSkill,
   installBundledSpacedReviewSkill
 } from "./bundled-skill";
 import { ChatController } from "./chat-controller";
@@ -27,6 +29,8 @@ import { registerLearningLibraryIpc } from "./learning-library-ipc";
 import { LocalLearningLibrary } from "./learning-library-service";
 import { classifyLearningItemDuplicatesWithCodex } from "./learning-item-duplicate-classifier";
 import { registerSettingsIpc } from "./settings-ipc";
+import { SentencePracticeController } from "./sentence-practice-controller";
+import { registerSentencePracticeIpc } from "./sentence-practice-ipc";
 import { LocalSettingsStore } from "./settings-store";
 import { SpacedReviewController } from "./spaced-review-controller";
 import { registerSpacedReviewIpc } from "./spaced-review-ipc";
@@ -149,11 +153,22 @@ app.whenReady().then(() => {
     runtimePath,
     spacedReviewSkillMarkdown
   );
+  const sentencePracticeSkill = installBundledSentencePracticeSkill(
+    runtimePath,
+    sentencePracticeSkillMarkdown
+  );
   registerSpacedReviewIpc(ipcMain, new SpacedReviewController({
     createClient: () => new SpawnedCodexAppServerClient(),
     workingDirectory: runtimePath,
     skillPath: spacedReviewSkill.path,
     skillInstructions: spacedReviewSkillMarkdown,
+    library: learningLibrary
+  }));
+  registerSentencePracticeIpc(ipcMain, new SentencePracticeController({
+    createClient: () => new SpawnedCodexAppServerClient(),
+    workingDirectory: runtimePath,
+    skillPath: sentencePracticeSkill.path,
+    skillInstructions: sentencePracticeSkillMarkdown,
     library: learningLibrary
   }));
   chatController = new ChatController({

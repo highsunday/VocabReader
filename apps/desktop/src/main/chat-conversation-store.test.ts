@@ -117,6 +117,7 @@ describe("LocalChatConversationStore", () => {
         id: "draft-1",
         title: "reluctant",
         itemType: "word",
+      language: "en" as const,
         cefr: "B2",
         sense: "unwilling",
         markdownContent: "## Meaning\n不情願。",

@@ -9,6 +9,7 @@ const item: LearningItem = {
   id: "item-1",
   title: "bank",
   itemType: "word",
+      language: "en" as const,
   cefr: "A2",
   sense: "financial institution",
   markdownContent: "## Meaning\n銀行",

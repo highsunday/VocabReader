@@ -1,7 +1,10 @@
 import type {
   CefrLevel,
+  LearningItemCounts,
   LearningDesktopApi,
   LearningItemListInput,
+  LearningItemLanguage,
+  LearningItemPage,
   LearningItemSort,
   LearningItemStatus,
   LearningItemStudyStatus,
@@ -13,10 +16,13 @@ interface IpcRegistrar {
   handle(channel: string, listener: (...args: unknown[]) => unknown): unknown;
 }
 
-type LearningLibrary = Pick<
+interface LearningLibrary extends Pick<
   LearningDesktopApi,
-  "listItems" | "getItem" | "updateItem" | "trashItem" | "restoreItem" | "emptyTrash"
->;
+  "getItem" | "updateItem" | "trashItem" | "restoreItem" | "emptyTrash"
+> {
+  listItemPage(input: LearningItemListInput): Promise<LearningItemPage>;
+  countItems(): Promise<LearningItemCounts>;
+}
 
 function nonEmptyString(value: unknown): value is string {
   return typeof value === "string" && Boolean(value.trim());
@@ -24,6 +30,11 @@ function nonEmptyString(value: unknown): value is string {
 
 function validType(value: unknown): value is LearningItemType {
   return value === "word" || value === "phrase";
+}
+
+function validLanguage(value: unknown): value is LearningItemLanguage {
+  return value === "en" || value === "ja" || value === "zh-TW" ||
+    value === "other";
 }
 
 function validCefr(value: unknown): value is CefrLevel {
@@ -52,9 +63,12 @@ function validListInput(value: unknown): value is LearningItemListInput {
     validSort(input.sort) &&
     (input.search === undefined || typeof input.search === "string") &&
     (input.itemType === undefined || validType(input.itemType)) &&
+    (input.language === undefined || validLanguage(input.language)) &&
     (input.cefr === undefined || validCefr(input.cefr)) &&
     (input.studyStatus === undefined ||
-      validStudyStatus(input.studyStatus));
+      validStudyStatus(input.studyStatus)) &&
+    (input.cursor === undefined ||
+      (nonEmptyString(input.cursor) && input.cursor.length <= 4096));
 }
 
 function validUpdate(value: unknown): value is UpdateLearningItemInput {
@@ -63,6 +77,7 @@ function validUpdate(value: unknown): value is UpdateLearningItemInput {
   return nonEmptyString(input.itemId) &&
     nonEmptyString(input.title) &&
     validType(input.itemType) &&
+    validLanguage(input.language) &&
     validCefr(input.cefr) &&
     nonEmptyString(input.sense) &&
     nonEmptyString(input.markdownContent);
@@ -74,8 +89,9 @@ export function registerLearningLibraryIpc(
 ): void {
   ipc.handle("learning:list", (_event, input) => {
     if (!validListInput(input)) throw new Error("Invalid Learning Library query");
-    return library.listItems(input);
+    return library.listItemPage(input);
   });
+  ipc.handle("learning:counts", () => library.countItems());
   ipc.handle("learning:get", (_event, itemId) => {
     if (!nonEmptyString(itemId)) throw new Error("Invalid learning-item request");
     return library.getItem(itemId);

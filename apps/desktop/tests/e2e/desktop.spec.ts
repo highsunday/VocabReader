@@ -182,6 +182,7 @@ test("launches the secure Electron reading shell", async () => {
             };
             learning: {
               listItems: unknown;
+              countItems: unknown;
               getItem: unknown;
               updateItem: unknown;
               trashItem: unknown;
@@ -238,6 +239,7 @@ test("launches the secure Electron reading shell", async () => {
         hasAnnotationSave: typeof desktop?.library.saveAnnotations,
         learningKeys: Object.keys(desktop?.learning ?? {}).sort(),
         hasLearningList: typeof desktop?.learning.listItems,
+        hasLearningCounts: typeof desktop?.learning.countItems,
         hasLearningGet: typeof desktop?.learning.getItem,
         hasLearningUpdate: typeof desktop?.learning.updateItem,
         hasLearningTrash: typeof desktop?.learning.trashItem,
@@ -290,6 +292,7 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasReadingRangeSave).toBe("function");
     expect(security.hasAnnotationSave).toBe("function");
     expect(security.hasLearningList).toBe("function");
+    expect(security.hasLearningCounts).toBe("function");
     expect(security.hasLearningGet).toBe("function");
     expect(security.hasLearningUpdate).toBe("function");
     expect(security.hasLearningTrash).toBe("function");
@@ -297,6 +300,7 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasLearningEmptyTrash).toBe("function");
     expect(security.learningKeys).toEqual([
       "emptyTrash",
+      "countItems",
       "getItem",
       "listItems",
       "restoreItem",

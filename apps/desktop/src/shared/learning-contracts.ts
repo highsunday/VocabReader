@@ -1,4 +1,5 @@
 export type LearningItemType = "word" | "phrase";
+export type LearningItemLanguage = "en" | "ja" | "zh-TW" | "other";
 export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 export type LearningItemStatus = "active" | "trashed";
 export type LearningItemStudyStatus =
@@ -10,6 +11,7 @@ export interface LearningItem {
   id: string;
   title: string;
   itemType: LearningItemType;
+  language: LearningItemLanguage;
   cefr: CefrLevel;
   sense: string;
   markdownContent: string;
@@ -24,18 +26,46 @@ export interface LearningLibraryItem extends LearningItem {
   nextDueAt: string | null;
 }
 
+export interface LearningItemSummary {
+  id: string;
+  title: string;
+  itemType: LearningItemType;
+  language: LearningItemLanguage;
+  cefr: CefrLevel;
+  sense: string;
+  status: LearningItemStatus;
+  createdAt: string;
+  updatedAt: string;
+  trashedAt: string | null;
+  studyStatus: LearningItemStudyStatus;
+  nextDueAt: string | null;
+}
+
 export interface LearningItemListInput {
   status: LearningItemStatus;
   search?: string;
   itemType?: LearningItemType;
+  language?: LearningItemLanguage;
   cefr?: CefrLevel;
   studyStatus?: LearningItemStudyStatus;
   sort: LearningItemSort;
+  cursor?: string;
+}
+
+export interface LearningItemPage {
+  items: LearningItemSummary[];
+  nextCursor: string | null;
+}
+
+export interface LearningItemCounts {
+  active: number;
+  trashed: number;
 }
 
 export interface CreateLearningItemInput {
   title: string;
   itemType: LearningItemType;
+  language: LearningItemLanguage;
   cefr: CefrLevel;
   sense: string;
   markdownContent: string;
@@ -76,7 +106,8 @@ export interface UpdateLearningItemDraftInput extends CreateLearningItemInput {
 }
 
 export interface LearningDesktopApi {
-  listItems(input: LearningItemListInput): Promise<LearningLibraryItem[]>;
+  listItems(input: LearningItemListInput): Promise<LearningItemPage>;
+  countItems(): Promise<LearningItemCounts>;
   getItem(itemId: string): Promise<LearningItem>;
   updateItem(input: UpdateLearningItemInput): Promise<LearningItem>;
   trashItem(itemId: string): Promise<LearningItem>;

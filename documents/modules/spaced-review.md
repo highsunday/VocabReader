@@ -2,7 +2,7 @@
 title: AI 批改與 FSRS 間隔複習模組
 module: spaced-review
 status: active
-last_updated: 2026-07-28
+last_updated: 2026-07-29
 related_implements:
   - F28-ai-graded-spaced-review-paper
   - F29-stream-spaced-review-generation-and-scroll-paper
@@ -14,6 +14,8 @@ related_implements:
   - F36-show-spaced-review-daily-status
   - F37-configurable-daily-review-limits-and-paper-size
   - F38-export-and-restore-data-backup
+  - F41-persist-review-answers-in-history
+  - F42-show-solid-recall-growth
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -26,9 +28,9 @@ related_implements:
 項目的語言時，AI 另提供不影響評級的表達建議。使用者確認或覆寫評級後，本機 FSRS
 才更新排程。
 
-試卷、答案、詳細回饋、表達建議與未確認評級只在同一次 App 開啟期間保留。使用者
-切換工作區時可以返回同一個未完成回合，SQLite 仍只保存排程狀態及精簡確認歷史；
-關閉 App 後不恢復未完成試卷。
+未確認的試卷、作答、詳細回饋、表達建議與評級只在同一次 App 開啟期間保留。使用者
+切換工作區時可以返回同一個未完成回合；只有確認整份試卷時，SQLite 才把逐題原始
+複習作答隨排程狀態及精簡確認歷史保存。關閉 App 後不恢復未完成試卷。
 
 ## 2. Current Implementation Status
 
@@ -41,6 +43,11 @@ related_implements:
   試卷題數（預設 10）；兩類上限為 0–999 且彼此獨立，題數為 1–20。
 - 間隔複習頁固定顯示兩類今日完成數／上限、學習中數、完整 backlog 與可再引入名額；
   確認試卷或保存設定後會重新查詢摘要並立即更新。
+- 間隔複習首頁以獨立成果卡顯示目前穩定掌握、正在鞏固、30 天淨成長、30 天回想
+  成功率及 90 天穩定掌握折線；既有 30 天複習活動方格另外保留為較低權重的投入
+  資訊，不把完成次數稱為記憶成果。
+- 每類可再引入名額只扣除今日已完成數；學習中項目不預先占用完成名額，抵達精確
+  到期時間後仍維持原類別並優先繼續學習。
 - 尚未完成且再次到期的學習中項目優先，其次是其他既有到期項目，最後由新項目依
   CEFR A1→C2、同級建立時間補到設定題數；額度不足時允許較少題。
 - 進入頁面只顯示摘要，不自動使用 AI；明確按下按鈕後才生成試卷。
@@ -64,7 +71,8 @@ related_implements:
   與繼續下一回合的操作。
 - 使用 `ts-fsrs`、固定 90% 目標記憶率及預設參數計算精確到期時間。
 - 同一回合在單一 SQLite 交易寫入所有事件與排程；成功後可連續開始下一回合。
-- 生詞庫詳情懶載入目前狀態、最後評級、下次到期、次數及精簡歷史。
+- 生詞庫詳情懶載入目前狀態、最後評級、下次到期、次數，以及逐筆顯示原始複習
+  作答的精簡歷史；舊事件標示未保存作答，留白則標示未作答。
 - 編輯不重設排程；垃圾桶項目排除；還原保留原排程，逾期者立即重新可用。
 - 間隔複習中央工作區使用自己的垂直捲動容器，十題內容可完整捲動；生詞庫仍保留
   固定工具列及內部結果 scroll region。
@@ -85,14 +93,33 @@ related_implements:
    `next_due_at` 的本地日期仍是確認當天時維持學習中；跨日也保留原始路徑。
 2. 只有 `next_due_at` 的本地日期進入隔天或更晚才算完成，並依事件所屬路徑增加今日
    新項目或到期複習完成數。
-3. 每類占用量為今日完成數加目前學習中數；達到獨立上限後不再引入同類其他項目。
-   上限為 0 時暫停該類別，但不改動已生成試卷。
+3. 每類剩餘完成額度為設定上限減去今日已完成數；目前學習中數保留作為狀態資訊與
+   排序依據，但不預先占用完成名額。今日已完成數達到獨立上限後不再引入同類其他
+   項目，已進入學習路徑的項目再次到期後仍可繼續。上限為 0 時暫停該類別，但不
+   改動已生成試卷。
 4. 先選已再次到期的學習中項目，再依精確逾期時間選其他既有到期項目，最後以沒有
    schedule 的 active 新項目依 CEFR 與建立時間補足。
 5. `selectedItems` 最多為 `reviewPaperSize`；`totalAvailable` 是目前受額度限制後可排入
    後續試卷的數量，`backlogTotal` 另保留完整待處理量。
-6. 沒有目前可用項目時回傳最近一筆尚未到期的 `nextDueAt`；Renderer 依 backlog
-   判斷是等待到期或今日額度已用完。
+6. 沒有目前可用項目時回傳最近一筆尚未到期的 `nextDueAt`；存在學習中項目時，
+   Renderer 顯示最近到期時間，並以單次 timer 在抵達後重新查詢摘要與更新側欄
+   可複習數。沒有等待中的學習路徑時，Renderer 才依 backlog 判斷今日額度已用完。
+
+### 3.1 穩定掌握成果與複習活動
+
+`getReviewSummary()` 另依 active 學習項目的 append-only 複習事件重建兩組語意分離
+的統計：
+
+- `learningProgress` 是結果：項目至少在兩個不同本地日期取得 Good／Easy、目前
+  FSRS stability 至少 30 天、最新評級仍為 Good／Easy，且查詢時間的 retrievability
+  至少 85% 才屬於穩定掌握。具有排程但未達標或已衰退者屬於正在鞏固。90 天每日點
+  依當日結束前最後事件重建，今天只算到查詢時間；30 天淨成長可以為負。
+- `reviewActivity` 是投入：沿用「下一次到期日期進入隔天或更晚才算完成」規則，
+  彙整最近 30 個本地日期的新項目與到期複習完成次數。它只驅動活動方格，不影響
+  穩定掌握判定。
+- 30 天回想成功率排除每個項目的首次複習，只以後續事件的 Good／Easy 為成功；
+  沒有後續樣本時回傳 null，Renderer 顯示破折號而不是 0%。
+- 垃圾桶項目由摘要查詢排除；還原後沿用既有事件重新進入成果與活動統計。
 
 最終評級映射：
 
@@ -123,9 +150,11 @@ related_implements:
    完整覆蓋及唯一性；不接受原始 HTML。表達建議只接受 natural／improvable／
    not-applicable 三態及對應欄位組合，缺少、malformed、舊 `insufficient` 或未知
    狀態時正規化為 not-applicable，保留核心意思批改。
-5. 批改只接受目前試卷的完整答案集合，並只保存於 Main 記憶體。
+5. 批改只接受目前試卷的完整答案集合；確認前只保存於 Main 記憶體。
 6. Renderer 確認時只送 question id 與最終評級；Controller 以受信任批改結果還原
-   item id 及 AI 評級，再交給 repository 原子寫入。
+   item id、AI 評級及批改時已驗證的原始複習作答，再交給 repository 原子寫入。
+   若試卷建立後有項目被移入垃圾桶或永久刪除，repository 會略過該失效項目並確認
+   其餘 active 項目；若全數失效則成功回傳零筆事件，不建立排程或歷史。
 7. generation turn 的 `item/agentMessage/delta` 由 Controller 累積；Main 的字串狀態機
    只計算 `questions` 陣列內完整閉合的頂層題目物件，並透過 invoke event 向發起視窗
    傳送 `phase`、`completedCount`、`totalCount`。Renderer 不接收模型文字、JSON、
@@ -146,13 +175,15 @@ related_implements:
 - `learning_review_schedules`：每個項目一筆目前 `due_at`、完整 FSRS card JSON、
   累計次數、最後複習時間與最後最終評級。
 - `learning_review_events`：append-only 精簡事件，保存 session／item／reviewed time、
-  AI 與最終評級、FSRS 前後 card JSON、間隔秒數及下次到期。
+  原始複習作答、AI 與最終評級、FSRS 前後 card JSON、間隔秒數及下次到期。
 
 兩表以 foreign key 關聯 `learning_items` 並 `ON DELETE CASCADE`。永久清空垃圾桶時，
-對應排程與歷史一併刪除。事件不保存 AI 例句、使用者答案、詳細回饋或表達建議。
+對應排程與歷史一併刪除。事件不保存 AI 例句、建議回答、詳細回饋或表達建議。
+schema 4 的 nullable `answer` 讓 migration 前事件可保持 null，並與新版留白字串區分。
 
-完整資料備份保存整份 SQLite，因此已確認的 schedules 與精簡 events 會跨裝置還原；
-只在 `SpacedReviewController` 記憶體中的試卷、答案、回饋與未確認評級不會備份。
+完整資料備份保存整份 SQLite，因此已確認的 schedules、精簡 events 與複習作答會
+跨裝置還原；只在 `SpacedReviewController` 記憶體中的未確認試卷、作答、回饋與評級
+不會備份。
 
 ## 6. Typed Boundary
 
@@ -190,12 +221,17 @@ status 及取消操作，並以 attempt token 忽略取消後的晚到結果。�
 `data-rating` 與顏色，並保留具名評級狀態、AI 建議文字及 radio，顏色不是唯一訊號。
 工作區另外持有只控制顯示的 paused view；它不改變 review phase，也不清除任何
 回合作答狀態。
-工作區載入摘要後，在所有 phase 持續顯示四格間隔複習狀態；它們包含兩類今日完成
-進度／上限、學習中數、完整佇列與剩餘名額，不是本回合題目的組成。確認成功後完成頁保持不變，
-Renderer 另重新呼叫 `getSummary()` 更新四格狀態與側欄可複習數；若非關鍵刷新失敗，
-不把已成功寫入的確認降回未確認狀態。
+工作區在 ready 與 completed 顯示一張主要成果卡、一張次要複習活動卡及今日完成
+狀態列。成果卡只有穩定掌握大型主數字、正在鞏固、30 天回想成功率與單一 90 天
+SVG 折線；活動卡以 30 天方格顯示完成次數與活動日，不重複成果指標，也不提供時間
+範圍或粒度控制器。確認成功後完成頁保持不變，Renderer 另重新呼叫 `getSummary()`
+更新成果、活動、今日狀態與側欄可複習數；若非關鍵刷新失敗，不把已成功寫入的確認
+降回未確認狀態。
 保存設定後 `App` 也要求重新查詢摘要；若已有進行中試卷，只更新額度與側欄數字並
 保留原 `selectedItems`，避免調低上限破壞作答內容。
+ready 空狀態具有未來 `nextDueAt` 時，Renderer 以單次 timer 等到精確到期時間再
+呼叫 `getSummary()`；摘要或到期時間改變時會清除舊 timer。超過瀏覽器單次 timer
+安全範圍的等待時間會分段刷新，不要求使用者重新啟動 App 或修改設定。
 paused view 可開啟放棄確認 alert dialog；取消只關閉 dialog，確認才呼叫
 `discardPaper()`、重新載入摘要並回到 ready。本回合摘要在 ready、作答、批改及確認
 階段持續顯示；已有試卷時不再顯示生成按鈕。試卷收合時，同頁下方顯示當前試卷卡；
@@ -206,6 +242,8 @@ paused view 可開啟放棄確認 alert dialog；取消只關閉 dialog，確認
 Markdown、發音、複習排程與精簡歷史；複習頁傳入 read-only capability，不提供
 編輯、儲存、刪除或移到垃圾桶。關閉按鈕、Escape 與 backdrop 都可關閉並把焦點還給
 原觸發按鈕；開關詳情及載入失敗不重跑生成／批改，也不清除答案或評級覆寫。
+精簡歷史逐筆顯示「Your answer」與原始換行文字；留白顯示 `Not answered`，schema 4
+以前的事件顯示 `Answer wasn't saved`。
 
 完成摘要顯示新間隔／到期資訊與剩餘數量；仍有 backlog 時可開始下一回合。
 `SpacedReviewWorkspace` 由 `App` 常駐掛載，非 review mode 時回傳空畫面，因此生成
@@ -233,13 +271,13 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 
 | Test file | Coverage |
 |---|---|
-| `learning-library-service.test.ts` | 學習路徑、完成判定、跨日分類、獨立額度、零值暫停、可設定題數、三層排序、精確到期、FSRS、覆寫歷史、垃圾桶與重複確認 |
+| `learning-library-service.test.ts` | 學習路徑、完成判定、學習中項目不預占完成額度、跨日分類、穩定掌握／衰退、90 天成果、30 天活動與回想率、獨立額度、零值暫停、可設定題數、三層排序、精確到期、FSRS、覆寫歷史、試卷確認期間刪除、垃圾桶與重複確認 |
 | `spaced-review-skill.test.ts` | 評級獨立、表達建議三態、長度獨立、留白答案、語言分工及改寫契約 |
 | `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、表達建議正規化、缺題、未知／重複 id 與錯 scope 拒絕 |
 | `spaced-review-controller.test.ts` | 暫態 paper／expression feedback、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |
 | `spaced-review-ipc.test.ts` | 六個操作、安全 typed generation count payload 與惡意 payload 拒絕 |
-| `SpacedReviewWorkspace.test.tsx` | 整合式狀態卡、完成數與確定進度、意思／表達分區、四級結果色彩、唯讀詳情、焦點回復、短答案與不適用建議、先離開／繼續、放棄二次確認、取消／晚到結果、空白提醒、覆寫、確認與真正卸載清除 |
-| `learning-library-workspace.test.tsx` | 詳情摘要及可展開精簡歷史 |
+| `SpacedReviewWorkspace.test.tsx` | 穩定掌握成果卡、90 天可存取折線、30 天活動卡、零資料、完成後刷新、整合式狀態卡、等待到期文案與自動刷新、完成數與確定進度、意思／表達分區、四級結果色彩、唯讀詳情、焦點回復、短答案與不適用建議、先離開／繼續、放棄二次確認、取消／晚到結果、空白提醒、覆寫、確認與真正卸載清除 |
+| `learning-library-workspace.test.tsx` | 詳情摘要、可展開精簡歷史、作答文字與新舊留白狀態 |
 | `App.test.tsx` | 側欄數量與狀態 icon、獨立工作區、進入時不呼叫生成，以及生成／作答／批改狀態跨工作區保留 |
 | `bundled-skill.test.ts` | 第四份內建 skill 安裝／更新 |
 | `desktop.spec.ts` | production skill、七項 review bridge、工作區入口及實際垂直捲動 |
@@ -249,7 +287,8 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - 未完成回合不寫入 SQLite；關閉視窗、重新載入 Renderer、App 當機或重新啟動後
   不恢復。
 - 目前沒有 deck、手動選題、FSRS optimizer、retention 設定或自訂學習日開始時間。
-- 沒有持久保存、重播、搜尋或匯出試卷、答案、詳細回饋及表達建議。
+- 沒有重播、搜尋或匯出完整試卷與作答，也不持久保存詳細回饋及表達建議；已確認的
+  原始複習作答只存在於各學習項目的精簡歷史。
 - 已確認排程與精簡歷史可隨整份資料備份還原；沒有自動同步、Anki 匯入／匯出，
   也不備份未完成試卷。
 - CEFR 是首次引入順序的近似，尚未結合獨立詞頻資料。
@@ -279,3 +318,5 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - `documents/modules/learning-item-creation.md`
 - `documents/modules/data-backup.md`
 - `documents/implements/F38-export-and-restore-data-backup.md`
+- `documents/implements/F41-persist-review-answers-in-history.md`
+- `documents/implements/B15-do-not-reserve-completion-capacity-for-learning-items.md`

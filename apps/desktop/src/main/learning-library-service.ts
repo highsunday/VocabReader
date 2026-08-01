@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { backup, DatabaseSync } from "node:sqlite";
@@ -13,9 +13,13 @@ import type {
   CefrLevel,
   CreateLearningItemInput,
   LearningItem,
+  LearningItemCounts,
   LearningItemListInput,
+  LearningItemLanguage,
+  LearningItemPage,
   LearningItemStatus,
   LearningItemStudyStatus,
+  LearningItemSummary,
   LearningLibraryItem,
   LearningItemType,
   UpdateLearningItemInput
@@ -36,14 +40,19 @@ import {
   DAILY_NEW_ITEM_COMPLETION_LIMIT,
   REVIEW_PAPER_SIZE
 } from "../shared/settings-contracts";
+import {
+  SENTENCE_PRACTICE_ITEM_COUNT,
+  type SentencePracticeItem
+} from "../shared/sentence-practice-contracts";
 
-// Schema 4 adds persisted review answers to the append-only history.
-export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 4;
+// Schema 5 adds a persisted language category to every learning item.
+export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 5;
 
 interface LearningItemRow {
   id: string;
   title: string;
   item_type: LearningItemType;
+  language: LearningItemLanguage;
   cefr: CefrLevel;
   sense: string;
   markdown_content: string;
@@ -78,6 +87,25 @@ interface ReviewQueueRow extends LearningItemRow {
   due_at: string | null;
 }
 
+export interface SentencePracticeSourceItem extends SentencePracticeItem {
+  markdownContent: string;
+}
+
+interface LearningItemSummaryRow {
+  id: string;
+  title: string;
+  item_type: LearningItemType;
+  language: LearningItemLanguage;
+  cefr: CefrLevel;
+  sense: string;
+  status: LearningItemStatus;
+  created_at: string;
+  updated_at: string;
+  trashed_at: string | null;
+  due_at: string | null;
+  study_status: LearningItemStudyStatus;
+}
+
 type ReviewLearningKind = "new" | "due";
 
 interface ReviewProgressRow {
@@ -105,6 +133,7 @@ interface LocalLearningLibraryOptions {
 }
 
 const itemTypes = new Set<LearningItemType>(["word", "phrase"]);
+const languages = new Set<LearningItemLanguage>(["en", "ja", "zh-TW", "other"]);
 const cefrLevels = new Set<CefrLevel>(["A1", "A2", "B1", "B2", "C1", "C2"]);
 const statuses = new Set<LearningItemStatus>(["active", "trashed"]);
 const studyStatuses = new Set<LearningItemStudyStatus>([
@@ -113,6 +142,7 @@ const studyStatuses = new Set<LearningItemStudyStatus>([
   "due",
   "scheduled"
 ]);
+const LEARNING_LIBRARY_PAGE_SIZE = 50;
 const reviewRatings = new Set<ReviewRating>([
   "forgotten",
   "hard",
@@ -394,13 +424,37 @@ function requiredText(value: unknown, label: string): string {
   return value.trim();
 }
 
+export function sentencePracticeMeaning(
+  markdownContent: string,
+  fallbackSense: string
+): string {
+  const lines = markdownContent.replace(/\r\n?/g, "\n").split("\n");
+  const headingIndex = lines.findIndex((line) =>
+    /^#{1,6}\s+meaning\s*$/i.test(line.trim())
+  );
+  if (headingIndex < 0) return fallbackSense.trim();
+  const paragraph: string[] = [];
+  for (const line of lines.slice(headingIndex + 1)) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (paragraph.length > 0) break;
+      continue;
+    }
+    if (/^#{1,6}\s+/.test(trimmed)) break;
+    paragraph.push(trimmed);
+  }
+  return paragraph.join(" ").trim() || fallbackSense.trim();
+}
+
 function validateCreate(input: CreateLearningItemInput): CreateLearningItemInput {
   if (!input || typeof input !== "object") throw new Error("Invalid learning item");
   if (!itemTypes.has(input.itemType)) throw new Error("Invalid learning-item type");
+  if (!languages.has(input.language)) throw new Error("Invalid learning-item language");
   if (!cefrLevels.has(input.cefr)) throw new Error("Invalid CEFR level");
   return {
     title: requiredText(input.title, "title"),
     itemType: input.itemType,
+    language: input.language,
     cefr: input.cefr,
     sense: requiredText(input.sense, "sense"),
     markdownContent: requiredText(input.markdownContent, "Markdown content")
@@ -412,6 +466,7 @@ function itemFromRow(row: LearningItemRow): LearningItem {
     id: row.id,
     title: row.title,
     itemType: row.item_type,
+    language: row.language,
     cefr: row.cefr,
     sense: row.sense,
     markdownContent: row.markdown_content,
@@ -420,6 +475,70 @@ function itemFromRow(row: LearningItemRow): LearningItem {
     updatedAt: row.updated_at,
     trashedAt: row.trashed_at
   };
+}
+
+function summaryFromRow(row: LearningItemSummaryRow): LearningItemSummary {
+  return {
+    id: row.id,
+    title: row.title,
+    itemType: row.item_type,
+    language: row.language,
+    cefr: row.cefr,
+    sense: row.sense,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    trashedAt: row.trashed_at,
+    studyStatus: row.study_status,
+    nextDueAt: row.due_at
+  };
+}
+
+interface LearningItemCursor {
+  version: 1;
+  offset: number;
+  asOf: string;
+  query: string;
+}
+
+function listQueryFingerprint(input: LearningItemListInput): string {
+  return createHash("sha256").update(JSON.stringify({
+    status: input.status,
+    search: input.search?.trim().toLocaleLowerCase() || null,
+    itemType: input.itemType ?? null,
+    language: input.language ?? null,
+    cefr: input.cefr ?? null,
+    studyStatus: input.studyStatus ?? null,
+    sort: input.sort
+  })).digest("base64url");
+}
+
+function encodeLearningItemCursor(cursor: LearningItemCursor): string {
+  return Buffer.from(JSON.stringify(cursor)).toString("base64url");
+}
+
+function decodeLearningItemCursor(
+  value: string,
+  expectedQuery: string
+): LearningItemCursor {
+  try {
+    const cursor = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8")
+    ) as Partial<LearningItemCursor>;
+    if (
+      cursor.version !== 1 ||
+      !Number.isSafeInteger(cursor.offset) ||
+      cursor.offset! < LEARNING_LIBRARY_PAGE_SIZE ||
+      typeof cursor.asOf !== "string" ||
+      !Number.isFinite(new Date(cursor.asOf).getTime()) ||
+      cursor.query !== expectedQuery
+    ) {
+      throw new Error("Invalid cursor");
+    }
+    return cursor as LearningItemCursor;
+  } catch {
+    throw new Error("Invalid Learning Library cursor");
+  }
 }
 
 function cardMarkdown({
@@ -453,7 +572,7 @@ function cardMarkdown({
   ].join("\n");
 }
 
-const mockItems: CreateLearningItemInput[] = [
+const mockItems: Array<Omit<CreateLearningItemInput, "language">> = [
   {
     title: "happy",
     itemType: "word",
@@ -644,6 +763,52 @@ export class LocalLearningLibrary {
     await backup(this.#open(), destinationPath);
   }
 
+  async getSentencePracticeEligibleCount(): Promise<number> {
+    const row = this.#open().prepare(`
+      SELECT COUNT(*) AS count
+      FROM learning_items i
+      JOIN learning_review_schedules s ON s.learning_item_id = i.id
+      WHERE i.status = 'active'
+        AND i.language = 'en'
+        AND s.review_count > 0
+    `).get() as { count: number };
+    return row.count;
+  }
+
+  async selectSentencePracticeItems(
+    count: number
+  ): Promise<SentencePracticeSourceItem[]> {
+    if (
+      !Number.isSafeInteger(count) ||
+      count < SENTENCE_PRACTICE_ITEM_COUNT.minimum ||
+      count > SENTENCE_PRACTICE_ITEM_COUNT.maximum
+    ) {
+      throw new Error("Sentence-practice item count must be between 2 and 10");
+    }
+    const rows = this.#open().prepare(`
+      SELECT i.*
+      FROM learning_items i
+      JOIN learning_review_schedules s ON s.learning_item_id = i.id
+      WHERE i.status = 'active'
+        AND i.language = 'en'
+        AND s.review_count > 0
+      ORDER BY RANDOM()
+      LIMIT ?
+    `).all(count) as unknown as LearningItemRow[];
+    if (rows.length !== count) {
+      throw new Error("Not enough reviewed English learning items");
+    }
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      itemType: row.item_type,
+      cefr: row.cefr,
+      sense: row.sense,
+      meaning: sentencePracticeMeaning(row.markdown_content, row.sense),
+      markdownContent: row.markdown_content
+    }));
+  }
+
   #open(): DatabaseSync {
     if (this.#database) return this.#database;
     mkdirSync(dirname(this.databasePath), { recursive: true });
@@ -664,6 +829,8 @@ export class LocalLearningLibrary {
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
           item_type TEXT NOT NULL CHECK (item_type IN ('word', 'phrase')),
+          language TEXT NOT NULL DEFAULT 'en'
+            CHECK (language IN ('en', 'ja', 'zh-TW', 'other')),
           cefr TEXT NOT NULL CHECK (cefr IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
           sense TEXT NOT NULL,
           markdown_content TEXT NOT NULL,
@@ -704,6 +871,10 @@ export class LocalLearningLibrary {
           ON learning_review_schedules(due_at);
         CREATE INDEX IF NOT EXISTS learning_review_events_item_time_idx
           ON learning_review_events(learning_item_id, reviewed_at DESC);
+        CREATE INDEX IF NOT EXISTS learning_items_status_created_idx
+          ON learning_items(status, created_at DESC, id);
+        CREATE INDEX IF NOT EXISTS learning_items_status_title_idx
+          ON learning_items(status, LOWER(title), id);
         INSERT OR IGNORE INTO schema_migrations (version, applied_at)
         VALUES (1, CURRENT_TIMESTAMP);
         INSERT OR IGNORE INTO schema_migrations (version, applied_at)
@@ -719,15 +890,32 @@ export class LocalLearningLibrary {
         INSERT OR IGNORE INTO schema_migrations (version, applied_at)
         VALUES (4, CURRENT_TIMESTAMP)
       `).run();
+      const learningItemColumns = database.prepare(
+        "PRAGMA table_info(learning_items)"
+      ).all() as unknown as Array<{ name: string }>;
+      if (!learningItemColumns.some(({ name }) => name === "language")) {
+        database.exec(`
+          ALTER TABLE learning_items ADD COLUMN language TEXT NOT NULL DEFAULT 'en'
+            CHECK (language IN ('en', 'ja', 'zh-TW', 'other'))
+        `);
+      }
+      database.prepare(`
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+        VALUES (5, CURRENT_TIMESTAMP)
+      `).run();
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS learning_items_status_language_created_idx
+          ON learning_items(status, language, created_at DESC, id)
+      `);
       const seeded = database.prepare(
         "SELECT value FROM learning_metadata WHERE key = 'mock_seed_v1'"
       ).get() as { value: string } | undefined;
       if (!seeded) {
         const insert = database.prepare(`
           INSERT INTO learning_items (
-            id, title, item_type, cefr, sense, markdown_content, status,
+            id, title, item_type, language, cefr, sense, markdown_content, status,
             created_at, updated_at, trashed_at
-          ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
+          ) VALUES (?, ?, ?, 'en', ?, ?, ?, 'active', ?, ?, NULL)
         `);
         mockItems.forEach((item, index) => {
           const timestamp = `2026-01-01T00:${String(index).padStart(2, "0")}:00.000Z`;
@@ -777,6 +965,9 @@ export class LocalLearningLibrary {
     if (input.cefr !== undefined && !cefrLevels.has(input.cefr)) {
       throw new Error("Invalid CEFR filter");
     }
+    if (input.language !== undefined && !languages.has(input.language)) {
+      throw new Error("Invalid learning-item language filter");
+    }
     if (input.search !== undefined && typeof input.search !== "string") {
       throw new Error("Invalid Learning Library search");
     }
@@ -801,6 +992,10 @@ export class LocalLearningLibrary {
     if (input.cefr) {
       clauses.push("i.cefr = ?");
       values.push(input.cefr);
+    }
+    if (input.language) {
+      clauses.push("i.language = ?");
+      values.push(input.language);
     }
     const order = input.sort === "alphabetical"
       ? "LOWER(i.title) ASC, i.sense ASC, i.id ASC"
@@ -865,6 +1060,149 @@ export class LocalLearningLibrary {
       });
     }
     return libraryItems;
+  }
+
+  async listItemPage(
+    input: LearningItemListInput,
+    nowInput: Date | string = new Date()
+  ): Promise<LearningItemPage> {
+    if (!input || typeof input !== "object" || !statuses.has(input.status)) {
+      throw new Error("Invalid Learning Library status");
+    }
+    if (
+      input.sort !== "recent" &&
+      input.sort !== "alphabetical" &&
+      input.sort !== "study-status" &&
+      input.sort !== "next-due"
+    ) {
+      throw new Error("Invalid Learning Library sort order");
+    }
+    if (input.itemType !== undefined && !itemTypes.has(input.itemType)) {
+      throw new Error("Invalid Learning Library type filter");
+    }
+    if (input.cefr !== undefined && !cefrLevels.has(input.cefr)) {
+      throw new Error("Invalid CEFR filter");
+    }
+    if (input.language !== undefined && !languages.has(input.language)) {
+      throw new Error("Invalid learning-item language filter");
+    }
+    if (input.search !== undefined && typeof input.search !== "string") {
+      throw new Error("Invalid Learning Library search");
+    }
+    if (
+      input.studyStatus !== undefined &&
+      !studyStatuses.has(input.studyStatus)
+    ) {
+      throw new Error("Invalid study-status filter");
+    }
+    if (input.cursor !== undefined && typeof input.cursor !== "string") {
+      throw new Error("Invalid Learning Library cursor");
+    }
+
+    const query = listQueryFingerprint(input);
+    const decoded = input.cursor
+      ? decodeLearningItemCursor(input.cursor, query)
+      : null;
+    const offset = decoded?.offset ?? 0;
+    const asOf = decoded?.asOf ?? validDate(nowInput, "current time").toISOString();
+    const clauses = ["status = ?"];
+    const values: Array<string | number> = [input.status];
+    const search = input.search?.trim().toLocaleLowerCase();
+    if (search) {
+      clauses.push("LOWER(title) LIKE ? ESCAPE '\\'");
+      values.push(`%${search.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`);
+    }
+    if (input.itemType) {
+      clauses.push("item_type = ?");
+      values.push(input.itemType);
+    }
+    if (input.cefr) {
+      clauses.push("cefr = ?");
+      values.push(input.cefr);
+    }
+    if (input.language) {
+      clauses.push("language = ?");
+      values.push(input.language);
+    }
+    if (input.studyStatus) {
+      clauses.push("study_status = ?");
+      values.push(input.studyStatus);
+    }
+    const order = input.sort === "alphabetical"
+      ? "LOWER(title) ASC, sense ASC, id ASC"
+      : input.sort === "study-status"
+        ? `CASE study_status
+            WHEN 'learning' THEN 0 WHEN 'due' THEN 1
+            WHEN 'new' THEN 2 ELSE 3
+          END ASC,
+          CASE WHEN due_at IS NULL THEN 1 ELSE 0 END ASC,
+          due_at ASC, LOWER(title) ASC, id ASC`
+        : input.sort === "next-due"
+          ? `CASE WHEN due_at IS NULL THEN 1 ELSE 0 END ASC,
+            due_at ASC, LOWER(title) ASC, id ASC`
+          : "created_at DESC, id ASC";
+    const rows = this.#open().prepare(`
+      WITH summaries AS (
+        SELECT
+          i.id,
+          i.title,
+          i.item_type,
+          i.language,
+          i.cefr,
+          i.sense,
+          i.status,
+          i.created_at,
+          i.updated_at,
+          i.trashed_at,
+          s.due_at,
+          CASE
+            WHEN CAST(json_extract(s.card_json, '$.state') AS INTEGER) IN (1, 3)
+              THEN 'learning'
+            WHEN s.due_at IS NULL THEN 'new'
+            WHEN s.due_at <= ? THEN 'due'
+            ELSE 'scheduled'
+          END AS study_status
+        FROM learning_items i
+        LEFT JOIN learning_review_schedules s ON s.learning_item_id = i.id
+      )
+      SELECT *
+      FROM summaries
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY ${order}
+      LIMIT ? OFFSET ?
+    `).all(
+      asOf,
+      ...values,
+      LEARNING_LIBRARY_PAGE_SIZE + 1,
+      offset
+    ) as unknown as LearningItemSummaryRow[];
+    const hasMore = rows.length > LEARNING_LIBRARY_PAGE_SIZE;
+    const items = rows.slice(0, LEARNING_LIBRARY_PAGE_SIZE).map(summaryFromRow);
+    return {
+      items,
+      nextCursor: hasMore
+        ? encodeLearningItemCursor({
+            version: 1,
+            offset: offset + LEARNING_LIBRARY_PAGE_SIZE,
+            asOf,
+            query
+          })
+        : null
+    };
+  }
+
+  async countItems(): Promise<LearningItemCounts> {
+    const rows = this.#open().prepare(`
+      SELECT status, COUNT(*) AS count
+      FROM learning_items
+      GROUP BY status
+    `).all() as unknown as Array<{
+      status: LearningItemStatus;
+      count: number;
+    }>;
+    const counts: LearningItemCounts = { active: 0, trashed: 0 };
+    for (const row of rows) counts[row.status] = row.count;
+    return counts;
   }
 
   async getItem(itemId: string): Promise<LearningItem> {
@@ -1195,13 +1533,14 @@ export class LocalLearningLibrary {
     const now = new Date().toISOString();
     this.#open().prepare(`
       INSERT INTO learning_items (
-        id, title, item_type, cefr, sense, markdown_content, status,
+        id, title, item_type, language, cefr, sense, markdown_content, status,
         created_at, updated_at, trashed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
     `).run(
       id,
       item.title,
       item.itemType,
+      item.language,
       item.cefr,
       item.sense,
       item.markdownContent,
@@ -1221,9 +1560,9 @@ export class LocalLearningLibrary {
     const database = this.#open();
     const insert = database.prepare(`
       INSERT INTO learning_items (
-        id, title, item_type, cefr, sense, markdown_content, status,
+        id, title, item_type, language, cefr, sense, markdown_content, status,
         created_at, updated_at, trashed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
     `);
     const created: Array<{ id: string; item: CreateLearningItemInput }> = [];
     database.exec("BEGIN IMMEDIATE");
@@ -1235,6 +1574,7 @@ export class LocalLearningLibrary {
           id,
           item.title,
           item.itemType,
+          item.language,
           item.cefr,
           item.sense,
           item.markdownContent,
@@ -1257,12 +1597,13 @@ export class LocalLearningLibrary {
     const item = validateCreate(input);
     const result = this.#open().prepare(`
       UPDATE learning_items SET
-        title = ?, item_type = ?, cefr = ?, sense = ?, markdown_content = ?,
+        title = ?, item_type = ?, language = ?, cefr = ?, sense = ?, markdown_content = ?,
         updated_at = ?
       WHERE id = ?
     `).run(
       item.title,
       item.itemType,
+      item.language,
       item.cefr,
       item.sense,
       item.markdownContent,

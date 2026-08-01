@@ -9,6 +9,10 @@ status: implemented
 
 # Feature Specification - AI 批改試卷與 FSRS 間隔複習
 
+> 後續變更：F41 已改為在確認整份複習試卷時保存逐題原始**複習作答**。本文件中
+> 「答案不持久化」的敘述只代表 F28 當時的行為；AI 例句、詳細回饋與未確認試卷仍
+> 維持暫態。現行規則以 `F41-persist-review-answers-in-history.md` 為準。
+
 ## 1. Feature Overview
 
 目前**生詞庫**已能保存、查詢、編輯及刪除單字與片語形式的**學習項目**，但沒有

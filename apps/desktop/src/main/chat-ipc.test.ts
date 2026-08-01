@@ -137,11 +137,16 @@ describe("chat IPC", () => {
       draftId: "draft-a",
       title: "reluctant",
       itemType: "word",
+      language: "en" as const,
       cefr: "B2",
       sense: "unwilling",
       markdownContent: "## Meaning\n不情願。"
     };
     await handlers.get("chat:update-learning-item-draft")?.({}, draftInput);
+    expect(() => handlers.get("chat:update-learning-item-draft")?.({}, {
+      ...draftInput,
+      language: "fr"
+    })).toThrow(/Invalid learning-item draft update/);
     await handlers.get("chat:set-learning-item-draft-state")?.({}, {
       batchId: "batch-a",
       draftId: "draft-a",

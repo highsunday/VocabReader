@@ -20,8 +20,9 @@ import type {
 import type {
   LearningDesktopApi,
   LearningItem,
-  LearningLibraryItem,
+  LearningItemCounts,
   LearningItemListInput,
+  LearningItemPage,
   UpdateLearningItemDraftInput,
   UpdateLearningItemInput
 } from "../shared/learning-contracts";
@@ -32,6 +33,11 @@ import type {
   ReviewDesktopApi,
   ReviewGenerationProgress
 } from "../shared/review-contracts";
+import type {
+  SentencePracticeDesktopApi,
+  StartSentencePracticeInput,
+  SubmitSentencePracticeInput
+} from "../shared/sentence-practice-contracts";
 import type {
   AppSettings,
   SettingsDesktopApi
@@ -63,8 +69,10 @@ const desktopApi = Object.freeze({
       ipcRenderer.invoke("library:save-annotations", input)
   }),
   learning: Object.freeze({
-    listItems: (input: LearningItemListInput): Promise<LearningLibraryItem[]> =>
+    listItems: (input: LearningItemListInput): Promise<LearningItemPage> =>
       ipcRenderer.invoke("learning:list", input),
+    countItems: (): Promise<LearningItemCounts> =>
+      ipcRenderer.invoke("learning:counts"),
     getItem: (itemId: string): Promise<LearningItem> =>
       ipcRenderer.invoke("learning:get", itemId),
     updateItem: (input: UpdateLearningItemInput): Promise<LearningItem> =>
@@ -98,6 +106,13 @@ const desktopApi = Object.freeze({
       return () => ipcRenderer.off("review:generation-progress", wrapped);
     }
   } satisfies ReviewDesktopApi),
+  sentencePractice: Object.freeze({
+    getSnapshot: () => ipcRenderer.invoke("sentence-practice:snapshot"),
+    startSession: (input: StartSentencePracticeInput) =>
+      ipcRenderer.invoke("sentence-practice:start", input),
+    submit: (input: SubmitSentencePracticeInput) =>
+      ipcRenderer.invoke("sentence-practice:submit", input)
+  } satisfies SentencePracticeDesktopApi),
   settings: Object.freeze({
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
     save: (settings: AppSettings): Promise<AppSettings> =>

@@ -42,6 +42,7 @@ const bankCandidate = {
   id: "item-bank-finance",
   title: "bank",
   itemType: "word" as const,
+      language: "en" as const,
   cefr: "A2" as const,
   sense: "financial institution",
   markdownContent: "## Meaning\n銀行",
@@ -687,6 +688,7 @@ describe("ChatController", () => {
         drafts: [{
           title: "reluctant",
           itemType: "word",
+      language: "en" as const,
           cefr: "B2",
           sense: "unwilling or hesitant",
           markdownContent: "## Meaning\n不情願。\n\n## Examples\n1. She was reluctant."
@@ -733,6 +735,7 @@ describe("ChatController", () => {
           title: "dog",
           requestedTitles: ["dogs"],
           itemType: "word",
+      language: "en" as const,
           cefr: "A1",
           sense: "domesticated canine animal",
           markdownContent: "## Meaning\nA domesticated canine."
@@ -814,6 +817,7 @@ describe("ChatController", () => {
           title: "dog",
           requestedTitles: ["cats"],
           itemType: "word",
+      language: "en" as const,
           cefr: "A1",
           sense: "domesticated canine animal",
           markdownContent: "## Meaning\nA domesticated canine."
@@ -969,6 +973,7 @@ describe("ChatController", () => {
             drafts: [{
               title: "in advance",
               itemType: "phrase",
+      language: "en" as const,
               cefr: "B1",
               sense: "before a future event",
               markdownContent: "## Meaning\n預先、提前。"
@@ -1036,6 +1041,7 @@ describe("ChatController", () => {
             drafts: [{
               title: "in advance",
               itemType: "phrase",
+      language: "en" as const,
               cefr: "B1",
               sense: "before a future event",
               markdownContent: "## Meaning\nAhead of time."
@@ -1186,12 +1192,14 @@ describe("ChatController", () => {
             drafts: [{
               title: "apple",
               itemType: "word",
+      language: "en" as const,
               cefr: "A1",
               sense: "a round fruit",
               markdownContent: "## Meaning\nA round fruit."
             }, {
               title: "banana",
               itemType: "word",
+      language: "en" as const,
               cefr: "A1",
               sense: "a long curved fruit",
               markdownContent: "## Meaning\nA long curved fruit."
@@ -1292,12 +1300,14 @@ describe("ChatController", () => {
             drafts: [{
               title: "apple",
               itemType: "word",
+      language: "en" as const,
               cefr: "A1",
               sense: "a round fruit",
               markdownContent: "## Meaning\nA round fruit."
             }, {
               title: "banana",
               itemType: "word",
+      language: "en" as const,
               cefr: "A1",
               sense: "a long curved fruit",
               markdownContent: "## Meaning\nA long curved fruit."
@@ -1405,6 +1415,7 @@ describe("ChatController", () => {
               id: "draft-bank",
               title: "bank",
               itemType: "word",
+      language: "en" as const,
               cefr: "A2",
               sense: "an organization that keeps and lends money",
               markdownContent: "## Meaning\n銀行",
@@ -1413,6 +1424,7 @@ describe("ChatController", () => {
               id: "draft-reluctant",
               title: "reluctant",
               itemType: "word",
+      language: "en" as const,
               cefr: "B2",
               sense: "unwilling or hesitant",
               markdownContent: "## Meaning\n不情願。",
@@ -1455,6 +1467,7 @@ describe("ChatController", () => {
       draftId: "draft-reluctant",
       title: "reluctant",
       itemType: "word",
+      language: "en" as const,
       cefr: "C1",
       sense: "unwilling or hesitant",
       markdownContent: "## Meaning\n不願意。"
@@ -1524,6 +1537,7 @@ describe("ChatController", () => {
               id: "draft-a",
               title: "in advance",
               itemType: "phrase",
+      language: "en" as const,
               cefr: "B1",
               sense: "before a future event",
               markdownContent: "## Meaning\n預先。",

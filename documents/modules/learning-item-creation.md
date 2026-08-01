@@ -2,7 +2,7 @@
 title: AI 輔助學習項目建立模組
 module: learning-item-creation
 status: active
-last_updated: 2026-07-27
+last_updated: 2026-08-01
 related_implements:
   - F21-ai-assisted-learning-item-creation
   - F22-read-only-learning-item-draft-preview
@@ -11,6 +11,7 @@ related_implements:
   - F27-trigger-learning-card-creation-from-natural-language
   - F28-ai-graded-spaced-review-paper
   - F34-route-multilingual-learning-item-intent-with-ai
+  - F45-classify-and-filter-learning-items-by-language
 ---
 
 # AI 輔助學習項目建立模組
@@ -39,7 +40,8 @@ related_implements:
 5. `create-learning-items` 只收到請求目標、有限閱讀區段及候選的
    id／title／sense／status／Markdown，負責原型化、語義去重、必要澄清及草稿內容。
 6. Main 驗證 fenced `learning-item-result`；每個結果的 `requestedTitles` 必須落在該
-   turn 的受信任目標，match id 仍必須來自 App 提供的候選。
+   turn 的受信任目標，並具有 `en | ja | zh-TW | other` 其中一個學習項目語言；match id
+   仍必須來自 App 提供的候選。
 7. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要與安全
    渲染的 Markdown 預覽；使用者可把草稿排除／恢復，但不可編輯草稿內容。
 8. 提交時重新以原型草稿標題查候選。若有候選，以一次隔離 Codex turn 執行
@@ -51,6 +53,10 @@ related_implements:
 11. 提交結果保留在原 AI 訊息，不能再次提交；垃圾桶 match 在提交前後都可明確還原。
 12. 成功新增的 active 項目沒有 schedule row，因此立即進入間隔複習的新項目 queue；
    首次引入順序由複習模組按 CEFR A1→C2 決定。
+
+AI 逐筆依 canonical title 與目標語義判定**學習項目語言**；它不沿用請求、閱讀區段、
+介面或講解語言。同批草稿可具有不同語言，無法可靠歸入英文、日文或繁體中文時使用
+其他語言。提交 recheck 只判斷語義重複，並保留草稿原語言。
 
 ## 3. Clarification and Annotation Integration
 
@@ -94,6 +100,8 @@ related_implements:
 - 提交 recheck 必須恰好為每個 included draft 回傳一個 decision；match id 必須來自
   同標題且狀態相符的候選。
 - 對話 store、IPC、Controller 與 repository 都重新驗證 enum、必要文字及批次 id。
+- 缺少或偽造學習項目語言的 AI result 不會產生可提交草稿；提交時語言隨其他欄位在
+  同一交易寫入。
 - 一般問答、假設、引用與否定句不會啟用 creation skill；任何語言的自然語言請求由
   AI 依語義決定，不依 Renderer 關鍵字或動詞清單。
   隔離 turn 禁用工具、網路、plugins、apps、memories 與 skill discovery。
@@ -114,7 +122,7 @@ included／excluded、候選 match、submitted／abandoned 時間及 created ite
 於對話訊息。移除整筆對話會移除草稿，但不影響已提交的正式項目。
 
 中央 `LearningItemDraftDialog` 固定 header／footer，只有卡片區垂直捲動；Markdown 使用
-`react-markdown`、GFM 與 `skipHtml`。確認浮層沒有標題、類型、CEFR、語義或原始
+`react-markdown`、GFM 與 `skipHtml`。確認浮層沒有標題、語言、類型、CEFR、語義或原始
 Markdown 的編輯控制；沒有 included 草稿時提交停用。Escape、遮罩及明確關閉按鈕只
 關閉 modal，不改變草稿狀態。pending 批次另提供「放棄這批草稿」與二次確認；
 abandoned 批次只顯示唯讀摘要。
@@ -138,7 +146,7 @@ abandoned 批次只顯示唯讀摘要。
 
 - `learning-library-service.test.ts`：exact normalized query 與交易新增。
 - `learning-item-artifacts.test.ts`：intent、result、invitation、request 與 recheck
-  fenced artifact 的嚴格驗證及 50-target 邊界。
+  fenced artifact 的嚴格驗證、必填語言及 50-target 邊界。
 - `learning-item-duplicate-classifier.test.ts`：單次有限候選 AI recheck。
 - `chat-controller.test.ts`：skill routing、候選範圍、持久澄清、草稿生命週期、重查、
   還原、不可重複提交、多語 AI route、自動 continuation、原 target 重試、放棄，

@@ -13,6 +13,7 @@ import {
   CircleCheck,
   LibraryBig,
   LoaderCircle,
+  PenLine,
   Settings as SettingsIcon
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -38,6 +39,7 @@ import type {
 } from "../shared/library-contracts";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
 import type { ReviewDesktopApi } from "../shared/review-contracts";
+import type { SentencePracticeDesktopApi } from "../shared/sentence-practice-contracts";
 import {
   AI_CONVERSATION_FONT_SIZE,
   DAILY_DUE_REVIEW_COMPLETION_LIMIT,
@@ -72,9 +74,15 @@ import {
   SpacedReviewWorkspace,
   type ReviewWorkspaceStatus
 } from "./SpacedReviewWorkspace";
+import { SentencePracticeWorkspace } from "./SentencePracticeWorkspace";
 import { readingPracticeArtifacts } from "./reading-practice-artifact";
 
-type WorkspaceMode = "overview" | "reader" | "learning-library" | "spaced-review";
+type WorkspaceMode =
+  | "overview"
+  | "reader"
+  | "learning-library"
+  | "spaced-review"
+  | "sentence-practice";
 type SettingsSection = "general" | "review" | "account";
 
 const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
@@ -113,6 +121,7 @@ function desktopBridge(): {
   library?: LibraryDesktopApi;
   learning?: LearningDesktopApi;
   review?: ReviewDesktopApi;
+  sentencePractice?: SentencePracticeDesktopApi;
   settings?: SettingsDesktopApi;
   dataBackup?: DataBackupDesktopApi;
   chat?: ChatDesktopApi;
@@ -123,6 +132,7 @@ function desktopBridge(): {
         library?: LibraryDesktopApi;
         learning?: LearningDesktopApi;
         review?: ReviewDesktopApi;
+        sentencePractice?: SentencePracticeDesktopApi;
         settings?: SettingsDesktopApi;
         dataBackup?: DataBackupDesktopApi;
         chat?: ChatDesktopApi;
@@ -145,6 +155,10 @@ function desktopLearning(): LearningDesktopApi | undefined {
 
 function desktopReview(): ReviewDesktopApi | undefined {
   return desktopBridge()?.review;
+}
+
+function desktopSentencePractice(): SentencePracticeDesktopApi | undefined {
+  return desktopBridge()?.sentencePractice;
 }
 
 function desktopSettings(): SettingsDesktopApi | undefined {
@@ -409,17 +423,9 @@ export function App() {
     if (!learning) return;
 
     let active = true;
-    void Promise.all([
-      learning.listItems({ status: "active", sort: "recent" }),
-      learning.listItems({ status: "trashed", sort: "recent" })
-    ])
-      .then(([activeItems, trashedItems]) => {
-        if (active) {
-          setLearningCounts({
-            active: activeItems.length,
-            trashed: trashedItems.length
-          });
-        }
+    void learning.countItems()
+      .then((counts) => {
+        if (active) setLearningCounts(counts);
       })
       .catch(() => {
         // The learning workspace presents actionable loading errors when opened.
@@ -1650,6 +1656,21 @@ export function App() {
                     <em>{reviewAvailableCount}</em>
                   </button>
                   <button
+                    className={mode === "sentence-practice" ? "nav-item active" : "nav-item"}
+                    aria-label="Sentence Practice"
+                    onClick={() => {
+                      saveCurrentReaderPosition();
+                      setMode("sentence-practice");
+                    }}
+                  >
+                    <PenLine
+                      className="sidebar-action-icon"
+                      aria-hidden="true"
+                      strokeWidth={1.8}
+                    />
+                    <span className="nav-item-label">Sentence Practice</span>
+                  </button>
+                  <button
                     className={mode === "learning-library" ? "nav-item active" : "nav-item"}
                     aria-label={`Library ${learningCounts.active}`}
                     onClick={() => {
@@ -1737,6 +1758,8 @@ export function App() {
                 ? "content learning-library-content"
                 : mode === "spaced-review"
                   ? "content spaced-review-content"
+                  : mode === "sentence-practice"
+                    ? "content sentence-practice-content"
                   : "content"
           }
           ref={contentRef}
@@ -1902,6 +1925,16 @@ export function App() {
               active={mode === "spaced-review"}
               onAvailableCountChange={setReviewAvailableCount}
               onStatusChange={setReviewWorkspaceStatus}
+            />
+          ) : null}
+
+          {desktopSentencePractice() && desktopLearning() ? (
+            <SentencePracticeWorkspace
+              api={desktopSentencePractice()!}
+              learningApi={desktopLearning()!}
+              reviewApi={desktopReview()}
+              explanationLanguage={settings.explanationLanguage}
+              active={mode === "sentence-practice"}
             />
           ) : null}
 
@@ -2164,6 +2197,16 @@ export function App() {
                 <h1 id="review-title">Spaced Review</h1>
                 <p className="library-error" role="alert">
                   The local review schedule is currently unavailable.
+                </p>
+              </section>
+            )
+          ) : mode === "sentence-practice" ? (
+            desktopSentencePractice() && desktopLearning() ? null : (
+              <section className="learning-library-panel" aria-labelledby="sentence-practice-fallback-title">
+                <span className="eyebrow">Active English writing</span>
+                <h1 id="sentence-practice-fallback-title">Sentence Practice</h1>
+                <p className="library-error" role="alert">
+                  Sentence practice is currently unavailable.
                 </p>
               </section>
             )

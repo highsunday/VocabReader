@@ -18,7 +18,8 @@ function installBundledSkill(
     | "explain-reader-annotations"
     | "practice-reading-comprehension"
     | "create-learning-items"
-    | "practice-spaced-review",
+    | "practice-spaced-review"
+    | "practice-integrated-sentences",
   markdown: string
 ): BundledSkillInstallResult {
   const path = join(
@@ -77,6 +78,17 @@ export function installBundledSpacedReviewSkill(
   return installBundledSkill(
     runtimePath,
     "practice-spaced-review",
+    markdown
+  );
+}
+
+export function installBundledSentencePracticeSkill(
+  runtimePath: string,
+  markdown: string
+): BundledSkillInstallResult {
+  return installBundledSkill(
+    runtimePath,
+    "practice-integrated-sentences",
     markdown
   );
 }

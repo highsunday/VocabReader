@@ -250,6 +250,15 @@ describe("DataBackupService", () => {
       status: "active",
       sort: "recent"
     });
+    const multilingualItem = await sourceLearning.updateItem({
+      itemId: sourceItems[1].id,
+      title: sourceItems[1].title,
+      itemType: sourceItems[1].itemType,
+      language: "ja",
+      cefr: sourceItems[1].cefr,
+      sense: sourceItems[1].sense,
+      markdownContent: sourceItems[1].markdownContent
+    });
     await sourceLearning.trashItem(sourceItems[0].id);
     const archivePath = join(root, "portable.zip");
     const sourceService = new DataBackupService({
@@ -340,9 +349,13 @@ describe("DataBackupService", () => {
       contentHtml: expect.stringContaining("Portable chapter content")
     });
     const restoredLearning = new LocalLearningLibrary(targetLearningPath);
-    await expect(
-      restoredLearning.listItems({ status: "active", sort: "recent" })
-    ).resolves.toHaveLength(9);
+    const restoredActive = await restoredLearning.listItems({
+      status: "active",
+      sort: "recent"
+    });
+    expect(restoredActive).toHaveLength(9);
+    expect(restoredActive.find(({ id }) => id === multilingualItem.id)?.language)
+      .toBe("ja");
     await expect(
       restoredLearning.listItems({ status: "trashed", sort: "recent" })
     ).resolves.toHaveLength(1);
@@ -495,7 +508,7 @@ describe("DataBackupService", () => {
     });
   });
 
-  it("exports and previews an existing supported schema version 4 database", async () => {
+  it("exports and previews an existing supported schema version 5 database", async () => {
     const root = await temporaryDirectory();
     const libraryPath = join(root, "library");
     const learningDatabasePath = join(
@@ -514,7 +527,7 @@ describe("DataBackupService", () => {
       VALUES (4, CURRENT_TIMESTAMP)
     `).run();
     database.close();
-    const archivePath = join(root, "schema-v4.zip");
+    const archivePath = join(root, "schema-v5.zip");
     const service = new DataBackupService({
       libraryPath,
       learningDatabasePath,
@@ -540,10 +553,10 @@ describe("DataBackupService", () => {
     const newerDatabase = new DatabaseSync(learningDatabasePath);
     newerDatabase.prepare(`
       INSERT INTO schema_migrations (version, applied_at)
-      VALUES (5, CURRENT_TIMESTAMP)
+      VALUES (6, CURRENT_TIMESTAMP)
     `).run();
     newerDatabase.close();
-    await expect(service.exportToPath(join(root, "schema-v5.zip")))
+    await expect(service.exportToPath(join(root, "schema-v6.zip")))
       .rejects.toThrow("The backup uses a newer Learning Library version");
   });
 

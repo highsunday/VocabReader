@@ -3,6 +3,7 @@ import type {
   CefrLevel,
   LearningItemDraft,
   LearningItemDraftBatch,
+  LearningItemLanguage,
   LearningItemMatch,
   LearningItemType
 } from "../shared/learning-contracts";
@@ -24,6 +25,7 @@ export interface LearningItemRecheckDecision {
 }
 
 const itemTypes = new Set<LearningItemType>(["word", "phrase"]);
+const languages = new Set<LearningItemLanguage>(["en", "ja", "zh-TW", "other"]);
 const cefrLevels = new Set<CefrLevel>(["A1", "A2", "B1", "B2", "C1", "C2"]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -50,6 +52,7 @@ function draftFromUnknown(
   createId: () => string
 ): LearningItemDraft {
   if (!isObject(value) || !itemTypes.has(value.itemType as LearningItemType) ||
+    !languages.has(value.language as LearningItemLanguage) ||
     !cefrLevels.has(value.cefr as CefrLevel)) {
     throw new Error("Invalid learning-item draft");
   }
@@ -58,6 +61,7 @@ function draftFromUnknown(
     id: typeof value.id === "string" && value.id ? value.id : createId(),
     title: requiredString(value.title),
     itemType: value.itemType as LearningItemType,
+    language: value.language as LearningItemLanguage,
     cefr: value.cefr as CefrLevel,
     sense: requiredString(value.sense),
     markdownContent: requiredString(value.markdownContent),

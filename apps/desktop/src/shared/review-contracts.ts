@@ -61,6 +61,7 @@ export interface ConfirmedReviewRating {
   itemId: string;
   aiRating: ReviewRating;
   finalRating: ReviewRating;
+  answer?: string;
 }
 
 export interface ConfirmReviewSessionInput {
@@ -76,6 +77,7 @@ export interface ReviewHistoryEntry {
   reviewedAt: string;
   aiRating: ReviewRating;
   finalRating: ReviewRating;
+  answer: string | null;
   intervalSeconds: number;
   nextDueAt: string;
 }

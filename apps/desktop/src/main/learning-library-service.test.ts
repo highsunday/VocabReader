@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { LocalLearningLibrary } from "./learning-library-service";
+import {
+  LocalLearningLibrary,
+  sentencePracticeMeaning
+} from "./learning-library-service";
 
 const temporaryDirectories: string[] = [];
 
@@ -25,6 +28,127 @@ afterEach(async () => {
 });
 
 describe("LocalLearningLibrary", () => {
+  it("uses the first Meaning paragraph and falls back to the target sense", () => {
+    expect(sentencePracticeMeaning(
+      "# Card\n\n## Meaning\n第一行\n第二行\n\n## Examples\n1. Example.",
+      "fallback sense"
+    )).toBe("第一行 第二行");
+    expect(sentencePracticeMeaning(
+      "## Examples\n1. Example.",
+      "fallback sense"
+    )).toBe("fallback sense");
+    expect(sentencePracticeMeaning(
+      "## Meaning\n\n## Examples\n1. Example.",
+      "fallback sense"
+    )).toBe("fallback sense");
+  });
+
+  it("selects only active reviewed English items for integrated sentence practice", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const reviewedEnglish = await Promise.all([
+      library.createItem({
+        title: "create",
+        itemType: "word",
+        language: "en",
+        cefr: "A2",
+        sense: "make something",
+        markdownContent: "## Meaning\n創造；製作。\n\n## Examples\n1. We created a plan."
+      }),
+      library.createItem({
+        title: "on the verge of",
+        itemType: "phrase",
+        language: "en",
+        cefr: "C1",
+        sense: "very close to happening",
+        markdownContent: "## Meaning\n瀕臨；即將發生。\n\n## Examples\n1. She was on the verge of tears."
+      }),
+      library.createItem({
+        title: "reflect",
+        itemType: "word",
+        language: "en",
+        cefr: "B2",
+        sense: "think carefully",
+        markdownContent: "## Meaning\n仔細思考。\n\n## Examples\n1. He reflected on the choice."
+      })
+    ]);
+    const reviewedJapanese = await library.createItem({
+      title: "食べる",
+      itemType: "word",
+      language: "ja",
+      cefr: "A1",
+      sense: "to eat",
+      markdownContent: "## Meaning\n食べ物を口にする。"
+    });
+    const reviewedTrash = await library.createItem({
+      title: "discarded",
+      itemType: "word",
+      language: "en",
+      cefr: "B1",
+      sense: "thrown away",
+      markdownContent: "## Meaning\n丟棄的。"
+    });
+    await library.createItem({
+      title: "brand-new",
+      itemType: "word",
+      language: "en",
+      cefr: "A1",
+      sense: "completely new",
+      markdownContent: "## Meaning\n全新的。"
+    });
+    await library.confirmReviewSession({
+      sessionId: "sentence-practice-eligibility",
+      reviewedAt: "2026-08-01T08:00:00.000Z",
+      ratings: [
+        ...reviewedEnglish.map((item) => ({
+          itemId: item.id,
+          aiRating: "good" as const,
+          finalRating: "good" as const,
+          answer: "reviewed"
+        })),
+        {
+          itemId: reviewedJapanese.id,
+          aiRating: "good",
+          finalRating: "good",
+          answer: "reviewed"
+        },
+        {
+          itemId: reviewedTrash.id,
+          aiRating: "good",
+          finalRating: "good",
+          answer: "reviewed"
+        }
+      ]
+    });
+    await library.trashItem(reviewedTrash.id);
+
+    const sentencePracticeLibrary = library as unknown as {
+      getSentencePracticeEligibleCount(): Promise<number>;
+      selectSentencePracticeItems(count: number): Promise<Array<{
+        id: string;
+        title: string;
+        meaning: string;
+      }>>;
+    };
+
+    const reviewBeforeSelection = await library.getItemReviewDetail(
+      reviewedEnglish[0].id,
+      "2026-08-01T08:01:00.000Z"
+    );
+    await expect(sentencePracticeLibrary.getSentencePracticeEligibleCount())
+      .resolves.toBe(3);
+    const selected = await sentencePracticeLibrary.selectSentencePracticeItems(2);
+    expect(selected).toHaveLength(2);
+    expect(new Set(selected.map(({ id }) => id))).toHaveLength(2);
+    expect(selected.every((item) =>
+      reviewedEnglish.some(({ id }) => id === item.id)
+    )).toBe(true);
+    expect(selected.every(({ meaning }) => meaning.length > 0)).toBe(true);
+    await expect(library.getItemReviewDetail(
+      reviewedEnglish[0].id,
+      "2026-08-01T08:01:00.000Z"
+    )).resolves.toEqual(reviewBeforeSelection);
+  });
+
   it("migrates and seeds ten stable examples exactly once", async () => {
     const path = await databasePath();
     const first = new LocalLearningLibrary(path);
@@ -48,7 +172,7 @@ describe("LocalLearningLibrary", () => {
     ).resolves.toEqual(seeded);
   });
 
-  it("migrates a legacy review database with a nullable answer column", async () => {
+  it("migrates legacy review answers and backfills learning-item language", async () => {
     const path = await databasePath();
     const legacy = new LocalLearningLibrary(path);
     await legacy.listItems({ status: "active", sort: "recent" });
@@ -60,6 +184,15 @@ describe("LocalLearningLibrary", () => {
     ).all() as unknown as Array<{ name: string }>;
     if (legacyColumns.some(({ name }) => name === "answer")) {
       legacyDatabase.exec("ALTER TABLE learning_review_events DROP COLUMN answer");
+    }
+    const legacyItemColumns = legacyDatabase.prepare(
+      "PRAGMA table_info(learning_items)"
+    ).all() as unknown as Array<{ name: string }>;
+    if (legacyItemColumns.some(({ name }) => name === "language")) {
+      legacyDatabase.exec(
+        "DROP INDEX IF EXISTS learning_items_status_language_created_idx"
+      );
+      legacyDatabase.exec("ALTER TABLE learning_items DROP COLUMN language");
     }
     legacyDatabase.prepare(
       "DELETE FROM schema_migrations WHERE version >= 4"
@@ -74,6 +207,12 @@ describe("LocalLearningLibrary", () => {
     const columns = migratedDatabase.prepare(
       "PRAGMA table_info(learning_review_events)"
     ).all() as unknown as Array<{ name: string; notnull: number }>;
+    const itemColumns = migratedDatabase.prepare(
+      "PRAGMA table_info(learning_items)"
+    ).all() as unknown as Array<{ name: string; notnull: number }>;
+    const languages = migratedDatabase.prepare(
+      "SELECT DISTINCT language FROM learning_items"
+    ).all() as unknown as Array<{ language: string }>;
     const migration = migratedDatabase.prepare(
       "SELECT MAX(version) AS version FROM schema_migrations"
     ).get() as { version: number };
@@ -83,7 +222,12 @@ describe("LocalLearningLibrary", () => {
       name: "answer",
       notnull: 0
     });
-    expect(migration.version).toBe(4);
+    expect(itemColumns.find(({ name }) => name === "language")).toMatchObject({
+      name: "language",
+      notnull: 1
+    });
+    expect(languages).toEqual([{ language: "en" }]);
+    expect(migration.version).toBe(5);
   });
 
   it("never reseeds after every example is permanently removed", async () => {
@@ -104,6 +248,7 @@ describe("LocalLearningLibrary", () => {
     await library.createItem({
       title: "ordinary",
       itemType: "word",
+      language: "en" as const,
       cefr: "B2",
       sense: "search boundary",
       markdownContent: "## Meaning\nThis content mentions fastidious."
@@ -117,12 +262,166 @@ describe("LocalLearningLibrary", () => {
     const filtered = await library.listItems({
       status: "active",
       itemType: "phrase",
+      language: "en" as const,
       cefr: "B2",
       sort: "alphabetical"
     });
 
     expect(titleMatches.map((item) => item.title)).toEqual(["fastidious"]);
     expect(filtered.map((item) => item.title)).toEqual(["take for granted"]);
+  });
+
+  it("persists learning-item language and filters pages before limiting results", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const japanese = await library.createItem({
+      title: "食べる",
+      itemType: "word",
+      language: "ja",
+      cefr: "A1",
+      sense: "to eat",
+      markdownContent: "## Meaning\n食べ物を口にする。"
+    } as Parameters<typeof library.createItem>[0]);
+    await library.createItem({
+      title: "bonjour",
+      itemType: "word",
+      language: "other",
+      cefr: "A1",
+      sense: "hello",
+      markdownContent: "## Meaning\nHello."
+    } as Parameters<typeof library.createItem>[0]);
+
+    expect(japanese.language).toBe("ja");
+    await expect(library.listItemPage({
+      status: "active",
+      language: "ja",
+      sort: "recent"
+    } as Parameters<typeof library.listItemPage>[0])).resolves.toMatchObject({
+      items: [expect.objectContaining({ title: "食べる", language: "ja" })]
+    });
+    await expect(library.listItemPage({
+      status: "active",
+      language: "fr",
+      sort: "recent"
+    } as unknown as Parameters<typeof library.listItemPage>[0])).rejects.toThrow(
+      "Invalid learning-item language filter"
+    );
+  });
+
+  it("returns fixed-size summary pages and counts without full learning-item content", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    for (let index = 0; index < 45; index += 1) {
+      await library.createItem({
+        title: `paged item ${String(index).padStart(2, "0")}`,
+        itemType: "word",
+      language: "en" as const,
+        cefr: "A1",
+        sense: `page fixture ${index}`,
+        markdownContent: `## Meaning\nprivate content ${index}`
+      });
+    }
+
+    const first = await library.listItemPage({
+      status: "active",
+      sort: "alphabetical"
+    }, new Date("2026-07-31T00:00:00.000Z"));
+    const second = await library.listItemPage({
+      status: "active",
+      sort: "alphabetical",
+      cursor: first.nextCursor ?? undefined
+    }, new Date("2026-07-31T00:00:00.000Z"));
+
+    expect(first.items).toHaveLength(50);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    expect(second.items).toHaveLength(5);
+    expect(second.nextCursor).toBeNull();
+    expect([...first.items, ...second.items]).toHaveLength(55);
+    expect(new Set([...first.items, ...second.items].map((item) => item.id)))
+      .toHaveLength(55);
+    expect(first.items[0]).not.toHaveProperty("markdownContent");
+    await expect(library.countItems()).resolves.toEqual({
+      active: 55,
+      trashed: 0
+    });
+  });
+
+  it("rejects cursors reused with a different Learning Library query", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    for (let index = 0; index < 45; index += 1) {
+      await library.createItem({
+        title: `cursor item ${index}`,
+        itemType: "word",
+      language: "en" as const,
+        cefr: "A1",
+        sense: `cursor fixture ${index}`,
+        markdownContent: "## Meaning\ncursor fixture"
+      });
+    }
+    const first = await library.listItemPage({
+      status: "active",
+      sort: "recent"
+    });
+
+    await expect(library.listItemPage({
+      status: "active",
+      search: "cursor",
+      sort: "recent",
+      cursor: first.nextCursor ?? undefined
+    })).rejects.toThrow(/cursor/);
+    await expect(library.listItemPage({
+      status: "active",
+      sort: "recent",
+      cursor: "not-a-valid-cursor"
+    })).rejects.toThrow(/cursor/);
+  });
+
+  it("keeps list pages bounded with ten thousand learning items", async () => {
+    const path = await databasePath();
+    const library = new LocalLearningLibrary(path);
+    await library.listItemPage({ status: "active", sort: "recent" });
+    library.close();
+
+    const database = new DatabaseSync(path);
+    const insert = database.prepare(`
+      INSERT INTO learning_items (
+        id, title, item_type, cefr, sense, markdown_content, status,
+        created_at, updated_at, trashed_at
+      ) VALUES (?, ?, 'word', 'A1', ?, ?, 'active', ?, ?, NULL)
+    `);
+    database.exec("BEGIN");
+    for (let index = 10; index < 10_000; index += 1) {
+      const id = `scale-${String(index).padStart(5, "0")}`;
+      const timestamp = new Date(1_700_000_000_000 + index).toISOString();
+      insert.run(
+        id,
+        `scale item ${index}`,
+        `scale sense ${index}`,
+        `## Meaning\nscale private content ${index}`,
+        timestamp,
+        timestamp
+      );
+    }
+    database.exec("COMMIT");
+    database.close();
+
+    const reopened = new LocalLearningLibrary(path);
+    const first = await reopened.listItemPage({
+      status: "active",
+      sort: "recent"
+    });
+    const second = await reopened.listItemPage({
+      status: "active",
+      sort: "recent",
+      cursor: first.nextCursor ?? undefined
+    });
+
+    expect(first.items).toHaveLength(50);
+    expect(second.items).toHaveLength(50);
+    expect(first.items).not.toEqual(second.items);
+    expect(first.items.every((item) => !("markdownContent" in item))).toBe(true);
+    await expect(reopened.countItems()).resolves.toEqual({
+      active: 10_000,
+      trashed: 0
+    });
   });
 
   it("annotates, filters, and sorts cards by their current study status", async () => {
@@ -207,6 +506,33 @@ describe("LocalLearningLibrary", () => {
         studyStatus: "scheduled"
       })
     ]);
+
+    const pagedPriority = await library.listItemPage({
+      status: "active",
+      sort: "study-status"
+    }, now);
+    const pagedDue = await library.listItemPage({
+      status: "active",
+      studyStatus: "due",
+      sort: "next-due"
+    }, now);
+    const pagedScheduled = await library.listItemPage({
+      status: "active",
+      studyStatus: "scheduled",
+      sort: "next-due"
+    }, now);
+
+    expect(pagedPriority.items.slice(0, 3).map(({ studyStatus }) => studyStatus))
+      .toEqual(["learning", "due", "new"]);
+    expect(pagedDue.items.length).toBeGreaterThan(0);
+    expect(pagedDue.items.every(({ studyStatus }) => studyStatus === "due"))
+      .toBe(true);
+    expect(pagedScheduled.items).toEqual([
+      expect.objectContaining({
+        id: items[1].id,
+        studyStatus: "scheduled"
+      })
+    ]);
   });
 
   it("persists valid edits and rejects invalid structured values", async () => {
@@ -222,6 +548,7 @@ describe("LocalLearningLibrary", () => {
       itemId: item.id,
       title: "reluctant",
       itemType: "word",
+      language: "en" as const,
       cefr: "C1",
       sense: "unwilling to act",
       markdownContent: "## Meaning\n不情願。\n\n## Examples\n1. She was reluctant to leave."
@@ -234,6 +561,7 @@ describe("LocalLearningLibrary", () => {
       itemId: item.id,
       title: "",
       itemType: "word",
+      language: "en" as const,
       cefr: "C1",
       sense: "unwilling",
       markdownContent: "content"
@@ -341,6 +669,7 @@ describe("LocalLearningLibrary", () => {
     const valid = {
       title: "meticulous",
       itemType: "word" as const,
+      language: "en" as const,
       cefr: "C1" as const,
       sense: "very careful and precise",
       markdownContent: "## Meaning\n一絲不苟。\n\n## Examples\n1. She is meticulous."
@@ -360,6 +689,7 @@ describe("LocalLearningLibrary", () => {
         ...valid,
         title: "look into",
         itemType: "phrase",
+      language: "en" as const,
         cefr: "B1",
         sense: "investigate"
       }
@@ -624,6 +954,7 @@ describe("LocalLearningLibrary", () => {
       await library.createItem({
         title: `capacity item ${index + 1}`,
         itemType: "word",
+      language: "en" as const,
         cefr: "A1",
         sense: `capacity test item ${index + 1}`,
         markdownContent: `## Meaning\nCapacity test item ${index + 1}.`

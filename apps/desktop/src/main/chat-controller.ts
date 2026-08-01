@@ -778,6 +778,7 @@ export class ChatController {
             toCreate.map((draft) => ({
               title: draft.title,
               itemType: draft.itemType,
+              language: draft.language,
               cefr: draft.cefr,
               sense: draft.sense,
               markdownContent: draft.markdownContent

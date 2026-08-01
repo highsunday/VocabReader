@@ -7,8 +7,16 @@ import type {
 } from "../shared/chat-contracts";
 import type {
   LearningItemDraft,
-  LearningItemDraftBatch
+  LearningItemDraftBatch,
+  LearningItemLanguage
 } from "../shared/learning-contracts";
+
+const languageLabels: Record<LearningItemLanguage, string> = {
+  en: "English",
+  ja: "Japanese",
+  "zh-TW": "Traditional Chinese",
+  other: "Other language"
+};
 
 export function LearningItemBatchAction({
   batch,
@@ -59,7 +67,7 @@ function DraftPreview({
     <article className={`learning-item-draft ${draft.state}`}>
       <div className="learning-item-draft-heading">
         <div>
-          <span>{draft.itemType === "word" ? "Word" : "Phrase"} • {draft.cefr}</span>
+          <span>{draft.itemType === "word" ? "Word" : "Phrase"} • {languageLabels[draft.language]} • {draft.cefr}</span>
           <strong>{draft.title}</strong>
           <small>{draft.state === "excluded" ? "Excluded from submission" : "Will be submitted"}</small>
         </div>

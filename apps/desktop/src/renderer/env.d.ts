@@ -4,6 +4,7 @@ import type { ChatDesktopApi } from "../shared/chat-contracts";
 import type { DataBackupDesktopApi } from "../shared/data-backup-contracts";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
 import type { SettingsDesktopApi } from "../shared/settings-contracts";
+import type { SentencePracticeDesktopApi } from "../shared/sentence-practice-contracts";
 
 declare global {
 interface ReaderDesktopApi {
@@ -50,6 +51,7 @@ interface ReaderDesktopApi {
     }): Promise<DesktopLibraryBook>;
   };
   learning: LearningDesktopApi;
+  sentencePractice: SentencePracticeDesktopApi;
   settings: SettingsDesktopApi;
   dataBackup: DataBackupDesktopApi;
   chat: ChatDesktopApi;

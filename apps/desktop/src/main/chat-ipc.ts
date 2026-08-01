@@ -1,6 +1,7 @@
 import type { SendChatMessageInput } from "../shared/chat-contracts";
 import type {
   CefrLevel,
+  LearningItemLanguage,
   LearningItemType,
   UpdateLearningItemDraftInput
 } from "../shared/learning-contracts";
@@ -24,6 +25,11 @@ function nonEmptyString(value: unknown): value is string {
 
 function validItemType(value: unknown): value is LearningItemType {
   return value === "word" || value === "phrase";
+}
+
+function validLanguage(value: unknown): value is LearningItemLanguage {
+  return value === "en" || value === "ja" || value === "zh-TW" ||
+    value === "other";
 }
 
 function validCefr(value: unknown): value is CefrLevel {
@@ -105,7 +111,8 @@ function parseConversationId(value: unknown): string {
 function parseDraftUpdate(value: unknown): UpdateLearningItemDraftInput {
   if (!isObject(value) || !nonEmptyString(value.batchId) ||
     !nonEmptyString(value.draftId) || !nonEmptyString(value.title) ||
-    !validItemType(value.itemType) || !validCefr(value.cefr) ||
+    !validItemType(value.itemType) || !validLanguage(value.language) ||
+    !validCefr(value.cefr) ||
     !nonEmptyString(value.sense) || !nonEmptyString(value.markdownContent)) {
     throw new Error("Invalid learning-item draft update.");
   }
@@ -114,6 +121,7 @@ function parseDraftUpdate(value: unknown): UpdateLearningItemDraftInput {
     draftId: value.draftId.trim(),
     title: value.title.trim(),
     itemType: value.itemType,
+    language: value.language,
     cefr: value.cefr,
     sense: value.sense.trim(),
     markdownContent: value.markdownContent.trim()

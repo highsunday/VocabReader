@@ -44,6 +44,7 @@ const learningItems: LearningItem[] = [{
   id: "learning-1",
   title: "reluctant",
   itemType: "word",
+      language: "en" as const,
   cefr: "B2",
   sense: "unwilling or hesitant",
   markdownContent: "## Meaning\n不情願。",
@@ -125,9 +126,14 @@ function installLibraryApi(
     restoreBackup: vi.fn().mockResolvedValue(undefined)
   };
   const learning = {
-    listItems: vi.fn(async (input) =>
-      input.status === "active" ? learningLibraryItems : []
-    ),
+    listItems: vi.fn(async (input) => ({
+      items: input.status === "active" ? learningLibraryItems : [],
+      nextCursor: null
+    })),
+    countItems: vi.fn(async () => ({
+      active: learningLibraryItems.length,
+      trashed: 0
+    })),
     getItem: vi.fn(async () => learningItems[0]),
     updateItem: vi.fn(async (input) => ({ ...learningItems[0], ...input })),
     trashItem: vi.fn(async () => ({ ...learningItems[0], status: "trashed" as const })),
@@ -170,6 +176,11 @@ function installLibraryApi(
     })),
     onGenerationProgress: vi.fn(() => () => undefined)
   } satisfies ReviewDesktopApi;
+  const sentencePractice = {
+    getSnapshot: vi.fn(async () => ({ eligibleCount: 0, session: null })),
+    startSession: vi.fn(),
+    submit: vi.fn()
+  };
   Object.defineProperty(window, "readerDesktop", {
     configurable: true,
     value: {
@@ -186,6 +197,7 @@ function installLibraryApi(
       },
       learning,
       review,
+      sentencePractice,
       settings: { get: getSettings, save: saveSettings },
       dataBackup,
       ...(chat ? { chat } : {})
@@ -202,7 +214,8 @@ function installLibraryApi(
     saveSettings,
     dataBackup,
     learning,
-    review
+    review,
+    sentencePractice
   };
 }
 
@@ -1176,6 +1189,24 @@ describe("App", () => {
     })).not.toBeInTheDocument();
   });
 
+  it("opens the independent multi-item Sentence Practice workspace", async () => {
+    const { sentencePractice } = installLibraryApi();
+    render(<App />);
+
+    const entry = await screen.findByRole("button", {
+      name: "Sentence Practice"
+    });
+    fireEvent.click(entry);
+
+    expect(await screen.findByRole("heading", { name: "Sentence Practice" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("0 reviewed English items available"))
+      .toBeInTheDocument();
+    expect(sentencePractice.getSnapshot).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/does not change review scheduling/))
+      .toBeInTheDocument();
+  });
+
   it("opens the persistent learning library while keeping the AI assistant", async () => {
     installLibraryApi();
     render(<App />);
@@ -1427,6 +1458,7 @@ describe("App", () => {
         id: "draft-1",
         title: "look into",
         itemType: "phrase",
+      language: "en" as const,
         cefr: "B1",
         sense: "investigate",
         markdownContent: "## Meaning\n調查",

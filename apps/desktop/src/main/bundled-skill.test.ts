@@ -6,6 +6,7 @@ import {
   installBundledAnnotationSkill,
   installBundledLearningItemCreationSkill,
   installBundledReadingComprehensionSkill,
+  installBundledSentencePracticeSkill,
   installBundledSpacedReviewSkill
 } from "./bundled-skill";
 
@@ -148,5 +149,26 @@ describe("installBundledSpacedReviewSkill", () => {
     expect(unchanged).toEqual({ path: installed.path, status: "unchanged" });
     expect(updated).toEqual({ path: installed.path, status: "updated" });
     expect(readFileSync(updated.path, "utf8")).toBe("bundled-v2");
+  });
+});
+
+describe("installBundledSentencePracticeSkill", () => {
+  it("installs the bounded sentence-practice skill", () => {
+    const runtimePath = runtimeRoot();
+
+    const installed = installBundledSentencePracticeSkill(
+      runtimePath,
+      "bounded sentence-practice instructions"
+    );
+
+    expect(installed).toEqual({
+      path: join(
+        runtimePath,
+        ".agents/skills/practice-integrated-sentences/SKILL.md"
+      ),
+      status: "installed"
+    });
+    expect(readFileSync(installed.path, "utf8"))
+      .toBe("bounded sentence-practice instructions");
   });
 });
