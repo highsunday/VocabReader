@@ -8,13 +8,15 @@ describe("sentence-practice IPC", () => {
     const controller = {
       getSnapshot: vi.fn(async () => ({ eligibleCount: 0, session: null })),
       startSession: vi.fn(async () => ({ eligibleCount: 5, session: {} })),
-      submit: vi.fn(async () => ({ eligibleCount: 5, session: {} }))
+      submit: vi.fn(async () => ({ eligibleCount: 5, session: {} })),
+      generateExamples: vi.fn(async () => ({ eligibleCount: 5, session: {} }))
     } as unknown as SentencePracticeController;
     registerSentencePracticeIpc({
       handle: (channel, handler) => handlers.set(channel, handler)
     }, controller);
 
     expect([...handlers.keys()].sort()).toEqual([
+      "sentence-practice:examples",
       "sentence-practice:snapshot",
       "sentence-practice:start",
       "sentence-practice:submit"
@@ -33,6 +35,14 @@ describe("sentence-practice IPC", () => {
       draft: "A short story.",
       explanationLanguage: "zh-TW"
     });
+    await handlers.get("sentence-practice:examples")?.({}, {
+      sessionId: "session-1",
+      explanationLanguage: "en"
+    });
+    expect(controller.generateExamples).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      explanationLanguage: "en"
+    });
 
     expect(() => handlers.get("sentence-practice:start")?.({}, {
       itemCount: 20
@@ -42,5 +52,9 @@ describe("sentence-practice IPC", () => {
       draft: "Text",
       explanationLanguage: "arbitrary"
     })).toThrow(/Invalid sentence-practice submission/);
+    expect(() => handlers.get("sentence-practice:examples")?.({}, {
+      sessionId: "",
+      explanationLanguage: "en"
+    })).toThrow(/Invalid sentence-practice examples/);
   });
 });

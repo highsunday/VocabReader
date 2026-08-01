@@ -55,6 +55,23 @@ export interface SentencePracticeFeedback {
   usages: SentencePracticeUsage[];
 }
 
+export interface SentencePracticeExample {
+  text: string;
+  usages: SentencePracticeUsage[];
+}
+
+export type SentencePracticeExamplePhase =
+  | "idle"
+  | "generating"
+  | "ready"
+  | "error";
+
+export interface SentencePracticeExampleGeneration {
+  phase: SentencePracticeExamplePhase;
+  examples: SentencePracticeExample[];
+  error: string | null;
+}
+
 export type SentencePracticePhase =
   | "writing"
   | "checking"
@@ -71,6 +88,7 @@ export interface SentencePracticeSession {
   issues: SentencePracticeIssue[];
   feedback: SentencePracticeFeedback | null;
   error: string | null;
+  exampleGeneration: SentencePracticeExampleGeneration;
 }
 
 export interface SentencePracticeSnapshot {
@@ -88,6 +106,11 @@ export interface SubmitSentencePracticeInput {
   explanationLanguage: "source" | "zh-TW" | "en" | "ja";
 }
 
+export interface GenerateSentencePracticeExamplesInput {
+  sessionId: string;
+  explanationLanguage: "source" | "zh-TW" | "en" | "ja";
+}
+
 export interface SentencePracticeDesktopApi {
   getSnapshot(): Promise<SentencePracticeSnapshot>;
   startSession(
@@ -95,5 +118,8 @@ export interface SentencePracticeDesktopApi {
   ): Promise<SentencePracticeSnapshot>;
   submit(
     input: SubmitSentencePracticeInput
+  ): Promise<SentencePracticeSnapshot>;
+  generateExamples(
+    input: GenerateSentencePracticeExamplesInput
   ): Promise<SentencePracticeSnapshot>;
 }

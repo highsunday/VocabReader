@@ -37,4 +37,17 @@ export function registerSentencePracticeIpc(
         "source" | "zh-TW" | "en" | "ja"
     });
   });
+  ipc.handle("sentence-practice:examples", (_event, input) => {
+    if (!isObject(input) || typeof input.sessionId !== "string" ||
+      !input.sessionId.trim() || !["source", "zh-TW", "en", "ja"].includes(
+        input.explanationLanguage as string
+      )) {
+      throw new Error("Invalid sentence-practice examples request");
+    }
+    return controller.generateExamples({
+      sessionId: input.sessionId,
+      explanationLanguage: input.explanationLanguage as
+        "source" | "zh-TW" | "en" | "ja"
+    });
+  });
 }

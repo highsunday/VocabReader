@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
 import type { ReviewDesktopApi } from "../shared/review-contracts";
@@ -37,6 +44,11 @@ function session(
     issues: [],
     feedback: null,
     error: null,
+    exampleGeneration: {
+      phase: "idle",
+      examples: [],
+      error: null
+    },
     ...update
   };
 }
@@ -95,7 +107,8 @@ function sentencePracticeApi(): SentencePracticeDesktopApi {
             })
           };
       return snapshot;
-    })
+    }),
+    generateExamples: vi.fn(async () => snapshot)
   };
 }
 
@@ -147,7 +160,8 @@ describe("SentencePracticeWorkspace", () => {
     const api: SentencePracticeDesktopApi = {
       getSnapshot: vi.fn(async () => ({ eligibleCount: 1, session: null })),
       startSession: vi.fn(),
-      submit: vi.fn()
+      submit: vi.fn(),
+      generateExamples: vi.fn()
     };
     render(
       <SentencePracticeWorkspace
@@ -254,6 +268,174 @@ describe("SentencePracticeWorkspace", () => {
       .toHaveValue("My unfinished story.");
   });
 
+  it("opens a card with exactly three AI examples without changing the draft", async () => {
+    let resolveGeneration!: (snapshot: SentencePracticeSnapshot) => void;
+    const generation = new Promise<SentencePracticeSnapshot>((resolve) => {
+      resolveGeneration = resolve;
+    });
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 3,
+        session: session()
+      })),
+      startSession: vi.fn(),
+      submit: vi.fn(),
+      generateExamples: vi.fn(async () => generation)
+    };
+    render(
+      <SentencePracticeWorkspace
+        api={api}
+        learningApi={learningApi()}
+        explanationLanguage="en"
+      />
+    );
+
+    const draft = await screen.findByRole("textbox", {
+      name: "Your story or passage"
+    });
+    fireEvent.change(draft, { target: { value: "My unfinished story." } });
+    fireEvent.click(screen.getByRole("button", { name: "Show 3 examples" }));
+
+    const card = screen.getByRole("dialog", { name: "Writing examples" });
+    expect(within(card).getByText("Generating 3 examples…"))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check my writing" }))
+      .toBeDisabled();
+
+    await act(async () => resolveGeneration({
+      eligibleCount: 3,
+      session: session({
+        exampleGeneration: {
+          phase: "ready",
+          error: null,
+          examples: [
+            "We created a plan while the team was on the verge of giving up.",
+            "Mina created a shelter when the village was on the verge of flooding.",
+            "They created a route as the bridge was on the verge of closing."
+          ].map((text) => ({
+            text,
+            usages: [{
+              itemId: "item-1",
+              title: "create",
+              usage: "created"
+            }, {
+              itemId: "item-2",
+              title: "on the verge of",
+              usage: "on the verge of"
+            }]
+          }))
+        }
+      })
+    }));
+
+    expect(await within(card).findAllByRole("article")).toHaveLength(3);
+    expect(within(card).getAllByText("created", { selector: "mark" }))
+      .toHaveLength(3);
+    expect(within(card).getAllByText("on the verge of", { selector: "mark" }))
+      .toHaveLength(3);
+    expect(within(card).getAllByText("created", { selector: "mark" })[0])
+      .toHaveClass("reader-annotation-highlight");
+    expect(draft).toHaveValue("My unfinished story.");
+    fireEvent.click(card);
+    expect(screen.getByRole("dialog", { name: "Writing examples" }))
+      .toBeInTheDocument();
+    fireEvent.click(card.parentElement as HTMLElement);
+    expect(screen.queryByRole("dialog", { name: "Writing examples" }))
+      .not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show 3 examples" }));
+    expect(screen.getByRole("dialog", { name: "Writing examples" }))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close examples" }));
+    expect(screen.queryByRole("dialog", { name: "Writing examples" }))
+      .not.toBeInTheDocument();
+    expect(api.generateExamples).toHaveBeenCalledTimes(1);
+  });
+
+  it("places the examples action on the left of the writing footer without a word count", async () => {
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 3,
+        session: session()
+      })),
+      startSession: vi.fn(),
+      submit: vi.fn(),
+      generateExamples: vi.fn()
+    };
+    const { container } = render(
+      <SentencePracticeWorkspace
+        api={api}
+        learningApi={learningApi()}
+        explanationLanguage="en"
+      />
+    );
+
+    await screen.findByRole("textbox", { name: "Your story or passage" });
+    const footer = container.querySelector(".sentence-practice-editor-footer");
+    expect(footer).not.toBeNull();
+    const footerView = within(footer as HTMLElement);
+    expect(footerView.getByRole("button", { name: "Show 3 examples" }))
+      .toBeInTheDocument();
+    expect(footerView.getByRole("button", { name: "Check my writing" }))
+      .toBeInTheDocument();
+    expect(footerView.queryByText(/^\d+ words$/)).not.toBeInTheDocument();
+    expect(container.querySelector(
+      ".sentence-practice-heading-actions .sentence-practice-examples-trigger"
+    )).not.toBeInTheDocument();
+  });
+
+  it("shows an example-generation error in the card and retries", async () => {
+    const readySession = session({
+      exampleGeneration: {
+        phase: "ready",
+        error: null,
+        examples: ["First example.", "Second example.", "Third example."].map(
+          (text) => ({
+            text,
+            usages: items.map((item) => ({
+              itemId: item.id,
+              title: item.title,
+              usage: item.title
+            }))
+          })
+        )
+      }
+    });
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 3,
+        session: session({
+          exampleGeneration: {
+            phase: "error",
+            examples: [],
+            error: "AI returned malformed examples."
+          }
+        })
+      })),
+      startSession: vi.fn(),
+      submit: vi.fn(),
+      generateExamples: vi.fn(async () => ({
+        eligibleCount: 3,
+        session: readySession
+      }))
+    };
+    render(
+      <SentencePracticeWorkspace
+        api={api}
+        learningApi={learningApi()}
+        explanationLanguage="en"
+      />
+    );
+
+    await screen.findByRole("textbox", { name: "Your story or passage" });
+    fireEvent.click(screen.getByRole("button", { name: "Show 3 examples" }));
+    const card = screen.getByRole("dialog", { name: "Writing examples" });
+    expect(within(card).getByRole("alert"))
+      .toHaveTextContent("AI returned malformed examples.");
+    fireEvent.click(within(card).getByRole("button", { name: "Try again" }));
+    expect(await within(card).findAllByRole("article")).toHaveLength(3);
+    expect(api.generateExamples).toHaveBeenCalledTimes(1);
+  });
+
   it("shows a prominent success notice when no writing changes are needed", async () => {
     const completedSession = session({
       draft: "She likes to hum while doing chores.",
@@ -275,7 +457,8 @@ describe("SentencePracticeWorkspace", () => {
         session: completedSession
       })),
       startSession: vi.fn(),
-      submit: vi.fn()
+      submit: vi.fn(),
+      generateExamples: vi.fn()
     };
 
     render(

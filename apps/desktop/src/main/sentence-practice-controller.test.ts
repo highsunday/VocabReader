@@ -26,7 +26,169 @@ const sourceItems: SentencePracticeSourceItem[] = [{
   markdownContent: "## Meaning\n瀕臨；即將發生。"
 }];
 
+function examplesResult(sessionId: string) {
+  return `\`\`\`sentence-practice-examples
+${JSON.stringify({
+  sessionId,
+  examples: [
+    "We created a plan while the team was on the verge of giving up.",
+    "Mina created a shelter when the village was on the verge of flooding.",
+    "They created a route as the bridge was on the verge of closing."
+  ].map((text) => ({
+    text,
+    usages: [{
+      itemId: "item-1",
+      title: "create",
+      usage: "created"
+    }, {
+      itemId: "item-2",
+      title: "on the verge of",
+      usage: "on the verge of"
+    }]
+  }))
+})}
+\`\`\``;
+}
+
+function completedResult(sessionId: string) {
+  return `\`\`\`sentence-practice-result
+${JSON.stringify({
+  sessionId,
+  status: "completed",
+  revisedText: "We created a raft when the town was on the verge of flooding.",
+  changes: [],
+  conversationalSuggestions: [],
+  usages: sourceItems.map((item) => ({
+    itemId: item.id,
+    title: item.title,
+    usage: item.title
+  }))
+})}
+\`\`\``;
+}
+
 describe("SentencePracticeController", () => {
+  it("generates three bounded examples without changing the learner draft", async () => {
+    const runTurn = vi.fn(async (prompt: string) => {
+      const sessionId = /"sessionId":"([^"]+)"/.exec(prompt)?.[1] ?? "";
+      return examplesResult(sessionId);
+    });
+    const controller = new SentencePracticeController({
+      library: {
+        getSentencePracticeEligibleCount: vi.fn(async () => 2),
+        selectSentencePracticeItems: vi.fn(async () => sourceItems)
+      },
+      runTurn
+    });
+    const started = await controller.startSession({ itemCount: 2 });
+    const result = await controller.generateExamples({
+      sessionId: started.session!.sessionId,
+      explanationLanguage: "zh-TW"
+    });
+
+    expect(result.session).toMatchObject({
+      draft: "",
+      phase: "writing",
+      exampleGeneration: {
+        phase: "ready",
+        error: null
+      }
+    });
+    expect(result.session?.exampleGeneration.examples).toHaveLength(3);
+    expect(runTurn).toHaveBeenCalledTimes(1);
+    expect(runTurn.mock.calls[0][0]).toContain('"task":"generate-examples"');
+    expect(runTurn.mock.calls[0][0]).toContain("make something");
+    expect(runTurn.mock.calls[0][0]).not.toContain('"draft"');
+
+    const nextRound = await controller.startSession({ itemCount: 2 });
+    expect(nextRound.session?.exampleGeneration).toEqual({
+      phase: "idle",
+      examples: [],
+      error: null
+    });
+  });
+
+  it("keeps the round retryable after malformed example output", async () => {
+    const runTurn = vi.fn()
+      .mockResolvedValueOnce("not structured")
+      .mockImplementationOnce(async (prompt: string) => {
+        const sessionId = /"sessionId":"([^"]+)"/.exec(prompt)?.[1] ?? "";
+        return examplesResult(sessionId);
+      });
+    const controller = new SentencePracticeController({
+      library: {
+        getSentencePracticeEligibleCount: vi.fn(async () => 2),
+        selectSentencePracticeItems: vi.fn(async () => sourceItems)
+      },
+      runTurn
+    });
+    const started = await controller.startSession({ itemCount: 2 });
+    const input = {
+      sessionId: started.session!.sessionId,
+      explanationLanguage: "en" as const
+    };
+
+    const failed = await controller.generateExamples(input);
+    expect(failed.session?.exampleGeneration).toMatchObject({
+      phase: "error",
+      examples: [],
+      error: expect.stringMatching(/examples result/)
+    });
+    const retried = await controller.generateExamples(input);
+    expect(retried.session?.exampleGeneration.phase).toBe("ready");
+    expect(retried.session?.exampleGeneration.examples).toHaveLength(3);
+  });
+
+  it("prevents example generation and draft checking from running together", async () => {
+    let resolveExample!: (value: string) => void;
+    let resolveSubmission!: (value: string) => void;
+    const exampleTurn = new Promise<string>((resolve) => {
+      resolveExample = resolve;
+    });
+    const submissionTurn = new Promise<string>((resolve) => {
+      resolveSubmission = resolve;
+    });
+    const runTurn = vi.fn()
+      .mockReturnValueOnce(exampleTurn)
+      .mockReturnValueOnce(submissionTurn);
+    const controller = new SentencePracticeController({
+      library: {
+        getSentencePracticeEligibleCount: vi.fn(async () => 2),
+        selectSentencePracticeItems: vi.fn(async () => sourceItems)
+      },
+      runTurn
+    });
+    const started = await controller.startSession({ itemCount: 2 });
+    const sessionId = started.session!.sessionId;
+    const generation = controller.generateExamples({
+      sessionId,
+      explanationLanguage: "en"
+    });
+    await Promise.resolve();
+    await expect(controller.submit({
+      sessionId,
+      draft: "We created a raft when the town was on the verge of flooding.",
+      explanationLanguage: "en"
+    })).rejects.toThrow(/busy/);
+    resolveExample(examplesResult(sessionId));
+    await generation;
+
+    const submission = controller.submit({
+      sessionId,
+      draft: "We created a raft when the town was on the verge of flooding.",
+      explanationLanguage: "en"
+    });
+    await Promise.resolve();
+    await expect(controller.generateExamples({
+      sessionId,
+      explanationLanguage: "en"
+    })).rejects.toThrow(/busy/);
+    resolveSubmission(completedResult(sessionId));
+    await expect(submission).resolves.toMatchObject({
+      session: { phase: "completed" }
+    });
+  });
+
   it("runs the App-bundled skill in an isolated read-only Codex turn", async () => {
     let listener: ((notification: CodexNotification) => void) | undefined;
     const requests: Array<{ method: string; params?: Record<string, unknown> }> = [];

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { SentencePracticeItem } from "../shared/sentence-practice-contracts";
-import { parseSentencePracticeResult } from "./sentence-practice-artifacts";
+import {
+  parseSentencePracticeExamples,
+  parseSentencePracticeResult
+} from "./sentence-practice-artifacts";
 
 const items: SentencePracticeItem[] = [{
   id: "item-1",
@@ -19,6 +22,101 @@ const items: SentencePracticeItem[] = [{
 }];
 
 describe("sentence-practice artifacts", () => {
+  it("accepts exactly three examples covering every trusted item", () => {
+    const usages = [{
+      itemId: "item-1",
+      title: "create",
+      usage: "created"
+    }, {
+      itemId: "item-2",
+      title: "on the verge of",
+      usage: "on the verge of"
+    }];
+    const result = parseSentencePracticeExamples(`
+\`\`\`sentence-practice-examples
+${JSON.stringify({
+  sessionId: "session-1",
+  examples: [
+    { text: "We created a plan while the team was on the verge of giving up.", usages },
+    { text: "Mina created a shelter when the village was on the verge of flooding.", usages },
+    { text: "They created a new route as the bridge was on the verge of closing.", usages }
+  ]
+})}
+\`\`\`
+`, "session-1", items);
+
+    expect(result).toHaveLength(3);
+    expect(result[0].text).toContain("created");
+    expect(result.every((example) => example.usages.length === 2)).toBe(true);
+  });
+
+  it("rejects missing, duplicate and out-of-scope examples", () => {
+    const usages = [{
+      itemId: "item-1",
+      title: "create",
+      usage: "created"
+    }, {
+      itemId: "item-2",
+      title: "on the verge of",
+      usage: "on the verge of"
+    }];
+    const fenced = (examples: unknown[]) => `
+\`\`\`sentence-practice-examples
+${JSON.stringify({ sessionId: "session-1", examples })}
+\`\`\``;
+
+    expect(() => parseSentencePracticeExamples(fenced([
+      { text: "We created a plan on the verge of failure.", usages },
+      { text: "They created a raft on the verge of sinking.", usages }
+    ]), "session-1", items)).toThrow(/exactly three/i);
+    expect(() => parseSentencePracticeExamples(fenced([
+      { text: "We created a plan on the verge of failure.", usages },
+      { text: "We created a plan on the verge of failure.", usages },
+      { text: "They created a raft on the verge of sinking.", usages }
+    ]), "session-1", items)).toThrow(/different/i);
+    expect(() => parseSentencePracticeExamples(fenced([
+      { text: "We created a plan on the verge of failure.", usages },
+      { text: "They created a raft on the verge of sinking.", usages },
+      {
+        text: "Example three.",
+        usages: [{ itemId: "unknown", title: "unknown", usage: "unknown" }]
+      }
+    ]), "session-1", items)).toThrow(/scope/i);
+  });
+
+  it("rejects an example usage that does not quote text from its example", () => {
+    const validUsages = [{
+      itemId: "item-1",
+      title: "create",
+      usage: "created"
+    }, {
+      itemId: "item-2",
+      title: "on the verge of",
+      usage: "on the verge of"
+    }];
+    const invalidUsages = validUsages.map((usage) => usage.itemId === "item-1"
+      ? { ...usage, usage: "create" }
+      : usage);
+
+    expect(() => parseSentencePracticeExamples(`
+\`\`\`sentence-practice-examples
+${JSON.stringify({
+  sessionId: "session-1",
+  examples: [{
+    text: "We created a plan on the verge of failure.",
+    usages: invalidUsages
+  }, {
+    text: "They created a raft on the verge of sinking.",
+    usages: validUsages
+  }, {
+    text: "Mina created a shelter on the verge of collapse.",
+    usages: validUsages
+  }]
+})}
+\`\`\`
+`, "session-1", items)).toThrow(/quote text/i);
+  });
+
   it("accepts a bounded needs-revision result with natural-form guidance", () => {
     const result = parseSentencePracticeResult(`
 \`\`\`sentence-practice-result

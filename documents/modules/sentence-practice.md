@@ -5,6 +5,7 @@ status: active
 last_updated: 2026-08-01
 related_implements:
   - F46-integrated-sentence-practice
+  - F47-generate-sentence-practice-examples
 ---
 
 # 整合造句練習模組
@@ -34,6 +35,8 @@ related_implements:
 - App-bundled AI skill 接受自然時態、單複數與其他合理詞形，並依 item `sense` 判定語義。
 - 遺漏、錯誤語義或不自然詞形以結構化 revision issues 回傳，原稿保留並可重送。
 - 正式結果包含完整修正版、逐項文法／搭配修改、選用自然口語建議與全部必要用詞用法。
+- 練習頁可要求 AI 產生恰好三篇造句用法範例；每篇使用本輪全部必要用詞，並在具名
+  對話卡片中顯示，不取代使用者草稿。
 - 必要用詞可開啟既有唯讀學習項目詳情與複習摘要。
 - 同一次 App 開啟期間跨工作區保留目前項目、草稿、問題與結果；明確確認新一輪後重抽。
 - 關閉 App 後不恢復，也不寫入生詞庫或複習歷史。
@@ -60,6 +63,8 @@ Main-owned controller 負責可信任 scope 與暫態生命週期：
 - 組合 item id、標題、類型、CEFR、sense、Markdown、講解語言與使用者短文，傳給隔離 AI。
 - 新一輪替換舊 session；舊 AI 回覆因 session id 不符而不得覆蓋新 session。
 - AI／artifact 失敗時保留原稿並轉為可重試 error phase。
+- 以獨立 example-generation state 保存產生中、三篇範例與可重試錯誤；範例產生與草稿
+  批改不得同時執行。
 - 不依賴 `confirmReviewSession()` 或任何排程 mutation。
 
 ### AI artifact boundary
@@ -75,13 +80,18 @@ AI 輸出只能有一個 `sentence-practice-result` fenced JSON：
 Artifact parser 拒絕錯誤 session id、未知或重複 item id、標題不符、缺少 usage、未知 kind、
 空必要文字，以及 revision／completed 欄位混合的結果。
 
+範例產生使用獨立的 `sentence-practice-examples` fenced JSON，固定包含三篇不同英文短文；
+每篇 usage 必須恰好覆蓋本輪全部必要用詞。Parser 拒絕缺篇、重複本文、空文字、未知／
+重複 item、標題不符或 coverage 不完整的結果。
+
 ### Electron IPC and Preload
 
-Renderer 只可使用三個窄化操作：
+Renderer 只可使用四個窄化操作：
 
 - `sentence-practice:snapshot`
 - `sentence-practice:start`
 - `sentence-practice:submit`
+- `sentence-practice:examples`
 
 IPC 再次驗證 item count、session id、draft 與 explanation language。Renderer 無法提供 item
 scope、SQL、language、review count 或 AI workflow 設定。
@@ -92,8 +102,10 @@ scope、SQL、language、review count 或 AI workflow 設定。
 
 - setup、數量設定、資格不足、writing、checking、needs-revision、completed 與 error UI。
 - 必要用詞卡片、簡義與 issue highlight。
-- 單一多句短文 textarea、word count、空白 submit 防護與重送。
+- 單一多句短文 textarea、空白 submit 防護與重送。
 - 結構化完整修正版、修改原因、自然口語建議與必要用詞 coverage。
+- 寫作操作列左側的「Show 3 examples」按鈕、右側提交按鈕、產生／錯誤／重試狀態，
+  以及包含三篇範例的具名對話卡片；不顯示草稿字數計數。
 - 新一輪具名 confirmation dialog，並允許在確認前改變新一輪項目數。
 - 重用 `LearningItemDialog` 的 read-only capability。
 - 由 `App` 保持 component mounted；非 active 時只停止渲染，不丟棄 local draft state。
@@ -106,6 +118,7 @@ open page
   → user chooses 2–10 and starts
   → Main randomly selects trusted items
   → writing (local draft)
+      ├─ request examples → generating → ready (3 examples) / retryable error
   → submit bounded payload to isolated AI
       ├─ missing / wrong sense / unnatural form → needs-revision → edit and retry
       ├─ valid full result → completed feedback
@@ -122,9 +135,11 @@ Switching workspaces keeps the mounted controller and Renderer state. App termin
 | `SentencePracticeItem` | bounded id、title、type、CEFR、sense 與 simple meaning |
 | `SentencePracticeIssue` | 某必要用詞的 missing／wrong-sense／unnatural-form 修稿原因 |
 | `SentencePracticeFeedback` | revised text、changes、conversational suggestions 與 usages |
+| `SentencePracticeExample` | 一篇完整英文範例與本輪全部必要用詞 usages |
+| `SentencePracticeExampleGeneration` | idle／generating／ready／error、三篇範例與錯誤 |
 | `SentencePracticeSession` | session id、項目、draft、phase、issues、feedback 與 error |
 | `SentencePracticeSnapshot` | eligible count 與 nullable transient session |
-| `SentencePracticeDesktopApi` | snapshot、start、submit 三個 Renderer 操作 |
+| `SentencePracticeDesktopApi` | snapshot、start、submit、generate examples 四個 Renderer 操作 |
 
 ## 6. Security and Privacy
 
@@ -142,8 +157,8 @@ Switching workspaces keeps the mounted controller and Renderer state. App termin
 | `apps/desktop/src/main/learning-library-service.ts` | 資格 count、隨機抽取與 Meaning 擷取 |
 | `apps/desktop/src/main/sentence-practice-artifacts.ts` | AI union artifact 驗證 |
 | `apps/desktop/src/main/sentence-practice-controller.ts` | 暫態 session、trusted scope 與 isolated Codex turn |
-| `apps/desktop/src/main/sentence-practice-ipc.ts` | 三個 IPC 白名單與輸入驗證 |
-| `.agents/skills/practice-integrated-sentences/SKILL.md` | 必要用詞與保留原意的批改規則 |
+| `apps/desktop/src/main/sentence-practice-ipc.ts` | 四個 IPC 白名單與輸入驗證 |
+| `.agents/skills/practice-integrated-sentences/SKILL.md` | 三篇範例生成、必要用詞驗證與保留原意的批改規則 |
 | `apps/desktop/src/renderer/SentencePracticeWorkspace.tsx` | setup、writing、revision、feedback 與 detail UI |
 | `apps/desktop/src/renderer/App.tsx` | 側欄入口與跨工作區 mounted lifecycle |
 | `apps/desktop/src/renderer/styles.css` | 練習頁 layout、cards、editor 與 feedback 樣式 |
@@ -153,16 +168,16 @@ Switching workspaces keeps the mounted controller and Renderer state. App termin
 | Test file | Coverage |
 |---|---|
 | `learning-library-service.test.ts` | eligibility、隨機 bounded selection、Meaning fallback、無排程副作用 |
-| `sentence-practice-artifacts.test.ts` | revision／completed contract、完整 coverage 與未知 scope 拒絕 |
-| `sentence-practice-controller.test.ts` | 暫態生命週期、重送、malformed retry、隔離 Codex turn |
-| `sentence-practice-ipc.test.ts` | 三個白名單 operation 與惡意 payload 拒絕 |
-| `SentencePracticeWorkspace.test.tsx` | 不足項目、跨頁草稿、新一輪確認、唯讀詳情、revision 與完整 feedback |
+| `sentence-practice-artifacts.test.ts` | 三篇範例、revision／completed contract、coverage 與未知 scope 拒絕 |
+| `sentence-practice-controller.test.ts` | 範例生命週期、AI 互斥、重送、malformed retry、隔離 Codex turn |
+| `sentence-practice-ipc.test.ts` | 四個白名單 operation 與惡意 payload 拒絕 |
+| `SentencePracticeWorkspace.test.tsx` | 三篇範例卡片、草稿隔離、重試、跨頁草稿、revision 與完整 feedback |
 | `App.test.tsx` | 側欄入口與獨立工作區切換 |
 
 最近驗證（2026-08-01）：
 
-- Root Vitest：Server 3/3、Desktop 351/351 passed。
-- Root TypeScript typecheck：Server、Desktop passed。
+- Desktop Vitest：361/361 passed。
+- Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
 
 ## 9. Known Limitations and Follow-up

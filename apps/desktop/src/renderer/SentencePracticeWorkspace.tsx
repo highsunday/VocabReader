@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowLeft, CircleCheck } from "lucide-react";
+import type { ReactNode } from "react";
+import { ArrowLeft, CircleCheck, Lightbulb, X } from "lucide-react";
 import type {
   LearningDesktopApi,
   LearningItem
@@ -12,6 +13,57 @@ import {
 } from "../shared/sentence-practice-contracts";
 import type { ExplanationLanguage } from "../shared/settings-contracts";
 import { LearningItemDialog } from "./LearningLibraryWorkspace";
+
+function highlightExampleUsages(
+  text: string,
+  usages: readonly { usage: string }[]
+): ReactNode[] {
+  const normalizedText = text.toLowerCase();
+  const ranges = usages.flatMap(({ usage }) => {
+    const target = usage.trim();
+    if (!target) return [];
+    const normalizedTarget = target.toLowerCase();
+    const matches: { start: number; end: number }[] = [];
+    let start = normalizedText.indexOf(normalizedTarget);
+    while (start >= 0) {
+      const before = text[start - 1] ?? "";
+      const after = text[start + target.length] ?? "";
+      if (!/[\p{L}\p{N}_]/u.test(before) &&
+        !/[\p{L}\p{N}_]/u.test(after)) {
+        matches.push({ start, end: start + target.length });
+      }
+      start = normalizedText.indexOf(normalizedTarget, start + target.length);
+    }
+    return matches;
+  }).sort((left, right) =>
+    left.start - right.start || right.end - left.end
+  );
+  const visibleRanges = ranges.reduce<{ start: number; end: number }[]>(
+    (selected, range) => {
+      if (!selected.length || range.start >= selected[selected.length - 1].end) {
+        selected.push(range);
+      }
+      return selected;
+    },
+    []
+  );
+  const parts: ReactNode[] = [];
+  let offset = 0;
+  visibleRanges.forEach((range, index) => {
+    if (range.start > offset) parts.push(text.slice(offset, range.start));
+    parts.push(
+      <mark
+        className="reader-annotation-highlight"
+        key={`${range.start}-${range.end}-${index}`}
+      >
+        {text.slice(range.start, range.end)}
+      </mark>
+    );
+    offset = range.end;
+  });
+  if (offset < text.length) parts.push(text.slice(offset));
+  return parts;
+}
 
 export function SentencePracticeWorkspace({
   api,
@@ -34,6 +86,8 @@ export function SentencePracticeWorkspace({
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState("");
   const [showHome, setShowHome] = useState(false);
+  const [isExamplesOpen, setIsExamplesOpen] = useState(false);
+  const [isGeneratingExamples, setIsGeneratingExamples] = useState(false);
   const [selectedItem, setSelectedItem] = useState<LearningItem>();
   const [isNewRoundConfirmationOpen, setIsNewRoundConfirmationOpen] =
     useState(false);
@@ -81,6 +135,7 @@ export function SentencePracticeWorkspace({
       setSnapshot(next);
       setDraft("");
       setShowHome(false);
+      setIsExamplesOpen(false);
       setIsNewRoundConfirmationOpen(false);
     } catch (cause) {
       setError(cause instanceof Error
@@ -93,7 +148,7 @@ export function SentencePracticeWorkspace({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!session || !draft.trim() || isBusy) return;
+    if (!session || !draft.trim() || isBusy || isGeneratingExamples) return;
     setIsBusy(true);
     setError("");
     try {
@@ -124,6 +179,36 @@ export function SentencePracticeWorkspace({
     }
   }
 
+  async function generateExamples() {
+    if (!session || isBusy || isGeneratingExamples) return;
+    setIsGeneratingExamples(true);
+    setError("");
+    try {
+      setSnapshot(await api.generateExamples({
+        sessionId: session.sessionId,
+        explanationLanguage
+      }));
+    } catch (cause) {
+      setError(cause instanceof Error
+        ? cause.message
+        : "Unable to generate writing examples.");
+    } finally {
+      setIsGeneratingExamples(false);
+    }
+  }
+
+  function openExamples() {
+    if (!session) return;
+    setIsExamplesOpen(true);
+    if (session.exampleGeneration.phase === "idle") {
+      void generateExamples();
+    }
+  }
+
+  const isAiBusy = isBusy || isGeneratingExamples ||
+    session?.phase === "checking" ||
+    session?.exampleGeneration.phase === "generating";
+
   if (!active) return null;
 
   return (
@@ -146,7 +231,7 @@ export function SentencePracticeWorkspace({
               type="button"
               className="secondary-action"
               onClick={() => setShowHome(true)}
-              disabled={isBusy}
+              disabled={isAiBusy}
             >
               <ArrowLeft aria-hidden="true" />
               Back to Sentence Practice
@@ -155,7 +240,7 @@ export function SentencePracticeWorkspace({
               type="button"
               className="secondary-action"
               onClick={() => setIsNewRoundConfirmationOpen(true)}
-              disabled={isBusy}
+              disabled={isAiBusy}
             >
               New round
             </button>
@@ -293,14 +378,24 @@ export function SentencePracticeWorkspace({
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="Write a short story or passage that naturally uses every required item…"
-              disabled={isBusy}
+              disabled={isAiBusy}
             />
             <div className="sentence-practice-editor-footer">
-              <span>{draft.trim().split(/\s+/).filter(Boolean).length} words</span>
+              <button
+                type="button"
+                className="secondary-action sentence-practice-examples-trigger"
+                onClick={openExamples}
+                disabled={isAiBusy}
+              >
+                <Lightbulb aria-hidden="true" />
+                {isGeneratingExamples
+                  ? "Generating examples…"
+                  : "Show 3 examples"}
+              </button>
               <button
                 type="submit"
                 className="primary-action"
-                disabled={!draft.trim() || isBusy}
+                disabled={!draft.trim() || isAiBusy}
               >
                 {isBusy || session.phase === "checking"
                   ? "Checking…"
@@ -419,6 +514,102 @@ export function SentencePracticeWorkspace({
           readOnly
           onClose={() => setSelectedItem(undefined)}
         />
+      ) : null}
+
+      {isExamplesOpen && session ? (
+        <div
+          className="learning-dialog-backdrop"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsExamplesOpen(false);
+            }
+          }}
+        >
+          <section
+            className="sentence-practice-examples-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sentence-practice-examples-title"
+          >
+            <header>
+              <div>
+                <span className="eyebrow">AI usage guide</span>
+                <h2 id="sentence-practice-examples-title">Writing examples</h2>
+                <p>
+                  Each example naturally uses all {session.items.length}{" "}
+                  required items. Use them for inspiration, not as a fixed answer.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="sentence-practice-examples-close"
+                aria-label="Close examples"
+                onClick={() => setIsExamplesOpen(false)}
+              >
+                <X aria-hidden="true" />
+              </button>
+            </header>
+
+            <div className="sentence-practice-examples-body">
+              {isGeneratingExamples ||
+              session.exampleGeneration.phase === "generating" ? (
+                <div className="sentence-practice-examples-loading" role="status">
+                  <span aria-hidden="true" />
+                  <strong>Generating 3 examples…</strong>
+                  <p>
+                    AI is building three different contexts with every required
+                    item.
+                  </p>
+                </div>
+              ) : session.exampleGeneration.phase === "error" ? (
+                <div className="sentence-practice-examples-error" role="alert">
+                  <strong>Examples could not be generated</strong>
+                  <p>{session.exampleGeneration.error}</p>
+                  <button
+                    type="button"
+                    className="primary-action"
+                    onClick={() => void generateExamples()}
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : session.exampleGeneration.examples.length ? (
+                <ol className="sentence-practice-examples-list">
+                  {session.exampleGeneration.examples.map((example, index) => (
+                    <li key={`${example.text}-${index}`}>
+                      <article>
+                        <span>Example {index + 1}</span>
+                        <p>
+                          {highlightExampleUsages(example.text, example.usages)}
+                        </p>
+                      </article>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </div>
+
+            {session.exampleGeneration.phase === "ready" ? (
+              <footer>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => void generateExamples()}
+                  disabled={isGeneratingExamples}
+                >
+                  Generate 3 new examples
+                </button>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={() => setIsExamplesOpen(false)}
+                >
+                  Close
+                </button>
+              </footer>
+            ) : null}
+          </section>
+        </div>
       ) : null}
 
       {isNewRoundConfirmationOpen ? (

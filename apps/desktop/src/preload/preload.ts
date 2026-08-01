@@ -34,6 +34,7 @@ import type {
   ReviewGenerationProgress
 } from "../shared/review-contracts";
 import type {
+  GenerateSentencePracticeExamplesInput,
   SentencePracticeDesktopApi,
   StartSentencePracticeInput,
   SubmitSentencePracticeInput
@@ -111,7 +112,9 @@ const desktopApi = Object.freeze({
     startSession: (input: StartSentencePracticeInput) =>
       ipcRenderer.invoke("sentence-practice:start", input),
     submit: (input: SubmitSentencePracticeInput) =>
-      ipcRenderer.invoke("sentence-practice:submit", input)
+      ipcRenderer.invoke("sentence-practice:submit", input),
+    generateExamples: (input: GenerateSentencePracticeExamplesInput) =>
+      ipcRenderer.invoke("sentence-practice:examples", input)
   } satisfies SentencePracticeDesktopApi),
   settings: Object.freeze({
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),

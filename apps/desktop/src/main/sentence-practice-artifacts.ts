@@ -1,4 +1,5 @@
 import type {
+  SentencePracticeExample,
   SentencePracticeFeedback,
   SentencePracticeIssue,
   SentencePracticeItem
@@ -18,6 +19,22 @@ function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && Boolean(value.trim());
 }
 
+function containsExactUsage(text: string, usage: string) {
+  const normalizedText = text.toLowerCase();
+  const normalizedUsage = usage.toLowerCase();
+  let start = normalizedText.indexOf(normalizedUsage);
+  while (start >= 0) {
+    const before = text[start - 1] ?? "";
+    const after = text[start + usage.length] ?? "";
+    if (!/[\p{L}\p{N}_]/u.test(before) &&
+      !/[\p{L}\p{N}_]/u.test(after)) {
+      return true;
+    }
+    start = normalizedText.indexOf(normalizedUsage, start + normalizedUsage.length);
+  }
+  return false;
+}
+
 function fencedResult(source: string): unknown {
   const matches = [...source.matchAll(
     /```sentence-practice-result\s*\n([\s\S]*?)\n```/g
@@ -28,6 +45,86 @@ function fencedResult(source: string): unknown {
   } catch {
     throw new Error("Invalid AI sentence-practice result JSON");
   }
+}
+
+function fencedExamples(source: string): unknown {
+  const matches = [...source.matchAll(
+    /```sentence-practice-examples\s*\n([\s\S]*?)\n```/g
+  )];
+  if (matches.length !== 1) {
+    throw new Error("Invalid AI sentence-practice examples result");
+  }
+  try {
+    return JSON.parse(matches[0][1]);
+  } catch {
+    throw new Error("Invalid AI sentence-practice examples JSON");
+  }
+}
+
+function parseExampleUsages(
+  value: unknown,
+  items: SentencePracticeItem[],
+  itemsById: Map<string, SentencePracticeItem>
+) {
+  if (!Array.isArray(value) || value.length !== items.length) {
+    throw new Error("AI sentence-practice example is outside this session scope");
+  }
+  const seen = new Set<string>();
+  const usages = value.map((usage) => {
+    if (!isObject(usage) || !nonEmpty(usage.itemId) ||
+      !nonEmpty(usage.title) || !nonEmpty(usage.usage)) {
+      throw new Error("Invalid AI sentence-practice example usage");
+    }
+    const item = itemsById.get(usage.itemId);
+    if (!item || item.title !== usage.title || seen.has(usage.itemId)) {
+      throw new Error(
+        "AI sentence-practice example usage is outside this session scope"
+      );
+    }
+    seen.add(usage.itemId);
+    return {
+      itemId: usage.itemId,
+      title: usage.title,
+      usage: usage.usage.trim()
+    };
+  });
+  if (seen.size !== items.length) {
+    throw new Error("AI sentence-practice example is outside this session scope");
+  }
+  return usages;
+}
+
+export function parseSentencePracticeExamples(
+  source: string,
+  sessionId: string,
+  items: SentencePracticeItem[]
+): SentencePracticeExample[] {
+  const value = fencedExamples(source);
+  if (!isObject(value) || value.sessionId !== sessionId ||
+    !Array.isArray(value.examples) || value.examples.length !== 3) {
+    throw new Error("AI must return exactly three sentence-practice examples");
+  }
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  const seenTexts = new Set<string>();
+  return value.examples.map((example) => {
+    if (!isObject(example) || !nonEmpty(example.text)) {
+      throw new Error("Invalid AI sentence-practice example");
+    }
+    const normalizedText = example.text.trim().replace(/\s+/g, " ")
+      .toLowerCase();
+    if (seenTexts.has(normalizedText)) {
+      throw new Error("AI sentence-practice examples must be different");
+    }
+    seenTexts.add(normalizedText);
+    const text = example.text.trim();
+    const usages = parseExampleUsages(example.usages, items, itemsById);
+    if (usages.some(({ usage }) => !containsExactUsage(text, usage))) {
+      throw new Error(
+        "AI sentence-practice example usages must quote text from the example"
+      );
+    }
+    return { text, usages };
+  });
 }
 
 function parseRevision(

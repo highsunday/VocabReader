@@ -179,7 +179,8 @@ function installLibraryApi(
   const sentencePractice = {
     getSnapshot: vi.fn(async () => ({ eligibleCount: 0, session: null })),
     startSession: vi.fn(),
-    submit: vi.fn()
+    submit: vi.fn(),
+    generateExamples: vi.fn()
   };
   Object.defineProperty(window, "readerDesktop", {
     configurable: true,

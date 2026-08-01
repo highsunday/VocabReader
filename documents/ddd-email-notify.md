@@ -265,3 +265,43 @@ DDD standalone TDD completion notification.
 **Follow-up**
 - Implementation remains complete. The user may explicitly authorize sending this completion
   notification in a later request.
+
+#### L013 — 2026-08-01 18:11 CST — F47 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F47 在整合造句練習中產生三篇用法範例`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request did not explicitly authorize external disclosure of the local implementation
+  and test summary; the configured sending identity was therefore not verified or used.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L014 — 2026-08-01 18:17 CST — F47 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification for the F47 writing-action layout adjustment.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F47 將造句範例按鈕移至寫作操作列左側`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request did not explicitly authorize external disclosure of the local implementation
+  and test summary; the configured sending identity was therefore not verified or used.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
