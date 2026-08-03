@@ -199,6 +199,38 @@ function controllerWithClient(createClient: () => CodexAppServerClient) {
 }
 
 describe("SpacedReviewController", () => {
+  it("keeps learning-item examples in the bounded generation payload", async () => {
+    const requests: RecordedRequest[] = [];
+    const markdownContent = [
+      "## Meaning",
+      "銀行",
+      "",
+      "## Examples",
+      "1. She went to the bank before work."
+    ].join("\n");
+    const controller = new SpacedReviewController({
+      createClient: () => fakeClient({ requests }),
+      workingDirectory: "/tmp/review-runtime",
+      skillPath: "/tmp/review-runtime/.agents/skills/practice-spaced-review/SKILL.md",
+      skillInstructions: "bounded review instructions",
+      now: () => new Date("2026-07-24T08:00:00.000Z"),
+      library: reviewLibrary([{ ...defaultReviewItem, markdownContent }])
+    });
+
+    await controller.generatePaper({ explanationLanguage: "zh-TW" });
+
+    const turnStart = requests.find(({ method }) => method === "turn/start");
+    const input = turnStart?.params?.input as Array<{
+      type: string;
+      text?: string;
+    }>;
+    const prompt = input.find(({ type }) => type === "text")?.text ?? "";
+    const payloadText = prompt.match(/Paper payload: (.+)\n/)?.[1];
+    expect(payloadText).toBeDefined();
+    expect(JSON.parse(payloadText!).items[0].markdownContent)
+      .toBe(markdownContent);
+  });
+
   it("does not persist review answers when a graded paper is discarded", async () => {
     const library = reviewLibrary();
     const controller = new SpacedReviewController({

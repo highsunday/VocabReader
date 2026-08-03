@@ -19,6 +19,23 @@ Input contains:
 - 1–20 learning items with `itemId`, `title`, `itemType`, `cefr`, `sense` and
   `markdownContent`.
 
+Use a fresh context to prevent the learner from relying on familiar contextual clues—such as the
+same people, event, keywords or sentence pattern—instead of recalling the target sense. Treat
+examples in `markdownContent` as negative references: they help identify the intended sense and
+typical usage, but they are not templates for the review sentence.
+
+Before finalizing each question, compare it with every supplied example for that item:
+
+- Do not copy or lightly paraphrase an example by changing only people, pronouns, places, times,
+  tense, or a few synonyms.
+- Do not preserve the same concrete event and near-identical sentence skeleton with surface edits.
+- When appropriate, change the concrete event, perspective, communicative purpose, or sentence
+  structure enough that the learner must interpret the target in a fresh context. This is a
+  flexible direction, not a requirement to change every dimension.
+- Accuracy, naturalness, and typical usage take priority over diversity. You may retain a necessary
+  domain, common collocation, or typical grammatical frame. Never force an unusual context or
+  exclude a common usage merely to make the sentence different.
+
 For every item exactly once:
 
 1. Infer the language of the learning target from the title, sense and content.

@@ -2,7 +2,7 @@
 title: App 內建 Skill 管理模組
 module: skill-management
 status: active
-last_updated: 2026-07-25
+last_updated: 2026-08-03
 related_implements:
   - F16-invoke-annotation-explanation-skill
   - F18-use-reading-comprehension-skill
@@ -10,6 +10,7 @@ related_implements:
   - B03-load-only-bundled-annotation-skill
   - F28-ai-graded-spaced-review-paper
   - F34-route-multilingual-learning-item-intent-with-ai
+  - F48-diversify-spaced-review-sentences
 ---
 
 # App 內建 Skill 管理模組
@@ -84,7 +85,9 @@ related_implements:
 新建 thread 與恢復既有 thread 都取得同一份 developer instructions、`approvalPolicy: never`、read-only sandbox 與相同隔離設定。
 
 `practice-spaced-review` 不加入可恢復的一般對話 instructions。專用 Controller 每次
-生成或批改建立一次性 thread，只內嵌這一份 skill，完成後立即關閉。
+生成或批改建立一次性 thread，只內嵌這一份 skill，完成後立即關閉。生成規則把學習
+項目 Markdown 中的 Examples 視為語義與典型用法參考，但禁止直接複製或僅替換人物、
+時間、地點、時態或少數同義詞；發散不得犧牲自然度與典型用法。
 
 ### Turn 層
 
@@ -143,6 +146,7 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 | `apps/desktop/tests/e2e/desktop.spec.ts` | production Electron 啟動後四份 runtime `SKILL.md` 確實存在且內容正確 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill rubric 與 UI metadata |
 | `apps/desktop/src/main/spaced-review-controller.test.ts` | review skill 的一次性隔離 thread 與受信任 scope |
+| `apps/desktop/src/main/spaced-review-skill.test.ts` | review generation 的 Examples 避重、適度發散與自然度優先契約，以及 grading rubric |
 
 ## 9. Known Limitations and Follow-up
 
@@ -163,5 +167,6 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 - `documents/implements/F18-use-reading-comprehension-skill.md`
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
 - `documents/implements/F28-ai-graded-spaced-review-paper.md`
+- `documents/implements/F48-diversify-spaced-review-sentences.md`
 
 變更 App skill 名單、bundle 來源、runtime 路徑、marker、developer instructions、隔離設定或 turn routing 時，必須同步更新本文件與相關功能模組文件。

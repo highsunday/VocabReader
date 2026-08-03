@@ -2,7 +2,7 @@
 title: AI 批改與 FSRS 間隔複習模組
 module: spaced-review
 status: active
-last_updated: 2026-07-29
+last_updated: 2026-08-03
 related_implements:
   - F28-ai-graded-spaced-review-paper
   - F29-stream-spaced-review-generation-and-scroll-paper
@@ -16,6 +16,7 @@ related_implements:
   - F38-export-and-restore-data-backup
   - F41-persist-review-answers-in-history
   - F42-show-solid-recall-growth
+  - F48-diversify-spaced-review-sentences
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -55,6 +56,9 @@ related_implements:
   到達後切換為「組裝並檢查試卷」，並保留等待秒數及取消操作。卡片不顯示原始模型
   文字或未驗證 artifact。
 - AI 依項目語言與特定 `sense` 生成例句，Renderer 以安全結構化片段劃線目標詞。
+  學習項目 Markdown 中的 Examples 用來確認語義與典型用法，同時作為不得複製或表面
+  改寫的參考；新題句在自然、準確與典型用法優先的前提下適度改變具體事件、視角、
+  溝通目的或句型，減少固定上下文成為額外記憶線索。
 - 生成與批改優先使用帳號可用的 `gpt-5.6-luna` low，其次
   `gpt-5.6-terra` low；兩者不可用時沿用 Codex 預設模型，不影響一般 AI 對話選擇。
 - 整卷作答與批改；空白答案可提交，提示會被判為「忘記」，批改後直接顯示目前
@@ -138,7 +142,8 @@ related_implements:
 `SpacedReviewController` 在 Main process 擁有目前試卷及批改 scope：
 
 1. 生成時重新查詢本回合摘要，只把最多 20 個、且不超過每份試卷題數設定的選中項目
-   必要欄位交給 AI。
+   必要欄位交給 AI。完整 `markdownContent` 保留在 bounded payload，使 skill 能把其中
+   Examples 當作需避免複製或表面改寫的參考，而不是出題模板。
 2. 每次生成或批改建立獨立的一次性 Codex thread，使用 read-only sandbox、
    `approvalPolicy: never`，並停用工具、網路、一般 skills、plugins、apps 與 memories。
    初始化後讀取分頁 model catalog，優先選擇支援 low 的 Luna，再選 Terra；目錄失敗、
@@ -272,7 +277,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 | Test file | Coverage |
 |---|---|
 | `learning-library-service.test.ts` | 學習路徑、完成判定、學習中項目不預占完成額度、跨日分類、穩定掌握／衰退、90 天成果、30 天活動與回想率、獨立額度、零值暫停、可設定題數、三層排序、精確到期、FSRS、覆寫歷史、試卷確認期間刪除、垃圾桶與重複確認 |
-| `spaced-review-skill.test.ts` | 評級獨立、表達建議三態、長度獨立、留白答案、語言分工及改寫契約 |
+| `spaced-review-skill.test.ts` | 新語境與 Examples 避重規則、自然度優先、評級獨立、表達建議三態、長度獨立、留白答案、語言分工及改寫契約 |
 | `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、表達建議正規化、缺題、未知／重複 id 與錯 scope 拒絕 |
 | `spaced-review-controller.test.ts` | 暫態 paper／expression feedback、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |
 | `spaced-review-ipc.test.ts` | 六個操作、安全 typed generation count payload 與惡意 payload 拒絕 |
@@ -289,6 +294,8 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - 目前沒有 deck、手動選題、FSRS optimizer、retention 設定或自訂學習日開始時間。
 - 沒有重播、搜尋或匯出完整試卷與作答，也不持久保存詳細回饋及表達建議；已確認的
   原始複習作答只存在於各學習項目的精簡歷史。
+- 不持久保存 AI 複習題句，因此 prompt 可以避免沿用目前學習項目的 Examples，但不
+  保證不同複習回合之間永遠不會出現相似句子。
 - 已確認排程與精簡歷史可隨整份資料備份還原；沒有自動同步、Anki 匯入／匯出，
   也不備份未完成試卷。
 - CEFR 是首次引入順序的近似，尚未結合獨立詞頻資料。
@@ -319,4 +326,5 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - `documents/modules/data-backup.md`
 - `documents/implements/F38-export-and-restore-data-backup.md`
 - `documents/implements/F41-persist-review-answers-in-history.md`
+- `documents/implements/F48-diversify-spaced-review-sentences.md`
 - `documents/implements/B15-do-not-reserve-completion-capacity-for-learning-items.md`

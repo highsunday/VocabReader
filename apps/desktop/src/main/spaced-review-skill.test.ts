@@ -8,6 +8,31 @@ const skillPath = resolve(
 );
 
 describe("practice-spaced-review skill", () => {
+  it("uses fresh contexts without turning diversity into unnatural usage", () => {
+    expect(existsSync(skillPath)).toBe(true);
+    if (!existsSync(skillPath)) return;
+
+    const skill = readFileSync(skillPath, "utf8");
+    expect(skill).toContain(
+      "prevent the learner from relying on familiar contextual clues"
+    );
+    expect(skill).toMatch(
+      /Treat\s+examples in `markdownContent` as negative references/
+    );
+    expect(skill).toMatch(
+      /Do not copy or lightly paraphrase.*people, pronouns, places, times,\s+tense, or a few synonyms/s
+    );
+    expect(skill).toMatch(
+      /change the concrete event, perspective, communicative purpose, or sentence\s+structure/
+    );
+    expect(skill).toContain(
+      "Accuracy, naturalness, and typical usage take priority over diversity"
+    );
+    expect(skill).toMatch(
+      /You may retain a necessary\s+domain, common collocation, or typical grammatical frame/
+    );
+  });
+
   it("improves the learner's wording without treating answer length as a problem", () => {
     expect(existsSync(skillPath)).toBe(true);
     if (!existsSync(skillPath)) return;
