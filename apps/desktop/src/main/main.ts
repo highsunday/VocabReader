@@ -4,12 +4,14 @@ import { join } from "node:path";
 import annotationExplanationSkillMarkdown from "../../../../.agents/skills/explain-reader-annotations/SKILL.md";
 import learningItemCreationSkillMarkdown from "../../../../.agents/skills/create-learning-items/SKILL.md";
 import readingComprehensionSkillMarkdown from "../../../../.agents/skills/practice-reading-comprehension/SKILL.md";
+import segmentRetellingSkillMarkdown from "../../../../.agents/skills/practice-segment-retelling/SKILL.md";
 import spacedReviewSkillMarkdown from "../../../../.agents/skills/practice-spaced-review/SKILL.md";
 import sentencePracticeSkillMarkdown from "../../../../.agents/skills/practice-integrated-sentences/SKILL.md";
 import {
   installBundledAnnotationSkill,
   installBundledLearningItemCreationSkill,
   installBundledReadingComprehensionSkill,
+  installBundledSegmentRetellingSkill,
   installBundledSentencePracticeSkill,
   installBundledSpacedReviewSkill
 } from "./bundled-skill";
@@ -145,6 +147,10 @@ app.whenReady().then(() => {
     runtimePath,
     readingComprehensionSkillMarkdown
   );
+  const segmentRetellingSkill = installBundledSegmentRetellingSkill(
+    runtimePath,
+    segmentRetellingSkillMarkdown
+  );
   const learningItemCreationSkill = installBundledLearningItemCreationSkill(
     runtimePath,
     learningItemCreationSkillMarkdown
@@ -178,6 +184,8 @@ app.whenReady().then(() => {
     annotationExplanationSkillInstructions: annotationExplanationSkillMarkdown,
     readingComprehensionSkillPath: readingComprehensionSkill.path,
     readingComprehensionSkillInstructions: readingComprehensionSkillMarkdown,
+    segmentRetellingSkillPath: segmentRetellingSkill.path,
+    segmentRetellingSkillInstructions: segmentRetellingSkillMarkdown,
     learningItemCreationSkillPath: learningItemCreationSkill.path,
     learningItemCreationSkillInstructions: learningItemCreationSkillMarkdown,
     findLearningItemCandidates: (titles) =>

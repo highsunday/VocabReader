@@ -17,6 +17,7 @@ function installBundledSkill(
   skillName:
     | "explain-reader-annotations"
     | "practice-reading-comprehension"
+    | "practice-segment-retelling"
     | "create-learning-items"
     | "practice-spaced-review"
     | "practice-integrated-sentences",
@@ -56,6 +57,17 @@ export function installBundledReadingComprehensionSkill(
   return installBundledSkill(
     runtimePath,
     "practice-reading-comprehension",
+    markdown
+  );
+}
+
+export function installBundledSegmentRetellingSkill(
+  runtimePath: string,
+  markdown: string
+): BundledSkillInstallResult {
+  return installBundledSkill(
+    runtimePath,
+    "practice-segment-retelling",
     markdown
   );
 }

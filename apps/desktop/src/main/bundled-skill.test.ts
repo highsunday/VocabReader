@@ -6,6 +6,7 @@ import {
   installBundledAnnotationSkill,
   installBundledLearningItemCreationSkill,
   installBundledReadingComprehensionSkill,
+  installBundledSegmentRetellingSkill,
   installBundledSentencePracticeSkill,
   installBundledSpacedReviewSkill
 } from "./bundled-skill";
@@ -94,6 +95,27 @@ describe("installBundledReadingComprehensionSkill", () => {
     expect(readFileSync(updated.path, "utf8")).toBe("bundled-v2");
     expect(() => readFileSync(join(dirname(updated.path), "SKILL.md.next")))
       .toThrow();
+  });
+});
+
+describe("installBundledSegmentRetellingSkill", () => {
+  it("installs the bounded retelling skill", () => {
+    const runtimePath = runtimeRoot();
+
+    const installed = installBundledSegmentRetellingSkill(
+      runtimePath,
+      "bounded retelling instructions"
+    );
+
+    expect(installed).toEqual({
+      path: join(
+        runtimePath,
+        ".agents/skills/practice-segment-retelling/SKILL.md"
+      ),
+      status: "installed"
+    });
+    expect(readFileSync(installed.path, "utf8"))
+      .toBe("bounded retelling instructions");
   });
 });
 

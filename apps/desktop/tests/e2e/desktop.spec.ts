@@ -32,6 +32,14 @@ test("launches the secure Electron reading shell", async () => {
     expect(installedReadingSkill)
       .toContain("name: practice-reading-comprehension");
     expect(installedReadingSkill).toContain("8–12");
+    const installedRetellingSkill = readFileSync(join(
+      userDataPath,
+      "codex-runtime/.agents/skills/practice-segment-retelling/SKILL.md"
+    ), "utf8");
+    expect(installedRetellingSkill)
+      .toContain("name: practice-segment-retelling");
+    expect(installedRetellingSkill)
+      .toContain("at most two attempts");
     const installedLearningItemSkill = readFileSync(join(
       userDataPath,
       "codex-runtime/.agents/skills/create-learning-items/SKILL.md"
@@ -106,19 +114,19 @@ test("launches the secure Electron reading shell", async () => {
     });
     expect(annotationToolVisual).toEqual({
       position: "sticky",
-      top: "72px",
-      minWidth: "84px",
-      height: "40px",
-      borderRadius: "999px",
-      countPosition: "absolute",
-      countTop: "-6px",
-      countRight: "-6px",
+      top: "84px",
+      minWidth: "96px",
+      height: "36px",
+      borderRadius: "11px",
+      countPosition: "static",
+      countTop: "auto",
+      countRight: "auto",
       countText: "12",
       backgroundImage: "none",
-      backgroundColor: "rgb(250, 249, 245)",
+      backgroundColor: "rgba(250, 249, 245, 0.94)",
       countBackgroundColor: "rgb(226, 232, 225)",
       activeBackgroundImage: "none",
-      activeBackgroundColor: "rgb(246, 237, 207)",
+      activeBackgroundColor: "rgb(243, 232, 197)",
       activeCountBackgroundColor: "rgb(234, 220, 169)"
     });
     const annotationProbe = page.getByTestId("annotation-tool-style-probe");
@@ -417,6 +425,22 @@ test("launches the secure Electron reading shell", async () => {
     await page.getByRole("button", { name: /^Library \d+/ }).click();
     await expect(page.getByRole("heading", { name: "Learning Library" })).toBeVisible();
     await expect(page.locator(".learning-item-card")).toHaveCount(10);
+    await page.getByRole("button", {
+      name: /bank, New, word, English, A2, financial institution/
+    }).click();
+    await expect(page.getByRole("dialog", { name: "bank" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Play pronunciation of bank" }))
+      .toBeVisible();
+    await expect(page.getByRole("heading", { name: "Common collocations" }))
+      .toBeVisible();
+    await page.getByRole("button", { name: "Close card details" }).click();
+    await page.getByRole("button", {
+      name: /take for granted, New, phrase, English, B2/
+    }).click();
+    await expect(page.getByRole("button", {
+      name: "Play pronunciation of take for granted"
+    })).toBeVisible();
+    await page.getByRole("button", { name: "Close card details" }).click();
     const pinnedLearningToolbar = await page.evaluate(async () => {
       const toolbar = document.querySelector<HTMLElement>(".learning-library-sticky");
       const controls = document.querySelector<HTMLElement>(".learning-library-controls");
@@ -456,22 +480,6 @@ test("launches the secure Electron reading shell", async () => {
       pinnedLearningToolbar.after.controlsTop -
       pinnedLearningToolbar.before.controlsTop
     )).toBeLessThanOrEqual(16);
-    await page.getByRole("button", {
-      name: /bank, New, word, A2, financial institution/
-    }).click();
-    await expect(page.getByRole("dialog", { name: "bank" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Play pronunciation of bank" }))
-      .toBeVisible();
-    await expect(page.getByRole("heading", { name: "Common collocations" }))
-      .toBeVisible();
-    await page.getByRole("button", { name: "Close card details" }).click();
-    await page.getByRole("button", {
-      name: /take for granted, New, phrase, B2/
-    }).click();
-    await expect(page.getByRole("button", {
-      name: "Play pronunciation of take for granted"
-    })).toBeVisible();
-    await page.getByRole("button", { name: "Close card details" }).click();
 
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByRole("heading", { name: "Data backup" }))

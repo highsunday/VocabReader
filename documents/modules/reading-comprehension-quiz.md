@@ -2,20 +2,21 @@
 title: 閱讀測驗與區段練習模組
 module: reading-comprehension-quiz
 status: active
-last_updated: 2026-07-24
+last_updated: 2026-08-03
 related_implements:
   - F17-reading-segment-comprehension-quiz
   - F18-use-reading-comprehension-skill
   - B04-use-language-setting-for-reading-quiz
   - B05-use-quiz-language-for-open-ended-answers
   - F23-interactive-reading-practice-paper
+  - F49-segment-retelling-practice
 ---
 
 # 閱讀測驗與區段練習模組
 
 ## 1. Purpose
 
-本模組實作 **區段練習（Segment Practice）**：使用者讀完目前 START／END **閱讀區段**後，在 AI 對話面板點擊「閱讀測驗」，由 Codex AI 執行層建立符合文章長度與複雜度的閱讀理解題；AI 訊息下方出現可點擊的試卷產物元件，點擊後直接在該 AI 訊息內展開，並在同一 **AI 對話**中批改提交的答案。
+本模組實作兩種互補的區段理解活動：**區段練習（Segment Practice）**以閱讀測驗確認理解，**區段復述練習（Segment Retelling Practice）**則讓使用者以原文語言自由重新組織目前 START／END **閱讀區段**。兩者都在 **AI 對話面板**的產生訊息內展開並由同一 **AI 對話**批改。
 
 區段練習用來確認當下理解與練習書面輸出。它不是**複習回合**、不使用到期項目、不建立 Anki 式排程，也不更新學習項目的下次複習時間。
 
@@ -41,6 +42,10 @@ related_implements:
 - 完整批改以紅筆批註風格顯示在原題旁；總結預設只顯示分數與摘要列，閱讀理解、書面表達及複習重點可另外展開。不完整、格式錯誤或 quiz id 不相符的 artifact 不會被視為完成。
 - 題目、問答題預期作答語言及批改共同遵守全域**講解語言**，直接引文保留原文。
 - 題目與批改 artifact 隨 AI 訊息保存在對話文字中；Renderer 作答狀態不另做跨啟動持久化。
+- 閱讀頁另提供「Retelling practice」入口；AI 判斷閱讀區段的主要原文語言並產生單一自由文字框，不提供主旨、細節、句數或字數提示。
+- 復述批改依序顯示具體理解／遺漏／語言改善意見、**基礎修正版**、只補入少量原文細節的**進階優化版**，以及正確度、完整度、原文語言表達各 0–5 分的**復述評分**。
+- 第一次批改後可用空白文字框再復述一次；第二次顯示兩次分數差異，同一練習不提供第三次作答。
+- 復述卡沿用閱讀測驗的紙張、折疊、紅筆批改與窄欄視覺語言；原文始終保持可見，也不記錄使用者是否查看。
 
 ## 3. Inputs and Preconditions
 
@@ -51,6 +56,8 @@ related_implements:
 - `explanationLanguage: source | zh-TW | en | ja`
 - 可選的書名與章節名稱
 - 當下 `<reading-segment>`
+
+復述 preparation turn 使用相同有限 context，但 intent 為 `practiceRetelling`；原文主要語言決定作答語言，`explanationLanguage` 只決定作答提示、批改說明、分數理由與比較所使用的講解語言。
 
 Renderer 只在閱讀模式、Codex ready、沒有 active turn 且沒有對話管理操作時提供入口。測驗範圍只由 START／END 決定，不使用滑鼠暫時反白，也不回退為整章。
 
@@ -69,6 +76,8 @@ Renderer 只在閱讀模式、Codex ready、沒有 active turn 且沒有對話�
 11. Skill 在 `reading-practice-grade` artifact 提供完整逐題結果與 final review；Renderer 驗證 quiz id 與每題覆蓋後顯示紅筆批註。
 
 出題或批改不會推進 START／END、修改標記、建立學習項目或更新複習排程。
+
+復述流程與此平行：Renderer 送出 `practiceRetelling` 與最新區段；固定 skill 以 `reading-retelling-task` artifact 提供原文語言與作答提示；使用者以 `$submit-segment-retelling` 提交 attempt 1，AI 回傳 matching `reading-retelling-grade`；第一次完成後可建立空白 attempt 2，第二份 grade 另含兩次分數比較。Parser 會拒絕錯誤 practice id、跳號 attempt、0–5 之外分數及加總不一致的結果。
 
 ## 5. Quiz Creation Contract
 
@@ -145,12 +154,21 @@ Main Process 將同一個 `explanationLanguage` 映射值同時提供給 `Quiz l
 - 批改總結預設收合，只在精簡列顯示分數；展開後才顯示閱讀理解、書面表達與複習重點。
 - 紅筆批註只顯示 AI 可提供給學習者的結果、正解、理由、修正與總結，不顯示模型內部推理。
 
+## 8A. Segment Retelling Contract
+
+- task artifact 只提供標題、practice id、主要原文語言與講解語言撰寫的作答提示，不得洩漏主旨、摘要或範例答案。
+- 作答區只有一個大型多行文字框；答案非空才可提交，收合與重開保留本次工作階段草稿。
+- 批改先呈現正確理解、內容修正、重要遺漏與語言改善，再呈現基礎修正版、進階優化版與分項分數。
+- 基礎修正版修正內容誤解及語言問題，但盡量保留使用者已正確的原意與寫法；進階優化版只從基礎版前進一步，不能變成完整標準答案。
+- 三項分數皆為 0–5 整數，總分必須等於三項加總；第二次 grade 的每個 delta 必須等於 attempt 2 減 attempt 1。
+- 第一次 grade 後只提供一次 Retell again；第二次從空白開始且保留第一次結果，完成後不提供第三次。
+
 ## 9. Dependencies and Boundaries
 
 | Dependency | What this module uses |
 |---|---|
 | `annotation`／`reading-range` | START／END 區段與安全序列化；標記只作 markup |
-| `skill-management` | 固定閱讀 skill 安裝、內嵌 instructions、marker gate 與隔離設定 |
+| `skill-management` | 固定閱讀測驗／復述 skills 安裝、內嵌 instructions、marker gate 與隔離設定 |
 | `ai-conversation` | 同一 thread 的出題、後續作答、串流、Markdown 與對話保存 |
 | settings | 全域講解語言，以及 AI 對話／試卷可閱讀文字大小的讀取、驗證與持久化 |
 
@@ -162,12 +180,15 @@ Main Process 將同一個 `explanationLanguage` 映射值同時提供給 `Quiz l
 |---|---|
 | `.agents/skills/practice-reading-comprehension/SKILL.md` | CEFR、出題、答題格式、逐題批改、語言與 final review 契約 |
 | `.agents/skills/practice-reading-comprehension/agents/openai.yaml` | Repo 內 skill 顯示 metadata |
+| `.agents/skills/practice-segment-retelling/SKILL.md` | 原文語言判定、兩次復述、雙版本修正、三項評分與比較契約 |
 | `apps/desktop/src/renderer/App.tsx` | 「閱讀測驗」入口、最新區段與講解語言送出 |
 | `apps/desktop/src/renderer/ReadingPracticePaper.tsx` | AI 訊息內的可折疊試卷、答案狀態、提交鎖定與紅筆批註 |
 | `apps/desktop/src/renderer/reading-practice-artifact.ts` | quiz／grade schema 驗證、最新 artifact 選取與答案格式化 |
+| `apps/desktop/src/renderer/SegmentRetellingPractice.tsx` | 與閱讀測驗一致風格的自由作答、兩版回饋、分數及二次復述元件 |
+| `apps/desktop/src/renderer/segment-retelling-artifact.ts` | task／grade schema、attempt 順序、分數加總、比較 delta 與提交格式驗證 |
 | `apps/desktop/src/renderer/reading-range.ts` | START／END 閱讀區段安全序列化 |
 | `apps/desktop/src/renderer/styles.css` | 試卷窄欄排版、相對字級、控制尺寸與 container query |
-| `apps/desktop/src/shared/chat-contracts.ts` | `practiceReading` intent 與 context 型別 |
+| `apps/desktop/src/shared/chat-contracts.ts` | `practiceReading`／`practiceRetelling` intents 與 context 型別 |
 | `apps/desktop/src/main/chat-ipc.ts` | intent、語言與 context 白名單驗證 |
 | `apps/desktop/src/main/chat-controller.ts` | marker、題面／回答語言、固定 skill item 與後續 workflow gate |
 | `apps/desktop/src/main/bundled-skill.ts` | 閱讀理解 skill 的 runtime 安裝 |
@@ -182,7 +203,10 @@ Main Process 將同一個 `explanationLanguage` 映射值同時提供給 `Quiz l
 | `apps/desktop/src/main/chat-ipc.test.ts` | `practiceReading` 與講解語言白名單 |
 | `apps/desktop/src/main/chat-controller.test.ts` | marker、固定 skill item、四種題面／回答語言、一般／解析 turn 隔離及後續 workflow 指令 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | CEFR、8–12／1–3、題型、錯題回饋、雙版本修正、final review 與語言 rubric |
+| `apps/desktop/src/main/segment-retelling-skill.test.ts` | 自由作答、原文／講解語言、兩版修正、三項評分及兩次上限契約 |
 | `apps/desktop/src/main/bundled-skill.test.ts` | runtime 安裝、略過相同內容及原子更新 |
+| `apps/desktop/src/renderer/SegmentRetellingPractice.test.tsx` | 紙張風格、單一文字框、提交鎖定、回饋順序、草稿保留、二次作答及比較 |
+| `apps/desktop/src/renderer/segment-retelling-artifact.test.ts` | task／grade 串流容錯、id／attempt、分數範圍、總分、delta 與提交格式 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | production Electron runtime 中的閱讀理解 skill，以及 AI 字體設定套用至試卷可閱讀內容 |
 
 ## 12. Known Limitations and Follow-up
@@ -192,6 +216,7 @@ Main Process 將同一個 `explanationLanguage` 映射值同時提供給 `Quiz l
 - 題數與難度由 skill 自行判斷，沒有使用者設定或可重現的固定演算法。
 - quiz id 只存在 AI 訊息 artifact 與提交文字中，不是獨立持久化領域資料；同一對話混入不相關內容時仍主要依 developer instruction gate 約束。
 - 試卷沒有獨立字體設定；它刻意沿用 AI 對話文字大小，避免同一 AI 訊息內出現兩套閱讀尺度。
+- 復述未提交草稿只存在目前 Renderer 工作階段；沒有獨立歷史頁或長期成績趨勢。
 - Renderer `App.tsx` 同時協調閱讀範圍、兩個 AI presets、設定與對話，功能繼續增加前宜評估拆分。
 
 ## 13. Related Documents
@@ -208,5 +233,6 @@ Main Process 將同一個 `explanationLanguage` 映射值同時提供給 `Quiz l
 - `documents/implements/B04-use-language-setting-for-reading-quiz.md`
 - `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`
 - `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
+- `documents/implements/F49-segment-retelling-practice.md`
 
 變更題數、題型、答案揭露時機、作答／批改語言、後續評量 workflow、preset intent 或 skill marker 時，必須同步更新本文件及 `skill-management`、`ai-conversation` 模組文件。

@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-07-28
+last_updated: 2026-08-03
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -30,6 +30,7 @@ related_implements:
   - B12-launch-codex-app-server-on-windows
   - B16-scroll-ai-conversation-after-user-message
   - F43-refresh-codex-allowance-every-minute
+  - F49-segment-retelling-practice
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -41,7 +42,7 @@ related_implements:
 閱讀頁的 AI 上下文只包含產品層明確組裝的書籍名稱、章節名稱與目前 **閱讀區段**；本模組不讀取整章、整本 EPUB 或 Renderer 任意指定的檔案。
 
 本文件聚焦 AI 對話與 Codex transport 生命週期；App skills 的安裝與隔離、解釋標記、
-閱讀測驗與獨立間隔複習 workflow 分別由 `skill-management.md`、
+閱讀測驗、區段復述與獨立間隔複習 workflow 分別由 `skill-management.md`、
 `annotation-explanation.md`、`reading-comprehension-quiz.md` 與 `spaced-review.md` 詳述。
 
 ## 2. Current Implementation Status
@@ -67,10 +68,11 @@ related_implements:
 - 每筆對話保存產品對話 id、Codex thread id、標題、時間、來源摘要及顯示訊息；重啟恢復上次查看的對話。
 - 延續過去對話時使用 `thread/resume` 恢復相同 thread；移除時使用 `thread/archive`，本機保存失敗會嘗試 `thread/unarchive` 回滾。
 - 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
-- START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」與「閱讀測驗」每次都附上當下區段。
-- 閱讀頁的提問快捷功能依學習流程與鍵盤瀏覽順序排列為「解釋標記」、「新增卡片」、「閱讀測驗」；生詞庫頁只顯示「新增卡片」。
+- START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」、「閱讀測驗」與「復述練習」每次都附上當下區段。
+- 閱讀頁的提問快捷功能依學習流程與鍵盤瀏覽順序排列為「解釋標記」、「新增卡片」、「閱讀測驗」、「復述練習」；生詞庫頁只顯示「新增卡片」。
 - 預設解析意圖由 Main process 明確注入 App 內建並安裝到 user data 的 `explain-reader-annotations` skill；skill 提供選擇式教學小節、本文用法 CEFR 與複習表，一般輸入仍是正常多輪問答。
 - 閱讀頁提供「閱讀測驗」預設動作；Main process 明確呼叫 App 內建 `practice-reading-comprehension` skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題問答題。Renderer 驗證 AI 訊息中的固定 quiz artifact 後，在該訊息下方顯示可折疊試卷產物；點擊後直接在同一 AI 訊息內展開。試卷以 AI 對話欄自身寬度採單／雙欄自適應排版，提供進度條、48px 答案點擊區、問答輸入及一次提交；matching grade artifact 以易讀紅筆批註呈現逐題批改、分數與可展開的 final review。
+- 閱讀頁提供「復述練習」預設動作；Main process 明確呼叫 App 內建 `practice-segment-retelling` skill。有效 task artifact 在原 AI 訊息中顯示與閱讀測驗一致風格的可折疊紙張卡，要求使用者以 AI 判定的原文主要語言在單一文字框自由復述；matching grade artifact 依序呈現改善意見、基礎修正版、進階優化版及三項 0–5 分，並支援一次空白的再次復述與兩次比較。
 - 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；影響後續標記解析，以及閱讀測驗的題面、問答題回答要求與批改。
 - 設定入口可在 12–24px 間即時調整 AI 對話可閱讀內容；預設 13px，使用者訊息、AI 回覆、相對 Markdown 排版及區段練習試卷的題名、重點、題目、選項、問答輸入、批改與總結共用此設定。工具列、模型選擇、提問框，以及試卷進度、題號、CEFR 與操作控制不受影響。
 - assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy。
@@ -158,8 +160,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 訂閱並呈現 `ChatSnapshot`，不自行模擬已連線、帳戶或額度資料。
 - 從目前模式、選取書籍、章節與 `extractReadingSegment()` 組裝 `SendChatMessageInput`。
 - 以 `bookId + chapterId + start + end + annotation revision` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
-- 將一般訊息與三種 typed intent 分開；`explainAnnotations`、`practiceReading`、
-  `createLearningItems` 各自附固定 App skill。快捷操作、invitation 與既有澄清延續
+- 將一般訊息與四種 typed intent 分開；`explainAnnotations`、`practiceReading`、
+  `practiceRetelling`、`createLearningItems` 各自附固定 App skill。快捷操作、invitation 與既有澄清延續
   可直接提供 `createLearningItems`；普通自然語言訊息不由 Renderer 判斷或附加 intent。
 - 空閱讀區段只送出一般問題，不使用整章 fallback。
 - 顯示處理中、需要登入、連線失敗與額度不可用狀態。
@@ -171,7 +173,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
   重複這次捲動意圖。
 - 在右側面板的對話內容與全域清單之間切換，顯示對話標題、最近來源及更新時間。
 - AI 回覆與範圍標籤狀態分離；送出或完成訊息不推進 START／END。
-- 只解析固定 `reading-practice-quiz`／`reading-practice-grade` fenced JSON；不完整串流、錯誤 schema、quiz id 不符或未覆蓋每題的結果不會改變試卷完成狀態。artifact 原文仍隨 AI 訊息保存，但不在窄側欄重複顯示。
+- 只解析固定 `reading-practice-quiz`／`reading-practice-grade` 與 `reading-retelling-task`／`reading-retelling-grade` fenced JSON；不完整串流、錯誤 schema、識別碼、attempt、分數加總或題目覆蓋不符的結果不會改變練習完成狀態。artifact 原文仍隨 AI 訊息保存，但不在窄側欄重複顯示。
 
 ## 4. Shared Data
 
@@ -201,8 +203,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - `context.bookTitle`：可選，目前書籍名稱。
 - `context.chapterTitle`：可選，目前章節名稱。
 - `context.readingSegment`：可選，只能來自 `extractReadingSegment()` 的非空輸出。
-- `intent`：可選且只接受 `explainAnnotations | practiceReading | createLearningItems`。
-- `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja`；供標記解析、閱讀測驗與學習項目草稿共用。
+- `intent`：可選且只接受 `explainAnnotations | practiceReading | practiceRetelling | createLearningItems`。
+- `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja`；供標記解析、閱讀測驗、復述批改與學習項目草稿共用；復述答案本身仍使用原文主要語言。
 - `learningItemTargets`：只允許 creation intent 使用，最多 50 個 title／senseHint。
 
 ## 5. Connection and Allowance Flow
@@ -230,7 +232,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 1. Renderer 驗證 Codex ready、輸入非空且沒有 active turn；一般訊息只附原文、目前
    講解語言與必要的有限閱讀 context，不以關鍵字、正則或支援語言清單判斷建立意圖。
 2. 閱讀模式以 START／END 裁切目前非空區段，安全插入區段內標記，並以書籍、章節、邊界及標記 revision 組成區段識別。
-3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時，普通追問只送使用者問題。預設標記解析與區段練習每次提供當下區段；其他模式或空區段不附 EPUB 原文。
+3. 該識別尚未成功提供時附上書籍、章節與區段原文；與最近成功提供的識別相同時，普通追問只送使用者問題。預設標記解析、閱讀測驗與區段復述每次提供當下區段；其他模式或空區段不附 EPUB 原文。
 4. Controller 在任何 await 前先進入 starting，封鎖第二個並行 send 及對話管理操作。
 5. 空白新對話以固定的唯讀、無工具設定、目前選定模型及 App 內嵌的唯一標記解析 skill instructions 建立 thread，再建立本機產品對話；過去對話以 `thread/resume` 恢復時載入相同 instructions。
 6. Controller 保存畫面用的純使用者問題，另把本次實際收到的有限閱讀 context 組成 Codex input，並更新該對話的最近來源摘要。
@@ -240,8 +242,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
    第二個 turn；最終 snapshot 只保留原始 user message 與 creation 結果。
 8. AI 判定不是建立請求時顯示一般回答；意圖明確但 target 不足時只顯示一個聚焦問題。
    Renderer 明確提供的建立快捷、invitation 與澄清延續仍直接進入 creation turn。
-9. 標記解析含 `$explain-reader-annotations` 與固定標記 skill input；區段練習含
-   `$practice-reading-comprehension` 與固定閱讀 skill input。講解語言以每次 turn 的
+9. 標記解析含 `$explain-reader-annotations` 與固定標記 skill input；閱讀測驗含
+   `$practice-reading-comprehension`，區段復述含 `$practice-segment-retelling` 與各自固定 skill input。講解語言以每次 turn 的
    動態參數提供，因此新 thread、恢復對話與 AI 路由後的內部 creation turn 行為一致。
 10. `turn/start` 使用目前選定模型及其預設推理強度；成功後 Renderer 才把本次區段識別
     記為已提供，bridge 拒絕時保留待提供狀態。
@@ -257,7 +259,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
   Renderer 或使用者輸入。
 - 一般對話 thread 使用 `approvalPolicy: never`、read-only sandbox，停用一般 skill
   instruction catalog、bundled skills、plugins、apps、memories 及 web search。Electron
-  Main 只把三份對話用 App skills 組入 developer instructions；不得探索其他 skill。
+  Main 只把四份對話用 App skills 組入 developer instructions；不得探索其他 skill。
   間隔複習另以同等隔離的一次性 thread，只注入 `practice-spaced-review`。
 - working directory 固定為 Electron user data 下的 `codex-runtime`，Renderer 不能指定。
 - Desktop build 把 repo skill Markdown 內嵌到 Electron Main bundle；Main 啟動時安裝／更新到 runtime `.agents/skills`，再把這份 user data 絕對路徑作為 `ChatController` 必要設定。Renderer 不能提供 skill 內容或路徑，已安裝 App 也不依賴原始碼 repo。
@@ -279,6 +281,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/main/learning-item-duplicate-classifier.ts` | 提交前有限候選的隔離 AI 語義分類 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析的語言學習 workflow、CEFR 判斷、選擇式說明與複習表契約 |
 | `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀理解 CEFR、出題、指定語言批改與 final review 契約 |
+| `.agents/skills/practice-segment-retelling/SKILL.md` | 原文語言自由復述、兩版修訂、三項評分與兩次比較契約 |
 | `.agents/skills/practice-spaced-review/SKILL.md` | 暫態例句試卷與四級語意評級契約 |
 | `apps/desktop/src/main/spaced-review-controller.ts` | 不持久的一次性生成／批改 thread |
 | `apps/desktop/src/main/bundled-skill.ts` | 把 App bundle 內建 skill 安裝／原子更新到 user data runtime |
@@ -289,6 +292,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/renderer/App.tsx` | AI 對話面板、閱讀區段 context、試卷入口與左側狀態卡 |
 | `apps/desktop/src/renderer/ReadingPracticePaper.tsx` | AI 訊息內可折疊試卷、作答狀態與紅筆批改呈現 |
 | `apps/desktop/src/renderer/reading-practice-artifact.ts` | 試卷 artifact schema 驗證與答案格式化 |
+| `apps/desktop/src/renderer/SegmentRetellingPractice.tsx` | AI 訊息內的復述作答、回饋、二次作答與分數比較 |
+| `apps/desktop/src/renderer/segment-retelling-artifact.ts` | 復述 task／grade schema、分數與 attempt 驗證 |
 | `apps/desktop/src/renderer/styles.css` | 對話與窄欄狀態卡樣式 |
 | `apps/desktop/src/shared/settings-contracts.ts` | 講解語言、兩項字體大小、允許範圍與設定 bridge 型別 |
 | `apps/desktop/src/main/settings-store.ts` | 全域偏好逐欄載入、降級、串行與原子保存 |
@@ -300,14 +305,16 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 |---|---|
 | `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、重啟 streaming 正規化與損壞資料隔離 |
 | `apps/desktop/src/main/codex-app-server-client.test.ts` | Windows Desktop native CLI discovery、npm shim fallback 與非 Windows 啟動 |
-| `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、每分鐘額度刷新與停止清理、三個 skills、creation 候選範圍、持久澄清與批次生命週期 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、每分鐘額度刷新與停止清理、四個對話 skills、creation 候選範圍、持久澄清與批次生命週期 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill 的 CEFR、8–12／1–3 題、混合題型、批改、語言與 final review 契約 |
-| `apps/desktop/src/main/bundled-skill.test.ts` | 四份 App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
+| `apps/desktop/src/main/bundled-skill.test.ts` | App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 與預設意圖白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
 | `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、字體大小即時預覽與保存、bridge send、閱讀區段裁切／去重／區段練習與語言傳值、全域對話管理、安全 Markdown／GFM 與串流占位 |
 | `apps/desktop/src/renderer/ReadingPracticePaper.test.tsx` | 專用試卷作答、提交、鎖定、關閉與紅筆批改 |
 | `apps/desktop/src/renderer/reading-practice-artifact.test.ts` | 試卷／批改 artifact 驗證、串流容錯與提交格式 |
-| `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、四份 runtime skills、typed bridges 與 Node 隔離 |
+| `apps/desktop/src/renderer/SegmentRetellingPractice.test.tsx` | 復述卡片、提交、回饋順序、草稿保留、再次作答與比較 |
+| `apps/desktop/src/renderer/segment-retelling-artifact.test.ts` | 復述 artifact、分數、attempt、比較與提交格式 |
+| `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、runtime skills、typed bridges 與 Node 隔離 |
 
 最近驗證（2026-07-30）：
 
@@ -356,5 +363,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
 - `documents/implements/F28-ai-graded-spaced-review-paper.md`
 - `documents/implements/F43-refresh-codex-allowance-every-minute.md`
+- `documents/implements/F49-segment-retelling-practice.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

@@ -71,7 +71,8 @@ export interface LearningItemPreparation {
 export interface SendChatMessageInput {
   text: string;
   context?: ChatContext;
-  intent?: "explainAnnotations" | "practiceReading" | "createLearningItems";
+  intent?: "explainAnnotations" | "practiceReading" | "practiceRetelling" |
+    "createLearningItems";
   explanationLanguage?: "source" | "zh-TW" | "en" | "ja";
   learningItemTargets?: LearningItemTarget[];
 }

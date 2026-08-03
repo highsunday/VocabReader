@@ -36,6 +36,8 @@ interface ChatControllerOptions {
   annotationExplanationSkillInstructions: string;
   readingComprehensionSkillPath: string;
   readingComprehensionSkillInstructions: string;
+  segmentRetellingSkillPath: string;
+  segmentRetellingSkillInstructions: string;
   learningItemCreationSkillPath?: string;
   learningItemCreationSkillInstructions?: string;
   findLearningItemCandidates?(titles: string[]): Promise<LearningItem[]>;
@@ -68,6 +70,7 @@ const isolationConfig = Object.freeze({
 export function composeDeveloperInstructions(
   annotationExplanationSkillInstructions: string,
   readingComprehensionSkillInstructions: string,
+  segmentRetellingSkillInstructions: string,
   learningItemCreationSkillInstructions?: string
 ): string {
   const annotationSkill = annotationExplanationSkillInstructions.trim();
@@ -78,6 +81,10 @@ export function composeDeveloperInstructions(
   if (!readingSkill) {
     throw new Error("The built-in reading comprehension skill cannot be empty.");
   }
+  const retellingSkill = segmentRetellingSkillInstructions.trim();
+  if (!retellingSkill) {
+    throw new Error("The built-in segment retelling skill cannot be empty.");
+  }
   const creationSkill = learningItemCreationSkillInstructions?.trim();
   const instructions = [
     "You are the AI Conversation Panel in an English-learning EPUB reader.",
@@ -87,12 +94,13 @@ export function composeDeveloperInstructions(
     "Do not run tools, read arbitrary files, write files, or use the network.",
     `The only app-provided skills available are ${
       creationSkill
-        ? "explain-reader-annotations, practice-reading-comprehension, and create-learning-items"
-        : "explain-reader-annotations and practice-reading-comprehension"
+        ? "explain-reader-annotations, practice-reading-comprehension, practice-segment-retelling, and create-learning-items"
+        : "explain-reader-annotations, practice-reading-comprehension, and practice-segment-retelling"
     }.`,
     "Their complete instructions are already loaded below; do not discover, load, or use any other skill.",
     "Apply explain-reader-annotations only when the user input contains $explain-reader-annotations.",
     "Apply practice-reading-comprehension when the user input contains $practice-reading-comprehension. After this skill creates a quiz, continue using its assessment workflow when the user submits answers to that quiz in the same conversation, even without the marker. Do not apply it to unrelated turns.",
+    "Apply practice-segment-retelling when the user input contains $practice-segment-retelling. After this skill creates a task, continue using its grading workflow when the user submits $submit-segment-retelling for the same practice in this conversation. Allow at most two attempts and do not apply it to unrelated turns.",
     ...(creationSkill
       ? [
           "Apply create-learning-items when the user input contains $create-learning-items. Continue its clarification workflow only for the user's directly related answer in the same conversation. Do not apply it to unrelated turns.",
@@ -108,6 +116,9 @@ export function composeDeveloperInstructions(
     "</app-provided-skill>",
     "<app-provided-skill name=\"practice-reading-comprehension\">",
     readingSkill,
+    "</app-provided-skill>",
+    "<app-provided-skill name=\"practice-segment-retelling\">",
+    retellingSkill,
     "</app-provided-skill>",
     ...(creationSkill
       ? [
@@ -288,6 +299,19 @@ export function composeCodexInput(
       "Use the App-provided practice-reading-comprehension workflow for quiz creation and later grading."
     ].join("\n");
   }
+  if (input.intent === "practiceRetelling") {
+    return [
+      "$practice-segment-retelling",
+      ...base,
+      "",
+      "Retelling answer language: Detect and use the dominant language of the current reading segment.",
+      `Feedback language: ${language}.`,
+      "Do not provide a main-point, supporting-detail, outline, or model-answer hint.",
+      "Do not impose a word, sentence, or detail count.",
+      "Do not use or infer content outside the current reading segment.",
+      "Use the App-provided practice-segment-retelling workflow for preparation and both grading attempts."
+    ].join("\n");
+  }
   if (input.intent === "createLearningItems") {
     const targets = input.learningItemTargets ?? [];
     const creationLanguage = input.explanationLanguage === "source" ||
@@ -353,6 +377,7 @@ function composeTurnInput(
   input: SendChatMessageInput,
   annotationSkillPath: string,
   readingSkillPath: string,
+  retellingSkillPath: string,
   learningItemCreationSkillPath?: string,
   learningItemCandidates: LearningItem[] = []
 ): Array<Record<string, unknown>> {
@@ -372,6 +397,12 @@ function composeTurnInput(
       type: "skill",
       name: "practice-reading-comprehension",
       path: readingSkillPath
+    });
+  } else if (input.intent === "practiceRetelling") {
+    items.push({
+      type: "skill",
+      name: "practice-segment-retelling",
+      path: retellingSkillPath
     });
   } else if (input.intent === "createLearningItems") {
     if (!learningItemCreationSkillPath) {
@@ -480,6 +511,7 @@ export class ChatController {
     this.#developerInstructions = composeDeveloperInstructions(
       options.annotationExplanationSkillInstructions,
       options.readingComprehensionSkillInstructions,
+      options.segmentRetellingSkillInstructions,
       options.learningItemCreationSkillInstructions
     );
     try {
@@ -1065,6 +1097,7 @@ export class ChatController {
           requestInput,
           this.#options.annotationExplanationSkillPath,
           this.#options.readingComprehensionSkillPath,
+          this.#options.segmentRetellingSkillPath,
           this.#options.learningItemCreationSkillPath,
           learningItemCandidates
         )
@@ -1369,6 +1402,7 @@ export class ChatController {
           input,
           this.#options.annotationExplanationSkillPath,
           this.#options.readingComprehensionSkillPath,
+          this.#options.segmentRetellingSkillPath,
           this.#options.learningItemCreationSkillPath,
           candidates
         )

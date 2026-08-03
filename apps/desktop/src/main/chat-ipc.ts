@@ -44,6 +44,7 @@ function parseSendInput(value: unknown): SendChatMessageInput {
   if (value.intent !== undefined &&
     value.intent !== "explainAnnotations" &&
     value.intent !== "practiceReading" &&
+    value.intent !== "practiceRetelling" &&
     value.intent !== "createLearningItems") {
     throw new Error("Invalid AI message.");
   }
@@ -55,6 +56,8 @@ function parseSendInput(value: unknown): SendChatMessageInput {
     ? "explainAnnotations" as const
     : value.intent === "practiceReading"
       ? "practiceReading" as const
+      : value.intent === "practiceRetelling"
+        ? "practiceRetelling" as const
       : value.intent === "createLearningItems"
         ? "createLearningItems" as const
         : undefined;

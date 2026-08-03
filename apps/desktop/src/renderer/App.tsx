@@ -70,12 +70,14 @@ import {
   LearningItemDraftDialog
 } from "./LearningItemDraftDialog";
 import { ReadingPracticePaper } from "./ReadingPracticePaper";
+import { SegmentRetellingPractice } from "./SegmentRetellingPractice";
 import {
   SpacedReviewWorkspace,
   type ReviewWorkspaceStatus
 } from "./SpacedReviewWorkspace";
 import { SentencePracticeWorkspace } from "./SentencePracticeWorkspace";
 import { readingPracticeArtifacts } from "./reading-practice-artifact";
+import { segmentRetellingArtifacts } from "./segment-retelling-artifact";
 
 type WorkspaceMode =
   | "overview"
@@ -198,6 +200,7 @@ function ChatMessageContent({ text }: { text: string }) {
   );
   const visibleText = (routingOnly ? "" : text)
     .replace(/```reading-practice-(?:quiz|grade)\s*\n[\s\S]*?\n```/g, "")
+    .replace(/```reading-retelling-(?:task|grade)\s*\n[\s\S]*?\n```/g, "")
     .replace(/```learning-item-intent\s*\n[\s\S]*?(?:\n```|$)/g, "")
     .trim();
   return (
@@ -306,6 +309,8 @@ export function App() {
     useState<string>();
   const [expandedReadingPracticeQuizId, setExpandedReadingPracticeQuizId] =
     useState<string>();
+  const [expandedRetellingPracticeId, setExpandedRetellingPracticeId] =
+    useState<string>();
   const [learningLibraryRevision, setLearningLibraryRevision] = useState(0);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement>(null);
@@ -340,6 +345,10 @@ export function App() {
   );
   const readingPractice = useMemo(
     () => readingPracticeArtifacts(chatSnapshot.messages),
+    [chatSnapshot.messages]
+  );
+  const retellingPractice = useMemo(
+    () => segmentRetellingArtifacts(chatSnapshot.messages),
     [chatSnapshot.messages]
   );
   const rangeBoundariesOverlap = readingRange
@@ -1321,6 +1330,7 @@ export function App() {
       readingSegmentKey &&
       (extras.intent === "explainAnnotations" ||
         extras.intent === "practiceReading" ||
+        extras.intent === "practiceRetelling" ||
         extras.intent === "createLearningItems" ||
         readingSegmentKey !== lastProvidedReadingSegmentRef.current)
     );
@@ -1386,6 +1396,14 @@ export function App() {
     setExpandedReadingPracticeQuizId(undefined);
     return sendChatMessage("Start reading quiz", {
       intent: "practiceReading",
+      explanationLanguage: settings.explanationLanguage
+    });
+  }
+
+  async function practiceRetelling() {
+    setExpandedRetellingPracticeId(undefined);
+    return sendChatMessage("Start retelling practice", {
+      intent: "practiceRetelling",
       explanationLanguage: settings.explanationLanguage
     });
   }
@@ -2386,6 +2404,13 @@ export function App() {
                         messageQuiz &&
                         messageQuiz.quizId === readingPractice.quiz?.quizId
                       );
+                      const messageRetelling = segmentRetellingArtifacts([message]);
+                      const messageRetellingTask = messageRetelling.task;
+                      const isCurrentRetelling = Boolean(
+                        messageRetellingTask &&
+                        messageRetellingTask.practiceId ===
+                          retellingPractice.task?.practiceId
+                      );
                       return (
                         <article
                           aria-label={message.role === "assistant" ? "AI response" : "User message"}
@@ -2424,6 +2449,22 @@ export function App() {
                                 undefined
                               )}
                               onSubmit={(text) => sendChatMessage(text)}
+                            />
+                          ) : null}
+                          {isCurrentRetelling && messageRetellingTask ? (
+                            <SegmentRetellingPractice
+                              open={expandedRetellingPracticeId ===
+                                messageRetellingTask.practiceId}
+                              messages={chatSnapshot.messages}
+                              onOpen={() => setExpandedRetellingPracticeId(
+                                messageRetellingTask.practiceId
+                              )}
+                              onClose={() => setExpandedRetellingPracticeId(
+                                undefined
+                              )}
+                              onSubmit={(text) => sendChatMessage(text, {
+                                explanationLanguage: settings.explanationLanguage
+                              })}
                             />
                           ) : null}
                           {message.learningItemInvitation ? (
@@ -2468,7 +2509,12 @@ export function App() {
                   </div>
 
                   {mode === "reader" || mode === "learning-library" ? (
-                    <div className="chat-preset-bar" aria-label="Question shortcuts">
+                    <div
+                      className={mode === "reader"
+                        ? "chat-preset-bar reader-chat-preset-bar"
+                        : "chat-preset-bar"}
+                      aria-label="Question shortcuts"
+                    >
                       {mode === "reader" ? (
                         <button
                           className="annotation-analysis-preset"
@@ -2517,6 +2563,24 @@ export function App() {
                             <path d="M6.5 6.25h5M6.5 9h5M6.5 11.75h2.75" />
                           </svg>
                           <span>Reading quiz</span>
+                        </button>
+                      ) : null}
+                      {mode === "reader" ? (
+                        <button
+                          className="annotation-analysis-preset reading-practice-preset retelling-practice-preset"
+                          type="button"
+                          onClick={() => void practiceRetelling()}
+                          disabled={chatSnapshot.connection !== "ready" ||
+                            Boolean(chatSnapshot.activeTurnId) ||
+                            chatSnapshot.managementBusy ||
+                            isConversationActionPending ||
+                            !readingRange}
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 18 18">
+                            <path d="M4 4.25h8.25a2 2 0 0 1 2 2v5.5a2 2 0 0 1-2 2H7l-3 2v-11.5Z" />
+                            <path d="M6.5 7h5M6.5 9.5h3.75" />
+                          </svg>
+                          <span>Retelling practice</span>
                         </button>
                       ) : null}
                     </div>

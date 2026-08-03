@@ -32,6 +32,13 @@ const readingComprehensionSkillInstructions = [
   "Create 8 to 12 multiple-choice questions.",
   "Provide a final review after grading."
 ].join("\n");
+const segmentRetellingSkillPath =
+  "/tmp/vocabreader-codex-test/.agents/skills/practice-segment-retelling/SKILL.md";
+const segmentRetellingSkillInstructions = [
+  "name: practice-segment-retelling",
+  "Use the dominant language of the reading segment.",
+  "Foundational revision and Next-step revision."
+].join("\n");
 const learningItemCreationSkillPath =
   "/tmp/vocabreader-codex-test/.agents/skills/create-learning-items/SKILL.md";
 const learningItemCreationSkillInstructions = readFileSync(resolve(
@@ -92,6 +99,8 @@ function fixture(options: Parameters<typeof createFakeCodexAppServer>[0] = {}) {
     annotationExplanationSkillInstructions,
     readingComprehensionSkillPath,
     readingComprehensionSkillInstructions,
+    segmentRetellingSkillPath,
+    segmentRetellingSkillInstructions,
     learningItemCreationSkillPath,
     learningItemCreationSkillInstructions,
     findLearningItemCandidates: async (titles: string[]) =>
@@ -127,6 +136,8 @@ function managedFixture(
     annotationExplanationSkillInstructions,
     readingComprehensionSkillPath,
     readingComprehensionSkillInstructions,
+    segmentRetellingSkillPath,
+    segmentRetellingSkillInstructions,
     learningItemCreationSkillPath,
     learningItemCreationSkillInstructions,
     findLearningItemCandidates: learningOptions.findLearningItemCandidates ??
@@ -335,6 +346,15 @@ describe("ChatController", () => {
     });
     await waitUntil(() => controller.getSnapshot().activeTurnId === null);
     await controller.sendMessage({
+      text: "Start retelling practice",
+      intent: "practiceRetelling",
+      explanationLanguage: "zh-TW",
+      context: {
+        readingSegment: "<reading-segment>A short passage.</reading-segment>"
+      }
+    });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+    await controller.sendMessage({
       text: "Explain annotations",
       intent: "explainAnnotations",
       explanationLanguage: "zh-TW",
@@ -364,6 +384,7 @@ describe("ChatController", () => {
     );
     expect(loadedInstructions).toContain("explain-reader-annotations");
     expect(loadedInstructions).toContain("practice-reading-comprehension");
+    expect(loadedInstructions).toContain("practice-segment-retelling");
     expect(loadedInstructions).toContain("create-learning-items");
     expect(loadedInstructions).toContain(
       "Judge the item as used in this passage, not in isolation"
@@ -375,7 +396,7 @@ describe("ChatController", () => {
     expect(loadedInstructions).toContain(
       "continue using its assessment workflow"
     );
-    expect(loadedInstructions.match(/<app-provided-skill /g)).toHaveLength(3);
+    expect(loadedInstructions.match(/<app-provided-skill /g)).toHaveLength(4);
     expect(loadedInstructions).not.toContain("Available skills:");
     expect(threadStart?.params?.config).toMatchObject({
       "skills.include_instructions": false,
@@ -385,8 +406,9 @@ describe("ChatController", () => {
     });
     const ordinaryInput = turnStarts[0]?.params?.input;
     const practiceInput = turnStarts[1]?.params?.input;
-    const explanationInput = turnStarts[2]?.params?.input;
-    const creationInput = turnStarts[3]?.params?.input;
+    const retellingInput = turnStarts[2]?.params?.input;
+    const explanationInput = turnStarts[3]?.params?.input;
+    const creationInput = turnStarts[4]?.params?.input;
     expect(ordinaryInput).toEqual([
       expect.objectContaining({ type: "text" })
     ]);
@@ -403,6 +425,17 @@ describe("ChatController", () => {
       }
     ]);
     expect(JSON.stringify(practiceInput)).not.toContain("explain-reader-annotations");
+    expect(retellingInput).toEqual([
+      expect.objectContaining({
+        type: "text",
+        text: expect.stringContaining("$practice-segment-retelling")
+      }),
+      {
+        type: "skill",
+        name: "practice-segment-retelling",
+        path: segmentRetellingSkillPath
+      }
+    ]);
     expect(explanationInput).toEqual([
       expect.objectContaining({
         type: "text",
@@ -1675,6 +1708,8 @@ describe("ChatController", () => {
       annotationExplanationSkillInstructions,
       readingComprehensionSkillPath,
       readingComprehensionSkillInstructions,
+      segmentRetellingSkillPath,
+      segmentRetellingSkillInstructions,
       conversationStore: store
     });
     await controller.connect();
@@ -1741,6 +1776,8 @@ describe("ChatController", () => {
       annotationExplanationSkillInstructions,
       readingComprehensionSkillPath,
       readingComprehensionSkillInstructions,
+      segmentRetellingSkillPath,
+      segmentRetellingSkillInstructions,
       conversationStore: store
     });
     await controller.connect();
@@ -1766,6 +1803,8 @@ describe("ChatController", () => {
       annotationExplanationSkillInstructions,
       readingComprehensionSkillPath,
       readingComprehensionSkillInstructions,
+      segmentRetellingSkillPath,
+      segmentRetellingSkillInstructions,
       conversationStore: store,
       createConversationId: () => "conversation-a"
     });
@@ -1794,6 +1833,8 @@ describe("ChatController", () => {
       annotationExplanationSkillInstructions,
       readingComprehensionSkillPath,
       readingComprehensionSkillInstructions,
+      segmentRetellingSkillPath,
+      segmentRetellingSkillInstructions,
       conversationStore: store,
       createConversationId: () => "conversation-a"
     });
@@ -2021,6 +2062,25 @@ describe("composeCodexInput", () => {
     expect(result).toContain("Do not use or infer content outside");
     expect(result).not.toContain("exactly 4");
     expect(result).not.toContain("3 to 10");
+  });
+
+  it("delegates source-language retelling with localized feedback to its fixed skill", () => {
+    const result = composeCodexInput({
+      text: "Start retelling practice",
+      intent: "practiceRetelling" as never,
+      explanationLanguage: "zh-TW",
+      context: {
+        readingSegment: "<reading-segment>An English passage.</reading-segment>"
+      }
+    });
+
+    expect(result).toContain("$practice-segment-retelling");
+    expect(result).toContain(
+      "Retelling answer language: Detect and use the dominant language of the current reading segment"
+    );
+    expect(result).toContain("Feedback language: Traditional Chinese");
+    expect(result).toContain("Do not impose a word, sentence, or detail count");
+    expect(result).toContain("Do not use or infer content outside");
   });
 });
 

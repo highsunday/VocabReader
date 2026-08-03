@@ -1429,7 +1429,7 @@ describe("App", () => {
     expect(review.gradePaper).toHaveBeenCalledOnce();
   });
 
-  it("orders reader chat presets as explanation, card creation, then practice", async () => {
+  it("orders reader chat presets as explanation, card creation, quiz, then retelling", async () => {
     installLibraryApi();
     render(<App />);
 
@@ -1438,14 +1438,21 @@ describe("App", () => {
     await screen.findByLabelText("Opening chapter content");
 
     const readerPresetBar = screen.getByLabelText("Question shortcuts");
+    expect(readerPresetBar).toHaveClass("reader-chat-preset-bar");
     expect(Array.from(readerPresetBar.querySelectorAll("button")).map(
       (button) => button.textContent?.trim()
-    )).toEqual(["Explain annotations", "Add cards", "Reading quiz"]);
+    )).toEqual([
+      "Explain annotations",
+      "Add cards",
+      "Reading quiz",
+      "Retelling practice"
+    ]);
 
     fireEvent.click(screen.getByRole("button", { name: /Library 1/ }));
     await screen.findByRole("heading", { name: "Learning Library" });
 
     const libraryPresetBar = screen.getByLabelText("Question shortcuts");
+    expect(libraryPresetBar).not.toHaveClass("reader-chat-preset-bar");
     expect(Array.from(libraryPresetBar.querySelectorAll("button")).map(
       (button) => button.textContent?.trim()
     )).toEqual(["Add cards"]);
@@ -2904,7 +2911,7 @@ describe("App", () => {
       clientX: 120,
       clientY: 180
     });
-    expect(screen.getByRole("menuitem", { name: "Move start here" }))
+    expect(await screen.findByRole("menuitem", { name: "Move start here" }))
       .toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "Annotate selection" }));
     await waitFor(() => expect(saveAnnotations).toHaveBeenCalledTimes(1));
@@ -3038,7 +3045,7 @@ describe("App", () => {
     });
   });
 
-  it("uses the selected explanation language for annotation analysis and reading quiz presets", async () => {
+  it("uses the selected explanation language for annotation analysis, quiz, and retelling presets", async () => {
     const chapterText = "He was reluctant.";
     const rangedBook: LibraryBook = {
       ...books[0],
@@ -3103,6 +3110,19 @@ describe("App", () => {
     await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
       text: "Start reading quiz",
       intent: "practiceReading",
+      explanationLanguage: "ja",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: '<reading-segment>He was <reader-annotation id="A1">reluctant</reader-annotation>.</reading-segment>'
+      }
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Retelling practice" }));
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      text: "Start retelling practice",
+      intent: "practiceRetelling",
       explanationLanguage: "ja",
       context: {
         bookTitle: "The First Book",
@@ -3288,6 +3308,77 @@ describe("App", () => {
     expect(screen.getByRole("button", {
       name: "Open paper: The Old Bridge"
     })).toBeInTheDocument();
+  });
+
+  it("starts and expands a retelling paper inside its AI message while the passage stays visible", async () => {
+    const chapterText = "Long-term returns can compound over time.";
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: chapterText.length } }
+    };
+    const task = {
+      version: 1,
+      kind: "task",
+      practiceId: "retelling-bridge",
+      title: "Retell compound growth",
+      answerLanguage: "English",
+      answerInstruction: "請使用英文表達原意或復述。"
+    };
+    const taskSnapshot: ChatSnapshot = {
+      ...initialReadySnapshot(),
+      messages: [{
+        id: "assistant-retelling",
+        turnId: "turn-retelling",
+        role: "assistant",
+        text: `練習已準備好。\n\n\`\`\`reading-retelling-task\n${JSON.stringify(task)}\n\`\`\``,
+        status: "completed"
+      }]
+    };
+    const sendMessage = vi.fn().mockResolvedValue(taskSnapshot);
+    const { getChapterContent } = installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(initialReadySnapshot()),
+      connect: vi.fn().mockResolvedValue(initialReadySnapshot()),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+    await waitFor(() => expect(screen.getByRole("button", {
+      name: "Reading segment end"
+    })).toHaveAttribute("data-text-offset", String(chapterText.length)));
+
+    const preset = screen.getByRole("button", { name: "Retelling practice" });
+    expect(preset).toBeEnabled();
+    fireEvent.click(preset);
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+      text: "Start retelling practice",
+      intent: "practiceRetelling",
+      explanationLanguage: "source",
+      context: {
+        bookTitle: "The First Book",
+        chapterTitle: "Opening",
+        readingSegment: `<reading-segment>${chapterText}</reading-segment>`
+      }
+    }));
+
+    const action = await screen.findByRole("button", {
+      name: "Open retelling practice: Retell compound growth"
+    });
+    const assistantMessage = action.closest("article");
+    fireEvent.click(action);
+    const paper = screen.getByRole("region", { name: "Retell compound growth" });
+    expect(assistantMessage).toContainElement(paper);
+    expect(article).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("turns annotation mode off when switching chapters", async () => {
