@@ -138,14 +138,27 @@ describe("SegmentRetellingPractice", () => {
     expect(screen.getByLabelText("Retelling attempt 1")).toBeDisabled();
   });
 
-  it("shows feedback, two revisions and the three-part score in teaching order", () => {
+  it("shows the original answer, two revisions and score without the feedback card grid", () => {
+    const originalAnswer = "The author shell a story about something she experenced before.";
     render(
       <SegmentRetellingPractice
         open
-        messages={messages(
-          ["reading-retelling-task", task],
-          ["reading-retelling-grade", firstGrade]
-        )}
+        messages={[
+          ...messages(["reading-retelling-task", task]),
+          {
+            role: "user",
+            text: [
+              "$submit-segment-retelling",
+              "Practice ID: retelling-one",
+              "Attempt: 1",
+              "Answer language: English",
+              "",
+              "Learner retelling:",
+              originalAnswer
+            ].join("\n")
+          } as const,
+          ...messages(["reading-retelling-grade", firstGrade])
+        ]}
         onOpen={vi.fn()}
         onClose={vi.fn()}
         onSubmit={vi.fn()}
@@ -153,22 +166,27 @@ describe("SegmentRetellingPractice", () => {
     );
 
     const paper = screen.getByRole("region", { name: "Retell this passage" });
-    const feedback = within(paper).getByRole("heading", { name: "Feedback" });
     const foundation = within(paper).getByRole("heading", {
       name: "Foundational revision"
+    });
+    const original = within(paper).getByRole("heading", {
+      name: "Attempt 1 — Your original response"
     });
     const nextStep = within(paper).getByRole("heading", {
       name: "Next-step revision"
     });
     const score = within(paper).getByRole("heading", { name: "Score" });
-    expect(feedback.compareDocumentPosition(foundation) &
+    expect(original.compareDocumentPosition(foundation) &
       Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(foundation.compareDocumentPosition(nextStep) &
       Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(nextStep.compareDocumentPosition(score) &
       Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText("作者沒有主張忽略風險。"))
-      .toBeInTheDocument();
+    expect(screen.queryByText("What you conveyed well")).not.toBeInTheDocument();
+    expect(screen.queryByText("Content corrections")).not.toBeInTheDocument();
+    expect(screen.queryByText("Important omissions")).not.toBeInTheDocument();
+    expect(screen.queryByText("Language improvements")).not.toBeInTheDocument();
+    expect(screen.getByText(originalAnswer)).toBeInTheDocument();
     expect(screen.getByText(firstGrade.foundationalRevision))
       .toBeInTheDocument();
     expect(screen.getByText(firstGrade.nextStepRevision)).toBeInTheDocument();

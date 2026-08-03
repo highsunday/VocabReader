@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatSegmentRetellingSubmission,
+  segmentRetellingAnswers,
   segmentRetellingArtifacts
 } from "./segment-retelling-artifact";
 
@@ -126,5 +127,29 @@ describe("segment retelling artifacts", () => {
         "Learner retelling:",
         "My own retelling."
       ].join("\n"));
+  });
+
+  it("restores both original answers from persisted user submissions", () => {
+    expect(segmentRetellingAnswers([
+      {
+        role: "user",
+        text: formatSegmentRetellingSubmission(task, 1, "First line.\nSecond line.")
+      },
+      {
+        role: "user",
+        text: formatSegmentRetellingSubmission(
+          { ...task, practiceId: "another-practice" },
+          1,
+          "Unrelated answer."
+        )
+      },
+      {
+        role: "user",
+        text: formatSegmentRetellingSubmission(task, 2, "Improved answer.")
+      }
+    ], task.practiceId)).toEqual([
+      "First line.\nSecond line.",
+      "Improved answer."
+    ]);
   });
 });

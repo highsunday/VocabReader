@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   formatSegmentRetellingSubmission,
+  segmentRetellingAnswers,
   segmentRetellingArtifacts
 } from "./segment-retelling-artifact";
 import type {
@@ -60,7 +61,13 @@ function FeedbackList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function GradeResult({ grade }: { grade: SegmentRetellingGrade }) {
+function GradeResult({
+  grade,
+  originalAnswer
+}: {
+  grade: SegmentRetellingGrade;
+  originalAnswer: string;
+}) {
   const scoreCards = [
     ["Accuracy", grade.scores.accuracy],
     ["Completeness", grade.scores.completeness],
@@ -68,17 +75,12 @@ function GradeResult({ grade }: { grade: SegmentRetellingGrade }) {
   ] as const;
   return (
     <div className="retelling-grade-result">
-      <div className="paper-section-heading">
-        <span>Attempt {grade.attempt}</span>
-        <h3>Feedback</h3>
-        <small>Understanding first, then expression</small>
-      </div>
-      <div className="retelling-feedback-grid">
-        <FeedbackList title="What you conveyed well" items={grade.feedback.strengths} />
-        <FeedbackList title="Content corrections" items={grade.feedback.contentCorrections} />
-        <FeedbackList title="Important omissions" items={grade.feedback.omissions} />
-        <FeedbackList title="Language improvements" items={grade.feedback.languageImprovements} />
-      </div>
+      {originalAnswer ? (
+        <section className="retelling-revision-card original-response">
+          <h3>Attempt {grade.attempt} — Your original response</h3>
+          <p className="retelling-original-text">{originalAnswer}</p>
+        </section>
+      ) : null}
 
       <section className="retelling-revision-card">
         <h3>Foundational revision</h3>
@@ -128,6 +130,12 @@ export function SegmentRetellingPractice({
   const { task, grades } = useMemo(
     () => segmentRetellingArtifacts(messages),
     [messages]
+  );
+  const submittedAnswers = useMemo(
+    () => task
+      ? segmentRetellingAnswers(messages, task.practiceId)
+      : (["", ""] as [string, string]),
+    [messages, task]
   );
   const [practiceId, setPracticeId] = useState<string>();
   const [answers, setAnswers] = useState<[string, string]>(["", ""]);
@@ -231,7 +239,14 @@ export function SegmentRetellingPractice({
       </header>
 
       <div className="reading-practice-paper-body retelling-paper-body">
-        {grades.map((grade) => <GradeResult grade={grade} key={grade.attempt} />)}
+        {grades.map((grade) => (
+          <GradeResult
+            grade={grade}
+            originalAnswer={submittedAnswers[grade.attempt - 1] ||
+              answers[grade.attempt - 1]}
+            key={grade.attempt}
+          />
+        ))}
 
         {showEditor ? (
           <section className="retelling-editor-section">

@@ -185,6 +185,33 @@ export function segmentRetellingArtifacts(messages: ArtifactMessage[]): {
   return { task, grades };
 }
 
+export function segmentRetellingAnswers(
+  messages: ArtifactMessage[],
+  practiceId: string
+): [string, string] {
+  const answers: [string, string] = ["", ""];
+  const submissionPattern = [
+    /^\$submit-segment-retelling\r?\n/,
+    /Practice ID: ([^\r\n]+)\r?\n/,
+    /Attempt: ([12])\r?\n/,
+    /Answer language: [^\r\n]+\r?\n/,
+    /\r?\nLearner retelling:\r?\n([\s\S]+)$/
+  ].map((part) => part.source).join("");
+  const expression = new RegExp(submissionPattern);
+
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    const match = message.text.match(expression);
+    if (!match || match[1] !== practiceId) continue;
+    const attempt = Number(match[2]);
+    const answer = match[3].trim();
+    if ((attempt === 1 || attempt === 2) && answer) {
+      answers[attempt - 1] = answer;
+    }
+  }
+  return answers;
+}
+
 export function formatSegmentRetellingSubmission(
   task: SegmentRetellingTask,
   attempt: 1 | 2,
