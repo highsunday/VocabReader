@@ -20,10 +20,11 @@ import type {
   CodexAppServerClient,
   CodexNotification
 } from "./codex-app-server-client";
-import type {
-  ChatConversationStore,
-  StoredChatConversation,
-  StoredChatState
+import {
+  limitStoredChatConversations,
+  type ChatConversationStore,
+  type StoredChatConversation,
+  type StoredChatState
 } from "./chat-conversation-store";
 import { parseLearningItemArtifacts } from "./learning-item-artifacts";
 import { learningItemBatchFromUnknown } from "./learning-item-artifacts";
@@ -1067,6 +1068,7 @@ export class ChatController {
           messages: []
         };
         this.#conversations.push(conversation);
+        this.#conversations = limitStoredChatConversations(this.#conversations);
         this.#activateConversation(conversation, true);
       }
 

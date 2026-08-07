@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-08-03
+last_updated: 2026-08-07
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -31,6 +31,7 @@ related_implements:
   - B16-scroll-ai-conversation-after-user-message
   - F43-refresh-codex-allowance-every-minute
   - F49-segment-retelling-practice
+  - F50-limit-ai-conversation-history
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -66,6 +67,8 @@ related_implements:
 - 空白新對話送出第一個問題後才建立產品對話與 Codex thread；後續追問在相同 thread 建立新 turn。
 - 右側面板可開啟跨書籍共用的全域對話清單、建立新對話、切換過去對話及直接移除；移除時不顯示確認視窗。
 - 每筆對話保存產品對話 id、Codex thread id、標題、時間、來源摘要及顯示訊息；重啟恢復上次查看的對話。
+- 全域對話紀錄只保留 `updatedAt` 最近的 10 筆；建立第 11 筆時立即淘汰最久未更新的
+  本機紀錄，載入及保存舊版超量資料時也套用相同上限，但不裁切保留對話內的訊息。
 - 延續過去對話時使用 `thread/resume` 恢復相同 thread；移除時使用 `thread/archive`，本機保存失敗會嘗試 `thread/unarchive` 回滾。
 - 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
 - START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」、「閱讀測驗」與「復述練習」每次都附上當下區段。
@@ -126,6 +129,7 @@ related_implements:
 - Codex thread／turn 生命週期與串流 notification 投影。
 - `turn/interrupt` 停止流程，以及 starting 狀態等待真實 turn id 的同步。
 - 新對話、切換、恢復、封存與管理操作互斥。
+- 新對話建立後立即套用最近 10 筆上限，確保 snapshot 與本機保存狀態一致。
 - 把產品層提供的結構化 context 組成單次 Codex 文字 input。
 - 驗證 `learning-item-intent` routing artifact，協調 AI 路由、exact-title 候選查詢與
   內部 creation turn，並保存準備、失敗、完成及重試狀態。
@@ -141,6 +145,8 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 驗證並載入 VocabReader 自有的全域對話資料，不匯入其他 Codex／ChatGPT 對話。
 - 以暫存檔加原子替換保存對話集合與上次選取狀態。
 - 讀取時把未完成的 streaming 訊息正規化為 failed。
+- 載入及保存時只保留最近更新的 10 筆 AI 對話；若上次選取項目被淘汰，選取狀態
+  正規化為空白新對話。
 - 遇到損壞資料時保留原檔並回報錯誤，不自動覆寫。
 
 ### Electron IPC and Preload
@@ -188,7 +194,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 | `threadId` | 目前 AI 對話對應的 Codex thread id；空白新對話時為 null |
 | `activeTurnId` | 目前回答識別碼；建立中使用內部 starting 狀態，閒置時為 null |
 | `messages` | 訊息狀態，以及可選 preparation／learning request／invitation／draft batch／artifact error；preparation 附著於原始 user message，保存 targets、語言與 preparing／failed／completed 狀態 |
-| `conversations` | 依最近更新排序的全域對話摘要，不包含完整訊息複本 |
+| `conversations` | 依最近更新排序、最多 10 筆的全域對話摘要，不包含完整訊息複本 |
 | `activeConversationId` | 目前選取的產品對話 id；空白新對話時為 null |
 | `managementBusy` | 封存等管理操作是否進行中 |
 | `conversationError` | 本機保存、恢復或移除對話的可顯示錯誤 |
@@ -267,7 +273,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - notification 必須先驗證 thread id；其他 thread 的訊息不得進入目前對話。
 - item completed 是 canonical 最終文字，必須取代而非重複附加 delta。
 - VocabReader 對話索引只收錄本產品建立的 thread；不把使用者帳戶中的其他 Codex 對話混入清單。
-- 對話資料只存本機，不提供跨裝置同步；空白新對話在第一則訊息前不持久化。
+- 對話資料只存本機，不提供跨裝置同步；空白新對話在第一則訊息前不持久化，已建立的
+  對話只保留最近更新 10 筆。
 - `apps/server` 的 Fastify `AiGateway` 仍維持 unconfigured；本機 Codex 生命週期不由桌面與 HTTP server 重複管理。
 
 ## 8. Key Files
@@ -303,9 +310,9 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 
 | Test file | Coverage |
 |---|---|
-| `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、重啟 streaming 正規化與損壞資料隔離 |
+| `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、最近 10 筆上限、完整訊息保留、重啟 streaming 正規化與損壞資料隔離 |
 | `apps/desktop/src/main/codex-app-server-client.test.ts` | Windows Desktop native CLI discovery、npm shim fallback 與非 Windows 啟動 |
-| `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、每分鐘額度刷新與停止清理、四個對話 skills、creation 候選範圍、持久澄清與批次生命週期 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、最近 10 筆上限、每分鐘額度刷新與停止清理、四個對話 skills、creation 候選範圍、持久澄清與批次生命週期 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill 的 CEFR、8–12／1–3 題、混合題型、批改、語言與 final review 契約 |
 | `apps/desktop/src/main/bundled-skill.test.ts` | App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 與預設意圖白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
@@ -316,9 +323,10 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/renderer/segment-retelling-artifact.test.ts` | 復述 artifact、分數、attempt、比較與提交格式 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、runtime skills、typed bridges 與 Node 隔離 |
 
-最近驗證（2026-07-30）：
+最近驗證（2026-08-07）：
 
-- Desktop Vitest：323 tests passed。
+- Server Vitest：3 tests passed。
+- Desktop Vitest：382 tests passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
 
@@ -326,6 +334,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 
 - 不提供對話搜尋、篩選、釘選、重新命名、匯出、垃圾桶或復原。
 - 對話只保存在本機，不提供帳戶或跨裝置同步。
+- 只保留最近更新的 10 筆 AI 對話；被自動淘汰的本機紀錄不提供垃圾桶或復原，也不會
+  自動封存底層 Codex thread。
 - 模型選擇不為每筆 AI 對話個別保存，重新啟動時回到 Codex 模型目錄的 server default。
 - AI 對話面板的調整寬度只保留於目前工作階段，重新啟動後回到 360px。
 - 不提供推理強度、API key、字型、行高、主題或每筆 AI 對話個別字體設定。
@@ -364,5 +374,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/F28-ai-graded-spaced-review-paper.md`
 - `documents/implements/F43-refresh-codex-allowance-every-minute.md`
 - `documents/implements/F49-segment-retelling-practice.md`
+- `documents/implements/F50-limit-ai-conversation-history.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

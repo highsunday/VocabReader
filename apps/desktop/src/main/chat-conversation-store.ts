@@ -40,6 +40,27 @@ export interface ChatConversationStore {
   save(state: StoredChatState): void;
 }
 
+export const MAX_STORED_CHAT_CONVERSATIONS = 10;
+
+export function limitStoredChatConversations(
+  conversations: StoredChatConversation[]
+): StoredChatConversation[] {
+  if (conversations.length <= MAX_STORED_CHAT_CONVERSATIONS) {
+    return conversations;
+  }
+  const retainedIndexes = new Set(conversations
+    .map((conversation, index) => ({ conversation, index }))
+    .sort((left, right) =>
+      right.conversation.updatedAt - left.conversation.updatedAt ||
+      right.conversation.createdAt - left.conversation.createdAt ||
+      right.index - left.index)
+    .slice(0, MAX_STORED_CHAT_CONVERSATIONS)
+    .map(({ index }) => index));
+  return conversations.filter(
+    (_conversation, index) => retainedIndexes.has(index)
+  );
+}
+
 const emptyState = (): StoredChatState => ({
   version: 2,
   selectedConversationId: null,
@@ -192,10 +213,17 @@ function parseState(value: unknown): StoredChatState {
     !Array.isArray(value.conversations)) {
     throw new Error("Invalid local AI conversation history.");
   }
+  const conversations = limitStoredChatConversations(
+    value.conversations.map(parseConversation)
+  );
+  const selectedConversationId = value.selectedConversationId &&
+    conversations.some(({ id }) => id === value.selectedConversationId)
+    ? value.selectedConversationId
+    : null;
   return {
     version: 2,
-    selectedConversationId: value.selectedConversationId,
-    conversations: value.conversations.map(parseConversation)
+    selectedConversationId,
+    conversations
   };
 }
 

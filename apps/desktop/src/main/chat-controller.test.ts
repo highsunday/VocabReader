@@ -673,6 +673,38 @@ describe("ChatController", () => {
     controller.close();
   });
 
+  it("keeps only the ten most recently updated conversations when creating an eleventh", async () => {
+    const store = new MemoryChatConversationStore({
+      version: 2,
+      selectedConversationId: null,
+      conversations: Array.from({ length: 10 }, (_, index) => ({
+        id: `old-conversation-${index + 1}`,
+        threadId: `old-thread-${index + 1}`,
+        title: `Old conversation ${index + 1}`,
+        createdAt: index + 1,
+        updatedAt: index + 1,
+        source: null,
+        messages: []
+      }))
+    });
+    const { controller } = managedFixture(store);
+    await controller.connect();
+
+    await controller.sendMessage({ text: "Newest conversation" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.conversations).toHaveLength(10);
+    expect(snapshot.conversations.map(({ id }) => id))
+      .not.toContain("old-conversation-1");
+    expect(snapshot.activeConversationId).toBe("conversation-1");
+    expect(snapshot.messages).toHaveLength(2);
+    expect(store.state.conversations).toHaveLength(10);
+    expect(store.state.conversations.map(({ id }) => id))
+      .not.toContain("old-conversation-1");
+    controller.close();
+  });
+
   it("restores the last selected conversation and messages from local state", async () => {
     const store = new MemoryChatConversationStore({
       version: 1,

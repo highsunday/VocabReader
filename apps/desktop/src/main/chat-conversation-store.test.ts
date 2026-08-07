@@ -84,6 +84,56 @@ describe("LocalChatConversationStore", () => {
     expect(await readFile(path, "utf8")).toBe("{corrupt");
   });
 
+  it("loads only the ten most recently updated conversations without trimming their messages", async () => {
+    const directory = await temporaryDirectory();
+    const path = join(directory, "conversations.json");
+    const conversations = Array.from({ length: 12 }, (_, index) => ({
+      id: `conversation-${index + 1}`,
+      threadId: `thread-${index + 1}`,
+      title: `Conversation ${index + 1}`,
+      createdAt: index + 1,
+      updatedAt: index + 1,
+      source: null,
+      messages: Array.from({ length: 11 }, (_, messageIndex) => ({
+        id: `message-${index + 1}-${messageIndex + 1}`,
+        turnId: `turn-${index + 1}-${messageIndex + 1}`,
+        role: messageIndex % 2 === 0
+          ? "user" as const
+          : "assistant" as const,
+        text: `Message ${messageIndex + 1}`,
+        status: "completed" as const
+      }))
+    }));
+    await writeFile(path, JSON.stringify({
+      version: 2,
+      selectedConversationId: "conversation-1",
+      conversations
+    }), "utf8");
+
+    const store = new LocalChatConversationStore(directory);
+    const loaded = store.load();
+
+    expect(loaded.selectedConversationId).toBeNull();
+    expect(loaded.conversations.map(({ id }) => id)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `conversation-${index + 3}`)
+    );
+    expect(loaded.conversations.at(-1)?.messages).toHaveLength(11);
+
+    store.save({
+      version: 2,
+      selectedConversationId: "conversation-12",
+      conversations
+    });
+    const saved = JSON.parse(await readFile(path, "utf8"));
+    expect(saved).toMatchObject({
+      selectedConversationId: "conversation-12",
+      conversations: expect.arrayContaining([
+        expect.objectContaining({ id: "conversation-12" })
+      ])
+    });
+    expect(saved.conversations).toHaveLength(10);
+  });
+
   it("migrates version-one conversations and persists learning-item artifacts", async () => {
     const directory = await temporaryDirectory();
     const path = join(directory, "conversations.json");
