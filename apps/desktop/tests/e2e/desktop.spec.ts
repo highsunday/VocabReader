@@ -66,6 +66,13 @@ test("launches the secure Electron reading shell", async () => {
       .toContain("review-grade");
     await expect(page).toHaveTitle("VocabReader");
     await expect(page.getByText("VocabReader", { exact: true })).toBeVisible();
+    const brandIcon = page.locator("img.brand-mark");
+    await expect(brandIcon).toBeVisible();
+    await expect(brandIcon).toHaveAttribute(
+      "src",
+      /vocabreader-language-learning-v6/
+    );
+    await expect(brandIcon).toHaveAttribute("alt", "");
     await expect(
       page.getByRole("heading", { name: "Import an EPUB to start reading" })
     ).toBeVisible();

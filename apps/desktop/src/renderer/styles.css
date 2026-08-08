@@ -68,13 +68,10 @@ button {
 .brand-mark {
   width: 38px;
   height: 38px;
-  border-radius: 11px 11px 11px 4px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: #365e47;
-  font-family: Georgia, serif;
-  font-size: 22px;
+  flex: 0 0 auto;
+  display: block;
+  object-fit: contain;
+  user-select: none;
 }
 
 .brand div {

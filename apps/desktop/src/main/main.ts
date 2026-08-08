@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import vocabReaderIconAsset from "../../assets/icon/vocabreader-language-learning-v6.png";
 import annotationExplanationSkillMarkdown from "../../../../.agents/skills/explain-reader-annotations/SKILL.md";
 import learningItemCreationSkillMarkdown from "../../../../.agents/skills/create-learning-items/SKILL.md";
 import learningItemEditSkillMarkdown from "../../../../.agents/skills/edit-learning-item/SKILL.md";
@@ -45,6 +46,7 @@ let chatController: ChatController | undefined;
 let unsubscribeChatState: (() => void) | undefined;
 let learningLibraryForShutdown: LocalLearningLibrary | undefined;
 let learningItemEditController: LearningItemEditController | undefined;
+const vocabReaderIconPath = join(__dirname, vocabReaderIconAsset);
 
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -53,6 +55,7 @@ function createMainWindow(): BrowserWindow {
     minWidth: 1080,
     minHeight: 720,
     title: "VocabReader",
+    icon: vocabReaderIconPath,
     backgroundColor: "#f5f1e8",
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),
@@ -81,6 +84,10 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === "darwin" && app.dock) {
+    app.dock.setIcon(vocabReaderIconPath);
+  }
+
   const libraryPath =
     process.env.NODE_ENV === "test"
       ? join(app.getPath("temp"), `vocabreader-library-test-${process.pid}`)

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import vocabReaderIconUrl from "../../assets/icon/vocabreader-language-learning-v6.png";
 import type {
   ChatDesktopApi,
   ChatConversationSummary,
@@ -1551,7 +1552,13 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">V</span>
+          <img
+            alt=""
+            aria-hidden="true"
+            className="brand-mark"
+            draggable={false}
+            src={vocabReaderIconUrl}
+          />
           <div>
             <strong>VocabReader</strong>
             <span>Read first. Learn deeply.</span>

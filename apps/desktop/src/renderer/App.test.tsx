@@ -279,6 +279,23 @@ function initialReadySnapshot(): ChatSnapshot {
 }
 
 describe("App", () => {
+  it("shows the official VocabReader icon in the top-bar brand", () => {
+    installLibraryApi();
+    const { container } = render(<App />);
+
+    const brandMark = container.querySelector(".brand-mark");
+    expect(brandMark?.tagName).toBe("IMG");
+    expect(brandMark).toHaveAttribute(
+      "src",
+      expect.stringContaining("vocabreader-language-learning-v6")
+    );
+    expect(brandMark).toHaveAttribute("alt", "");
+    expect(brandMark).toHaveAttribute("aria-hidden", "true");
+    expect(brandMark).not.toHaveTextContent("V");
+    expect(screen.getByText("VocabReader", { exact: true })).toBeVisible();
+    expect(screen.getByText("Read first. Learn deeply.")).toBeVisible();
+  });
+
   it("offers ZIP data backup export and restore from settings", async () => {
     installLibraryApi();
     render(<App />);
