@@ -4,12 +4,14 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   installBundledAnnotationSkill,
+  installBundledLearningItemEditSkill,
   installBundledLearningItemCreationSkill,
   installBundledReadingComprehensionSkill,
   installBundledSegmentRetellingSkill,
   installBundledSentencePracticeSkill,
   installBundledSpacedReviewSkill
 } from "./bundled-skill";
+import * as bundledSkillModule from "./bundled-skill";
 
 const roots: string[] = [];
 
@@ -62,6 +64,30 @@ describe("installBundledAnnotationSkill", () => {
     expect(readFileSync(updated.path, "utf8")).toBe("bundled-v2");
     expect(() => readFileSync(join(dirname(updated.path), "SKILL.md.next")))
       .toThrow();
+  });
+});
+
+describe("installBundledLearningItemEditSkill", () => {
+  it("installs the bounded learning-item edit skill", () => {
+    expect(
+      (bundledSkillModule as Record<string, unknown>)
+        .installBundledLearningItemEditSkill
+    ).toBeTypeOf("function");
+    const runtimePath = runtimeRoot();
+    const installed = installBundledLearningItemEditSkill(
+      runtimePath,
+      "bounded learning-item editing instructions"
+    );
+
+    expect(installed).toEqual({
+      path: join(
+        runtimePath,
+        ".agents/skills/edit-learning-item/SKILL.md"
+      ),
+      status: "installed"
+    });
+    expect(readFileSync(installed.path, "utf8"))
+      .toBe("bounded learning-item editing instructions");
   });
 });
 

@@ -15,6 +15,7 @@ export interface LearningItem {
   cefr: CefrLevel;
   sense: string;
   markdownContent: string;
+  cautionNote?: string;
   status: LearningItemStatus;
   createdAt: string;
   updatedAt: string;
@@ -73,6 +74,7 @@ export interface CreateLearningItemInput {
 
 export interface UpdateLearningItemInput extends CreateLearningItemInput {
   itemId: string;
+  cautionNote: string;
 }
 
 export interface LearningItemDraft extends CreateLearningItemInput {
@@ -105,6 +107,26 @@ export interface UpdateLearningItemDraftInput extends CreateLearningItemInput {
   draftId: string;
 }
 
+export interface LearningItemEditSnapshot {
+  sessionId: string;
+  itemId: string;
+  phase: "ready" | "responding" | "error";
+  draft: {
+    markdownContent: string;
+    cautionNote: string;
+  };
+  hasChanges: boolean;
+  status: string;
+}
+
+export interface LearningItemEditDesktopApi {
+  start(itemId: string): Promise<LearningItemEditSnapshot>;
+  send(sessionId: string, request: string): Promise<LearningItemEditSnapshot>;
+  stop(sessionId: string): Promise<LearningItemEditSnapshot>;
+  apply(sessionId: string): Promise<LearningItem>;
+  discard(sessionId: string): Promise<void>;
+}
+
 export interface LearningDesktopApi {
   listItems(input: LearningItemListInput): Promise<LearningItemPage>;
   countItems(): Promise<LearningItemCounts>;
@@ -113,4 +135,5 @@ export interface LearningDesktopApi {
   trashItem(itemId: string): Promise<LearningItem>;
   restoreItem(itemId: string): Promise<LearningItem>;
   emptyTrash(): Promise<{ deleted: number }>;
+  aiEdit?: LearningItemEditDesktopApi;
 }

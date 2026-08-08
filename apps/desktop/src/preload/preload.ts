@@ -19,6 +19,7 @@ import type {
 } from "../shared/library-contracts";
 import type {
   LearningDesktopApi,
+  LearningItemEditSnapshot,
   LearningItem,
   LearningItemCounts,
   LearningItemListInput,
@@ -83,7 +84,19 @@ const desktopApi = Object.freeze({
     restoreItem: (itemId: string): Promise<LearningItem> =>
       ipcRenderer.invoke("learning:restore", itemId),
     emptyTrash: (): Promise<{ deleted: number }> =>
-      ipcRenderer.invoke("learning:empty-trash")
+      ipcRenderer.invoke("learning:empty-trash"),
+    aiEdit: Object.freeze({
+      start: (itemId: string): Promise<LearningItemEditSnapshot> =>
+        ipcRenderer.invoke("learning-edit:start", itemId),
+      send: (sessionId: string, request: string): Promise<LearningItemEditSnapshot> =>
+        ipcRenderer.invoke("learning-edit:send", sessionId, request),
+      stop: (sessionId: string): Promise<LearningItemEditSnapshot> =>
+        ipcRenderer.invoke("learning-edit:stop", sessionId),
+      apply: (sessionId: string): Promise<LearningItem> =>
+        ipcRenderer.invoke("learning-edit:apply", sessionId),
+      discard: (sessionId: string): Promise<void> =>
+        ipcRenderer.invoke("learning-edit:discard", sessionId)
+    })
   } satisfies LearningDesktopApi),
   review: Object.freeze({
     getSummary: () => ipcRenderer.invoke("review:summary"),

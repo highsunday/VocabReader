@@ -257,7 +257,8 @@ describe("DataBackupService", () => {
       language: "ja",
       cefr: sourceItems[1].cefr,
       sense: sourceItems[1].sense,
-      markdownContent: sourceItems[1].markdownContent
+      markdownContent: sourceItems[1].markdownContent,
+      cautionNote: ""
     });
     await sourceLearning.trashItem(sourceItems[0].id);
     const archivePath = join(root, "portable.zip");
@@ -508,7 +509,7 @@ describe("DataBackupService", () => {
     });
   });
 
-  it("exports and previews an existing supported schema version 5 database", async () => {
+  it("exports schema version 6 and rejects a newer database", async () => {
     const root = await temporaryDirectory();
     const libraryPath = join(root, "library");
     const learningDatabasePath = join(
@@ -527,7 +528,7 @@ describe("DataBackupService", () => {
       VALUES (4, CURRENT_TIMESTAMP)
     `).run();
     database.close();
-    const archivePath = join(root, "schema-v5.zip");
+    const archivePath = join(root, "schema-v6.zip");
     const service = new DataBackupService({
       libraryPath,
       learningDatabasePath,
@@ -553,10 +554,10 @@ describe("DataBackupService", () => {
     const newerDatabase = new DatabaseSync(learningDatabasePath);
     newerDatabase.prepare(`
       INSERT INTO schema_migrations (version, applied_at)
-      VALUES (6, CURRENT_TIMESTAMP)
+      VALUES (7, CURRENT_TIMESTAMP)
     `).run();
     newerDatabase.close();
-    await expect(service.exportToPath(join(root, "schema-v6.zip")))
+    await expect(service.exportToPath(join(root, "schema-v7.zip")))
       .rejects.toThrow("The backup uses a newer Learning Library version");
   });
 

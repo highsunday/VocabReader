@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import annotationExplanationSkillMarkdown from "../../../../.agents/skills/explain-reader-annotations/SKILL.md";
 import learningItemCreationSkillMarkdown from "../../../../.agents/skills/create-learning-items/SKILL.md";
+import learningItemEditSkillMarkdown from "../../../../.agents/skills/edit-learning-item/SKILL.md";
 import readingComprehensionSkillMarkdown from "../../../../.agents/skills/practice-reading-comprehension/SKILL.md";
 import segmentRetellingSkillMarkdown from "../../../../.agents/skills/practice-segment-retelling/SKILL.md";
 import spacedReviewSkillMarkdown from "../../../../.agents/skills/practice-spaced-review/SKILL.md";
@@ -10,6 +11,7 @@ import sentencePracticeSkillMarkdown from "../../../../.agents/skills/practice-i
 import {
   installBundledAnnotationSkill,
   installBundledLearningItemCreationSkill,
+  installBundledLearningItemEditSkill,
   installBundledReadingComprehensionSkill,
   installBundledSegmentRetellingSkill,
   installBundledSentencePracticeSkill,
@@ -28,6 +30,8 @@ import { restartAfterDataRestore } from "./data-restore-restart";
 import { registerLibraryIpc } from "./library-ipc";
 import { LocalBookLibrary } from "./library-service";
 import { registerLearningLibraryIpc } from "./learning-library-ipc";
+import { LearningItemEditController } from "./learning-item-edit-controller";
+import { registerLearningItemEditIpc } from "./learning-item-edit-ipc";
 import { LocalLearningLibrary } from "./learning-library-service";
 import { classifyLearningItemDuplicatesWithCodex } from "./learning-item-duplicate-classifier";
 import { registerSettingsIpc } from "./settings-ipc";
@@ -40,6 +44,7 @@ import { registerSpacedReviewIpc } from "./spaced-review-ipc";
 let chatController: ChatController | undefined;
 let unsubscribeChatState: (() => void) | undefined;
 let learningLibraryForShutdown: LocalLearningLibrary | undefined;
+let learningItemEditController: LearningItemEditController | undefined;
 
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -155,6 +160,10 @@ app.whenReady().then(() => {
     runtimePath,
     learningItemCreationSkillMarkdown
   );
+  const learningItemEditSkill = installBundledLearningItemEditSkill(
+    runtimePath,
+    learningItemEditSkillMarkdown
+  );
   const spacedReviewSkill = installBundledSpacedReviewSkill(
     runtimePath,
     spacedReviewSkillMarkdown
@@ -163,6 +172,14 @@ app.whenReady().then(() => {
     runtimePath,
     sentencePracticeSkillMarkdown
   );
+  learningItemEditController = new LearningItemEditController({
+    createClient: () => new SpawnedCodexAppServerClient(),
+    workingDirectory: runtimePath,
+    skillPath: learningItemEditSkill.path,
+    skillInstructions: learningItemEditSkillMarkdown,
+    library: learningLibrary
+  });
+  registerLearningItemEditIpc(ipcMain, learningItemEditController);
   registerSpacedReviewIpc(ipcMain, new SpacedReviewController({
     createClient: () => new SpawnedCodexAppServerClient(),
     workingDirectory: runtimePath,
@@ -234,6 +251,8 @@ app.on("before-quit", () => {
   unsubscribeChatState = undefined;
   chatController?.close();
   chatController = undefined;
+  learningItemEditController?.close();
+  learningItemEditController = undefined;
   learningLibraryForShutdown?.close();
   learningLibraryForShutdown = undefined;
 });

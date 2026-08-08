@@ -7,12 +7,21 @@ import {
   useRef,
   useState
 } from "react";
-import { Search, Trash2, Volume2 } from "lucide-react";
+import {
+  Check,
+  LoaderCircle,
+  Search,
+  Send,
+  Sparkles,
+  Trash2,
+  Volume2
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type {
   CefrLevel,
   LearningDesktopApi,
+  LearningItemEditSnapshot,
   LearningItem,
   LearningItemLanguage,
   LearningItemListInput,
@@ -113,7 +122,8 @@ function fieldsFor(item: LearningItem): UpdateLearningItemInput {
     language: item.language,
     cefr: item.cefr,
     sense: item.sense,
-    markdownContent: item.markdownContent
+    markdownContent: item.markdownContent,
+    cautionNote: item.cautionNote ?? ""
   };
 }
 
@@ -156,20 +166,31 @@ export function LearningItemDialog({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [reviewDetail, setReviewDetail] = useState<LearningItemReviewDetail>();
   const [reviewDetailError, setReviewDetailError] = useState("");
+  const [aiEdit, setAiEdit] = useState<LearningItemEditSnapshot>();
+  const [aiRequest, setAiRequest] = useState("");
+  const [aiDiscardTarget, setAiDiscardTarget] = useState<"editor" | "dialog">();
   const speechRequestRef = useRef(0);
+  const aiSendRequestRef = useRef(0);
+
+  const shownMarkdown = aiEdit?.draft.markdownContent ?? item.markdownContent;
+  const shownCaution = aiEdit?.draft.cautionNote ?? item.cautionNote ?? "";
 
   useLayoutEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape" || isSaving) return;
+      if (aiDiscardTarget) {
+        setAiDiscardTarget(undefined);
+        return;
+      }
       if (isDeleteConfirming) {
         setIsDeleteConfirming(false);
         return;
       }
-      onClose();
+      void requestClose();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isDeleteConfirming, isSaving, onClose]);
+  }, [aiDiscardTarget, aiEdit, isDeleteConfirming, isSaving, onClose]);
 
   useEffect(() => () => {
     speechRequestRef.current += 1;
@@ -234,6 +255,113 @@ export function LearningItemDialog({
     setDraft((current) => current ? { ...current, ...update } : current);
   }
 
+  async function startAiEdit() {
+    if (!api.aiEdit || isSaving) return;
+    setIsSaving(true);
+    setError("");
+    try {
+      setAiEdit(await api.aiEdit.start(item.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to start AI editing.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function sendAiEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!api.aiEdit || !aiEdit || !aiRequest.trim() ||
+      aiEdit.phase === "responding") return;
+    const request = aiRequest;
+    const requestId = aiSendRequestRef.current + 1;
+    aiSendRequestRef.current = requestId;
+    setAiEdit({ ...aiEdit, phase: "responding", status: "Updating draft…" });
+    setError("");
+    try {
+      const updatedDraft = await api.aiEdit.send(aiEdit.sessionId, request);
+      if (aiSendRequestRef.current !== requestId) return;
+      setAiEdit(updatedDraft);
+      setAiRequest("");
+    } catch (cause) {
+      if (aiSendRequestRef.current !== requestId) return;
+      setAiEdit((current) => current ? {
+        ...current,
+        phase: "error",
+        status: "AI could not update the draft. Try again."
+      } : current);
+      setError(cause instanceof Error ? cause.message : "Unable to update the AI draft.");
+    }
+  }
+
+  async function applyAiEdit() {
+    if (!api.aiEdit || !aiEdit || !aiEdit.hasChanges ||
+      aiEdit.phase === "responding" || !onChanged) return;
+    setIsSaving(true);
+    setError("");
+    try {
+      const updated = await api.aiEdit.apply(aiEdit.sessionId);
+      setAiEdit(undefined);
+      setAiRequest("");
+      await onChanged(updated);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to apply the AI edit.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function discardAiEdit() {
+    if (!api.aiEdit || !aiEdit) return;
+    aiSendRequestRef.current += 1;
+    try {
+      await api.aiEdit.discard(aiEdit.sessionId);
+    } finally {
+      setAiEdit(undefined);
+      setAiRequest("");
+    }
+  }
+
+  async function stopAiEdit() {
+    if (!api.aiEdit || !aiEdit || aiEdit.phase !== "responding") return;
+    aiSendRequestRef.current += 1;
+    setError("");
+    try {
+      setAiEdit(await api.aiEdit.stop(aiEdit.sessionId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to stop AI editing.");
+    }
+  }
+
+  function requestAiDiscard(target: "editor" | "dialog") {
+    if (!aiEdit) {
+      if (target === "dialog") onClose();
+      return;
+    }
+    if (aiEdit.hasChanges) {
+      setAiDiscardTarget(target);
+      return;
+    }
+    void discardAiEdit().then(() => {
+      if (target === "dialog") onClose();
+    });
+  }
+
+  async function confirmAiDiscard() {
+    const target = aiDiscardTarget;
+    setAiDiscardTarget(undefined);
+    await discardAiEdit();
+    if (target === "dialog") onClose();
+  }
+
+  async function requestClose() {
+    if (isSaving || aiEdit?.phase === "responding") return;
+    if (aiEdit) {
+      requestAiDiscard("dialog");
+      return;
+    }
+    onClose();
+  }
+
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!draft || isSaving || readOnly || !onChanged) return;
@@ -274,14 +402,14 @@ export function LearningItemDialog({
     <div
       className="learning-dialog-backdrop"
       data-testid="learning-detail-backdrop"
-      onMouseDown={onClose}
+      onMouseDown={() => void requestClose()}
     >
       <section
         className="learning-item-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="learning-item-dialog-title"
-        aria-hidden={isDeleteConfirming}
+        aria-hidden={isDeleteConfirming || Boolean(aiDiscardTarget)}
         onMouseDown={ignoreInnerMouseDown}
       >
         <div className="learning-dialog-heading">
@@ -314,7 +442,8 @@ export function LearningItemDialog({
             type="button"
             className="learning-dialog-close"
             aria-label="Close card details"
-            onClick={onClose}
+            onClick={() => void requestClose()}
+            disabled={isSaving || aiEdit?.phase === "responding"}
             autoFocus
           >
             ×
@@ -394,11 +523,27 @@ export function LearningItemDialog({
               </label>
               <section className="learning-markdown-preview">
                 <span>Preview</span>
+                {draft.cautionNote ? (
+                  <p
+                    className="learning-caution"
+                    aria-label="Learning caution preview"
+                  >
+                    <strong>Note:</strong> {draft.cautionNote}
+                  </p>
+                ) : null}
                 <MarkdownContent label="Markdown preview">
                   {draft.markdownContent}
                 </MarkdownContent>
               </section>
             </div>
+            <label className="learning-caution-editor">
+              Learning caution
+              <textarea
+                value={draft.cautionNote}
+                onChange={(event) => updateDraft({ cautionNote: event.target.value })}
+                placeholder="Optional reminder about an easy mistake or confusing distinction"
+              />
+            </label>
             <div className="learning-dialog-actions">
               <button
                 type="button"
@@ -417,7 +562,12 @@ export function LearningItemDialog({
           <>
             <div className="learning-dialog-scroll">
               <div className="learning-dialog-content">
-                <MarkdownContent>{item.markdownContent}</MarkdownContent>
+                {shownCaution ? (
+                  <p className="learning-caution" aria-label="Learning caution">
+                    <strong>Note:</strong> {shownCaution}
+                  </p>
+                ) : null}
+                <MarkdownContent>{shownMarkdown}</MarkdownContent>
               </div>
               {reviewApi ? (
                 <section className="learning-review-detail" aria-label="Review schedule">
@@ -514,7 +664,105 @@ export function LearningItemDialog({
                 </section>
               ) : null}
             </div>
-            {!readOnly ? (
+            {aiEdit ? (
+              <form
+                className="learning-ai-editor"
+                data-phase={aiEdit.phase}
+                onSubmit={sendAiEdit}
+              >
+                {aiEdit.phase === "responding" ? (
+                  <span className="learning-ai-progress" aria-hidden="true" />
+                ) : null}
+                <div className="learning-ai-toolbar">
+                  <div className="learning-ai-identity">
+                    <Sparkles aria-hidden="true" />
+                    <strong>AI edit</strong>
+                    {aiEdit.phase === "responding" ? (
+                      <span className="learning-ai-inline-status" role="status">
+                        <LoaderCircle
+                          className="learning-ai-spinner"
+                          aria-hidden="true"
+                        />
+                        <span aria-label="AI edit in progress">Updating…</span>
+                      </span>
+                    ) : aiEdit.hasChanges ? (
+                      <span className="learning-ai-inline-status" role="status">
+                        <Check aria-hidden="true" />
+                        Draft ready
+                      </span>
+                    ) : aiEdit.phase === "error" ? (
+                      <span
+                        className="learning-ai-inline-status"
+                        data-phase="error"
+                        role="status"
+                      >
+                        {aiEdit.status}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="learning-ai-toolbar-actions">
+                    <button
+                      type="button"
+                      className="learning-ai-cancel-action"
+                      onClick={() => requestAiDiscard("editor")}
+                      disabled={aiEdit.phase === "responding" || isSaving}
+                    >
+                      Cancel
+                    </button>
+                    {aiEdit.hasChanges && aiEdit.phase !== "responding" ? (
+                      <button
+                        type="button"
+                        className="learning-ai-apply-action"
+                        aria-label="Apply AI edit"
+                        onClick={() => void applyAiEdit()}
+                        disabled={isSaving}
+                      >
+                        <Check aria-hidden="true" />
+                        Apply
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="learning-ai-input-row">
+                  <textarea
+                    rows={1}
+                    aria-label="AI editing request"
+                    value={aiRequest}
+                    onChange={(event) => setAiRequest(event.target.value)}
+                    onKeyDown={(event) => {
+                      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                        event.preventDefault();
+                        event.currentTarget.form?.requestSubmit();
+                      }
+                    }}
+                    placeholder="What should AI add or change?"
+                    disabled={aiEdit.phase === "responding"}
+                    autoFocus
+                  />
+                  {aiEdit.phase === "responding" ? (
+                    <button
+                      type="button"
+                      className="learning-ai-stop-action"
+                      aria-label="Stop AI edit"
+                      onClick={() => void stopAiEdit()}
+                    >
+                      Stop
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="learning-ai-send-action"
+                      aria-label="Send AI edit request"
+                      disabled={!aiRequest.trim()}
+                    >
+                      <Send aria-hidden="true" />
+                      Send
+                    </button>
+                  )}
+                </div>
+              </form>
+            ) : null}
+            {!readOnly && !aiEdit ? (
               <div className="learning-dialog-actions">
                 <button
                   type="button"
@@ -532,6 +780,16 @@ export function LearningItemDialog({
                 >
                   Edit
                 </button>
+                {api.aiEdit ? (
+                  <button
+                    type="button"
+                    className="primary-action"
+                    onClick={() => void startAiEdit()}
+                    disabled={isSaving}
+                  >
+                    <Sparkles aria-hidden="true" /> Edit with AI
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </>
@@ -571,6 +829,43 @@ export function LearningItemDialog({
                 disabled={isSaving}
               >
                 {isSaving ? "Moving…" : "Move to Trash"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {aiDiscardTarget ? (
+        <div
+          className="dialog-backdrop learning-delete-confirm-backdrop"
+          onMouseDown={ignoreInnerMouseDown}
+        >
+          <section
+            className="delete-dialog learning-delete-confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="discard-ai-edit-title"
+            aria-describedby="discard-ai-edit-description"
+          >
+            <span className="delete-dialog-icon" aria-hidden="true">!</span>
+            <h2 id="discard-ai-edit-title">Discard AI edit?</h2>
+            <p id="discard-ai-edit-description">
+              Your AI changes have not been applied to this learning item.
+            </p>
+            <div className="delete-dialog-actions">
+              <button
+                type="button"
+                onClick={() => setAiDiscardTarget(undefined)}
+                autoFocus
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                className="danger-action"
+                onClick={() => void confirmAiDiscard()}
+              >
+                Discard changes
               </button>
             </div>
           </section>
@@ -686,7 +981,7 @@ export function LearningLibraryWorkspace({
   }, [loadCounts]);
 
   const loadMore = useCallback(async () => {
-    if (!nextCursor || isLoading || isLoadingMore) return;
+    if (!nextCursor || isLoadingMore) return;
     const generation = queryGenerationRef.current;
     const cursor = nextCursor;
     setIsLoadingMore(true);
@@ -710,7 +1005,7 @@ export function LearningLibraryWorkspace({
     } finally {
       if (generation === queryGenerationRef.current) setIsLoadingMore(false);
     }
-  }, [api, isLoading, isLoadingMore, listInput, nextCursor]);
+  }, [api, isLoadingMore, listInput, nextCursor]);
 
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
@@ -1220,6 +1515,7 @@ export function LearningLibraryWorkspace({
           item={selectedItem}
           api={api}
           reviewApi={reviewApi}
+          readOnly={selectedItem.status !== "active"}
           onClose={closeDetail}
           onChanged={refreshAfterChange}
         />

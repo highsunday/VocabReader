@@ -19,6 +19,7 @@ function installBundledSkill(
     | "practice-reading-comprehension"
     | "practice-segment-retelling"
     | "create-learning-items"
+    | "edit-learning-item"
     | "practice-spaced-review"
     | "practice-integrated-sentences",
   markdown: string
@@ -81,6 +82,13 @@ export function installBundledLearningItemCreationSkill(
     "create-learning-items",
     markdown
   );
+}
+
+export function installBundledLearningItemEditSkill(
+  runtimePath: string,
+  markdown: string
+): BundledSkillInstallResult {
+  return installBundledSkill(runtimePath, "edit-learning-item", markdown);
 }
 
 export function installBundledSpacedReviewSkill(

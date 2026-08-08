@@ -80,7 +80,8 @@ function validUpdate(value: unknown): value is UpdateLearningItemInput {
     validLanguage(input.language) &&
     validCefr(input.cefr) &&
     nonEmptyString(input.sense) &&
-    nonEmptyString(input.markdownContent);
+    nonEmptyString(input.markdownContent) &&
+    typeof input.cautionNote === "string";
 }
 
 export function registerLearningLibraryIpc(

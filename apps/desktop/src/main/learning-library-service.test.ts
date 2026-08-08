@@ -172,7 +172,7 @@ describe("LocalLearningLibrary", () => {
     ).resolves.toEqual(seeded);
   });
 
-  it("migrates legacy review answers and backfills learning-item language", async () => {
+  it("migrates legacy review answers and backfills learning-item language and caution", async () => {
     const path = await databasePath();
     const legacy = new LocalLearningLibrary(path);
     await legacy.listItems({ status: "active", sort: "recent" });
@@ -194,6 +194,9 @@ describe("LocalLearningLibrary", () => {
       );
       legacyDatabase.exec("ALTER TABLE learning_items DROP COLUMN language");
     }
+    if (legacyItemColumns.some(({ name }) => name === "caution_note")) {
+      legacyDatabase.exec("ALTER TABLE learning_items DROP COLUMN caution_note");
+    }
     legacyDatabase.prepare(
       "DELETE FROM schema_migrations WHERE version >= 4"
     ).run();
@@ -213,6 +216,9 @@ describe("LocalLearningLibrary", () => {
     const languages = migratedDatabase.prepare(
       "SELECT DISTINCT language FROM learning_items"
     ).all() as unknown as Array<{ language: string }>;
+    const cautions = migratedDatabase.prepare(
+      "SELECT DISTINCT caution_note FROM learning_items"
+    ).all() as unknown as Array<{ caution_note: string }>;
     const migration = migratedDatabase.prepare(
       "SELECT MAX(version) AS version FROM schema_migrations"
     ).get() as { version: number };
@@ -226,8 +232,13 @@ describe("LocalLearningLibrary", () => {
       name: "language",
       notnull: 1
     });
+    expect(itemColumns.find(({ name }) => name === "caution_note")).toMatchObject({
+      name: "caution_note",
+      notnull: 1
+    });
     expect(languages).toEqual([{ language: "en" }]);
-    expect(migration.version).toBe(5);
+    expect(cautions).toEqual([{ caution_note: "" }]);
+    expect(migration.version).toBe(6);
   });
 
   it("never reseeds after every example is permanently removed", async () => {
@@ -551,10 +562,12 @@ describe("LocalLearningLibrary", () => {
       language: "en" as const,
       cefr: "C1",
       sense: "unwilling to act",
-      markdownContent: "## Meaning\n不情願。\n\n## Examples\n1. She was reluctant to leave."
+      markdownContent: "## Meaning\n不情願。\n\n## Examples\n1. She was reluctant to leave.",
+      cautionNote: "注意不要與 relevant 混淆。"
     });
 
     expect(updated.cefr).toBe("C1");
+    expect(updated.cautionNote).toBe("注意不要與 relevant 混淆。");
     await expect(new LocalLearningLibrary(path).getItem(item.id))
       .resolves.toEqual(updated);
     await expect(library.updateItem({
@@ -564,8 +577,59 @@ describe("LocalLearningLibrary", () => {
       language: "en" as const,
       cefr: "C1",
       sense: "unwilling",
-      markdownContent: "content"
+      markdownContent: "content",
+      cautionNote: ""
     })).rejects.toThrow(/title/);
+  });
+
+  it("applies only a current active AI draft and rejects stale or trashed cards", async () => {
+    const library = new LocalLearningLibrary(await databasePath());
+    const original = await library.createItem({
+      title: "impair",
+      itemType: "word",
+      language: "en",
+      cefr: "B2",
+      sense: "weaken or damage",
+      markdownContent: "## Meaning\n損害或削弱。"
+    });
+
+    const applied = await library.applyAiEdit({
+      itemId: original.id,
+      baseUpdatedAt: original.updatedAt,
+      markdownContent: [
+        original.markdownContent,
+        "",
+        "## impair vs. repair",
+        "impair 是削弱；repair 是修復。"
+      ].join("\n"),
+      cautionNote: "不要把 impair（削弱）誤解成 repair（修復）。"
+    });
+
+    expect(applied).toMatchObject({
+      id: original.id,
+      title: original.title,
+      itemType: original.itemType,
+      language: original.language,
+      cefr: original.cefr,
+      sense: original.sense,
+      status: "active",
+      cautionNote: "不要把 impair（削弱）誤解成 repair（修復）。"
+    });
+    expect(applied.updatedAt).not.toBe(original.updatedAt);
+    await expect(library.applyAiEdit({
+      itemId: original.id,
+      baseUpdatedAt: original.updatedAt,
+      markdownContent: "stale overwrite",
+      cautionNote: "stale"
+    })).rejects.toThrow(/changed/);
+
+    const trashed = await library.trashItem(original.id);
+    await expect(library.applyAiEdit({
+      itemId: original.id,
+      baseUpdatedAt: trashed.updatedAt,
+      markdownContent: "trashed overwrite",
+      cautionNote: "trashed"
+    })).rejects.toThrow(/changed/);
   });
 
   it("moves an item to trash, restores it, and permanently empties trash", async () => {

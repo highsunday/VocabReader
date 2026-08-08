@@ -2,7 +2,7 @@
 title: 本機生詞庫模組
 module: learning-library
 status: active
-last_updated: 2026-08-01
+last_updated: 2026-08-08
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
@@ -14,6 +14,7 @@ related_implements:
   - F44-progressively-load-learning-library-items
   - F45-classify-and-filter-learning-items-by-language
   - F46-integrated-sentence-practice
+  - F51-ai-assisted-learning-item-editing
 ---
 
 # 本機生詞庫模組
@@ -41,8 +42,12 @@ related_implements:
 - 學習項目語言固定為英文、日文、繁體中文與其他語言；AI 新增時逐筆判定，詳情編輯
   可修正，清單卡片、草稿預覽與完整詳情皆顯示人類可讀標籤。
 - 同標題不同語義以不同不可變 id 保存，不合併內容。
+- 每個項目提供可留空的學習注意事項；完整詳情以 `Note`、紅字與紅底線顯示，清單摘要
+  與未作答複習題面不載入或顯示。
 - 共用置中詳情 modal、安全 Markdown、發音、複習排程與歷史；從生詞庫開啟時保留
   原文編輯、即時預覽及刪除，從尚未確認的複習試卷開啟時則為唯讀。
+- active 生詞庫詳情可展開極簡 AI 編修 composer，以同一畫面預覽多輪暫態草稿，
+  並在使用者明確 Apply 後才保存 Markdown 與注意事項。
 - 從詳情刪除前顯示置中確認視窗；確認後才移入垃圾桶。垃圾桶可個別還原，只有確認
   清空才永久刪除。
 - 側欄顯示即時使用中數量。
@@ -72,6 +77,8 @@ related_implements:
   使用中清單與垃圾桶查詢；study status filter／sort 在 page 選取前完成。
 - 以獨立 count query 取得 active／trash 數量，不讀取完整項目或複習歷史。
 - 更新學習內容與時間戳。
+- 以 `applyAiEdit()` 只更新 Markdown、注意事項與時間戳，並以 active 狀態與原始
+  `updatedAt` 拒絕過期或垃圾桶工作階段覆寫。
 - 執行 `active → trashed → active` 狀態轉移。
 - 以交易永久清空全部垃圾桶項目。
 - 以 `findDuplicateCandidates()` 提供 deterministic exact-title 候選，不做語義判斷。
@@ -90,7 +97,7 @@ Renderer 不知道資料庫路徑、schema 或 SQL。
 
 ### Electron IPC and Preload
 
-Renderer 只能使用以下七個型別化操作：
+Renderer 只能使用以下七個一般型別化操作：
 
 - `learning:list`
 - `learning:counts`
@@ -102,6 +109,11 @@ Renderer 只能使用以下七個型別化操作：
 
 IPC 在呼叫 repository 前再次驗證跨程序資料。Preload 不暴露 create、任意 SQL、
 Node API 或通用 IPC。
+
+AI 編修另收斂於 `window.readerDesktop.learning.aiEdit` 的 start、send、stop、apply 與
+discard。Renderer 只能提供 item／session id 與非空需求，不能提供正式項目內容、skill、
+prompt、Codex method 或權限。流程由獨立暫態 `LearningItemEditController` 擁有，不進入
+全域 AI 對話 store。
 
 AI 建立批次的新增／還原由受限 `chat` IPC 呼叫 Main-owned Controller，再委派本
 repository；Renderer 仍拿不到一般 create API。
@@ -121,6 +133,9 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 - 依中央區寬度視窗化 responsive card grid；卸載遠端 row 時保留鍵盤焦點項目。
 - 詳情 modal、焦點回復、Escape／遮罩關閉。
 - Markdown 查看、編輯、預覽與錯誤狀態。
+- 學習注意事項的人工編輯、即時預覽與醒目完整詳情呈現。
+- 以現有詳情作為唯一草稿預覽的 AI composer、多輪狀態、停止、明確 Apply 與未套用
+  變更離開確認。
 - 對共用詳情提供 editable／read-only capability；唯讀模式不渲染或呼叫更新、刪除
   操作。
 - 單筆移入垃圾桶前的置中確認、還原、清空確認與側欄數量同步。
@@ -137,12 +152,13 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 | `CefrLevel` | `A1 | A2 | B1 | B2 | C1 | C2` |
 | `LearningItemStatus` | `active | trashed` |
 | `LearningItemSort` | `recent | alphabetical` |
-| `LearningItem` | id、標題、類型、語言、CEFR、語義、Markdown、狀態與時間戳 |
+| `LearningItem` | id、標題、類型、語言、CEFR、語義、Markdown、注意事項、狀態與時間戳 |
 | `LearningItemSummary` | 清單所需結構化欄位、study status 與 due；不含 Markdown |
 | `LearningItemListInput` | 狀態、可選搜尋／語言／類型／CEFR／study status、排序與 opaque cursor |
 | `LearningItemPage` | 最多 50 筆摘要及 nullable `nextCursor` |
 | `LearningItemCounts` | active／trash 完整數量 |
-| `UpdateLearningItemInput` | item id 與可編輯的全部結構化／Markdown 欄位 |
+| `UpdateLearningItemInput` | item id 與可編輯的全部結構化／Markdown／注意事項欄位 |
+| `LearningItemEditSnapshot` | 單項暫態 AI 編修的最新草稿、phase、變更與簡短狀態 |
 | `LearningItemDraft` | 尚未提交的 word／phrase 結構、Markdown 與 included／excluded |
 | `LearningItemDraftBatch` | drafts、active／trash matches 與提交結果 |
 | `ReviewSummary` | 可用總數、本回合 due/new queue 與下一到期時間 |
@@ -158,8 +174,9 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 
 - `schema_migrations`：已套用 schema 版本。
 - `learning_metadata`：一次性 seed 等 repository metadata。
-- `learning_items`：學習項目內容、語言、狀態與時間戳；schema 5 把既有 row backfill
-  為英文，並以固定值約束與查詢索引保存四類語言。
+- `learning_items`：學習項目內容、語言、注意事項、狀態與時間戳；schema 5 把既有 row
+  backfill 為英文並保存四類語言，schema 6 新增 non-null `caution_note` 並以空字串
+  backfill 舊項目。
 - `learning_review_schedules`：每個項目的目前 FSRS card、due、次數與最後評級。
 - `learning_review_events`：複習作答、AI／最終評級、FSRS 前後狀態、間隔及 due 的
   精簡事件；schema 4 的 nullable `answer` 讓舊事件可無損保留。
@@ -169,7 +186,8 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 
 完整資料備份保存整份 SQLite，因此同時包含 active、trashed、FSRS schedules、精簡
 events 與已確認的複習作答；未確認試卷及其作答、詳細 AI 回饋與設定不在資料庫內，
-也不會進入備份。
+也不會進入備份。已 Apply 的注意事項屬於正式 SQLite 內容，會隨完整備份往返；AI
+編修 session、需求與未套用草稿不會進入備份。
 
 ## 6. Query and Mutation Flow
 
@@ -196,6 +214,9 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - 詳情使用 `role="dialog"`、`aria-modal`、具名標題、關閉控制與觸發點焦點回復。
 - 同一詳情元件可由已完成 AI 批改的複習題開啟；該入口只使用 `learning:get` 取得
   最新內容，並以 read-only capability 隱藏所有 mutation。
+- `Edit with AI` 只在 active 生詞庫 editable 詳情顯示；垃圾桶、複習及造句的 read-only
+  詳情不渲染入口。AI 草稿有變更時，Close、Escape 與遮罩離開共用放棄確認。
+- 非空注意事項顯示在 Markdown 前，以文字標示、紅色與底線共同傳達重點；空值不留區塊。
 - 詳情中的「刪除」先開啟具名 `alertdialog`；取消或 Escape 只關閉最上層確認視窗，
   明確確認後才呼叫 `learning:trash`，並說明項目仍可還原。
 - Markdown 使用 `react-markdown`、GFM 與 `skipHtml`；連結不允許執行 JavaScript URL。
@@ -207,6 +228,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 | `apps/desktop/src/shared/learning-contracts.ts` | Main／Preload／Renderer 共用型別 |
 | `apps/desktop/src/shared/review-contracts.ts` | 複習摘要、試卷、評級及歷史型別 |
 | `apps/desktop/src/main/learning-library-service.ts` | SQLite、migration、seed、查詢與狀態轉移 |
+| `apps/desktop/src/main/learning-item-edit-controller.ts` | 單項暫態 AI thread、草稿、停止、套用與清理 |
+| `apps/desktop/src/main/learning-item-edit-ipc.ts` | 五個 AI edit IPC 白名單 |
 | `apps/desktop/src/main/data-backup-service.ts` | 一致 SQLite snapshot、驗證與跨資料域完整還原 |
 | `apps/desktop/src/main/spaced-review-controller.ts` | 暫態 AI 試卷與受信任確認 scope |
 | `apps/desktop/src/main/learning-item-duplicate-classifier.ts` | 只對 exact-title 候選做 AI 語義重查 |
@@ -220,27 +243,28 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 
 | Test file | Coverage |
 |---|---|
-| `learning-library-service.test.ts` | schema 5 migration／語言 backfill、seed、搜尋／語言篩選、50 筆 page、cursor isolation、count、10,000 筆 fixture、exact-title 候選、atomic create、垃圾桶、sentence-practice eligibility／Meaning／read-only selection、backup／close |
+| `learning-library-service.test.ts` | schema 6 migration／語言與注意事項 backfill、seed、搜尋／語言篩選、page、cursor、count、候選、atomic create、guarded AI apply、垃圾桶、sentence-practice eligibility、backup／close |
 | `data-backup-service.test.ts` | active／trash／語言／排程／歷史 snapshot、完整取代與 rollback |
 | `spaced-review-artifacts.test.ts`、`spaced-review-controller.test.ts` | 有限 AI scope、artifact 與暫態生命週期 |
-| `learning-library-ipc.test.ts` | 七個 IPC 白名單與惡意／錯誤 payload 拒絕 |
-| `learning-library-workspace.test.tsx` | 查詢控制、自動分批、Trash、retry、stale response、視窗化／焦點、mutation anchor、共用 modal、安全 Markdown、編輯與刪除確認 |
+| `learning-library-ipc.test.ts`、`learning-item-edit-ipc.test.ts` | 一般與 AI edit IPC 白名單、惡意／錯誤 payload 拒絕 |
+| `learning-item-artifacts.test.ts`、`learning-item-edit-controller.test.ts` | 嚴格 edit artifact、最小 scope、暫態草稿、Apply 與停止競態 |
+| `learning-library-workspace.test.tsx` | 查詢、分批、Trash、retry、視窗化、共用 modal、安全 Markdown、注意事項、AI 草稿／停止／放棄／Apply 與唯讀邊界 |
 | `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
 | `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情，以及捲到底後工具區位置不變 |
 
-最近驗證（2026-08-01）：
+最近驗證（2026-08-08）：
 
-- Desktop Vitest：351/351 passed。
+- Server Vitest：3/3 passed。
+- Desktop Vitest：394/394 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
-- Electron focused smoke：typed learning bridge、paged cards、windowing 及無結果數量文案 passed。
-- Electron Playwright E2E：長內容 central scroll 1/1 passed；完整 suite 另被既有
-  annotation-tool 舊視覺 assertion 阻擋，與 F44 無關。
+- Electron Playwright E2E：2/2 passed，包含 runtime edit skill 與 `learning.aiEdit` 白名單。
 
 ## 10. Known Limitations and Follow-up
 
 - AI 新增只支援單字與片語，不支援 sentence 或任意卡片類型。
-- AI workflow 不提供既有正式項目的編輯或刪除；這些仍由生詞庫詳情 UI 負責。
+- AI 可編修既有 active 項目的 Markdown 與注意事項；仍不支援批次編修、其他結構欄位、
+  保存編修歷史或 AI 刪除。
 - 從標記解析可建立項目，但刻意不保存書籍、章節、標記、原句或來源追溯資料。
 - 已實作 AI 語意試卷與四級 FSRS 複習；尚無 deck、每日上限、optimizer 或完整試卷歷史。
 - 已提供整份書庫＋生詞庫的 ZIP 備份與完整還原；不提供合併、個別項目匯入／匯出、
@@ -263,3 +287,5 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - `documents/implements/F45-classify-and-filter-learning-items-by-language.md`
 - `documents/implements/F46-integrated-sentence-practice.md`
 - `documents/modules/sentence-practice.md`
+- `documents/implements/F51-ai-assisted-learning-item-editing.md`
+- `documents/modules/learning-item-editing.md`

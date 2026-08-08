@@ -48,6 +48,14 @@ test("launches the secure Electron reading shell", async () => {
       .toContain("name: create-learning-items");
     expect(installedLearningItemSkill)
       .toContain("learning-item-result");
+    const installedLearningItemEditSkill = readFileSync(join(
+      userDataPath,
+      "codex-runtime/.agents/skills/edit-learning-item/SKILL.md"
+    ), "utf8");
+    expect(installedLearningItemEditSkill)
+      .toContain("name: edit-learning-item");
+    expect(installedLearningItemEditSkill)
+      .toContain("learning-item-edit-result");
     const installedReviewSkill = readFileSync(join(
       userDataPath,
       "codex-runtime/.agents/skills/practice-spaced-review/SKILL.md"
@@ -196,6 +204,13 @@ test("launches the secure Electron reading shell", async () => {
               trashItem: unknown;
               restoreItem: unknown;
               emptyTrash: unknown;
+              aiEdit: {
+                start: unknown;
+                send: unknown;
+                stop: unknown;
+                apply: unknown;
+                discard: unknown;
+              };
             };
             review: {
               getSummary: unknown;
@@ -253,6 +268,12 @@ test("launches the secure Electron reading shell", async () => {
         hasLearningTrash: typeof desktop?.learning.trashItem,
         hasLearningRestore: typeof desktop?.learning.restoreItem,
         hasLearningEmptyTrash: typeof desktop?.learning.emptyTrash,
+        learningAiEditKeys: Object.keys(desktop?.learning.aiEdit ?? {}).sort(),
+        hasLearningAiEditStart: typeof desktop?.learning.aiEdit?.start,
+        hasLearningAiEditSend: typeof desktop?.learning.aiEdit?.send,
+        hasLearningAiEditStop: typeof desktop?.learning.aiEdit?.stop,
+        hasLearningAiEditApply: typeof desktop?.learning.aiEdit?.apply,
+        hasLearningAiEditDiscard: typeof desktop?.learning.aiEdit?.discard,
         reviewKeys: Object.keys(desktop?.review ?? {}).sort(),
         hasReviewSummary: typeof desktop?.review.getSummary,
         hasReviewGenerate: typeof desktop?.review.generatePaper,
@@ -306,7 +327,20 @@ test("launches the secure Electron reading shell", async () => {
     expect(security.hasLearningTrash).toBe("function");
     expect(security.hasLearningRestore).toBe("function");
     expect(security.hasLearningEmptyTrash).toBe("function");
+    expect(security.hasLearningAiEditStart).toBe("function");
+    expect(security.hasLearningAiEditSend).toBe("function");
+    expect(security.hasLearningAiEditStop).toBe("function");
+    expect(security.hasLearningAiEditApply).toBe("function");
+    expect(security.hasLearningAiEditDiscard).toBe("function");
+    expect(security.learningAiEditKeys).toEqual([
+      "apply",
+      "discard",
+      "send",
+      "start",
+      "stop"
+    ]);
     expect(security.learningKeys).toEqual([
+      "aiEdit",
       "emptyTrash",
       "countItems",
       "getItem",
@@ -430,6 +464,8 @@ test("launches the secure Electron reading shell", async () => {
     }).click();
     await expect(page.getByRole("dialog", { name: "bank" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Play pronunciation of bank" }))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "Edit with AI" }))
       .toBeVisible();
     await expect(page.getByRole("heading", { name: "Common collocations" }))
       .toBeVisible();

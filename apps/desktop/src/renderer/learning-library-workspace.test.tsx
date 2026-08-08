@@ -7,7 +7,10 @@ import type {
   LearningItemSummary
 } from "../shared/learning-contracts";
 import type { ReviewDesktopApi } from "../shared/review-contracts";
-import { LearningLibraryWorkspace } from "./LearningLibraryWorkspace";
+import {
+  LearningItemDialog,
+  LearningLibraryWorkspace
+} from "./LearningLibraryWorkspace";
 
 const activeItems: LearningItem[] = [
   {
@@ -27,6 +30,7 @@ const activeItems: LearningItem[] = [
       "## Examples",
       "1. We sat on the bank."
     ].join("\n"),
+    cautionNote: "注意：bank 在這裡是河岸，不是金融機構。",
     status: "active",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -40,6 +44,7 @@ const activeItems: LearningItem[] = [
     cefr: "B2",
     sense: "fail to appreciate",
     markdownContent: "## Meaning\n視為理所當然。",
+    cautionNote: "",
     status: "active",
     createdAt: "2026-01-02T00:00:00.000Z",
     updatedAt: "2026-01-02T00:00:00.000Z",
@@ -59,7 +64,11 @@ function summary(
   studyStatus: LearningItemSummary["studyStatus"],
   nextDueAt: string | null
 ): LearningItemSummary {
-  const { markdownContent: _markdownContent, ...fields } = item;
+  const {
+    markdownContent: _markdownContent,
+    cautionNote: _cautionNote,
+    ...fields
+  } = item;
   return { ...fields, studyStatus, nextDueAt };
 }
 
@@ -111,6 +120,29 @@ function api() {
 }
 
 describe("LearningLibraryWorkspace", () => {
+  it("does not offer AI editing from a read-only learning-item detail", () => {
+    const learning = Object.assign(api(), {
+      aiEdit: {
+        start: vi.fn(),
+        send: vi.fn(),
+        stop: vi.fn(),
+        apply: vi.fn(),
+        discard: vi.fn()
+      }
+    });
+    render(
+      <LearningItemDialog
+        item={activeItems[0]}
+        api={learning as LearningDesktopApi}
+        readOnly
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Edit with AI" }))
+      .not.toBeInTheDocument();
+  });
+
   it("shows compact review status and history in learning item detail", async () => {
     const reviewApi = {
       getSummary: vi.fn(),
@@ -162,6 +194,9 @@ describe("LearningLibraryWorkspace", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
     const dialog = await screen.findByRole("dialog", { name: "bank" });
+    expect(within(dialog).getByLabelText("Learning caution")).toHaveTextContent(
+      "bank 在這裡是河岸"
+    );
     const schedule = within(dialog).getByRole("region", { name: "Review schedule" });
     const scrollRegion = dialog.querySelector(".learning-dialog-scroll");
     expect(scrollRegion).toContainElement(schedule);
@@ -668,7 +703,13 @@ describe("LearningLibraryWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Markdown content"), {
       target: { value: "## Meaning\n河岸地帶。" }
     });
+    fireEvent.change(screen.getByLabelText("Learning caution"), {
+      target: { value: "不要與金融機構的 bank 混淆。" }
+    });
     expect(screen.getByLabelText("Markdown preview")).toHaveTextContent("河岸地帶");
+    expect(screen.getByLabelText("Learning caution preview")).toHaveTextContent(
+      "不要與金融機構"
+    );
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
     expect(learning.updateItem).not.toHaveBeenCalled();
@@ -687,10 +728,159 @@ describe("LearningLibraryWorkspace", () => {
       expect.objectContaining({
         itemId: "item-bank",
         title: "river bank",
-        language: "ja"
+        language: "ja",
+        cautionNote: "注意：bank 在這裡是河岸，不是金融機構。"
       })
     ));
     await waitFor(() => expect(scrollRegion.scrollTop).toBe(420));
+  });
+
+  it("updates one in-place AI draft and saves it only after explicit apply", async () => {
+    const learning = api();
+    const aiEdit = {
+      start: vi.fn(async () => ({
+        sessionId: "edit-1",
+        itemId: "item-bank",
+        phase: "ready" as const,
+        draft: {
+          markdownContent: activeItems[0].markdownContent,
+          cautionNote: activeItems[0].cautionNote ?? ""
+        },
+        hasChanges: false,
+        status: "Tell AI what to change."
+      })),
+      send: vi.fn(async () => ({
+        sessionId: "edit-1",
+        itemId: "item-bank",
+        phase: "ready" as const,
+        draft: {
+          markdownContent: "## Meaning\n損害或削弱。\n\n## impair vs. repair\n兩者意思相反。",
+          cautionNote: "impair 是削弱；repair 是修復。"
+        },
+        hasChanges: true,
+        status: "Draft updated. You can ask for another adjustment."
+      })),
+      stop: vi.fn(),
+      apply: vi.fn(async () => ({
+        ...activeItems[0],
+        markdownContent: "## Meaning\n損害或削弱。\n\n## impair vs. repair\n兩者意思相反。",
+        cautionNote: "impair 是削弱；repair 是修復。"
+      })),
+      discard: vi.fn(async () => undefined)
+    };
+    Object.assign(learning, { aiEdit });
+    render(<LearningLibraryWorkspace api={learning as LearningDesktopApi} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit with AI" }));
+    expect(aiEdit.start).toHaveBeenCalledWith("item-bank");
+    expect(screen.queryByText("AI conversation history")).not.toBeInTheDocument();
+    const request = await screen.findByLabelText("AI editing request");
+    expect(screen.queryByText("AI editing request")).not.toBeInTheDocument();
+    expect(screen.queryByText("Describe one change at a time")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ctrl/⌘ + Enter")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ready", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply AI edit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    fireEvent.change(request, {
+      target: { value: "我常把 impair 誤解成 repair，請補充兩者差異。" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send AI edit request" }));
+
+    expect(await screen.findByLabelText("Learning caution")).toHaveTextContent(
+      "impair 是削弱"
+    );
+    expect(screen.getByText("兩者意思相反。")).toBeInTheDocument();
+    expect(learning.updateItem).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close card details" }));
+    const discardConfirmation = screen.getByRole("alertdialog", {
+      name: "Discard AI edit?"
+    });
+    expect(aiEdit.discard).not.toHaveBeenCalled();
+    fireEvent.click(within(discardConfirmation).getByRole("button", {
+      name: "Keep editing"
+    }));
+    expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply AI edit" }));
+    await waitFor(() => expect(aiEdit.apply).toHaveBeenCalledWith("edit-1"));
+  });
+
+  it("can stop an in-flight AI edit without discarding the last valid draft", async () => {
+    const learning = api();
+    let resolveSend: ((snapshot: {
+      sessionId: string;
+      itemId: string;
+      phase: "ready";
+      draft: { markdownContent: string; cautionNote: string };
+      hasChanges: boolean;
+      status: string;
+    }) => void) | undefined;
+    const aiEdit = {
+      start: vi.fn(async () => ({
+        sessionId: "edit-stop",
+        itemId: "item-bank",
+        phase: "ready" as const,
+        draft: {
+          markdownContent: activeItems[0].markdownContent,
+          cautionNote: activeItems[0].cautionNote ?? ""
+        },
+        hasChanges: false,
+        status: "Tell AI what to change."
+      })),
+      send: vi.fn(() => new Promise((resolve) => {
+        resolveSend = resolve;
+      })),
+      stop: vi.fn(async () => ({
+        sessionId: "edit-stop",
+        itemId: "item-bank",
+        phase: "error" as const,
+        draft: {
+          markdownContent: activeItems[0].markdownContent,
+          cautionNote: activeItems[0].cautionNote ?? ""
+        },
+        hasChanges: false,
+        status: "AI editing stopped. Your last valid draft is unchanged."
+      })),
+      apply: vi.fn(),
+      discard: vi.fn(async () => undefined)
+    };
+    Object.assign(learning, { aiEdit });
+    render(<LearningLibraryWorkspace api={learning as LearningDesktopApi} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /bank/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit with AI" }));
+    fireEvent.change(await screen.findByLabelText("AI editing request"), {
+      target: { value: "請補充差異。" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send AI edit request" }));
+    expect(screen.getByLabelText("AI edit in progress")).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByTestId("learning-detail-backdrop"));
+    expect(aiEdit.discard).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close card details" })).toBeDisabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(aiEdit.discard).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "bank" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop AI edit" }));
+
+    await waitFor(() => expect(aiEdit.stop).toHaveBeenCalledWith("edit-stop"));
+    expect(screen.getByRole("status")).toHaveTextContent("last valid draft is unchanged");
+    resolveSend?.({
+      sessionId: "edit-stop",
+      itemId: "item-bank",
+      phase: "ready",
+      draft: {
+        markdownContent: activeItems[0].markdownContent,
+        cautionNote: activeItems[0].cautionNote ?? ""
+      },
+      hasChanges: false,
+      status: "Draft updated."
+    });
   });
 
   it("confirms before moving a card to trash, then restores and empties trash", async () => {

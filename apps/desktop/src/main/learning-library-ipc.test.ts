@@ -57,7 +57,8 @@ describe("learning library IPC", () => {
       language: "en" as const,
       cefr: item.cefr,
       sense: item.sense,
-      markdownContent: item.markdownContent
+      markdownContent: item.markdownContent,
+      cautionNote: ""
     };
 
     expect([...handlers.keys()].sort()).toEqual([

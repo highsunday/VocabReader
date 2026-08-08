@@ -45,8 +45,8 @@ import {
   type SentencePracticeItem
 } from "../shared/sentence-practice-contracts";
 
-// Schema 5 adds a persisted language category to every learning item.
-export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 5;
+// Schema 6 adds a persisted optional caution to every learning item.
+export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 6;
 
 interface LearningItemRow {
   id: string;
@@ -56,6 +56,7 @@ interface LearningItemRow {
   cefr: CefrLevel;
   sense: string;
   markdown_content: string;
+  caution_note: string;
   status: LearningItemStatus;
   created_at: string;
   updated_at: string;
@@ -470,6 +471,7 @@ function itemFromRow(row: LearningItemRow): LearningItem {
     cefr: row.cefr,
     sense: row.sense,
     markdownContent: row.markdown_content,
+    cautionNote: row.caution_note,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -834,6 +836,7 @@ export class LocalLearningLibrary {
           cefr TEXT NOT NULL CHECK (cefr IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
           sense TEXT NOT NULL,
           markdown_content TEXT NOT NULL,
+          caution_note TEXT NOT NULL DEFAULT '',
           status TEXT NOT NULL CHECK (status IN ('active', 'trashed')),
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
@@ -902,6 +905,18 @@ export class LocalLearningLibrary {
       database.prepare(`
         INSERT OR IGNORE INTO schema_migrations (version, applied_at)
         VALUES (5, CURRENT_TIMESTAMP)
+      `).run();
+      const currentLearningItemColumns = database.prepare(
+        "PRAGMA table_info(learning_items)"
+      ).all() as unknown as Array<{ name: string }>;
+      if (!currentLearningItemColumns.some(({ name }) => name === "caution_note")) {
+        database.exec(`
+          ALTER TABLE learning_items ADD COLUMN caution_note TEXT NOT NULL DEFAULT ''
+        `);
+      }
+      database.prepare(`
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+        VALUES (6, CURRENT_TIMESTAMP)
       `).run();
       database.exec(`
         CREATE INDEX IF NOT EXISTS learning_items_status_language_created_idx
@@ -1598,6 +1613,7 @@ export class LocalLearningLibrary {
     const result = this.#open().prepare(`
       UPDATE learning_items SET
         title = ?, item_type = ?, language = ?, cefr = ?, sense = ?, markdown_content = ?,
+        caution_note = ?,
         updated_at = ?
       WHERE id = ?
     `).run(
@@ -1607,11 +1623,43 @@ export class LocalLearningLibrary {
       item.cefr,
       item.sense,
       item.markdownContent,
+      typeof input.cautionNote === "string" ? input.cautionNote.trim() : "",
       new Date().toISOString(),
       id
     );
     if (result.changes !== 1) throw new Error("Learning item not found");
     return this.getItem(id);
+  }
+
+  async applyAiEdit(input: {
+    itemId: string;
+    baseUpdatedAt: string;
+    markdownContent: string;
+    cautionNote: string;
+  }): Promise<LearningItem> {
+    if (!input || typeof input !== "object") throw new Error("Invalid AI edit");
+    const itemId = requiredText(input.itemId, "learning item");
+    const baseUpdatedAt = requiredText(input.baseUpdatedAt, "base update time");
+    const markdownContent = requiredText(input.markdownContent, "Markdown content");
+    if (typeof input.cautionNote !== "string") throw new Error("Invalid caution note");
+    const baseTime = Date.parse(baseUpdatedAt);
+    const updatedAt = new Date(
+      Number.isFinite(baseTime) ? Math.max(Date.now(), baseTime + 1) : Date.now()
+    ).toISOString();
+    const result = this.#open().prepare(`
+      UPDATE learning_items SET markdown_content = ?, caution_note = ?, updated_at = ?
+      WHERE id = ? AND status = 'active' AND updated_at = ?
+    `).run(
+      markdownContent,
+      input.cautionNote.trim(),
+      updatedAt,
+      itemId,
+      baseUpdatedAt
+    );
+    if (result.changes !== 1) {
+      throw new Error("This learning item changed. Reopen AI editing and try again.");
+    }
+    return this.getItem(itemId);
   }
 
   async trashItem(itemId: string): Promise<LearningItem> {

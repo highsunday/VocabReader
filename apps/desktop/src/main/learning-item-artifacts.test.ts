@@ -1,10 +1,44 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseLearningItemEditResult,
   parseLearningItemArtifacts,
   parseLearningItemRecheck
 } from "./learning-item-artifacts";
+import * as artifactModule from "./learning-item-artifacts";
 
 describe("parseLearningItemArtifacts", () => {
+  it("exposes a strict parser for a bounded learning-item edit result", () => {
+    expect(
+      (artifactModule as Record<string, unknown>).parseLearningItemEditResult
+    ).toBeTypeOf("function");
+  });
+
+  it("accepts only the matching complete learning-item edit artifact", () => {
+    const source = `\`\`\`learning-item-edit-result\n${JSON.stringify({
+      version: 1,
+      kind: "learning-item-edit-result",
+      sessionId: "session-1",
+      itemId: "item-1",
+      markdownContent: "## Meaning\n損害或削弱。",
+      cautionNote: "impair 是削弱；repair 是修復。"
+    })}\n\`\`\``;
+
+    expect(parseLearningItemEditResult(source, {
+      sessionId: "session-1",
+      itemId: "item-1"
+    })).toMatchObject({
+      markdownContent: "## Meaning\n損害或削弱。",
+      cautionNote: "impair 是削弱；repair 是修復。"
+    });
+    expect(() => parseLearningItemEditResult(source, {
+      sessionId: "another-session",
+      itemId: "item-1"
+    })).toThrow(/edit result/);
+    expect(() => parseLearningItemEditResult(
+      source.replace('"cautionNote"', '"title":"repair","cautionNote"'),
+      { sessionId: "session-1", itemId: "item-1" }
+    )).toThrow(/edit result/);
+  });
   it("extracts and validates a pending draft batch without rendering raw JSON", () => {
     let id = 0;
     const result = parseLearningItemArtifacts([

@@ -4458,6 +4458,11 @@ button {
   cursor: pointer;
 }
 
+.learning-dialog-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .learning-pronunciation-button,
   .learning-pronunciation-button.is-speaking svg {
@@ -4476,6 +4481,287 @@ button {
 .learning-dialog-content {
   min-height: 0;
   padding: 22px 28px;
+}
+
+.learning-caution {
+  color: #b32636;
+  margin: 0 0 18px;
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.learning-caution strong {
+  text-decoration: none;
+}
+
+.learning-caution-editor {
+  display: grid;
+  gap: 8px;
+  padding: 0 24px 20px;
+}
+
+.learning-caution-editor textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.learning-ai-editor {
+  position: relative;
+  flex: 0 0 auto;
+  background: #f7f7f3;
+  border-top: 1px solid #dddcd4;
+  display: grid;
+  gap: 9px;
+  padding: 11px 16px 13px;
+  box-shadow: 0 -8px 24px rgb(40 52 44 / 6%);
+  overflow: hidden;
+}
+
+.learning-ai-progress {
+  position: absolute;
+  top: 0;
+  left: -38%;
+  width: 38%;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #4f8660, transparent);
+  animation: learning-ai-progress 1.25s ease-in-out infinite;
+}
+
+@keyframes learning-ai-progress {
+  to {
+    left: 100%;
+  }
+}
+
+.learning-ai-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.learning-ai-identity {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+}
+
+.learning-ai-identity > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  color: #326044;
+}
+
+.learning-ai-identity strong {
+  color: #263e2f;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.learning-ai-inline-status {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  min-width: 0;
+  color: #718078;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.learning-ai-inline-status[data-phase="error"] {
+  color: #9a4e3c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.learning-ai-inline-status svg {
+  width: 12px;
+  height: 12px;
+}
+
+.learning-ai-spinner {
+  animation: learning-ai-spin 800ms linear infinite;
+}
+
+@keyframes learning-ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.learning-ai-input-row {
+  min-width: 0;
+  padding: 5px 5px 5px 12px;
+  border: 1px solid #cbd2ca;
+  border-radius: 11px;
+  align-items: end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  background: #fffefa;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.learning-ai-input-row:focus-within {
+  border-color: #71917a;
+  box-shadow: 0 0 0 3px rgb(77 122 90 / 10%);
+}
+
+.learning-ai-editor textarea {
+  height: 82px;
+  min-height: 82px;
+  max-height: 82px;
+  padding: 8px 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  width: 100%;
+  color: #29372f;
+  background: transparent;
+  font: inherit;
+  line-height: 1.35;
+  overflow-y: auto;
+}
+
+.learning-ai-editor textarea::placeholder {
+  color: #909891;
+}
+
+.learning-ai-editor textarea:disabled {
+  color: #7a837d;
+  background: transparent;
+}
+
+.learning-ai-send-action,
+.learning-ai-stop-action,
+.learning-ai-cancel-action,
+.learning-ai-apply-action {
+  border-radius: 8px;
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  gap: 7px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    background 120ms ease,
+    opacity 120ms ease;
+}
+
+.learning-ai-send-action {
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid #3e704e;
+  color: #fff;
+  background: #3d6c4b;
+  font-size: 12px;
+}
+
+.learning-ai-send-action svg,
+.learning-ai-apply-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.learning-ai-stop-action {
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid #d0a28e;
+  color: #924f38;
+  background: #fff7f2;
+  font-size: 12px;
+}
+
+.learning-ai-toolbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.learning-ai-cancel-action {
+  min-height: 29px;
+  padding: 4px 7px;
+  border: 0;
+  color: #66726a;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.learning-ai-apply-action {
+  min-height: 29px;
+  padding: 4px 9px;
+  border: 1px solid #7f9c87;
+  color: #315f40;
+  background: transparent;
+  font-size: 12px;
+}
+
+.learning-ai-apply-action:not(:disabled) {
+  border-color: #315f40;
+  color: #fff;
+  background: #315f40;
+}
+
+.learning-ai-send-action:not(:disabled):hover,
+.learning-ai-apply-action:not(:disabled):hover,
+.learning-ai-stop-action:hover {
+  transform: translateY(-1px);
+}
+
+.learning-ai-send-action:not(:disabled):hover,
+.learning-ai-apply-action:not(:disabled):hover {
+  background: #284f36;
+}
+
+.learning-ai-cancel-action:not(:disabled):hover {
+  color: #344a3b;
+}
+
+.learning-ai-send-action:disabled,
+.learning-ai-cancel-action:disabled,
+.learning-ai-apply-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.43;
+}
+
+@media (max-width: 620px) {
+  .learning-ai-editor {
+    padding-inline: 12px;
+  }
+
+  .learning-ai-inline-status {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .learning-ai-progress,
+  .learning-ai-spinner {
+    animation: none;
+  }
+
+  .learning-ai-send-action,
+  .learning-ai-stop-action,
+  .learning-ai-apply-action {
+    transition: none;
+  }
 }
 
 .learning-markdown {
@@ -4515,6 +4801,18 @@ button {
 
 .learning-dialog-actions .primary-action {
   margin: 0;
+}
+
+.learning-dialog-actions button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  gap: 7px;
+}
+
+.learning-dialog-actions button svg {
+  width: 17px;
+  height: 17px;
 }
 
 .learning-edit-form {

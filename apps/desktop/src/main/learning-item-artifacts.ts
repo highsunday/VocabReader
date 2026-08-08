@@ -24,6 +24,15 @@ export interface LearningItemRecheckDecision {
   itemId?: string;
 }
 
+export interface LearningItemEditResult {
+  version: 1;
+  kind: "learning-item-edit-result";
+  sessionId: string;
+  itemId: string;
+  markdownContent: string;
+  cautionNote: string;
+}
+
 const itemTypes = new Set<LearningItemType>(["word", "phrase"]);
 const languages = new Set<LearningItemLanguage>(["en", "ja", "zh-TW", "other"]);
 const cefrLevels = new Set<CefrLevel>(["A1", "A2", "B1", "B2", "C1", "C2"]);
@@ -174,6 +183,49 @@ function extractSingleBlock(text: string, name: string) {
   return {
     raw: matches.length === 1 ? matches[0]?.[1] : undefined,
     count: matches.length
+  };
+}
+
+export function parseLearningItemEditResult(
+  sourceText: string,
+  expected: { sessionId: string; itemId: string }
+): LearningItemEditResult {
+  const block = extractSingleBlock(sourceText, "learning-item-edit-result");
+  if (block.count !== 1 || block.raw === undefined) {
+    throw new Error("Invalid learning-item edit result");
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(block.raw);
+  } catch {
+    throw new Error("Invalid learning-item edit result");
+  }
+  const allowedKeys = new Set([
+    "version",
+    "kind",
+    "sessionId",
+    "itemId",
+    "markdownContent",
+    "cautionNote"
+  ]);
+  if (!isObject(value) ||
+    Object.keys(value).some((key) => !allowedKeys.has(key)) ||
+    value.version !== 1 ||
+    value.kind !== "learning-item-edit-result" ||
+    value.sessionId !== expected.sessionId ||
+    value.itemId !== expected.itemId ||
+    typeof value.markdownContent !== "string" ||
+    !value.markdownContent.trim() ||
+    typeof value.cautionNote !== "string") {
+    throw new Error("Invalid learning-item edit result");
+  }
+  return {
+    version: 1,
+    kind: "learning-item-edit-result",
+    sessionId: value.sessionId,
+    itemId: value.itemId,
+    markdownContent: value.markdownContent.trim(),
+    cautionNote: value.cautionNote.trim()
   };
 }
 
