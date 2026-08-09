@@ -3,7 +3,7 @@ author: Codex
 date: 2026-08-09
 title: 使用可套用的 AI 語音設定朗讀章節選取內容
 uuid: ae0e08f8-ba44-4073-acfa-02d8328b5bb5
-version: 1.1.0
+version: 1.2.0
 status: implemented
 ---
 
@@ -80,8 +80,12 @@ instructions：
   也不取得 API key。
 - 選取朗讀使用低延遲 PCM 串流；取得第一批有效音訊後即可開始播放，不等待完整文字全部
   生成。預覽可以使用適合一次性播放的 WAV。
-- 4096 字元以內以一次 Speech API 請求處理；更長文字依段落、句末標點、其他標點及空格
-  的優先順序切成不超過上限的片段，依原順序連續串流，且不得靜默截斷本文。
+- 正規化後超過 1200 字元的長選取，在任何 Speech API 呼叫前先顯示費用警告，包含選取
+  字元數及使用 OpenAI API 額度的提示。只有使用者明確選擇繼續產生才可開始請求；取消
+  或關閉提示時不得呼叫 Speech API。
+- 每個 Speech API 片段最多 1000 字元；更長文字依段落、句末標點、其他標點及空格的
+  優先順序切分，依原順序連續串流，且不得靜默截斷本文。1000 字元位於使用者指定的
+  800–1200 字元成本控制區間內。
 - 播放中按鈕顯示停止狀態；停止、開始新選取朗讀、切換章節、離開閱讀頁或 App unmount
   時，中止目前網路請求、PCM 播放及所有尚未開始的片段。
 - 斷網、認證／額度、服務或播放錯誤不自動退回裝置語音。介面保留當次選取與入口，顯示
@@ -130,10 +134,11 @@ instructions：
   - **Then** Main Process 只傳送該次選取及受限 voice／instructions 給 Speech API
   - **And** Renderer 從首批 PCM 開始播放，顯示 AI-generated voice 狀態
 
-- **Scenario 5：長選取自動分段**
-  - **Given** 選取文字超過 4096 字元
-  - **When** 使用者開始選取朗讀
-  - **Then** 本文在自然邊界切成合法片段並按原順序連續播放
+- **Scenario 5：長選取先警告再分段**
+  - **Given** 正規化後的選取文字超過 1200 字元
+  - **When** 使用者要求選取朗讀
+  - **Then** 在零 Speech API 呼叫的狀態下顯示字元數與 API 額度警告
+  - **And** 只有明確確認後才把本文切成不超過 1000 字元的合法片段依序播放
   - **And** 所有非空白原文都被播放，不被截斷或重排
 
 - **Scenario 6：停止與新播放取代舊播放**
@@ -170,7 +175,8 @@ instructions：
 | TC4 | 移除 key | 已有設定 | 明確移除 | 憑證刪除；選取朗讀成為未設定 | Critical |
 | TC5 | 未設定入口 | 無 key且有有效選取 | 點懸浮／右鍵朗讀 | 開啟 AI Voice tab；零 TTS／Web Speech 呼叫 | Critical |
 | TC6 | PCM 串流 | 設定完成、API 分批回傳 | 點 Pronounce | 首批後開始播放；完成後回到可播放狀態 | Critical |
-| TC7 | 長文切分 | 本文超過 4096 字元 | 開始播放 | 每片合法、順序與合併本文一致、無截斷 | Critical |
+| TC7 | 長選取警告 | 正規化本文超過 1200 字元 | 點選取朗讀 | 顯示字數／額度警告；確認前零 API 呼叫；取消維持零呼叫 | Critical |
+| TC7a | 長文切分 | 本文超過 1000 字元且已確認 | 繼續產生 | 每片不超過 1000 字元、順序與合併本文一致、無截斷 | Critical |
 | TC8 | 停止／取代 | 請求或播放進行中 | Stop 或播放新選取 | abort 舊請求、停止 sources、忽略 stale events | Critical |
 | TC9 | 錯誤分類 | 401／429／斷網／5xx | 播放 | 安全訊息、Retry；認證錯誤有設定入口；無 fallback | High |
 | TC10 | 快取命中 | 相同文字／voice／tone 已生成 | 再次播放 | 零 API 呼叫、直接串流 cached PCM | High |
@@ -192,8 +198,10 @@ instructions：
   依序排程 AudioBufferSource，並把 API stream 完成與實際播放完成分開。
 - Main Process 以 AbortController 管理每次朗讀與分段佇列。快取 key 至少包含正規化本文、
   model、voice、tone instruction revision；使用 SHA-256 等摘要避免以原文作索引鍵。
-- 長文切分抽成純函式，使用 Unicode-aware 邊界並保證每段非空白、不超過 4096 字元，
+- 長文切分抽成純函式，使用 Unicode-aware 邊界並保證每段非空白、不超過 1000 字元，
   合併後等於正規化輸入。
+- Renderer 以正規化後字元數判定長選取；警告只負責取得本次明確確認，不保存本文、不
+  改變 AI Voice 設定，也不讓 Main Process 接受繞過既有 start IPC 的任意請求欄位。
 - 預覽固定使用簡短英文學習句，不傳送 EPUB 內容；候選設定驗證成功前不得更新正式設定。
 
 ## 7. Affected Modules and Files
@@ -252,11 +260,18 @@ instructions：
 
 - 無阻擋實作的未決問題。
 
+### 1.2 Cost guardrail extension
+
+- 長選取警告門檻固定為正規化後大於 1200 字元；1200 字元本身可直接播放。
+- Main Process 片段上限由 4096 調整為 1000 字元。
+- 警告同時適用懸浮與右鍵選取朗讀入口；取消警告不會清除使用者目前的文字選取目標。
+- 本次不加入可設定門檻、精確費用試算、每日預算或逐片播放 backpressure。
+
 ## 9. Implementation Record
 
 ### Status
 
-Implemented on 2026-08-09.
+Implemented on 2026-08-09. Cost guardrail extension implemented on 2026-08-10.
 
 ### Implementation Summary
 
@@ -266,8 +281,11 @@ Implemented on 2026-08-09.
   settings、Renderer snapshot 與資料備份都不含原始 key，安全儲存不可用時拒絕明文降級。
 - 新增受限的 Selection Speech contracts、IPC 與 preload bridge。Main Process 固定呼叫
   `gpt-4o-mini-tts`、固定 endpoint／instructions／PCM 格式，不接受 Renderer 自訂 request。
-- 選取原文經正規化與 4096 字元邊界切分後串流；Renderer 將 24 kHz、16-bit little-endian
-  PCM 依序排程播放，支援停止、取代、切章清理、舊事件隔離、錯誤重試與認證錯誤導回設定。
+- 正規化後超過 1,200 字元的選取會先在原朗讀位置顯示字數、等待時間與 OpenAI 額度提醒；
+  取消時不呼叫 API，只有明確按下 Generate voice 才繼續。1,200 字元本身可直接播放。
+- 確認後，選取原文經正規化與最多 1,000 字元的邊界切分後串流；Renderer 將 24 kHz、
+  16-bit little-endian PCM 依序排程播放，支援停止、取代、切章清理、舊事件隔離、錯誤重試
+  與認證錯誤導回設定。
 - 同一正規化本文、model、角色與語氣的音訊使用 Main Process 32 MiB 記憶體 LRU；不寫磁碟，
   移除 key 時立即清除，App process 結束後自然釋放。
 - 尚未套用時，懸浮與右鍵入口會開啟 AI Voice 設定且不呼叫裝置語音；AI 失敗也不自動
@@ -277,14 +295,15 @@ Implemented on 2026-08-09.
 
 - Red：AI Voice tab、設定套用表單、未設定導向與 AI PCM 選取播放測試，均先因功能不存在
   而失敗，再由最小實作逐項轉綠。
-- `selection-speech-service.test.ts`：13/13 passed，覆蓋 encrypted credential、無 plaintext
+- `selection-speech-service.test.ts`：14/14 passed，覆蓋 encrypted credential、無 plaintext
   fallback、預覽後提交、失敗不覆寫、PCM stream、取消、長文切分、LRU、快取及
   auth／quota／network／service 安全錯誤分類。
 - `selection-speech-ipc.test.ts`：7/7 passed，覆蓋設定／播放路由、白名單 enum、文字長度與
   request ID 驗證。
-- Selection Speech Renderer 聚焦測試：8/8 passed，覆蓋懸浮、右鍵、未設定導向、停止／
-  取代、標記模式、生命週期、PCM 播放、auth retry／settings 與無裝置語音 fallback。
-- Desktop Vitest：41 files、435/435 passed；其中學習項目既有 Web Speech 回歸仍通過。
+- `App.test.tsx`：88/88 passed；Selection Speech 案例覆蓋懸浮、右鍵、未設定導向、停止／
+  取代、標記模式、生命週期、PCM 播放、auth retry／settings、無裝置語音 fallback，以及
+  超過 1,200 字元時確認前／取消後零 API 呼叫、確認後才產生語音的成本警告。
+- Desktop Vitest：42 files、439/439 passed；其中學習項目既有 Web Speech 回歸仍通過。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed；保留既有 renderer chunk-size warning。
 - Electron Playwright E2E：2/2 passed，包含 production preload／IPC 與 AI Voice 設定 UI。
@@ -295,7 +314,8 @@ Implemented on 2026-08-09.
 1. 首次 service 測試解析失敗不是產品行為，而是測試中的換行 type assertion 觸發 ASI；
    將 assertion 以括號包住後，測試才真正進入實作紅燈。
 2. Unicode 句界 regex 初版在 character class 內錯誤跳脫雙引號，造成 parser failure；移除
-   無效跳脫後，長文切分測試驗證合併本文不遺失且每段不超過 4096 字元。
+   無效跳脫後，長文切分測試驗證合併本文不遺失；成本護欄延伸再把每段上限收斂至
+   1,000 字元。
 3. 串流採 PCM 而非 MP3，避免每個 network chunk 都需要容器解碼；Renderer 保留跨 chunk
    的單一殘留 byte，並把「API stream done」與「最後一個 AudioBuffer 播完」分開處理。
 4. 套用必須先使用候選設定取得 WAV 預覽，再保存 key／voice／tone；若保存偏好失敗，則
@@ -309,7 +329,8 @@ Implemented on 2026-08-09.
   `selection-speech-ipc.test.ts`。
 - 更新 Main Process composition、settings contracts／store／IPC、preload 與 Renderer env。
 - 更新 `App.tsx`、`App.test.tsx`、`styles.css` 與 Electron E2E。
-- 更新 `CONTEXT.md`、F56 與 `documents/modules/annotation.md`。
+- 更新 `CONTEXT.md`、F56 與 `documents/modules/annotation.md`，並新增
+  `documents/modules/ai-voice.md` 作為 AI Voice／Selection Speech 的主要工程模組文件。
 
 ### Architectural Observations
 

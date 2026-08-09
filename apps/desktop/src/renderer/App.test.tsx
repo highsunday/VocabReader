@@ -3107,6 +3107,88 @@ describe("App", () => {
       .toBeInTheDocument();
   });
 
+  it("warns before a long selection can use OpenAI credits", async () => {
+    installSpeechSynthesis();
+    const { getChapterContent, selectionSpeech } = installLibraryApi();
+    const longText = "Cost-aware reading. ".repeat(70).trim();
+    expect(longText.length).toBeGreaterThan(1200);
+    selectionSpeech.getSettings.mockResolvedValue({
+      hasApiKey: true,
+      voice: "cedar",
+      tone: "learning"
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${longText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+
+    selectText(article, longText);
+    fireEvent.mouseUp(article);
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Pronounce selected text"
+    }));
+
+    const warning = await screen.findByRole("alert");
+    expect(warning).toHaveTextContent("Long selection");
+    expect(warning).toHaveTextContent(`${longText.length} characters selected`);
+    expect(warning).toHaveTextContent("OpenAI API credits");
+    expect(selectionSpeech.start).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(selectionSpeech.start).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", {
+      name: "Pronounce selected text"
+    }));
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Generate voice"
+    }));
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenCalledWith({
+      text: longText
+    }));
+  });
+
+  it("plays a selection at the warning threshold without confirmation", async () => {
+    installSpeechSynthesis();
+    const { getChapterContent, selectionSpeech } = installLibraryApi();
+    const thresholdText = "a".repeat(1200);
+    selectionSpeech.getSettings.mockResolvedValue({
+      hasApiKey: true,
+      voice: "cedar",
+      tone: "learning"
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${thresholdText}</p>`
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+
+    selectText(article, thresholdText);
+    fireEvent.mouseUp(article);
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Pronounce selected text"
+    }));
+
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenCalledWith({
+      text: thresholdText
+    }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("opens AI Voice settings without using device speech when selection speech is not configured", async () => {
     const speech = installSpeechSynthesis();
     const { getChapterContent, selectionSpeech } = installLibraryApi();

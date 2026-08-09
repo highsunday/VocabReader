@@ -2077,6 +2077,119 @@ button {
   height: 11px;
 }
 
+.selection-speech-warning {
+  position: fixed;
+  z-index: 13;
+  width: 352px;
+  max-width: calc(100vw - 24px);
+  padding: 14px;
+  border: 1px solid #dfc49a;
+  border-radius: 14px;
+  display: flex;
+  gap: 11px;
+  color: #483b2a;
+  background: rgb(255 252 244 / 99%);
+  box-shadow: 0 12px 34px rgb(64 49 31 / 19%);
+  transform: translateX(-50%);
+}
+
+.selection-speech-warning-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: center;
+  color: #9a6432;
+  background: #f8ead1;
+}
+
+.selection-speech-warning-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.selection-speech-warning-content {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.selection-speech-warning-content > strong {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.selection-speech-warning-content > span {
+  margin-top: 2px;
+  color: #806b50;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.selection-speech-warning-content > p {
+  margin: 8px 0 0;
+  color: #655743;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.selection-speech-warning-actions {
+  width: 100%;
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.selection-speech-warning-actions button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #d8c8ae;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #685841;
+  background: #fffdf8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 780;
+}
+
+.selection-speech-warning-actions button:hover,
+.selection-speech-warning-actions button:focus-visible {
+  border-color: #bda47c;
+  background: #fff7e9;
+}
+
+.selection-speech-warning-actions button:focus-visible {
+  outline: 2px solid rgb(160 113 56 / 27%);
+  outline-offset: 2px;
+}
+
+.selection-speech-warning-actions button.primary {
+  border-color: #477255;
+  color: #fff;
+  background: #477255;
+}
+
+.selection-speech-warning-actions button.primary:hover,
+.selection-speech-warning-actions button.primary:focus-visible {
+  border-color: #315a3f;
+  background: #315a3f;
+}
+
+.selection-speech-warning-actions svg {
+  width: 13px;
+  height: 13px;
+}
+
 @keyframes selection-speech-spin {
   to {
     transform: rotate(360deg);

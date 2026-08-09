@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppSettings } from "../shared/settings-contracts";
 import {
   EncryptedSelectionSpeechApiKeyStore,
+  MAX_SELECTION_SPEECH_INPUT_LENGTH,
   PcmSelectionSpeechCache,
   SelectionSpeechService,
   SelectionSpeechServiceError,
@@ -262,7 +263,10 @@ describe("SelectionSpeechService", () => {
 
     expect(events.at(-1)?.type).toBe("done");
     expect(inputs.length).toBeGreaterThan(1);
-    expect(inputs.every((input) => input.length <= 4096)).toBe(true);
+    expect(MAX_SELECTION_SPEECH_INPUT_LENGTH).toBe(1000);
+    expect(inputs.every((input) =>
+      input.length <= MAX_SELECTION_SPEECH_INPUT_LENGTH
+    )).toBe(true);
     expect(inputs.join("")).toBe(normalizeSelectionSpeechText(text));
   });
 

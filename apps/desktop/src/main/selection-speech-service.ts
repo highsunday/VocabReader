@@ -18,7 +18,7 @@ const OPENAI_SPEECH_ENDPOINT = "https://api.openai.com/v1/audio/speech";
 const OPENAI_SPEECH_MODEL = "gpt-4o-mini-tts";
 const PREVIEW_TEXT =
   "Listen carefully: the little door creaked open. Was someone there? Suddenly, a bright light filled the room!";
-export const MAX_SELECTION_SPEECH_INPUT_LENGTH = 4096;
+export const MAX_SELECTION_SPEECH_INPUT_LENGTH = 1000;
 export const SELECTION_SPEECH_CACHE_LIMIT = 32 * 1024 * 1024;
 
 const toneProfiles: Record<SelectionSpeechTone, {
@@ -242,7 +242,7 @@ function cacheKey(
   tone: SelectionSpeechTone
 ) {
   return createHash("sha256")
-    .update(`${OPENAI_SPEECH_MODEL}\0pcm-v2\0${voice}\0${tone}\0${text}`)
+    .update(`${OPENAI_SPEECH_MODEL}\0pcm-v3\0${voice}\0${tone}\0${text}`)
     .digest("hex");
 }
 

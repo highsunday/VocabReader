@@ -2,7 +2,7 @@
 title: 持久標記與 AI 標記解析模組
 module: annotation
 status: active
-last_updated: 2026-08-09
+last_updated: 2026-08-10
 related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - F14-sticky-annotation-tool
@@ -29,7 +29,9 @@ related_implements:
 套用自己的 OpenAI API key、角色與語氣，之後可串流播放選取的單字、句子或連續段落。
 它不保存選取本文、不建立標記，也不加入 AI 對話上下文；只有使用者明確按下朗讀時才把
 該次選取本文送至 OpenAI。標記模式仍可在自動建立標記後接續朗讀同一份暫存文字。
-學習項目詳情中的發音不屬於 Selection Speech，仍使用裝置 Web Speech。
+學習項目詳情中的發音不屬於 Selection Speech，仍使用裝置 Web Speech。AI Voice 的設定、
+安全儲存、OpenAI 串流、成本護欄與快取詳見 `documents/modules/ai-voice.md`；本文件只定義
+Selection 擷取、offset 與標記共存的交界。
 
 標記的資料模型、保存與序列化仍以本文件為主；兩個 AI 預設 workflow 的細節分別記錄於 `annotation-explanation.md` 與 `reading-comprehension-quiz.md`，App skills 的打包、安裝與隔離記錄於 `skill-management.md`。
 
@@ -44,8 +46,9 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 - 章節閱讀頁的持續標記模式；開啟後可連續選取文字直接建立標記，再次點擊、切章或離開閱讀頁時關閉。
 - 選取章節原文後，在選取範圍附近顯示 Pronounce 懸浮操作，並在既有右鍵功能選單提供 Pronounce selection；兩個入口都能播放單字、句子或連續段落。
 - 選取朗讀使用已套用的 OpenAI AI Voice，提供 Cedar、Marin、Coral、Onyx 與 Learning、
-  Natural、Calm、Expressive；以 24 kHz PCM 串流播放，長文自動切分，播放中可停止，新選取
-  會取消舊播放，切章或離開閱讀頁也會取消。
+  Natural、Calm、Expressive；正規化後超過 1,200 字元時先顯示字數與 API 額度提醒，確認後
+  才以 24 kHz PCM 串流播放並把長文切成最多 1,000 字元的片段。播放中可停止，新選取會
+  取消舊播放，切章或離開閱讀頁也會取消。
 - API key 由 OS secure storage 加密保存；Renderer 只取得是否已設定，key 不進一般設定、
   日誌或資料備份。未設定時直接開啟 AI Voice 設定，失敗時可重試，且不 fallback 到裝置語音。
 - 標記模式自動建立標記並清除 DOM Selection 後，仍保留剛才的暫存文字與朗讀入口；朗讀不改變標記、START／END、書庫資料或 AI context。
@@ -99,11 +102,13 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 3. 一般模式只顯示 Pronounce；標記模式先保存合法標記並清除 DOM Selection，但暫態朗讀本文維持可用。
 4. 右鍵功能選單重新讀取同一份有效 Selection，並同時提供 Pronounce selection 與既有範圍／標記操作。
 5. 播放前確認 AI Voice 已套用；未設定時開啟 AI Voice 分頁，不呼叫 OpenAI 或裝置語音。
-6. Renderer 經窄化 preload／IPC 只送出選取本文；Main Process 正規化並以 4096 字元上限
+6. 正規化後超過 1,200 字元時，Renderer 先顯示長選取警告；取消時零 API 呼叫，明確確認後
+   才繼續。懸浮與右鍵入口共用相同行為。
+7. Renderer 經窄化 preload／IPC 只送出選取本文；Main Process 正規化並以 1,000 字元上限
    依段落／句子邊界切分，固定使用 `gpt-4o-mini-tts`、已套用 voice／tone instructions 與 PCM。
-7. Main Process 以 request ID 串流 PCM；Renderer 處理 16-bit little-endian sample、跨 chunk
+8. Main Process 以 request ID 串流 PCM；Renderer 處理 16-bit little-endian sample、跨 chunk
    殘留 byte 與連續排程。request revision 和 request ID 共同隔離已取消的舊事件。
-8. 播放自然結束、使用者停止、播放失敗、切章、離開閱讀頁或 App unmount 時清理播放狀態；
+9. 播放自然結束、使用者停止、播放失敗、切章、離開閱讀頁或 App unmount 時清理播放狀態；
    auth 錯誤提供 Retry 與 AI Voice Settings，其他錯誤提供 Retry，均不阻斷閱讀或裝置 fallback。
 
 ## 5. AI Context Serialization
@@ -207,14 +212,15 @@ credential 與記憶體快取位於 Main Process，沒有 Reader Server 或 Code
 - 標記會隨完整書庫進入資料備份並可完整還原；不提供個別標記匯出、合併、搜尋、
   自動同步或復原／重做。
 - Renderer 的 `App.tsx` 目前同時協調閱讀範圍、標記、AI 對話與設定；功能繼續擴張前宜另開 RXX 拆分協調邊界。
-- 選取朗讀只提供四個固定 OpenAI voice 與四種受限語氣，不提供任意 prompt、model、endpoint、
-  自訂語音／複製、逐字高亮、播放進度、暫停後續播、朗讀歷史或音訊匯出；音訊不寫磁碟。
+- 選取朗讀的 voice／tone、成本護欄、播放限制與後續方向由 `ai-voice.md` 維護；本模組只需
+  保證 Selection 擷取及標記共存不繞過其播放入口。
 
 ## 11. Related Documents
 
 - `CONTEXT.md`
 - `documents/modules/book-library.md`
 - `documents/modules/reading-range.md`
+- `documents/modules/ai-voice.md`
 - `documents/modules/ai-conversation.md`
 - `documents/modules/skill-management.md`
 - `documents/modules/annotation-explanation.md`

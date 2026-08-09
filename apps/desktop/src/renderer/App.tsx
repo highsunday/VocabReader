@@ -29,6 +29,7 @@ import {
   Sparkles,
   Square,
   SunMedium,
+  TriangleAlert,
   Waves,
   Volume2
 } from "lucide-react";
@@ -118,6 +119,7 @@ const MIN_ASSISTANT_PANEL_WIDTH = 320;
 const MAX_ASSISTANT_PANEL_WIDTH = 640;
 const MIN_READING_AREA_WIDTH = 520;
 const EXPANDED_LEFT_SIDEBAR_WIDTH = 220;
+const SELECTION_SPEECH_WARNING_LENGTH = 1200;
 const selectionSpeechVoiceLabels: Record<SelectionSpeechVoice, string> = {
   cedar: "Cedar",
   marin: "Marin",
@@ -132,6 +134,14 @@ const selectionSpeechToneLabels: Record<SelectionSpeechTone, string> = {
 };
 const COLLAPSED_LEFT_SIDEBAR_WIDTH = 48;
 const ASSISTANT_PANEL_RESIZE_STEP = 16;
+
+function normalizedSelectionSpeechLength(text: string): number {
+  return text
+    .replace(/\r\n?/gu, "\n")
+    .replace(/[^\S\r\n]+/gu, " ")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trim().length;
+}
 
 interface ActiveSelectionSpeechPlayback {
   requestId: string;
@@ -330,6 +340,8 @@ export function App() {
   const [selectionSpeechError, setSelectionSpeechError] = useState("");
   const [selectionSpeechErrorCode, setSelectionSpeechErrorCode] =
     useState<SelectionSpeechErrorCode>();
+  const [isSelectionSpeechWarningOpen, setIsSelectionSpeechWarningOpen] =
+    useState(false);
   const [markerTops, setMarkerTops] = useState({ start: 0, end: 0 });
   const [draft, setDraft] = useState("");
   const [chatSnapshot, setChatSnapshot] = useState(initialChatSnapshot);
@@ -401,6 +413,7 @@ export function App() {
   const pendingChatScrollUserCountRef = useRef<number | null>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
   const selectionSpeechRef = useRef<HTMLButtonElement>(null);
+  const selectionSpeechWarningRef = useRef<HTMLDivElement>(null);
   const readingLayoutRef = useRef<HTMLDivElement>(null);
   const dataRestoreCancelRef = useRef<HTMLButtonElement>(null);
   const initializedRangeRef = useRef<string | undefined>(undefined);
@@ -739,6 +752,7 @@ export function App() {
       const selected = annotationRangeFromSelection(article, selection);
       if (!selected || !selection?.rangeCount) {
         setSelectionSpeechTarget(undefined);
+        setIsSelectionSpeechWarningOpen(false);
         setSelectionSpeechError("");
         setSelectionSpeechErrorCode(undefined);
         return;
@@ -750,6 +764,7 @@ export function App() {
       );
       const y = Math.min(window.innerHeight - 44, Math.max(8, rect.bottom + 8));
       setSelectionSpeechTarget({ text: selected.text, x, y });
+      setIsSelectionSpeechWarningOpen(false);
       setSelectionSpeechError("");
       setSelectionSpeechErrorCode(undefined);
       if (
@@ -789,6 +804,7 @@ export function App() {
           x: Math.min(window.innerWidth - 52, Math.max(52, event.clientX)),
           y: Math.min(window.innerHeight - 44, Math.max(8, event.clientY + 8))
         });
+        setIsSelectionSpeechWarningOpen(false);
         setSelectionSpeechError("");
         setSelectionSpeechErrorCode(undefined);
       }
@@ -819,11 +835,13 @@ export function App() {
     const handlePointerDown = (event: PointerEvent) => {
       if (
         selectionSpeechRef.current?.contains(event.target as Node) ||
+        selectionSpeechWarningRef.current?.contains(event.target as Node) ||
         rangeMenuRef.current?.contains(event.target as Node)
       ) {
         return;
       }
       setSelectionSpeechTarget(undefined);
+      setIsSelectionSpeechWarningOpen(false);
       setSelectionSpeechError("");
       setSelectionSpeechErrorCode(undefined);
     };
@@ -834,6 +852,7 @@ export function App() {
   useEffect(() => {
     stopSelectionSpeech();
     setSelectionSpeechTarget(undefined);
+    setIsSelectionSpeechWarningOpen(false);
     setSelectionSpeechError("");
     setSelectionSpeechErrorCode(undefined);
   }, [mode, selectedBookId, activeChapterId]);
@@ -1200,7 +1219,7 @@ export function App() {
     setSelectionSpeechErrorCode(event.code);
   }
 
-  async function pronounceSelection(text: string) {
+  async function pronounceSelection(text: string, isLongSelectionConfirmed = false) {
     setSelectionSpeechError("");
     setSelectionSpeechErrorCode(undefined);
     const api = desktopSelectionSpeech();
@@ -1213,6 +1232,15 @@ export function App() {
       setIsSettingsOpen(true);
       return;
     }
+    if (
+      !isLongSelectionConfirmed &&
+      normalizedSelectionSpeechLength(text) > SELECTION_SPEECH_WARNING_LENGTH
+    ) {
+      stopSelectionSpeech();
+      setIsSelectionSpeechWarningOpen(true);
+      return;
+    }
+    setIsSelectionSpeechWarningOpen(false);
     stopSelectionSpeech();
     const revision = selectionSpeechRequestRef.current;
     setSpeakingSelectionText(text);
@@ -2591,74 +2619,126 @@ export function App() {
                   </div>
                   {selectionSpeechTarget ? (
                     <>
-                      <button
-                        ref={selectionSpeechRef}
-                        className={`selection-speech-action${
-                          speakingSelectionText === selectionSpeechTarget.text
-                            ? ` is-speaking is-${selectionSpeechPhase ?? "loading"}`
-                            : ""
-                        }`}
-                        type="button"
-                        aria-label={
-                          speakingSelectionText === selectionSpeechTarget.text
-                            ? "Stop pronunciation"
-                            : "Pronounce selected text"
-                        }
-                        style={{
-                          left: speakingSelectionText === selectionSpeechTarget.text
-                            ? Math.min(
-                                window.innerWidth - 144,
-                                Math.max(144, selectionSpeechTarget.x)
-                              )
-                            : selectionSpeechTarget.x,
-                          top: selectionSpeechTarget.y
-                        }}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          if (speakingSelectionText === selectionSpeechTarget.text) {
-                            stopSelectionSpeech();
-                          } else {
-                            void pronounceSelection(selectionSpeechTarget.text);
+                      {isSelectionSpeechWarningOpen ? (
+                        <div
+                          ref={selectionSpeechWarningRef}
+                          className="selection-speech-warning"
+                          role="alert"
+                          style={{
+                            left: Math.min(
+                              window.innerWidth - 176,
+                              Math.max(176, selectionSpeechTarget.x)
+                            ),
+                            top: Math.min(
+                              window.innerHeight - 202,
+                              Math.max(12, selectionSpeechTarget.y)
+                            )
+                          }}
+                        >
+                          <span className="selection-speech-warning-icon" aria-hidden="true">
+                            <TriangleAlert />
+                          </span>
+                          <div className="selection-speech-warning-content">
+                            <strong>Long selection</strong>
+                            <span>
+                              {normalizedSelectionSpeechLength(selectionSpeechTarget.text)}
+                              {" characters selected"}
+                            </span>
+                            <p>
+                              Generating this much audio may take longer and use more
+                              of your OpenAI API credits.
+                            </p>
+                            <div className="selection-speech-warning-actions">
+                              <button
+                                type="button"
+                                onClick={() => setIsSelectionSpeechWarningOpen(false)}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                className="primary"
+                                type="button"
+                                onClick={() => void pronounceSelection(
+                                  selectionSpeechTarget.text,
+                                  true
+                                )}
+                              >
+                                <Volume2 aria-hidden="true" />
+                                Generate voice
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          ref={selectionSpeechRef}
+                          className={`selection-speech-action${
+                            speakingSelectionText === selectionSpeechTarget.text
+                              ? ` is-speaking is-${selectionSpeechPhase ?? "loading"}`
+                              : ""
+                          }`}
+                          type="button"
+                          aria-label={
+                            speakingSelectionText === selectionSpeechTarget.text
+                              ? "Stop pronunciation"
+                              : "Pronounce selected text"
                           }
-                        }}
-                      >
-                        {speakingSelectionText === selectionSpeechTarget.text ? (
-                          <>
-                            <span className="selection-speech-activity" aria-hidden="true">
-                              {selectionSpeechPhase === "playing" ? (
-                                <span className="selection-speech-equalizer">
-                                  <span />
-                                  <span />
-                                  <span />
-                                </span>
-                              ) : (
-                                <LoaderCircle className="selection-speech-spinner" />
-                              )}
-                            </span>
-                            <span className="selection-speech-copy">
-                              <span role="status" aria-live="polite">
-                                {selectionSpeechPhase === "playing"
-                                  ? "Playing selected text"
-                                  : "Generating AI voice…"}
+                          style={{
+                            left: speakingSelectionText === selectionSpeechTarget.text
+                              ? Math.min(
+                                  window.innerWidth - 144,
+                                  Math.max(144, selectionSpeechTarget.x)
+                                )
+                              : selectionSpeechTarget.x,
+                            top: selectionSpeechTarget.y
+                          }}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            if (speakingSelectionText === selectionSpeechTarget.text) {
+                              stopSelectionSpeech();
+                            } else {
+                              void pronounceSelection(selectionSpeechTarget.text);
+                            }
+                          }}
+                        >
+                          {speakingSelectionText === selectionSpeechTarget.text ? (
+                            <>
+                              <span className="selection-speech-activity" aria-hidden="true">
+                                {selectionSpeechPhase === "playing" ? (
+                                  <span className="selection-speech-equalizer">
+                                    <span />
+                                    <span />
+                                    <span />
+                                  </span>
+                                ) : (
+                                  <LoaderCircle className="selection-speech-spinner" />
+                                )}
                               </span>
-                              <small>
-                                {selectionSpeechVoiceLabels[aiVoiceSettings.voice]}
-                                {" · "}
-                                {selectionSpeechToneLabels[aiVoiceSettings.tone]}
-                              </small>
-                            </span>
-                            <span className="selection-speech-stop" aria-hidden="true">
-                              <Square fill="currentColor" />
-                              <span>Stop</span>
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <Volume2 aria-hidden="true" />
-                            <span>Pronounce</span>
-                          </>
-                        )}
-                      </button>
+                              <span className="selection-speech-copy">
+                                <span role="status" aria-live="polite">
+                                  {selectionSpeechPhase === "playing"
+                                    ? "Playing selected text"
+                                    : "Generating AI voice…"}
+                                </span>
+                                <small>
+                                  {selectionSpeechVoiceLabels[aiVoiceSettings.voice]}
+                                  {" · "}
+                                  {selectionSpeechToneLabels[aiVoiceSettings.tone]}
+                                </small>
+                              </span>
+                              <span className="selection-speech-stop" aria-hidden="true">
+                                <Square fill="currentColor" />
+                                <span>Stop</span>
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 aria-hidden="true" />
+                              <span>Pronounce</span>
+                            </>
+                          )}
+                        </button>
+                      )}
                       {selectionSpeechError ? (
                         <div
                           className="selection-speech-error"
