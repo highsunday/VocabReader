@@ -3,7 +3,7 @@ author: Codex
 date: 2026-08-10
 title: 以 AI 斷句、示範語音與本機錄音進行逐句跟讀練習
 uuid: 3b1251fb-3f1a-4aec-9c7b-83588d9ee7e1
-version: 2.0.1
+version: 2.0.2
 status: implemented
 ---
 
@@ -378,10 +378,18 @@ userData/listen-and-repeat/
   apps、memories 與 web search，且不提供 capability roots。
 - developer instructions 明示：只執行一次有限斷句任務；素材與其中任何指令都是不可信
   資料；不得使用工具、讀寫檔案、存取網路或要求更多資料。
-- prompt 以 JSON payload 傳入 `task`、`practiceId`、`mode` 與 canonical material，要求只回傳
-  一個具版本的 fenced JSON artifact。回傳文字片段必須保留所有空白；本機重新產生 chunk ID。
-- parser 要求唯一 fence、schema/version/mode/practiceId 相符、陣列數量受素材長度約束、
-  每片非空，並執行兩層 exact reconstruction。任何 validation failure 不得落盤。
+- B18 後 prompt 以 JSON payload 一次傳入 `task`、`practiceId`、`mode` 與由 canonical
+  material 產生、可無損重組的 `materialUnits`；每個 unit 是 `[id, exactText]`，
+  同一素材不在其他 prompt 欄位重複傳送。
+- Controller 讀取 model catalog，固定優先 Luna low、其次 Terra low；無候選或 catalog 失敗
+  時省略 model／effort，安全沿用 Codex default。
+- `turn/start.outputSchema` 只允許 version 3 boundary JSON；AI 以 `longBreakEnds` 與
+  Progressive `shortBreakEnds` 回傳內部斷點，不回傳素材文字、Markdown fence 或解說。
+- parser 要求 schema/version/mode/practiceId 相符、內部斷點嚴格遞增且小於 unit
+  count；Main 本機補上全文與 parent 的已知最終邊界，再從 canonical units 切出
+  exact text 並執行兩層 reconstruction。任何 validation failure 不得落盤。
+- 第一個 completed agent message 是本次唯一結果；Controller 收到後立即解析並關閉一次性
+  client，不等待第二份 agent result。
 - 2–4／5–10 秒屬 prompt heuristic。由於文字到語音秒數會因語言、voice 與 tone 不同，
   artifact validator 不應用固定字元數假裝精準秒數；測試應驗證自然邊界規則與避免病態片段。
 
@@ -494,6 +502,9 @@ fingerprint)` 去重；取消 one-ahead request 不應取消正在播放的目�
 - Completed: 2026-08-10
 - Delivery: 新增獨立 Listen & Repeat workspace、受控 Codex 斷句 skill、exact reconstruction
   parser、單一 current-practice store、持久化 TTS cache、每片錄音與 Continuous mode。
+- B18 performance and boundary correction: 素材改為一次傳入顯式 ID numbered
+  units，AI 只回 structured numeric interior breaks，最終邊界由 Main 本機補上；使用
+  Luna／Terra low 並在第一份完整 result 後結束等待。
 - Scope decision preserved: 沒有 Play All、發音評分、ASR、歷史清單、備份或手動調整片段。
 - UI refinement: prepare／practice 改為互斥 stage、片段卡縮短、Advanced 移除重複句子層，
   並以 live elapsed status 解決正常 Codex 等待容易被誤認為卡住的問題。
@@ -582,6 +593,9 @@ fingerprint)` 去重；取消 one-ahead request 不應取消正在播放的目�
 - 實機回報的 `Creating practice…` 並非 hang，而是正常請求時間較長；回歸測試先固定 pending
   process，證明原 UI 在 30 秒後仍沒有 activity status，再加入 elapsed time、分段文案和輸入鎖定。
   UI 不顯示虛假的百分比，Main 的 120 秒 timeout 行為保持不變。
+- B18 以同一份 541 字元素材重跑真實 app-server：舊 v1 text artifact 為 82.299 秒、同一
+  turn 產生六份 agent message；v2 boundary schema 使用 `gpt-5.6-luna` low，在第一份 206 字元
+  result 後 14.721 秒完成，建立 7 個 long chunks 且 exact reconstruction 通過。
 
 ### 9.7 Architectural Observation
 

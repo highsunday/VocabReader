@@ -503,3 +503,39 @@ DDD standalone TDD completion notification.
 **Follow-up**
 - Implementation remains complete. The user may explicitly authorize sending this completion
   notification in a later request.
+
+#### L025 — 2026-08-10 04:26 CST — B18 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B18 以單次精簡結果完成跟讀素材斷句`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Authenticated sender: `highsunday0630@gmail.com`
+
+**Follow-up**
+- No action required. B18 is implemented and its completion summary was delivered.
+
+#### L026 — 2026-08-10 04:37 CST — B18 v3 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD regression-fix completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B18 v3 修正跟讀斷句最終邊界回歸`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Authenticated sender: `highsunday0630@gmail.com`
+
+**Follow-up**
+- No action required. B18 v3 is implemented and its completion summary was delivered.

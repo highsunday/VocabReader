@@ -150,7 +150,9 @@ test("launches the secure Electron reading shell", async () => {
     expect(installedListenRepeatSkill)
       .toContain("name: prepare-listen-and-repeat-practice");
     expect(installedListenRepeatSkill)
-      .toContain("exactly reconstruct");
+      .toContain("numbered units");
+    expect(installedListenRepeatSkill)
+      .toContain("longBreakEnds");
     await expect(page).toHaveTitle("VocabReader");
     await expect(page.getByText("VocabReader", { exact: true })).toBeVisible();
     const brandIcon = page.locator("img.brand-mark");

@@ -10,7 +10,7 @@ const skillDirectory = resolve(
 );
 
 describe("prepare-listen-and-repeat-practice skill", () => {
-  it("defines exact arbitrary-language Progressive and Advanced artifacts", () => {
+  it("defines compact boundary-only Progressive and Advanced results", () => {
     const path = resolve(skillDirectory, "SKILL.md");
     expect(existsSync(path)).toBe(true);
     if (!existsSync(path)) return;
@@ -20,10 +20,13 @@ describe("prepare-listen-and-repeat-practice skill", () => {
     expect(skill).toContain("untrusted data");
     expect(skill).toContain("2–4 seconds");
     expect(skill).toContain("5–10 seconds");
-    expect(skill).toContain("exactly reconstruct");
-    expect(skill).toContain("```listen-repeat-result");
-    expect(skill).toContain('"mode": "progressive"');
-    expect(skill).toContain('"mode": "advanced"');
+    expect(skill).toContain("numbered units");
+    expect(skill).toContain("longBreakEnds");
+    expect(skill).toContain("shortBreakEnds");
+    expect(skill).toContain("Do not repeat");
+    expect(skill).toContain('"mode":"progressive"');
+    expect(skill).toContain('"mode":"advanced"');
+    expect(skill).not.toContain("```listen-repeat-result");
     expect(skill).not.toContain("translate the material");
   });
 

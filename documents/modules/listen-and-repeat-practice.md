@@ -31,8 +31,10 @@ Spaced Review，也不提供 Play All 或跨片段音訊串接。
   才回到 `01`，並可用 `Return to practice` 返回既有結果。
 - 片段卡採緊湊資訊層級；Advanced 每個句子只顯示一個可操作卡，不重複外層句子文字或
   `Full sentence` 元件。
-- Codex 斷句等待期間顯示動態活動文案、實際經過時間與 1–2 分鐘長等待提示，不使用無法
-  驗證的百分比進度；本次素材與模式在處理完成前鎖定。
+- Codex 斷句等待期間顯示動態活動文案、實際經過時間與長等待提示，不使用無法驗證的
+  百分比進度；本次素材與模式在處理完成前鎖定。
+- Codex 一次接收完整素材的 ordered numbered units，以快速 low-reasoning 模型產生單一
+  structured boundary result；結果只含 unit 邊界，不回抄素材。
 - 所有 long chunks 重組為完整原文；Progressive children 重組為所屬 parent 的 deterministic
   artifact 驗證。
 - 每個 short／long chunk 獨立的 AI 示範、錄音、重錄與 learner audio 回放。
@@ -60,19 +62,25 @@ Main-owned controller 負責：
 ### AI artifact boundary
 
 App-bundled `prepare-listen-and-repeat-practice` skill 在 read-only、無 tools、network、plugins、
-apps、memories 或其他 skills 的獨立 thread/turn 中執行。素材和素材內的文字都標為 untrusted
-data。
+apps、memories 或其他 skills 的獨立 thread/turn 中執行。素材以可無損重組的 numbered units
+一次傳入，素材和素材內的文字都標為 untrusted data。Controller 依 Luna → Terra 選擇支援
+low reasoning 的快速模型；catalog 無候選或失敗時才沿用 Codex default。
 
-唯一允許輸出是 `listen-repeat-result` fenced JSON：
+`turn/start.outputSchema` 只允許單一 version 3 JSON boundary result：
 
-- `advanced`：一個以上 long text，不能含有效 short chunks。
-- `progressive`：每個 long text 都有一個以上 ordered short text。
-- version、practice ID 與 mode 必須符合 request。
-- chunk 不得空白；陣列數量受 canonical material 長度約束。
-- long concatenation 必須逐 JavaScript code unit 等於 canonical material。
-- 每個 short concatenation 必須逐 code unit 等於 parent long text。
+- `materialUnits` 以 `[id, exactText]` 顯式提供連續 1-based ID，不要求模型
+  自行計數陣列位置。
+- `advanced`：零個以上嚴格遞增的內部 `longBreakEnds`。
+- `progressive`：另有零個以上嚴格遞增的全域內部 `shortBreakEnds`。
+- version、practice ID 與 mode 必須符合 request；不得出現 source text 或其他欄位。
+- AI 不回傳已知最終邊界；Main 以 unit count 完成最後長片段，並以每個
+  parent end 完成 Progressive 短片段。任何越界、重複或倒序內部斷點都整份拒絕。
+- Main 只從 canonical material units 本機切出 text，因此 long concatenation 逐 JavaScript
+  code unit 等於素材，short concatenation 也逐 code unit 等於 parent long text。
+- 收到第一筆完整 agent message 後立即解析並關閉該次 client，不等待或接受第二份結果。
 
-Parser 不修復、不 trim、不猜測空白歸屬；任何不相等都整份拒絕。
+Parser 只補上由 canonical material 已知的最終邊界，不 trim、不猜測空白
+歸屬；任何 reconstruction 不相等都整份拒絕。
 
 ### LocalListenRepeatStore
 
@@ -129,7 +137,8 @@ narrow IPC 傳給 Main；不把 learner audio 傳給 Codex、OpenAI TTS 或其�
 ```text
 draft material + mode
   → Main validates grapheme/mode
-  → isolated Codex segmentation
+  → isolated single-result Codex segmentation
+      full material units once → numeric boundaries only
       Renderer: live elapsed time + honest long-wait guidance; material/mode locked
   → exact artifact validation
       ├─ invalid/error → keep previous current practice
@@ -172,7 +181,7 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 | File | Responsibility |
 |---|---|
 | `apps/desktop/src/shared/listen-repeat-contracts.ts` | grapheme、模式、snapshot、audio 與 Desktop API |
-| `apps/desktop/src/main/listen-repeat-artifacts.ts` | fenced artifact 與 exact reconstruction |
+| `apps/desktop/src/main/listen-repeat-artifacts.ts` | exact units、numeric boundary parser 與 reconstruction |
 | `apps/desktop/src/main/listen-repeat-controller.ts` | 隔離 Codex turn 與 orchestration |
 | `apps/desktop/src/main/listen-repeat-store.ts` | current metadata、recording、AI cache 與 cleanup |
 | `apps/desktop/src/main/listen-repeat-voice-service.ts` | 語言中性 TTS、fingerprint、dedupe 與 cancellation |
@@ -187,8 +196,8 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 | Test file | Coverage |
 |---|---|
 | `listen-repeat-contracts.test.ts` | Unicode grapheme 與 2,000/2,001 邊界 |
-| `listen-repeat-artifacts.test.ts` | Advanced/Progressive exact reconstruction 與拒絕案例 |
-| `listen-repeat-controller.test.ts` | atomic install/preserve、confirm、isolated Codex turn |
+| `listen-repeat-artifacts.test.ts` | numbered units、Advanced/Progressive reconstruction 與無效邊界拒絕 |
+| `listen-repeat-controller.test.ts` | single result、fast model routing、atomic install/preserve、confirm、isolation |
 | `listen-repeat-store.test.ts` | restart、unlock、recording replace、ID/MIME、temporary cleanup、clear |
 | `listen-repeat-voice-service.test.ts` | language-neutral request、restart cache、fingerprint、cancel |
 | `listen-repeat-ipc.test.ts` | narrow operations 與 malformed payload |
@@ -201,7 +210,7 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 
 最近驗證（2026-08-10）：
 
-- Root Vitest：server 3/3、Desktop 475/475 passed。
+- Root Vitest：server 3/3、Desktop 479/479 passed。
 - Root TypeScript typecheck：server、Desktop passed。
 - Root production build：server、Desktop passed（只有既有 renderer chunk-size advisory）。
 - Electron Playwright E2E：3/3 passed；既有 center-scroll 案例曾偶發逾時，單獨與完整重跑皆通過。
@@ -213,11 +222,12 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 - 不進行 ASR、音素對齊或發音評分。
 - 不提供 Play All、歷史、雲端、備份、匯出或手動 chunk boundary 編輯。
 - Codex 斷句只有 request-level 狀態，尚無 server 回傳的細部階段或 determinate percentage；
-  UI 因此只顯示實際經過時間與正常等待說明。Main 端仍以 120 秒 timeout 防止無限等待。
+  UI 因此只顯示實際經過時間與等待說明。Main 端仍以 120 秒 timeout 防止模型服務異常。
 
 ## 10. Related Documents
 
 - `CONTEXT.md`
 - `documents/implements/F58-listen-and-repeat-practice.md`
+- `documents/implements/B18-complete-listen-repeat-segmentation-in-one-result.md`
 - `documents/modules/ai-voice.md`
 - `documents/modules/data-backup.md`
