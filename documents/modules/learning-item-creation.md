@@ -2,7 +2,7 @@
 title: AI 輔助學習項目建立模組
 module: learning-item-creation
 status: active
-last_updated: 2026-08-01
+last_updated: 2026-08-08
 related_implements:
   - F21-ai-assisted-learning-item-creation
   - F22-read-only-learning-item-draft-preview
@@ -12,6 +12,7 @@ related_implements:
   - F28-ai-graded-spaced-review-paper
   - F34-route-multilingual-learning-item-intent-with-ai
   - F45-classify-and-filter-learning-items-by-language
+  - F53-open-existing-learning-item-from-card-review
 ---
 
 # AI 輔助學習項目建立模組
@@ -43,7 +44,8 @@ related_implements:
    turn 的受信任目標，並具有 `en | ja | zh-TW | other` 其中一個學習項目語言；match id
    仍必須來自 App 提供的候選。
 7. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要與安全
-   渲染的 Markdown 預覽；使用者可把草稿排除／恢復，但不可編輯草稿內容。
+   渲染的 Markdown 預覽；使用者可把草稿排除／恢復，但不可編輯草稿內容。active
+   已存在項目可以點擊開啟共用唯讀詳情，關閉詳情後保留原草稿清單。
 8. 提交時重新以原型草稿標題查候選。若有候選，以一次隔離 Codex turn 執行
    `learning-item-recheck` 語義分類；不逐卡啟動 AI，也不提供完整生詞庫。
 9. 新發現的 active／trashed 重複分別顯示為已存在／垃圾桶；其他 included 草稿由
@@ -125,7 +127,8 @@ included／excluded、候選 match、submitted／abandoned 時間及 created ite
 `react-markdown`、GFM 與 `skipHtml`。確認浮層沒有標題、語言、類型、CEFR、語義或原始
 Markdown 的編輯控制；沒有 included 草稿時提交停用。Escape、遮罩及明確關閉按鈕只
 關閉 modal，不改變草稿狀態。pending 批次另提供「放棄這批草稿」與二次確認；
-abandoned 批次只顯示唯讀摘要。
+abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現有
+`learning:get`，並把共用詳情疊在草稿 modal 上；Escape 只關閉最上層詳情。
 
 ## 7. Key Files
 
@@ -139,7 +142,7 @@ abandoned 批次只顯示唯讀摘要。
 | `apps/desktop/src/main/chat-controller.ts` | AI routing、內部 continuation、重試、turn scope 與批次 lifecycle |
 | `apps/desktop/src/main/chat-conversation-store.ts` | version 1→2、準備狀態與 batch attachments 持久化 |
 | `apps/desktop/src/main/chat-ipc.ts` | typed intent、重試、放棄與草稿操作 IPC 驗證 |
-| `apps/desktop/src/renderer/LearningItemDraftDialog.tsx` | 唯讀預覽、排除／還原／提交／放棄 modal |
+| `apps/desktop/src/renderer/LearningItemDraftDialog.tsx` | 唯讀預覽、已存在詳情、排除／還原／提交／放棄 modal |
 | `apps/desktop/src/renderer/App.tsx` | 普通 AI 送出、快捷／invitation、重試與 modal 整合 |
 
 ## 8. Tests
@@ -153,8 +156,8 @@ abandoned 批次只顯示唯讀摘要。
   以及 source／固定講解語言映射。
 - `chat-conversation-store.test.ts`：version 1→2、批次與 interrupted preparation 持久化。
 - `chat-ipc.test.ts`：intent、targets、retry、abandon 與 mutation 邊界。
-- `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI、快捷／邀請入口，以及
-  普通訊息不做 Renderer 文字配對、重試 UI 與明確放棄流程。
+- `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI、快捷／邀請入口、已存在項目
+  唯讀詳情與錯誤重試，以及普通訊息不做 Renderer 文字配對、重試 UI 與明確放棄流程。
 - `desktop.spec.ts`：production skill 安裝與 preload bridge 白名單。
 
 ## 9. Non-goals

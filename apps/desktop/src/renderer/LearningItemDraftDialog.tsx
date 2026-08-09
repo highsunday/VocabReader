@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type {
@@ -6,10 +6,14 @@ import type {
   ChatSnapshot
 } from "../shared/chat-contracts";
 import type {
+  LearningDesktopApi,
   LearningItemDraft,
   LearningItemDraftBatch,
-  LearningItemLanguage
+  LearningItemLanguage,
+  LearningItem
 } from "../shared/learning-contracts";
+import type { ReviewDesktopApi } from "../shared/review-contracts";
+import { LearningItemDialog } from "./LearningLibraryWorkspace";
 
 const languageLabels: Record<LearningItemLanguage, string> = {
   en: "English",
@@ -104,15 +108,22 @@ function DraftPreview({
 export function LearningItemDraftDialog({
   batch,
   api,
+  learningApi,
+  reviewApi,
   onClose,
   onSnapshot
 }: {
   batch: LearningItemDraftBatch;
   api: ChatDesktopApi;
+  learningApi: LearningDesktopApi;
+  reviewApi?: ReviewDesktopApi;
   onClose(): void;
   onSnapshot(snapshot: ChatSnapshot): void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [loadingExistingItemId, setLoadingExistingItemId] = useState<string>();
+  const [selectedExistingItem, setSelectedExistingItem] = useState<LearningItem>();
+  const existingItemTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [error, setError] = useState("");
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const submitted = batch.status === "submitted";
@@ -123,11 +134,35 @@ export function LearningItemDraftDialog({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) onClose();
+      if (event.key === "Escape" && !busy && !selectedExistingItem) onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [busy, onClose]);
+  }, [busy, onClose, selectedExistingItem]);
+
+  async function openExistingItem(
+    itemId: string,
+    trigger: HTMLButtonElement
+  ) {
+    if (loadingExistingItemId) return;
+    existingItemTriggerRef.current = trigger;
+    setLoadingExistingItemId(itemId);
+    setError("");
+    try {
+      setSelectedExistingItem(await learningApi.getItem(itemId));
+    } catch (loadError) {
+      setError(loadError instanceof Error
+        ? loadError.message
+        : "Unable to load the existing learning item.");
+    } finally {
+      setLoadingExistingItemId(undefined);
+    }
+  }
+
+  function closeExistingItem() {
+    setSelectedExistingItem(undefined);
+    requestAnimationFrame(() => existingItemTriggerRef.current?.focus());
+  }
 
   async function mutate(operation: () => Promise<ChatSnapshot>) {
     setBusy(true);
@@ -155,6 +190,7 @@ export function LearningItemDraftDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="learning-item-draft-dialog-title"
+        aria-hidden={Boolean(selectedExistingItem)}
       >
         <header>
           <div>
@@ -183,10 +219,25 @@ export function LearningItemDraftDialog({
             <section className="learning-item-match-list">
               <h3>Already exists</h3>
               {batch.existing.map((match) => (
-                <p key={match.itemId}>
-                  <strong>{match.title}</strong>
-                  <span>{match.sense}</span>
-                </p>
+                <button
+                  key={match.itemId}
+                  type="button"
+                  className="learning-item-match-open"
+                  aria-label={`Open ${match.title} details`}
+                  disabled={Boolean(loadingExistingItemId)}
+                  onClick={(event) => void openExistingItem(
+                    match.itemId,
+                    event.currentTarget
+                  )}
+                >
+                  <span>
+                    <strong>{match.title}</strong>
+                    <small>{match.sense}</small>
+                  </span>
+                  <em aria-hidden="true">
+                    {loadingExistingItemId === match.itemId ? "Loading…" : "Open →"}
+                  </em>
+                </button>
               ))}
             </section>
           ) : null}
@@ -278,6 +329,16 @@ export function LearningItemDraftDialog({
           )}
         </footer>
       </section>
+
+      {selectedExistingItem ? (
+        <LearningItemDialog
+          item={selectedExistingItem}
+          api={learningApi}
+          reviewApi={reviewApi}
+          readOnly
+          onClose={closeExistingItem}
+        />
+      ) : null}
     </div>
   );
 }

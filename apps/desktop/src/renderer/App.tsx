@@ -3060,10 +3060,12 @@ export function App() {
         </div>
       ) : null}
 
-      {openLearningItemBatch && desktopChat() ? (
+      {openLearningItemBatch && desktopChat() && desktopLearning() ? (
         <LearningItemDraftDialog
           batch={openLearningItemBatch}
           api={desktopChat()!}
+          learningApi={desktopLearning()!}
+          reviewApi={desktopReview()}
           onClose={() => setOpenLearningItemBatchId(undefined)}
           onSnapshot={handleLearningItemSnapshot}
         />

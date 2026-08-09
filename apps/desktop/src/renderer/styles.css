@@ -6975,6 +6975,58 @@ h1 {
   font-size: 12px;
 }
 
+.learning-item-match-list .learning-item-match-open {
+  width: 100%;
+  padding: 9px 10px;
+  border-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.learning-item-match-open + .learning-item-match-open {
+  margin-top: 3px;
+}
+
+.learning-item-match-open > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.learning-item-match-open strong {
+  color: #344038;
+  font-size: 14px;
+}
+
+.learning-item-match-open small {
+  color: #737c76;
+  font-size: 12px;
+}
+
+.learning-item-match-open em {
+  flex: 0 0 auto;
+  color: #4f745a;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.learning-item-match-list .learning-item-match-open:hover:not(:disabled) {
+  border-color: #b7c3b8;
+  background: #f4f8f2;
+}
+
+.learning-item-match-list .learning-item-match-open:focus-visible {
+  outline: 3px solid rgb(68 112 78 / 22%);
+  outline-offset: 1px;
+}
+
 .learning-item-match-list.trashed > div {
   display: flex;
   align-items: center;
