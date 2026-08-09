@@ -45,6 +45,41 @@ describe("listen-and-repeat artifacts", () => {
     });
   });
 
+  it("coalesces punctuation-only boundaries instead of creating practice cards", () => {
+    const material = "Repeat this.";
+    const punctuationBoundary = unitizeListenRepeatMaterial(material).length - 1;
+    const progressive = parseListenRepeatArtifact(artifact({
+      version: 3,
+      practiceId: "practice-punctuation-progressive",
+      mode: "progressive",
+      longBreakEnds: [],
+      shortBreakEnds: [punctuationBoundary]
+    }), {
+      practiceId: "practice-punctuation-progressive",
+      mode: "progressive",
+      material
+    });
+    const advanced = parseListenRepeatArtifact(artifact({
+      version: 3,
+      practiceId: "practice-punctuation-advanced",
+      mode: "advanced",
+      longBreakEnds: [punctuationBoundary]
+    }), {
+      practiceId: "practice-punctuation-advanced",
+      mode: "advanced",
+      material
+    });
+
+    expect(progressive.longChunks).toEqual([{
+      text: material,
+      shortChunks: [{ text: material }]
+    }]);
+    expect(advanced.longChunks).toEqual([{
+      text: material,
+      shortChunks: []
+    }]);
+  });
+
   it("preserves arbitrary-language code units while slicing only from numeric boundaries", () => {
     const material = "Cafe\u0301 👨‍👩‍👧‍👦。\n再見。";
     const whole = parseListenRepeatArtifact(artifact({

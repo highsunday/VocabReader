@@ -15,10 +15,18 @@ describe("prepare-listen-and-repeat-practice skill", () => {
     expect(existsSync(path)).toBe(true);
     if (!existsSync(path)) return;
     const skill = readFileSync(path, "utf8");
+    const normalizedSkill = skill.replace(/\s+/g, " ");
 
     expect(skill).toContain("name: prepare-listen-and-repeat-practice");
     expect(skill).toContain("untrusted data");
-    expect(skill).toContain("2–4 seconds");
+    expect(skill).toContain("0.75–1.5 seconds");
+    expect(skill).toContain("extend to approximately 2 seconds only");
+    expect(normalizedSkill).toContain("shortest independently repeatable semantic or breath group");
+    expect(normalizedSkill).toContain("not merge two independently repeatable short groups");
+    expect(normalizedSkill).toContain("prefer 1–4 lexical words");
+    expect(normalizedSkill).toContain("Avoid five or more lexical words");
+    expect(normalizedSkill).toContain("Never choose a short or long boundary that leaves punctuation");
+    expect(normalizedSkill).toContain("Keep closing punctuation with the preceding spoken text");
     expect(skill).toContain("5–10 seconds");
     expect(skill).toContain("numbered units");
     expect(skill).toContain("longBreakEnds");

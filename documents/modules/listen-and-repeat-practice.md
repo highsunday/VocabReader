@@ -37,6 +37,8 @@ Spaced Review，也不提供 Play All 或跨片段音訊串接。
   structured boundary result；結果只含 unit 邊界，不回抄素材。
 - 所有 long chunks 重組為完整原文；Progressive children 重組為所屬 parent 的 deterministic
   artifact 驗證。
+- Main 會在不改變 canonical material 的前提下，把 AI 錯切出的純標點／空白片段併回相鄰的
+  可朗讀片段，不為它產生獨立練習卡。
 - 每個 short／long chunk 獨立的 AI 示範、錄音、重錄與 learner audio 回放。
 - Progressive 所有 child 錄音完成後永久解鎖 parent long recording。
 - 麥克風先等候人聲；人聲後約 1.5 秒 sustained silence 自動停止，8 秒無聲不保存，30 秒
@@ -77,6 +79,8 @@ low reasoning 的快速模型；catalog 無候選或失敗時才沿用 Codex def
   parent end 完成 Progressive 短片段。任何越界、重複或倒序內部斷點都整份拒絕。
 - Main 只從 canonical material units 本機切出 text，因此 long concatenation 逐 JavaScript
   code unit 等於素材，short concatenation 也逐 code unit 等於 parent long text。
+- Main 會合併純標點或空白的 long／short span：開頭標點併入後方文字，結尾或中間標點併入
+  前方文字；合併後仍必須通過原文與 parent reconstruction。
 - 收到第一筆完整 agent message 後立即解析並關閉該次 client，不等待或接受第二份結果。
 
 Parser 只補上由 canonical material 已知的最終邊界，不 trim、不猜測空白
@@ -218,7 +222,7 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 ## 9. Known Limitations
 
 - VAD threshold 與時間常數是跨裝置基準，極端噪音環境可能需要後續調校。
-- TTS 實際秒數受語言、voice、tone 與內容影響；2–4／5–10 秒是 segmentation heuristic。
+- TTS 實際秒數受語言、voice、tone 與內容影響；Progressive short 通常 0.75–1.5 秒、為保留可獨立跟讀的緊密詞組時可到約 2 秒，long 為 5–10 秒，均屬 segmentation heuristic。
 - 不進行 ASR、音素對齊或發音評分。
 - 不提供 Play All、歷史、雲端、備份、匯出或手動 chunk boundary 編輯。
 - Codex 斷句只有 request-level 狀態，尚無 server 回傳的細部階段或 determinate percentage；

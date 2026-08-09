@@ -57,6 +57,81 @@ function interiorBoundaries(value: unknown, unitCount: number): number[] {
   });
 }
 
+function hasRepeatableContent(text: string): boolean {
+  return /[\p{L}\p{N}]/u.test(text);
+}
+
+function mergeNonRepeatableTextChunks(
+  chunks: Array<{ text: string }>
+): Array<{ text: string }> {
+  const merged: Array<{ text: string }> = [];
+  let leadingText = "";
+
+  for (const chunk of chunks) {
+    if (hasRepeatableContent(chunk.text)) {
+      merged.push({ text: leadingText + chunk.text });
+      leadingText = "";
+    } else if (merged.length > 0) {
+      merged[merged.length - 1].text += chunk.text;
+    } else {
+      leadingText += chunk.text;
+    }
+  }
+
+  if (leadingText) {
+    if (merged.length > 0) merged[merged.length - 1].text += leadingText;
+    else merged.push({ text: leadingText });
+  }
+  return merged;
+}
+
+function mergeNonRepeatableLongChunks(
+  chunks: ParsedListenRepeatChunk[]
+): ParsedListenRepeatChunk[] {
+  const merged: ParsedListenRepeatChunk[] = [];
+  let leadingText = "";
+  let leadingShortChunks: Array<{ text: string }> = [];
+
+  for (const chunk of chunks) {
+    const shortChunks = mergeNonRepeatableTextChunks(chunk.shortChunks);
+    if (hasRepeatableContent(chunk.text)) {
+      merged.push({
+        text: leadingText + chunk.text,
+        shortChunks: mergeNonRepeatableTextChunks([...leadingShortChunks, ...shortChunks])
+      });
+      leadingText = "";
+      leadingShortChunks = [];
+    } else if (merged.length > 0) {
+      const previous = merged[merged.length - 1];
+      previous.text += chunk.text;
+      previous.shortChunks = mergeNonRepeatableTextChunks([
+        ...previous.shortChunks,
+        ...shortChunks
+      ]);
+    } else {
+      leadingText += chunk.text;
+      leadingShortChunks.push(...shortChunks);
+    }
+  }
+
+  if (leadingText) {
+    if (merged.length > 0) {
+      const previous = merged[merged.length - 1];
+      previous.text += leadingText;
+      previous.shortChunks = mergeNonRepeatableTextChunks([
+        ...previous.shortChunks,
+        ...leadingShortChunks
+      ]);
+    } else {
+      merged.push({
+        text: leadingText,
+        shortChunks: mergeNonRepeatableTextChunks(leadingShortChunks)
+      });
+    }
+  }
+  return merged;
+}
+
 export function parseListenRepeatArtifact(
   source: string,
   options: ParseOptions
@@ -81,7 +156,7 @@ export function parseListenRepeatArtifact(
   const longEnds = [...longBreakEnds, units.length];
 
   let previousLongEnd = 0;
-  const longChunks = longEnds.map((endUnit) => {
+  const rawLongChunks = longEnds.map((endUnit) => {
     const text = units.slice(previousLongEnd, endUnit).join("");
 
     if (options.mode === "advanced") {
@@ -101,6 +176,7 @@ export function parseListenRepeatArtifact(
     previousLongEnd = endUnit;
     return { text, shortChunks };
   });
+  const longChunks = mergeNonRepeatableLongChunks(rawLongChunks);
 
   if (longChunks.map(({ text }) => text).join("") !== options.material) {
     throw new Error("Long boundaries do not finish the material");

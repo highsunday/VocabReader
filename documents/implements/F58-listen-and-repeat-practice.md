@@ -3,7 +3,7 @@ author: Codex
 date: 2026-08-10
 title: 以 AI 斷句、示範語音與本機錄音進行逐句跟讀練習
 uuid: 3b1251fb-3f1a-4aec-9c7b-83588d9ee7e1
-version: 2.0.2
+version: 2.0.4
 status: implemented
 ---
 
@@ -81,10 +81,15 @@ status: implemented
 | `Progressive` | 每個長片段與其依序排列的短片段 | 先降低工作記憶負擔，再練完整長句 |
 | `Advanced` | 只有長片段 | 已能直接保留較長語音的進階學習者 |
 
-- 短片段以約 **2–4 秒**的自然語音為目標；長片段以約 **5–10 秒**為目標。秒數是跨語言
-  的切分指引，不是硬性字數或音訊長度保證。
+- Progressive 短片段通常以約 **0.75–1.5 秒**的自然語音為目標，優先選擇最短且可獨立
+  跟讀的語意群或呼吸群；只有為了保留緊密詞組或避免產生無法獨立練習的碎片時，
+  才可延長至約 **2 秒**。以空白分隔單字的語言中，一般短片段應優先保持在 **1–4 個實詞**，
+  如果存在合理自然邊界，不得保留五個以上實詞。長片段以約 **5–10 秒**為目標。秒數是跨語言的切分指引，
+  不是硬性字數或音訊長度保證。
 - AI 應優先使用語意、標點、從句、意群、呼吸與自然停頓邊界，不得為符合秒數而切斷
   緊密詞組、產生只有標點／空白的片段或跨越原始段落重排內容。
+- 若 AI 仍回傳純標點／空白片段，Main 必須在不改變 canonical material 的前提下併回相鄰的
+  可朗讀片段；結尾標點併入前方，開頭標點併入後方，不產生獨立播放或錄音卡。
 - Progressive 模式從一開始就顯示長片段文字，且允許播放該長片段的 AI 示範語音。
 - Progressive 模式中，只有當某長片段的每個短片段都至少保存過一份學習者錄音後，
   該長片段的錄音操作才解鎖。這是流程門檻，不是 AI 熟練度判斷。
@@ -390,8 +395,9 @@ userData/listen-and-repeat/
   exact text 並執行兩層 reconstruction。任何 validation failure 不得落盤。
 - 第一個 completed agent message 是本次唯一結果；Controller 收到後立即解析並關閉一次性
   client，不等待第二份 agent result。
-- 2–4／5–10 秒屬 prompt heuristic。由於文字到語音秒數會因語言、voice 與 tone 不同，
-  artifact validator 不應用固定字元數假裝精準秒數；測試應驗證自然邊界規則與避免病態片段。
+- Progressive short 通常 0.75–1.5 秒、必要時約 2 秒，long 為 5–10 秒，均屬 prompt
+  heuristic。由於文字到語音秒數會因語言、voice 與 tone 不同，artifact validator 不應
+  用固定字元數假裝精準秒數；測試應驗證自然邊界規則與避免病態片段。
 
 ### 6.4 AI Voice 重用與相容性
 
@@ -488,7 +494,8 @@ fingerprint)` 去重；取消 one-ahead request 不應取消正在播放的目�
 - 不改變現有區段復述、Sentence Practice、章節 Selection Speech 或學習項目裝置發音的
   產品語意。
 - 不為 TTS 設定第二組 API key，也不在未設定或失敗時降級使用 Web Speech API。
-- 不保證每個 AI 切分片段的實際 TTS 長度嚴格落在 2–4 或 5–10 秒。
+- 不保證每個 AI 切分片段的實際 TTS 長度嚴格落在 short 通常 0.75–1.5 秒（必要時約
+  2 秒）或 long 5–10 秒。
 
 ### 8.3 Open Questions
 
@@ -589,7 +596,8 @@ fingerprint)` 去重；取消 one-ahead request 不應取消正在播放的目�
   被換行拆開。只修正 cast 格式後，測試回到預期 module-not-found 紅燈，再進入綠燈實作。
 - 最終 E2E 首輪中既有 center-scroll 案例逾時，沒有 assertion failure。該案例單獨重跑 1.6 秒
   通過，完整兩案例重跑 2/2 通過，判定為 Electron worker 偶發啟停波動，未更動該測試等待策略。
-- 2–4 秒 short、5–10 秒 long 保留為跨語言 prompt heuristic，沒有偽裝成硬性音訊長度保證。
+- 0.75–1.5 秒 short（為保留可獨立跟讀的緊密詞組時可到約 2 秒）與 5–10 秒 long 保留為跨語言
+  prompt heuristic，沒有偽裝成硬性音訊長度保證。
 - 實機回報的 `Creating practice…` 並非 hang，而是正常請求時間較長；回歸測試先固定 pending
   process，證明原 UI 在 30 秒後仍沒有 activity status，再加入 elapsed time、分段文案和輸入鎖定。
   UI 不顯示虛假的百分比，Main 的 120 秒 timeout 行為保持不變。
