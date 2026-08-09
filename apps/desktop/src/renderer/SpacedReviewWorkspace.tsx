@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import type {
   LearningDesktopApi,
-  LearningItem
+  LearningItem,
+  LearningItemCounts
 } from "../shared/learning-contracts";
 import type {
   ConfirmReviewSessionResult,
@@ -216,6 +217,7 @@ export function SpacedReviewWorkspace({
   settingsRevision = 0,
   active = true,
   onAvailableCountChange,
+  onLearningCountsChange,
   onStatusChange
 }: {
   api: ReviewDesktopApi;
@@ -224,6 +226,7 @@ export function SpacedReviewWorkspace({
   settingsRevision?: number;
   active?: boolean;
   onAvailableCountChange?(count: number): void;
+  onLearningCountsChange?(counts: LearningItemCounts): void;
   onStatusChange?(status: ReviewWorkspaceStatus): void;
 }) {
   const [summary, setSummary] = useState<ReviewSummary>();
@@ -505,6 +508,18 @@ export function SpacedReviewWorkspace({
   function closeItemDetail() {
     setSelectedItem(undefined);
     requestAnimationFrame(() => detailTriggerRef.current?.focus());
+  }
+
+  async function handleItemChanged(item: LearningItem) {
+    setSelectedItem(item);
+    if (item.status !== "trashed" || !learningApi) return;
+    try {
+      onLearningCountsChange?.(await learningApi.countItems());
+    } catch {
+      setError(
+        "The learning item was moved to Trash, but Library counts could not be refreshed."
+      );
+    }
   }
 
   if (!active) return null;
@@ -1031,8 +1046,12 @@ export function SpacedReviewWorkspace({
           item={selectedItem}
           api={learningApi}
           reviewApi={api}
-          readOnly
+          readOnly={phase !== "reviewing" && phase !== "completed"}
+          allowMoveToTrash={phase === "completed"}
           onClose={closeItemDetail}
+          onChanged={phase === "reviewing" || phase === "completed"
+            ? handleItemChanged
+            : undefined}
         />
       ) : null}
     </section>

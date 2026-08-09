@@ -148,6 +148,7 @@ export function LearningItemDialog({
   api,
   reviewApi,
   readOnly = false,
+  allowMoveToTrash = !readOnly,
   onClose,
   onChanged
 }: {
@@ -155,6 +156,7 @@ export function LearningItemDialog({
   api: LearningDesktopApi;
   reviewApi?: ReviewDesktopApi;
   readOnly?: boolean;
+  allowMoveToTrash?: boolean;
   onClose: () => void;
   onChanged?: (item: LearningItem) => Promise<void>;
 }) {
@@ -379,7 +381,7 @@ export function LearningItemDialog({
   }
 
   async function moveToTrash() {
-    if (isSaving || readOnly || !onChanged) return;
+    if (isSaving || readOnly || !allowMoveToTrash || !onChanged) return;
     setIsSaving(true);
     setError("");
     try {
@@ -764,14 +766,16 @@ export function LearningItemDialog({
             ) : null}
             {!readOnly && !aiEdit ? (
               <div className="learning-dialog-actions">
-                <button
-                  type="button"
-                  className="danger-outline-action"
-                  onClick={() => setIsDeleteConfirming(true)}
-                  disabled={isSaving}
-                >
-                  Delete
-                </button>
+                {allowMoveToTrash ? (
+                  <button
+                    type="button"
+                    className="danger-outline-action"
+                    onClick={() => setIsDeleteConfirming(true)}
+                    disabled={isSaving}
+                  >
+                    Delete
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="primary-action"
@@ -796,7 +800,7 @@ export function LearningItemDialog({
         )}
       </section>
 
-      {isDeleteConfirming && !readOnly ? (
+      {isDeleteConfirming && !readOnly && allowMoveToTrash ? (
         <div
           className="dialog-backdrop learning-delete-confirm-backdrop"
           onMouseDown={ignoreInnerMouseDown}

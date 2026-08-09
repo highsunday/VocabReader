@@ -2,7 +2,7 @@
 title: 本機生詞庫模組
 module: learning-library
 status: active
-last_updated: 2026-08-08
+last_updated: 2026-08-09
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
@@ -15,6 +15,9 @@ related_implements:
   - F45-classify-and-filter-learning-items-by-language
   - F46-integrated-sentence-practice
   - F51-ai-assisted-learning-item-editing
+  - F52-edit-learning-items-from-completed-review
+  - F53-open-existing-learning-item-from-card-review
+  - F55-edit-learning-items-from-graded-review
 ---
 
 # 本機生詞庫模組
@@ -44,10 +47,11 @@ related_implements:
 - 同標題不同語義以不同不可變 id 保存，不合併內容。
 - 每個項目提供可留空的學習注意事項；完整詳情以 `Note`、紅字與紅底線顯示，清單摘要
   與未作答複習題面不載入或顯示。
-- 共用置中詳情 modal、安全 Markdown、發音、複習排程與歷史；從生詞庫開啟時保留
-  原文編輯、即時預覽及刪除，從尚未確認的複習試卷開啟時則為唯讀。
-- active 生詞庫詳情可展開極簡 AI 編修 composer，以同一畫面預覽多輪暫態草稿，
-  並在使用者明確 Apply 後才保存 Markdown 與注意事項。
+- 共用置中詳情 modal、安全 Markdown、發音、複習排程與歷史；從生詞庫、已批改的
+  複習試卷或排程已確認的複習完成頁開啟時保留人工編輯與 AI 編修，只有生詞庫與
+  完成頁提供刪除；從 AI 輔助建立的已存在結果或整合造句練習開啟時則為唯讀。
+- active 生詞庫、已批改試卷及複習完成頁詳情可展開極簡 AI 編修 composer，以同一
+  畫面預覽多輪暫態草稿，並在使用者明確 Apply 後才保存 Markdown 與注意事項。
 - 從詳情刪除前顯示置中確認視窗；確認後才移入垃圾桶。垃圾桶可個別還原，只有確認
   清空才永久刪除。
 - 側欄顯示即時使用中數量。
@@ -136,8 +140,9 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 - 學習注意事項的人工編輯、即時預覽與醒目完整詳情呈現。
 - 以現有詳情作為唯一草稿預覽的 AI composer、多輪狀態、停止、明確 Apply 與未套用
   變更離開確認。
-- 對共用詳情提供 editable／read-only capability；唯讀模式不渲染或呼叫更新、刪除
-  操作。
+- 對共用詳情分別提供 editable／read-only 與是否可移入垃圾桶的 capability；生詞庫、
+  已批改試卷及已確認複習完成頁使用 editable，只有前後兩者允許移入垃圾桶；AI 輔助
+  建立的已存在結果與整合造句使用 read-only，唯讀模式不渲染或呼叫 mutation。
 - 單筆移入垃圾桶前的置中確認、還原、清空確認與側欄數量同步。
 - 在詳情中顯示懶載入的精簡複習摘要、可展開歷史與逐筆複習作答。
 
@@ -212,10 +217,14 @@ Markdown、語義、例句與搭配詞不參與搜尋。
   Retry，最後一批不顯示結束文案。
 - 卡片以類型、語言、CEFR、標題與語義形成清楚層級，hover／focus 有一致回饋。
 - 詳情使用 `role="dialog"`、`aria-modal`、具名標題、關閉控制與觸發點焦點回復。
-- 同一詳情元件可由已完成 AI 批改的複習題開啟；該入口只使用 `learning:get` 取得
-  最新內容，並以 read-only capability 隱藏所有 mutation。
-- `Edit with AI` 只在 active 生詞庫 editable 詳情顯示；垃圾桶、複習及造句的 read-only
-  詳情不渲染入口。AI 草稿有變更時，Close、Escape 與遮罩離開共用放棄確認。
+- 同一詳情元件可由已完成 AI 批改的複習題與排程已確認的複習完成頁開啟；兩者都只
+  使用 `learning:get` 取得最新內容，並沿用人工編輯與 AI 編修；前者不提供移入垃圾桶，
+  後者保留 Delete。完成頁刪除後重查 counts，完成事件摘要不消失。
+- AI 輔助建立的「Already exists」列是可對焦按鈕，以 match 的受信任 id
+  呼叫 `learning:get`，在草稿清單上疊放共用唯讀詳情；關閉或 Escape 只移除詳情。
+- `Edit with AI` 在 active 生詞庫、已批改試卷或複習完成頁的 editable 詳情顯示；
+  垃圾桶與造句 read-only 詳情不渲染入口。AI 草稿有變更時，Close、Escape 與遮罩
+  離開共用放棄確認。
 - 非空注意事項顯示在 Markdown 前，以文字標示、紅色與底線共同傳達重點；空值不留區塊。
 - 詳情中的「刪除」先開啟具名 `alertdialog`；取消或 Escape 只關閉最上層確認視窗，
   明確確認後才呼叫 `learning:trash`，並說明項目仍可還原。
@@ -250,12 +259,13 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 | `learning-item-artifacts.test.ts`、`learning-item-edit-controller.test.ts` | 嚴格 edit artifact、最小 scope、暫態草稿、Apply 與停止競態 |
 | `learning-library-workspace.test.tsx` | 查詢、分批、Trash、retry、視窗化、共用 modal、安全 Markdown、注意事項、AI 草稿／停止／放棄／Apply 與唯讀邊界 |
 | `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
+| `learning-item-draft-dialog.test.tsx` | 已存在項目唯讀詳情、雙層 Escape 與載入失敗重試 |
 | `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情，以及捲到底後工具區位置不變 |
 
-最近驗證（2026-08-08）：
+最近驗證（2026-08-09）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：394/394 passed。
+- Desktop Vitest：401/401 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
 - Electron Playwright E2E：2/2 passed，包含 runtime edit skill 與 `learning.aiEdit` 白名單。
@@ -288,4 +298,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - `documents/implements/F46-integrated-sentence-practice.md`
 - `documents/modules/sentence-practice.md`
 - `documents/implements/F51-ai-assisted-learning-item-editing.md`
+- `documents/implements/F52-edit-learning-items-from-completed-review.md`
+- `documents/implements/F53-open-existing-learning-item-from-card-review.md`
+- `documents/implements/F55-edit-learning-items-from-graded-review.md`
 - `documents/modules/learning-item-editing.md`

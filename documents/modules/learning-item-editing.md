@@ -2,18 +2,21 @@
 title: AI 輔助學習項目編修模組
 module: learning-item-editing
 status: active
-last_updated: 2026-08-08
+last_updated: 2026-08-09
 related_implements:
   - F51-ai-assisted-learning-item-editing
+  - F52-edit-learning-items-from-completed-review
+  - F55-edit-learning-items-from-graded-review
 ---
 
 # AI 輔助學習項目編修模組
 
 ## 1. Purpose
 
-本模組讓使用者在生詞庫的 active **學習項目詳情**中，以簡單多輪需求請 AI 補充或
-調整目前項目的 Markdown 與**學習注意事項**。例如「我常把 `impair` 誤解成
-`repair`」會讓 AI 在原內容中加入差異說明，並把最關鍵的辨別方法濃縮為醒目的注意事項。
+本模組讓使用者在具備編修能力的 active **學習項目詳情**中，以簡單多輪需求請 AI
+補充或調整目前項目的 Markdown 與**學習注意事項**；入口包含生詞庫、已批改的複習
+試卷與複習完成頁。例如「我常把 `impair` 誤解成 `repair`」會讓 AI 在原內容中加入
+差異說明，並把最關鍵的辨別方法濃縮為醒目的注意事項。
 
 編修過程只更新畫面中的暫態草稿。使用者必須明確按下「Apply edit」後，Main process
 才會把 Markdown 與注意事項一起寫入 SQLite；取消、關閉、停止、失敗或無效 artifact
@@ -25,7 +28,8 @@ related_implements:
 
 目前支援：
 
-- active 生詞庫詳情顯示「Edit with AI」；垃圾桶、間隔複習與整合造句的唯讀詳情不顯示。
+- active 生詞庫、已批改複習試卷及複習完成頁詳情顯示「Edit with AI」；垃圾桶與
+  整合造句的唯讀詳情不顯示。
 - 詳情內容本身就是草稿預覽，底部只展開一個多行需求欄、簡短狀態、Send、Stop、
   Cancel 與 Apply edit，不建立第二個預覽或可見聊天紀錄。
 - 同一暫態 Codex thread 可多輪編修，每輪都以最新有效草稿為基礎。
@@ -103,7 +107,8 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 
 `LearningItemDialog` 負責：
 
-- 依 editable／read-only capability 顯示入口。
+- 依 editable／read-only capability 顯示編修入口，並把是否可移入垃圾桶當作獨立能力；
+  已批改但尚未確認排程的試卷可編修、不可移入垃圾桶。
 - 用 Controller snapshot 的 draft 覆蓋原詳情 Markdown 與注意事項顯示。
 - 在底部呈現單一 composer、狀態與必要操作。
 - 回覆中停用並行送出與 Apply，Stop 後忽略已失效的舊 send promise。
@@ -177,13 +182,14 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 | `learning-item-edit-ipc.test.ts` | id／需求白名單及 forged payload 拒絕 |
 | `learning-library-service.test.ts` | schema 6 migration、注意事項保存、guarded Apply／stale／trash 拒絕 |
 | `learning-library-workspace.test.tsx` | 顯示、人工編輯、精簡 AI 草稿、明確 Apply、停止、放棄確認與唯讀邊界 |
+| `SpacedReviewWorkspace.test.tsx` | 已批改試卷與完成頁的 AI 編修、狀態保留及垃圾桶能力邊界 |
 | `data-backup-service.test.ts` | schema 6 backup 相容與未來版本拒絕 |
 | `desktop.spec.ts` | production skill 安裝與 preload 子 API 白名單 |
 
-最近驗證（2026-08-08）：
+最近驗證（2026-08-09）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：394/394 passed。
+- Desktop Vitest：401/401 passed。
 - TypeScript typecheck：passed。
 - Production build：passed。
 - Electron Playwright E2E：2/2 passed。

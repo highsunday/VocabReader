@@ -135,6 +135,19 @@ function learningApi() {
   } satisfies LearningDesktopApi;
 }
 
+async function completeCurrentReview() {
+  fireEvent.click(await screen.findByRole("button", {
+    name: /Start a \d+-question review/
+  }));
+  fireEvent.click(await screen.findByRole("button", {
+    name: /Submit paper/
+  }));
+  fireEvent.click(await screen.findByRole("button", {
+    name: "Accept ratings and update schedule"
+  }));
+  await screen.findByRole("heading", { name: "Session complete" });
+}
+
 describe("SpacedReviewWorkspace", () => {
   it("shows completed cards against the configured daily limits", async () => {
     const api = reviewApi();
@@ -866,7 +879,7 @@ describe("SpacedReviewWorkspace", () => {
       .not.toBeInTheDocument();
   });
 
-  it("colors the current rating and opens a read-only learning item after grading", async () => {
+  it("colors the current rating and allows editing but not Trash after grading", async () => {
     const api = reviewApi();
     api.getItemDetail = vi.fn(async () => ({
       status: "new" as const,
@@ -877,6 +890,20 @@ describe("SpacedReviewWorkspace", () => {
       history: []
     }));
     const learning = learningApi();
+    learning.updateItem = vi.fn(async (input) => ({
+      id: input.itemId,
+      title: input.title,
+      itemType: input.itemType,
+      language: input.language,
+      cefr: input.cefr,
+      sense: input.sense,
+      markdownContent: input.markdownContent,
+      cautionNote: input.cautionNote,
+      status: "active" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-08-09T08:00:00.000Z",
+      trashedAt: null
+    }));
     render(
       <SpacedReviewWorkspace
         api={api}
@@ -909,8 +936,24 @@ describe("SpacedReviewWorkspace", () => {
       .toBeInTheDocument();
     expect(within(dialog).getByRole("region", { name: "Review schedule" }))
       .toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "Edit" }))
-      .not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Sense" }), {
+      target: { value: "a bank or other financial institution" }
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", {
+      name: "Markdown content"
+    }), { target: { value: "## Meaning\nUpdated financial meaning" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(learning.updateItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemId: "item-1",
+        sense: "a bank or other financial institution",
+        markdownContent: "## Meaning\nUpdated financial meaning"
+      })
+    ));
+    expect(await within(dialog).findByText("Updated financial meaning"))
+      .toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Delete" }))
       .not.toBeInTheDocument();
 
@@ -942,7 +985,102 @@ describe("SpacedReviewWorkspace", () => {
     expect(answer).toHaveValue("金融機構");
     expect(api.generatePaper).toHaveBeenCalledTimes(1);
     expect(api.gradePaper).toHaveBeenCalledTimes(1);
-    expect(learning.updateItem).not.toHaveBeenCalled();
+    expect(learning.updateItem).toHaveBeenCalledTimes(1);
+    expect(learning.trashItem).not.toHaveBeenCalled();
+    expect(api.confirmPaper).not.toHaveBeenCalled();
+  });
+
+  it("applies an AI edit after grading without changing the graded paper", async () => {
+    const api = reviewApi();
+    const learning = learningApi();
+    const aiEdit = {
+      start: vi.fn(async () => ({
+        sessionId: "edit-reviewing-1",
+        itemId: "item-1",
+        phase: "ready" as const,
+        draft: {
+          markdownContent: "## Meaning\n銀行／金融機構",
+          cautionNote: ""
+        },
+        hasChanges: false,
+        status: "Ready"
+      })),
+      send: vi.fn(async () => ({
+        sessionId: "edit-reviewing-1",
+        itemId: "item-1",
+        phase: "ready" as const,
+        draft: {
+          markdownContent: "## Meaning\n銀行／金融機構\n\nNot a river bank.",
+          cautionNote: "Distinguish the financial sense from the river edge."
+        },
+        hasChanges: true,
+        status: "Draft ready"
+      })),
+      stop: vi.fn(),
+      apply: vi.fn(async () => ({
+        id: "item-1",
+        title: "bank",
+        itemType: "word" as const,
+        language: "en" as const,
+        cefr: "A2" as const,
+        sense: "financial institution",
+        markdownContent: "## Meaning\n銀行／金融機構\n\nNot a river bank.",
+        cautionNote: "Distinguish the financial sense from the river edge.",
+        status: "active" as const,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-08-09T08:05:00.000Z",
+        trashedAt: null
+      })),
+      discard: vi.fn()
+    };
+    Object.assign(learning, { aiEdit });
+
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: /Start a \d+-question review/
+    }));
+    const answer = await screen.findByLabelText("Meaning of this word in the sentence");
+    fireEvent.change(answer, { target: { value: "金融機構" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit paper" }));
+    await screen.findByRole("region", { name: "Meaning assessment" });
+    fireEvent.click(screen.getByRole("radio", { name: "Hard" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open learning card" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "bank" });
+    expect(within(dialog).queryByRole("button", { name: "Delete" }))
+      .not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Edit with AI" }));
+    await waitFor(() => expect(aiEdit.start).toHaveBeenCalledWith("item-1"));
+    fireEvent.change(within(dialog).getByRole("textbox", {
+      name: "AI editing request"
+    }), { target: { value: "Add the river-bank distinction." } });
+    fireEvent.click(within(dialog).getByRole("button", {
+      name: "Send AI edit request"
+    }));
+    await waitFor(() => expect(aiEdit.send).toHaveBeenCalledWith(
+      "edit-reviewing-1",
+      "Add the river-bank distinction."
+    ));
+    fireEvent.click(await within(dialog).findByRole("button", {
+      name: "Apply AI edit"
+    }));
+
+    await waitFor(() => expect(aiEdit.apply).toHaveBeenCalledWith("edit-reviewing-1"));
+    expect(await within(dialog).findByText("Not a river bank."))
+      .toBeInTheDocument();
+    expect(answer).toHaveValue("金融機構");
+    expect(screen.getByText("答案完整且符合語境。")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Hard" })).toBeChecked();
+    expect(api.generatePaper).toHaveBeenCalledTimes(1);
+    expect(api.gradePaper).toHaveBeenCalledTimes(1);
+    expect(api.confirmPaper).not.toHaveBeenCalled();
     expect(learning.trashItem).not.toHaveBeenCalled();
   });
 
@@ -1220,10 +1358,10 @@ describe("SpacedReviewWorkspace", () => {
     fireEvent.click(completedItem);
     expect(learning.getItem).toHaveBeenCalledWith("item-1");
     const dialog = await screen.findByRole("dialog", { name: "bank" });
-    expect(within(dialog).queryByRole("button", { name: "Edit" }))
-      .not.toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: "Delete" }))
-      .not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Edit" }))
+      .toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Delete" }))
+      .toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", {
       name: "Close card details"
     }));
@@ -1371,6 +1509,221 @@ describe("SpacedReviewWorkspace", () => {
     expect(learning.getItem).toHaveBeenLastCalledWith("item-2");
     expect(await screen.findByRole("dialog", { name: "in advance" }))
       .toBeInTheDocument();
+  });
+
+  it("manually edits and moves a learning item to Trash from the completed review", async () => {
+    const api = reviewApi();
+    const learning = learningApi();
+    const onLearningCountsChange = vi.fn();
+    learning.updateItem = vi.fn(async (input) => ({
+      id: input.itemId,
+      title: input.title,
+      itemType: input.itemType,
+      language: input.language,
+      cefr: input.cefr,
+      sense: input.sense,
+      markdownContent: input.markdownContent,
+      cautionNote: input.cautionNote,
+      status: "active" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-08-08T09:30:00.000Z",
+      trashedAt: null
+    }));
+    learning.trashItem = vi.fn(async (itemId) => ({
+      id: itemId,
+      title: "bank",
+      itemType: "word" as const,
+      language: "en" as const,
+      cefr: "A2" as const,
+      sense: "a financial institution with a caution",
+      markdownContent: "## Meaning\nUpdated meaning",
+      cautionNote: "Do not confuse it with a river bank.",
+      status: "trashed" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-08-08T09:31:00.000Z",
+      trashedAt: "2026-08-08T09:31:00.000Z"
+    }));
+    learning.countItems = vi.fn(async () => ({ active: 0, trashed: 1 }));
+
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+        onLearningCountsChange={onLearningCountsChange}
+      />
+    );
+
+    await completeCurrentReview();
+    const completedItem = screen.getByRole("button", {
+      name: /bank.*Forgotten.*next review/i
+    });
+    fireEvent.click(completedItem);
+    const dialog = await screen.findByRole("dialog", { name: "bank" });
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Sense" }), {
+      target: { value: "a financial institution with a caution" }
+    });
+    fireEvent.change(within(dialog).getByRole("textbox", {
+      name: "Markdown content"
+    }), { target: { value: "## Meaning\nUpdated meaning" } });
+    fireEvent.change(within(dialog).getByRole("textbox", {
+      name: "Learning caution"
+    }), { target: { value: "Do not confuse it with a river bank." } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(learning.updateItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemId: "item-1",
+        sense: "a financial institution with a caution",
+        markdownContent: "## Meaning\nUpdated meaning",
+        cautionNote: "Do not confuse it with a river bank."
+      })
+    ));
+    expect(await within(dialog).findByText("Updated meaning"))
+      .toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    const confirmation = await screen.findByRole("alertdialog", {
+      name: "Delete “bank”?"
+    });
+    fireEvent.click(within(confirmation).getByRole("button", {
+      name: "Move to Trash"
+    }));
+
+    await waitFor(() => expect(learning.trashItem).toHaveBeenCalledOnce());
+    expect(learning.trashItem).toHaveBeenCalledWith("item-1");
+    await waitFor(() => expect(onLearningCountsChange).toHaveBeenCalledWith({
+      active: 0,
+      trashed: 1
+    }));
+    expect(screen.queryByRole("dialog", { name: "bank" }))
+      .not.toBeInTheDocument();
+    expect(completedItem).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to review overview" }))
+      .toBeEnabled();
+    expect(api.generatePaper).toHaveBeenCalledTimes(1);
+    expect(api.gradePaper).toHaveBeenCalledTimes(1);
+    expect(api.confirmPaper).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies an AI edit from the completed review without reconfirming it", async () => {
+    const api = reviewApi();
+    const learning = learningApi();
+    const aiEdit = {
+      start: vi.fn(async () => ({
+        sessionId: "edit-review-1",
+        itemId: "item-1",
+        phase: "ready" as const,
+        draft: {
+          markdownContent: "## Meaning\n銀行／金融機構",
+          cautionNote: ""
+        },
+        hasChanges: false,
+        status: "Ready"
+      })),
+      send: vi.fn(async () => ({
+        sessionId: "edit-review-1",
+        itemId: "item-1",
+        phase: "ready" as const,
+        draft: {
+          markdownContent: "## Meaning\n銀行／金融機構\n\n## Common mistake\nNot a river bank.",
+          cautionNote: "Distinguish the financial sense from the river edge."
+        },
+        hasChanges: true,
+        status: "Draft ready"
+      })),
+      stop: vi.fn(),
+      apply: vi.fn(async () => ({
+        id: "item-1",
+        title: "bank",
+        itemType: "word" as const,
+        language: "en" as const,
+        cefr: "A2" as const,
+        sense: "financial institution",
+        markdownContent: "## Meaning\n銀行／金融機構\n\n## Common mistake\nNot a river bank.",
+        cautionNote: "Distinguish the financial sense from the river edge.",
+        status: "active" as const,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-08-08T09:32:00.000Z",
+        trashedAt: null
+      })),
+      discard: vi.fn()
+    };
+    Object.assign(learning, { aiEdit });
+
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    await completeCurrentReview();
+    fireEvent.click(screen.getByRole("button", {
+      name: /bank.*Forgotten.*next review/i
+    }));
+    const dialog = await screen.findByRole("dialog", { name: "bank" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Edit with AI" }));
+    await waitFor(() => expect(aiEdit.start).toHaveBeenCalledWith("item-1"));
+    fireEvent.change(within(dialog).getByRole("textbox", {
+      name: "AI editing request"
+    }), { target: { value: "Add the easy-to-confuse river-bank distinction." } });
+    fireEvent.click(within(dialog).getByRole("button", {
+      name: "Send AI edit request"
+    }));
+    await waitFor(() => expect(aiEdit.send).toHaveBeenCalledWith(
+      "edit-review-1",
+      "Add the easy-to-confuse river-bank distinction."
+    ));
+    fireEvent.click(await within(dialog).findByRole("button", {
+      name: "Apply AI edit"
+    }));
+
+    await waitFor(() => expect(aiEdit.apply).toHaveBeenCalledWith("edit-review-1"));
+    expect(await within(dialog).findByText("Not a river bank."))
+      .toBeInTheDocument();
+    expect(api.generatePaper).toHaveBeenCalledTimes(1);
+    expect(api.gradePaper).toHaveBeenCalledTimes(1);
+    expect(api.confirmPaper).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the completed review and detail open when moving to Trash fails", async () => {
+    const api = reviewApi();
+    const learning = learningApi();
+    learning.trashItem = vi.fn(async () => {
+      throw new Error("Unable to move to Trash temporarily");
+    });
+
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    await completeCurrentReview();
+    const completedItem = screen.getByRole("button", {
+      name: /bank.*Forgotten.*next review/i
+    });
+    fireEvent.click(completedItem);
+    const dialog = await screen.findByRole("dialog", { name: "bank" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog", {
+      name: "Delete “bank”?"
+    })).getByRole("button", { name: "Move to Trash" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Unable to move to Trash temporarily"
+    );
+    expect(dialog).toBeInTheDocument();
+    expect(completedItem).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to review overview" }))
+      .toBeEnabled();
+    expect(api.confirmPaper).toHaveBeenCalledTimes(1);
   });
 
   it("keeps completed results usable when item detail cannot load", async () => {

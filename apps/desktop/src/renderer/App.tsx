@@ -1949,6 +1949,7 @@ export function App() {
               settingsRevision={reviewSettingsRevision}
               active={mode === "spaced-review"}
               onAvailableCountChange={setReviewAvailableCount}
+              onLearningCountsChange={setLearningCounts}
               onStatusChange={setReviewWorkspaceStatus}
             />
           ) : null}

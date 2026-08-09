@@ -2,7 +2,7 @@
 title: AI 批改與 FSRS 間隔複習模組
 module: spaced-review
 status: active
-last_updated: 2026-08-03
+last_updated: 2026-08-09
 related_implements:
   - F28-ai-graded-spaced-review-paper
   - F29-stream-spaced-review-generation-and-scroll-paper
@@ -17,6 +17,8 @@ related_implements:
   - F41-persist-review-answers-in-history
   - F42-show-solid-recall-growth
   - F48-diversify-spaced-review-sentences
+  - F52-edit-learning-items-from-completed-review
+  - F55-edit-learning-items-from-graded-review
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -70,9 +72,10 @@ related_implements:
 - 空白或非學習項目語言答案不顯示表達建議；缺少或 malformed 的選用建議欄位會安全
   降級，不阻擋合法意思回饋及評級確認。
 - 結果頁預選 AI 建議，使用者可逐題覆寫後一次確認。
-- 批改後每題可開啟共用的唯讀學習項目詳情；排程確認後的完成頁逐筆顯示學習項目
-  標題、最終評級與下次複習時間，且每列可開啟同一個詳情。關閉後仍保留完成結果
-  與繼續下一回合的操作。
+- 批改後每題可開啟共用學習項目詳情並人工或透過 AI 編修，但尚未確認排程時不可
+  移入垃圾桶；排程確認後的完成頁逐筆顯示學習項目標題、最終評級與下次複習時間，
+  且每列沿用可編修或移入垃圾桶的同一個詳情。後續 mutation 不重跑出題、批改或
+  複習確認，關閉後仍保留結果與下一步操作。
 - 使用 `ts-fsrs`、固定 90% 目標記憶率及預設參數計算精確到期時間。
 - 同一回合在單一 SQLite 交易寫入所有事件與排程；成功後可連續開始下一回合。
 - 生詞庫詳情懶載入目前狀態、最後評級、下次到期、次數，以及逐筆顯示原始複習
@@ -244,9 +247,11 @@ paused view 可開啟放棄確認 alert dialog；取消只關閉 dialog，確認
 
 只有整份試卷完成 AI 批改後，每題才顯示帶有卡片圖示的「打開學習卡」。入口以受信任
 `question.itemId` 呼叫既有 `learning:get`，並用生詞庫共用的詳情 modal 顯示安全
-Markdown、發音、複習排程與精簡歷史；複習頁傳入 read-only capability，不提供
-編輯、儲存、刪除或移到垃圾桶。關閉按鈕、Escape 與 backdrop 都可關閉並把焦點還給
-原觸發按鈕；開關詳情及載入失敗不重跑生成／批改，也不清除答案或評級覆寫。
+Markdown、發音、複習排程與精簡歷史。reviewing 與 completed 都傳入 editable
+capability 及 mutation callback，沿用既有人工 Save 與 AI Apply；只有 completed 另外
+允許 Delete 與移入垃圾桶。刪除後重查生詞庫 counts，但完成事件列仍保留；所有詳情
+操作都不重跑生成、批改或確認。關閉按鈕、Escape 與 backdrop 會把焦點還給原觸發
+按鈕。
 精簡歷史逐筆顯示「Your answer」與原始換行文字；留白顯示 `Not answered`，schema 4
 以前的事件顯示 `Answer wasn't saved`。
 
@@ -281,7 +286,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 | `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、表達建議正規化、缺題、未知／重複 id 與錯 scope 拒絕 |
 | `spaced-review-controller.test.ts` | 暫態 paper／expression feedback、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |
 | `spaced-review-ipc.test.ts` | 六個操作、安全 typed generation count payload 與惡意 payload 拒絕 |
-| `SpacedReviewWorkspace.test.tsx` | 穩定掌握成果卡、90 天可存取折線、30 天活動卡、零資料、完成後刷新、整合式狀態卡、等待到期文案與自動刷新、完成數與確定進度、意思／表達分區、四級結果色彩、唯讀詳情、焦點回復、短答案與不適用建議、先離開／繼續、放棄二次確認、取消／晚到結果、空白提醒、覆寫、確認與真正卸載清除 |
+| `SpacedReviewWorkspace.test.tsx` | 穩定掌握成果卡、90 天可存取折線、30 天活動卡、零資料、完成後刷新、整合式狀態卡、等待到期文案與自動刷新、完成數與確定進度、意思／表達分區、四級結果色彩、批改後人工／AI 編修但禁止移入垃圾桶、完成頁編修與垃圾桶及 counts 刷新、焦點回復、短答案與不適用建議、先離開／繼續、放棄二次確認、取消／晚到結果、空白提醒、覆寫、確認與真正卸載清除 |
 | `learning-library-workspace.test.tsx` | 詳情摘要、可展開精簡歷史、作答文字與新舊留白狀態 |
 | `App.test.tsx` | 側欄數量與狀態 icon、獨立工作區、進入時不呼叫生成，以及生成／作答／批改狀態跨工作區保留 |
 | `bundled-skill.test.ts` | 第四份內建 skill 安裝／更新 |
@@ -319,6 +324,8 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - `documents/implements/F31-resumable-background-spaced-review.md`
 - `documents/implements/F32-add-expression-feedback-to-spaced-review.md`
 - `documents/implements/F36-show-spaced-review-daily-status.md`
+- `documents/implements/F52-edit-learning-items-from-completed-review.md`
+- `documents/implements/F55-edit-learning-items-from-graded-review.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/skill-management.md`
 - `documents/modules/ai-conversation.md`
