@@ -365,3 +365,81 @@ DDD standalone TDD completion notification.
 **Follow-up**
 - Implementation remains complete. The user may explicitly authorize connecting Gmail and sending
   this completion notification in a later request.
+
+#### L018 — 2026-08-08 17:01 CST — F51 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F51 在學習項目詳情以 AI 補充內容與注意事項`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request approved implementation but did not explicitly authorize external disclosure
+  of the local implementation and test summary; the configured sending identity was therefore not used.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L019 — 2026-08-08 19:10 CST — F53 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F53 從新增卡片確認浮層開啟已存在學習項目`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L020 — 2026-08-08 20:10 CST — F54 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F54 套用 VocabReader 正式 App icon`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Authenticated sender: `highsunday0630@gmail.com`
+
+**Follow-up**
+- No action required. F54 is implemented and its completion summary was delivered.
+
+#### L021 — 2026-08-09 21:45 CST — F55 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F55 從已批改的複習結果編修學習項目`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
