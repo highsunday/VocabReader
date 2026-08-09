@@ -150,7 +150,8 @@ related_implements:
 | id | 解析後 archive href 的 SHA-256 前 16 字元 |
 | title | EPUB 3 navigation、EPUB 2 NCX 或 spine fallback 取得的章節名稱 |
 | order | 章節在書籍總覽中的穩定顯示順序 |
-| href | EPUB archive 內已正規化的章節路徑，供後續章節載入使用 |
+| href | EPUB archive 內已正規化的章節起始路徑，亦維持既有章節 ID 與閱讀狀態相容 |
+| contentHrefs | 從章節起始位置到下一個不同目錄入口前、依 spine 順序排列的完整內容路徑 |
 | depth | EPUB navigation／NCX 中的目錄深度；頂層為 0 |
 | fragment | 章節在 XHTML 中的錨點；沒有錨點時為 null |
 
@@ -228,6 +229,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - navigation 與 NCX 內的相對連結以各自 TOC 文件所在目錄為基準；spine fallback
   才以 package document 目錄為基準。
 - navigation document 的巢狀 `<ol>` 與 NCX 的巢狀 `navPoint` 會依深度遞迴解析；同檔案不同 fragment 會保留為不同閱讀入口。
+- navigation／NCX 只提供章節入口時，系統會依 spine 補入該入口到下一個不同入口前的所有內容文件；同一 href 的第一個目錄入口保存完整範圍，其他 fragment 入口只載入共同起始文件。
 - 如果沒有 navigation／NCX 連結，依 spine manifest 順序建立 fallback 章節。
 - EPUB 3 封面使用 manifest cover-image property；EPUB 2 使用 metadata cover id。
 - archive href 會移除 fragment、嘗試 percent decoding、正規化，並拒絕絕對路徑與 ../ traversal。

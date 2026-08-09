@@ -164,7 +164,7 @@ function validateBookState(candidate: Partial<LibraryBook>): void {
     (candidate.epubParseVersion !== undefined &&
       (!Number.isInteger(candidate.epubParseVersion) ||
         candidate.epubParseVersion < 1 ||
-        candidate.epubParseVersion > 2))
+        candidate.epubParseVersion > 3))
   ) {
     throw new Error("The Book Library index contains an invalid book state");
   }
@@ -181,6 +181,7 @@ function validateBookState(candidate: Partial<LibraryBook>): void {
   const chapterIds = new Set<string>();
   for (const rawChapter of candidate.chapters ?? []) {
     const chapter = record(rawChapter);
+    const contentHrefs = chapter?.contentHrefs;
     if (
       !chapter ||
       typeof chapter.id !== "string" ||
@@ -192,6 +193,14 @@ function validateBookState(candidate: Partial<LibraryBook>): void {
       Number(chapter.order) < 0 ||
       typeof chapter.href !== "string" ||
       unsafeArchivePath(chapter.href) ||
+      (contentHrefs !== undefined &&
+        (!Array.isArray(contentHrefs) ||
+          !contentHrefs.length ||
+          contentHrefs.some((href) =>
+            typeof href !== "string" || unsafeArchivePath(href)
+          ) ||
+          contentHrefs[0] !== chapter.href)) ||
+      (candidate.epubParseVersion === 3 && contentHrefs === undefined) ||
       !Number.isInteger(chapter.depth) ||
       Number(chapter.depth) < 0 ||
       (chapter.fragment !== null && typeof chapter.fragment !== "string")

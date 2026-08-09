@@ -404,11 +404,57 @@ function distinctChapters(chapters: BookChapter[]): BookChapter[] {
     .map((chapter, order) => ({
       ...chapter,
       order,
+      contentHrefs: Array.isArray(chapter.contentHrefs) &&
+        chapter.contentHrefs.length > 0
+        ? [...new Set(chapter.contentHrefs.filter(
+            (href): href is string => typeof href === "string" && Boolean(href)
+          ))]
+        : [chapter.href],
       depth: Number.isInteger(chapter.depth) && chapter.depth >= 0
         ? chapter.depth
         : 0,
       fragment: typeof chapter.fragment === "string" ? chapter.fragment : null
     }));
+}
+
+function preserveChapterIds(
+  previousChapters: BookChapter[],
+  parsedChapters: BookChapter[]
+): BookChapter[] {
+  const usedPreviousIndexes = new Set<number>();
+  const findPreviousIndex = (
+    predicate: (previous: BookChapter) => boolean
+  ) => previousChapters.findIndex((previous, index) =>
+    !usedPreviousIndexes.has(index) && predicate(previous)
+  );
+
+  return parsedChapters.map((parsed) => {
+    const parsedDepth = parsed.depth ?? 0;
+    const parsedFragment = parsed.fragment ?? null;
+    let previousIndex = findPreviousIndex(
+      (previous) => previous.id === parsed.id
+    );
+    if (previousIndex < 0) {
+      previousIndex = findPreviousIndex(
+        (previous) =>
+          previous.href === parsed.href &&
+          (previous.depth ?? 0) === parsedDepth &&
+          (previous.fragment ?? null) === parsedFragment
+      );
+    }
+    if (previousIndex < 0) {
+      previousIndex = findPreviousIndex(
+        (previous) =>
+          previous.order === parsed.order &&
+          previous.title === parsed.title &&
+          (previous.depth ?? 0) === parsedDepth &&
+          (previous.fragment ?? null) === parsedFragment
+      );
+    }
+    if (previousIndex < 0) return parsed;
+    usedPreviousIndexes.add(previousIndex);
+    return { ...parsed, id: previousChapters[previousIndex].id };
+  });
 }
 
 async function requiredTextFile(zip: JSZip, path: string, label: string) {
@@ -417,7 +463,7 @@ async function requiredTextFile(zip: JSZip, path: string, label: string) {
   return file.async("text");
 }
 
-const epubParseVersion = 2;
+const epubParseVersion = 3;
 
 async function replaceFileWithRetry(source: string, destination: string) {
   const retryableCodes = new Set(["EACCES", "EBUSY", "EPERM"]);
@@ -497,6 +543,9 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
     .map(asRecord)
     .map((item) => manifestById.get(attribute(item, "idref")))
     .filter((item): item is ManifestItem => Boolean(item));
+  const spineHrefs = spineItems.map((item) =>
+    resolveArchivePath(packageDirectory, item.href)
+  );
   const navigationItem = manifestItems.find((item) =>
     item.properties.split(/\s+/).includes("nav")
   );
@@ -525,18 +574,41 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
     }));
   }
 
-  const chapters = distinctChapters(links.map<BookChapter>((link, order) => {
-    const href = resolveArchivePath(linksDirectory, link.href);
-    const fragment = fragmentFromHref(link.href);
+  const resolvedLinks = links.map((link) => ({
+    ...link,
+    href: resolveArchivePath(linksDirectory, link.href),
+    fragment: fragmentFromHref(link.href)
+  }));
+  const spineIndexByHref = new Map(
+    spineHrefs.map((href, index) => [href, index] as const)
+  );
+  const rangedHrefs = new Set<string>();
+  const chapters = distinctChapters(resolvedLinks.map<BookChapter>((link, order) => {
+    const href = link.href;
+    const start = spineIndexByHref.get(href);
+    let contentHrefs = [href];
+    if (start !== undefined && !rangedHrefs.has(href)) {
+      rangedHrefs.add(href);
+      let end = spineHrefs.length;
+      for (const nextLink of resolvedLinks.slice(order + 1)) {
+        const next = spineIndexByHref.get(nextLink.href);
+        if (next !== undefined && next > start) {
+          end = next;
+          break;
+        }
+      }
+      contentHrefs = spineHrefs.slice(start, end);
+    }
     return {
       id: chapterId(
-        link.depth === 0 ? href : `${href}#${fragment ?? `toc-${order}`}`
+        link.depth === 0 ? href : `${href}#${link.fragment ?? `toc-${order}`}`
       ),
       title: link.title,
       order,
       href,
+      contentHrefs,
       depth: link.depth,
-      fragment
+      fragment: link.fragment
     };
   }));
   if (!chapters.length) throw new Error("The EPUB has no readable chapters");
@@ -576,7 +648,8 @@ export class LocalBookLibrary {
     const booksWithHierarchy = await Promise.all(books.map(async (book) => {
       const needsMigration = book.epubParseVersion !== epubParseVersion ||
         book.chapters.some((chapter) =>
-          !("depth" in chapter) || !("fragment" in chapter)
+          !("depth" in chapter) || !("fragment" in chapter) ||
+          !Array.isArray(chapter.contentHrefs) || !chapter.contentHrefs.length
         );
       if (!needsMigration) return book;
       try {
@@ -586,7 +659,7 @@ export class LocalBookLibrary {
         return {
           ...book,
           epubParseVersion,
-          chapters: parsed.chapters
+          chapters: preserveChapterIds(book.chapters, parsed.chapters)
         };
       } catch {
         return book;
@@ -693,13 +766,15 @@ export class LocalBookLibrary {
 
     const epub = await readFile(join(this.#booksPath, book.id, "book.epub"));
     const zip = await JSZip.loadAsync(epub);
-    const file = zip.file(chapter.href);
-    if (!file) throw new Error("Chapter content is missing");
-    const contentHtml = await sanitizeChapterHtml(
-      zip,
-      chapter.href,
-      await file.async("text")
-    );
+    const contentHrefs = chapter.contentHrefs?.length
+      ? chapter.contentHrefs
+      : [chapter.href];
+    const contentParts = await Promise.all(contentHrefs.map(async (href) => {
+      const file = zip.file(href);
+      if (!file) throw new Error("Chapter content is missing");
+      return sanitizeChapterHtml(zip, href, await file.async("text"));
+    }));
+    const contentHtml = contentParts.filter(Boolean).join("\n");
     return {
       bookId: book.id,
       chapterId: chapter.id,

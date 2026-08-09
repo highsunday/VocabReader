@@ -3,6 +3,7 @@ export interface BookChapter {
   title: string;
   order: number;
   href: string;
+  contentHrefs?: string[];
   depth: number;
   fragment: string | null;
 }

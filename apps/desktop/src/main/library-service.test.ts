@@ -121,6 +121,46 @@ async function createEpub2(path: string) {
   await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
 }
 
+async function createEpub2WithSplitChapters(path: string) {
+  const zip = new JSZip();
+  zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
+  zip.file(
+    "META-INF/container.xml",
+    `<container><rootfiles><rootfile full-path="OPS/book.opf"/></rootfiles></container>`
+  );
+  zip.file(
+    "OPS/book.opf",
+    `<package version="2.0">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Split Chapter Reader</dc:title><dc:creator>Test Author</dc:creator>
+      </metadata>
+      <manifest>
+        <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+        <item id="one-title" href="one-title.xhtml" media-type="application/xhtml+xml"/>
+        <item id="one-body" href="one-body.xhtml" media-type="application/xhtml+xml"/>
+        <item id="two-title" href="two-title.xhtml" media-type="application/xhtml+xml"/>
+        <item id="two-body" href="two-body.xhtml" media-type="application/xhtml+xml"/>
+      </manifest>
+      <spine toc="ncx">
+        <itemref idref="one-title"/><itemref idref="one-body"/>
+        <itemref idref="two-title"/><itemref idref="two-body"/>
+      </spine>
+    </package>`
+  );
+  zip.file(
+    "OPS/toc.ncx",
+    `<ncx><navMap>
+      <navPoint id="one"><navLabel><text>Chapter One</text></navLabel><content src="one-title.xhtml"/></navPoint>
+      <navPoint id="two"><navLabel><text>Chapter Two</text></navLabel><content src="two-title.xhtml"/></navPoint>
+    </navMap></ncx>`
+  );
+  zip.file("OPS/one-title.xhtml", "<html><body><h1>Chapter One</h1></body></html>");
+  zip.file("OPS/one-body.xhtml", "<html><body><p>First chapter prose.</p></body></html>");
+  zip.file("OPS/two-title.xhtml", "<html><body><h1>Chapter Two</h1></body></html>");
+  zip.file("OPS/two-body.xhtml", "<html><body><p>Second chapter prose.</p></body></html>");
+  await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
+}
+
 async function createEpubWithNestedNavigationDocument(path: string) {
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
@@ -244,7 +284,7 @@ describe("LocalBookLibrary", () => {
     const library = new LocalBookLibrary(libraryPath);
     const [migrated] = await library.listBooks();
 
-    expect(migrated.epubParseVersion).toBe(2);
+    expect(migrated.epubParseVersion).toBe(3);
     expect(migrated.chapters[0].href).toBe("OEBPS/text/chapter.xhtml");
     await expect(
       library.getChapterContent(migrated.id, migrated.chapters[0].id)
@@ -275,6 +315,82 @@ describe("LocalBookLibrary", () => {
       })
     ]);
     expect(result.book.chapters[0].id).not.toBe(result.book.chapters[1].id);
+  });
+
+  it("loads every spine document between consecutive NCX chapter entries", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "split-chapters.epub");
+    const libraryPath = join(root, "library");
+    await createEpub2WithSplitChapters(epubPath);
+    const library = new LocalBookLibrary(libraryPath);
+
+    const imported = await library.importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    const [first, second] = imported.book.chapters;
+
+    expect(first).toMatchObject({
+      href: "OPS/one-title.xhtml",
+      contentHrefs: ["OPS/one-title.xhtml", "OPS/one-body.xhtml"]
+    });
+    expect(second).toMatchObject({
+      href: "OPS/two-title.xhtml",
+      contentHrefs: ["OPS/two-title.xhtml", "OPS/two-body.xhtml"]
+    });
+    await expect(library.getChapterContent(imported.book.id, first.id))
+      .resolves.toMatchObject({
+        contentHtml: expect.stringContaining("First chapter prose.")
+      });
+  });
+
+  it("rebuilds split chapter spine ranges without losing saved reading data", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "legacy-split-chapters.epub");
+    const libraryPath = join(root, "library");
+    await createEpub2WithSplitChapters(epubPath);
+    const imported = await new LocalBookLibrary(libraryPath).importFromPath(epubPath);
+    if (imported.status === "cancelled") throw new Error("unexpected cancellation");
+    const firstChapterId = "legacy-chapter-one";
+    const indexPath = join(libraryPath, "index.json");
+    const persisted = JSON.parse(await readFile(indexPath, "utf8")) as LibraryBook[];
+    persisted[0].epubParseVersion = 2;
+    for (const chapter of persisted[0].chapters) {
+      delete (chapter as unknown as { contentHrefs?: string[] }).contentHrefs;
+    }
+    persisted[0].chapters[0].id = firstChapterId;
+    persisted[0].lastChapterId = firstChapterId;
+    persisted[0].readingState = {
+      view: "reader",
+      chapterId: firstChapterId,
+      scrollProgress: 0.42
+    };
+    persisted[0].chapterRanges = { [firstChapterId]: { start: 3, end: 12 } };
+    persisted[0].chapterAnnotations = {
+      [firstChapterId]: [{ id: "saved", start: 3, end: 8, text: "saved" }]
+    };
+    await writeFile(indexPath, `${JSON.stringify(persisted, null, 2)}\n`);
+
+    const library = new LocalBookLibrary(libraryPath);
+    const [migrated] = await library.listBooks();
+
+    expect(migrated.epubParseVersion).toBe(3);
+    expect(migrated.chapters[0]).toMatchObject({
+      id: firstChapterId,
+      contentHrefs: ["OPS/one-title.xhtml", "OPS/one-body.xhtml"]
+    });
+    expect(migrated.lastChapterId).toBe(firstChapterId);
+    expect(migrated.readingState).toEqual({
+      view: "reader",
+      chapterId: firstChapterId,
+      scrollProgress: 0.42
+    });
+    expect(migrated.chapterRanges?.[firstChapterId]).toEqual({ start: 3, end: 12 });
+    expect(migrated.chapterAnnotations?.[firstChapterId]).toEqual([
+      { id: "saved", start: 3, end: 8, text: "saved" }
+    ]);
+    await expect(library.getChapterContent(migrated.id, firstChapterId))
+      .resolves.toMatchObject({
+        contentHtml: expect.stringContaining("First chapter prose.")
+      });
   });
 
   it("rebuilds missing hierarchy metadata for books imported with an old index", async () => {
