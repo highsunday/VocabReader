@@ -2,7 +2,7 @@
 title: 持久標記與 AI 標記解析模組
 module: annotation
 status: active
-last_updated: 2026-07-28
+last_updated: 2026-08-09
 related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - F14-sticky-annotation-tool
@@ -15,6 +15,7 @@ related_implements:
   - B05-use-quiz-language-for-open-ended-answers
   - F25-adjustable-reading-and-conversation-font-sizes
   - F38-export-and-restore-data-backup
+  - F56-speak-selected-reader-text
 ---
 
 # 持久標記與 AI 標記解析模組
@@ -22,6 +23,8 @@ related_implements:
 ## 1. Purpose
 
 本模組讓使用者在 EPUB 章節原文上建立持久的**標記（Annotation）**，並在右側目前選取的 AI 對話中，以預設動作「講解標記內容」要求 AI 解讀，或以「閱讀測驗」進行**區段練習**。標記代表使用者主動指出的困難文字；START／END **範圍標籤（Range Marker）**只界定 AI 可讀的上下文邊界，兩者是不同領域概念。
+
+章節文字選取也支援暫態的**選取朗讀（Selection Speech）**。它使用裝置英文語音播放使用者選取的單字、句子或連續段落，不保存資料、不建立標記，也不加入 AI 上下文；在標記模式中則可在自動建立標記後接續朗讀同一份暫存文字。
 
 標記的資料模型、保存與序列化仍以本文件為主；兩個 AI 預設 workflow 的細節分別記錄於 `annotation-explanation.md` 與 `reading-comprehension-quiz.md`，App skills 的打包、安裝與隔離記錄於 `skill-management.md`。
 
@@ -34,6 +37,9 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 目前支援：
 
 - 章節閱讀頁的持續標記模式；開啟後可連續選取文字直接建立標記，再次點擊、切章或離開閱讀頁時關閉。
+- 選取章節原文後，在選取範圍附近顯示 Pronounce 懸浮操作，並在既有右鍵功能選單提供 Pronounce selection；兩個入口都能播放單字、句子或連續段落。
+- 選取朗讀使用裝置第一個英文 voice、0.85 語速及 1 pitch；播放中可停止，新選取播放會取消舊播放，切章或離開閱讀頁也會取消。
+- 標記模式自動建立標記並清除 DOM Selection 後，仍保留剛才的暫存文字與朗讀入口；朗讀不改變標記、START／END、書庫資料或 AI context。
 - 閱讀內容右上角提供捲動時保持可見的緊湊螢光筆膠囊工具；以「標記／標記中」文字、右上角數量徽章（包含 `0`）、淡暖白與淡黃色單色呈現，不使用漸層，也不顯示額外操作提示。
 - 選取原文後透過既有右鍵選單建立標記。
 - 在標記上開啟右鍵選單後直接移除，不顯示確認視窗，也不改寫既有 AI 對話。
@@ -76,6 +82,15 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 5. 有效選取建立標記並樂觀更新畫面，再呼叫窄化的 `library.saveAnnotations()`。
 6. Main process 再次驗證書籍、章節、資料格式及非重疊條件，與閱讀狀態、閱讀範圍共用書庫的串行原子寫入。
 7. Renderer 依 offset 將一或多個文字節點包成 `<mark data-annotation-id>`；重新渲染前先移除既有標示並還原文字節點，EPUB 安全內容本身不被持久修改。
+
+### Selection Speech
+
+1. 每次章節原文 mouseup 後，Renderer 沿用 `annotationRangeFromSelection()` 驗證 Selection 完整位於目前章節、移除邊界空白並取得完整本文。
+2. 有效選取以 Range viewport rect 建立暫態本文與懸浮位置；空白、collapsed 或章節外選取不建立入口。
+3. 一般模式只顯示 Pronounce；標記模式先保存合法標記並清除 DOM Selection，但暫態朗讀本文維持可用。
+4. 右鍵功能選單重新讀取同一份有效 Selection，並同時提供 Pronounce selection 與既有範圍／標記操作。
+5. 播放前先取消既有 Web Speech utterance，再使用第一個英文 voice；request revision 防止舊 `onend`／`onerror` 覆寫新播放狀態。
+6. 播放自然結束、使用者停止、播放失敗、切章、離開閱讀頁或 App unmount 時清理播放狀態；API 缺失或播放失敗只顯示非阻斷狀態。
 
 ## 5. AI Context Serialization
 
@@ -136,6 +151,8 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 | `apps/desktop/src/main/bundled-skill.ts` | 將 build 內嵌的 skill 安裝／更新到其他電腦的 user data runtime |
 | `apps/desktop/src/renderer/styles.css` | 標記模式、原文標示與設定視窗樣式 |
 
+`App.tsx` 也持有選取朗讀的暫態本文、懸浮定位、Web Speech 播放生命週期與錯誤狀態；此能力沒有 preload、IPC、main process、server 或持久化邊界。
+
 ## 9. Testing Notes
 
 | Test file | Coverage |
@@ -152,6 +169,8 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 | `apps/desktop/src/main/chat-ipc.test.ts` | 標記解析／區段練習 intent 與講解語言白名單 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | preload 白名單、設定選項與 Electron 啟動回歸 |
 
+`App.test.tsx` 另覆蓋選取朗讀的懸浮與右鍵入口、跨文字節點本文、英文 voice 參數、停止與取代、舊 callback 隔離、標記模式共存、切章清理、無效選取及語音錯誤；Electron E2E 驗證 production 懸浮樣式與 reduced-motion。
+
 ## 10. Constraints and Follow-up
 
 - 第一版不支援重疊、巢狀、顏色、手動分類、筆記或標記清單。
@@ -160,6 +179,7 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - 標記會隨完整書庫進入資料備份並可完整還原；不提供個別標記匯出、合併、搜尋、
   自動同步或復原／重做。
 - Renderer 的 `App.tsx` 目前同時協調閱讀範圍、標記、AI 對話與設定；功能繼續擴張前宜另開 RXX 拆分協調邊界。
+- 選取朗讀第一版固定使用裝置英文 voice 與 0.85 語速；不提供 voice／口音／速度設定、逐字高亮、播放進度、暫停後續播、朗讀歷史或音訊匯出。
 
 ## 11. Related Documents
 
@@ -181,6 +201,7 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - `documents/implements/B05-use-quiz-language-for-open-ended-answers.md`
 - `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
 - `documents/implements/F38-export-and-restore-data-backup.md`
+- `documents/implements/F56-speak-selected-reader-text.md`
 - `documents/modules/data-backup.md`
 
-變更標記資料、不重疊規則、Selection offset、AI 序列化、預設 intent 或講解語言時，必須同步更新本文件與相關 FXX 實作紀錄。
+變更標記資料、不重疊規則、Selection offset、選取朗讀、AI 序列化、預設 intent 或講解語言時，必須同步更新本文件與相關 FXX 實作紀錄。

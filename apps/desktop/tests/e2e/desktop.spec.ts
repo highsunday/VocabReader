@@ -146,11 +146,40 @@ test("launches the secure Electron reading shell", async () => {
     });
     const annotationProbe = page.getByTestId("annotation-tool-style-probe");
     await expect(annotationProbe.locator("[role=tooltip]")).toHaveCount(0);
+    const selectionSpeechVisual = await page.evaluate(() => {
+      const content = document.querySelector<HTMLElement>(".content");
+      if (!content) throw new Error("center content is unavailable");
+      const button = document.createElement("button");
+      button.className = "selection-speech-action";
+      button.dataset.testid = "selection-speech-style-probe";
+      button.textContent = "Pronounce";
+      content.append(button);
+      const style = getComputedStyle(button);
+      return {
+        position: style.position,
+        zIndex: style.zIndex,
+        minWidth: style.minWidth,
+        height: style.height,
+        borderRadius: style.borderRadius
+      };
+    });
+    expect(selectionSpeechVisual).toEqual({
+      position: "fixed",
+      zIndex: "12",
+      minWidth: "104px",
+      height: "34px",
+      borderRadius: "999px"
+    });
+    const selectionSpeechProbe = page.getByTestId("selection-speech-style-probe");
     await page.emulateMedia({ reducedMotion: "reduce" });
     await expect.poll(() => annotationProbe.locator("button").evaluate(
       (element) => getComputedStyle(element).transitionDuration
     )).toBe("0s");
+    await expect.poll(() => selectionSpeechProbe.evaluate(
+      (element) => getComputedStyle(element).transitionDuration
+    )).toBe("0s");
     await annotationProbe.evaluate((element) => element.remove());
+    await selectionSpeechProbe.evaluate((element) => element.remove());
 
     const assistantPanel = page.getByLabel("AI Tutor");
     const resizeHandle = page.getByRole("separator", {

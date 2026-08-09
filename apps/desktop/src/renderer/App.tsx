@@ -14,7 +14,9 @@ import {
   LibraryBig,
   LoaderCircle,
   PenLine,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Square,
+  Volume2
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -267,6 +269,13 @@ export function App() {
     selection?: { start: number; end: number; text: string };
     annotationId?: string;
   }>();
+  const [selectionSpeechTarget, setSelectionSpeechTarget] = useState<{
+    text: string;
+    x: number;
+    y: number;
+  }>();
+  const [speakingSelectionText, setSpeakingSelectionText] = useState<string>();
+  const [selectionSpeechError, setSelectionSpeechError] = useState("");
   const [markerTops, setMarkerTops] = useState({ start: 0, end: 0 });
   const [draft, setDraft] = useState("");
   const [chatSnapshot, setChatSnapshot] = useState(initialChatSnapshot);
@@ -319,11 +328,14 @@ export function App() {
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const pendingChatScrollUserCountRef = useRef<number | null>(null);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
+  const selectionSpeechRef = useRef<HTMLButtonElement>(null);
   const readingLayoutRef = useRef<HTMLDivElement>(null);
   const dataRestoreCancelRef = useRef<HTMLButtonElement>(null);
   const initializedRangeRef = useRef<string | undefined>(undefined);
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const annotationCounterRef = useRef(0);
+  const selectionSpeechRequestRef = useRef(0);
+  const speakingSelectionTextRef = useRef<string | undefined>(undefined);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const settingsSaveTimerRef =
     useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -620,14 +632,29 @@ export function App() {
 
   useEffect(() => {
     const article = articleRef.current;
-    if (!article || !chapterContent || !isAnnotationMode) return;
+    if (!article || !chapterContent) return;
     const handleMouseUp = () => {
-      const selected = annotationRangeFromSelection(
-        article,
-        article.ownerDocument.getSelection()
+      const selection = article.ownerDocument.getSelection();
+      const selected = annotationRangeFromSelection(article, selection);
+      if (!selected || !selection?.rangeCount) {
+        setSelectionSpeechTarget(undefined);
+        setSelectionSpeechError("");
+        return;
+      }
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      const x = Math.min(
+        window.innerWidth - 52,
+        Math.max(52, rect.left + rect.width / 2)
       );
-      if (!selected || hasAnnotationOverlap(annotations, selected)) return;
-      createAnnotation(selected);
+      const y = Math.min(window.innerHeight - 44, Math.max(8, rect.bottom + 8));
+      setSelectionSpeechTarget({ text: selected.text, x, y });
+      setSelectionSpeechError("");
+      if (
+        isAnnotationMode &&
+        !hasAnnotationOverlap(annotations, selected)
+      ) {
+        createAnnotation(selected);
+      }
     };
     article.addEventListener("mouseup", handleMouseUp);
     return () => article.removeEventListener("mouseup", handleMouseUp);
@@ -653,6 +680,14 @@ export function App() {
         article,
         article.ownerDocument.getSelection()
       );
+      if (selection) {
+        setSelectionSpeechTarget({
+          text: selection.text,
+          x: Math.min(window.innerWidth - 52, Math.max(52, event.clientX)),
+          y: Math.min(window.innerHeight - 44, Math.max(8, event.clientY + 8))
+        });
+        setSelectionSpeechError("");
+      }
       setRangeMenu({
         x: event.clientX,
         y: event.clientY,
@@ -674,6 +709,40 @@ export function App() {
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [rangeMenu]);
+
+  useEffect(() => {
+    if (!selectionSpeechTarget) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        selectionSpeechRef.current?.contains(event.target as Node) ||
+        rangeMenuRef.current?.contains(event.target as Node)
+      ) {
+        return;
+      }
+      setSelectionSpeechTarget(undefined);
+      setSelectionSpeechError("");
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [selectionSpeechTarget]);
+
+  useEffect(() => {
+    selectionSpeechRequestRef.current += 1;
+    if (speakingSelectionTextRef.current) {
+      window.speechSynthesis?.cancel();
+    }
+    speakingSelectionTextRef.current = undefined;
+    setSpeakingSelectionText(undefined);
+    setSelectionSpeechTarget(undefined);
+    setSelectionSpeechError("");
+  }, [mode, selectedBookId, activeChapterId]);
+
+  useEffect(() => () => {
+    selectionSpeechRequestRef.current += 1;
+    if (speakingSelectionTextRef.current) {
+      window.speechSynthesis?.cancel();
+    }
+  }, []);
 
   useEffect(() => {
     if (!chapterContent || !selectedBook || !contentRef.current) return;
@@ -915,6 +984,57 @@ export function App() {
       (annotation) => annotation.id !== annotationId
     ));
     setRangeMenu(undefined);
+  }
+
+  function stopSelectionSpeech() {
+    selectionSpeechRequestRef.current += 1;
+    window.speechSynthesis?.cancel();
+    speakingSelectionTextRef.current = undefined;
+    setSpeakingSelectionText(undefined);
+  }
+
+  function pronounceSelection(text: string) {
+    setSelectionSpeechError("");
+    if (
+      typeof window.speechSynthesis === "undefined" ||
+      typeof SpeechSynthesisUtterance === "undefined"
+    ) {
+      setSelectionSpeechError("Speech playback is not supported on this device.");
+      return;
+    }
+
+    const requestId = selectionSpeechRequestRef.current + 1;
+    selectionSpeechRequestRef.current = requestId;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const englishVoice = window.speechSynthesis.getVoices().find((voice) =>
+        voice.lang.toLowerCase().startsWith("en")
+      );
+      utterance.lang = englishVoice?.lang ?? "en-US";
+      utterance.voice = englishVoice ?? null;
+      utterance.rate = 0.85;
+      utterance.pitch = 1;
+      utterance.onend = () => {
+        if (selectionSpeechRequestRef.current !== requestId) return;
+        speakingSelectionTextRef.current = undefined;
+        setSpeakingSelectionText(undefined);
+      };
+      utterance.onerror = () => {
+        if (selectionSpeechRequestRef.current !== requestId) return;
+        speakingSelectionTextRef.current = undefined;
+        setSpeakingSelectionText(undefined);
+        setSelectionSpeechError("Unable to play pronunciation. Please try again later.");
+      };
+      speakingSelectionTextRef.current = text;
+      setSpeakingSelectionText(text);
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      selectionSpeechRequestRef.current += 1;
+      speakingSelectionTextRef.current = undefined;
+      setSpeakingSelectionText(undefined);
+      setSelectionSpeechError("Unable to play pronunciation. Please try again later.");
+    }
   }
 
   async function persistSettings(next: AppSettings) {
@@ -2172,6 +2292,59 @@ export function App() {
                     ) : null}
                     <ChapterArticle ref={articleRef} content={chapterContent} />
                   </div>
+                  {selectionSpeechTarget ? (
+                    <>
+                      <button
+                        ref={selectionSpeechRef}
+                        className={`selection-speech-action${
+                          speakingSelectionText === selectionSpeechTarget.text
+                            ? " is-speaking"
+                            : ""
+                        }`}
+                        type="button"
+                        aria-label={
+                          speakingSelectionText === selectionSpeechTarget.text
+                            ? "Stop pronunciation"
+                            : "Pronounce selected text"
+                        }
+                        style={{
+                          left: selectionSpeechTarget.x,
+                          top: selectionSpeechTarget.y
+                        }}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          if (speakingSelectionText === selectionSpeechTarget.text) {
+                            stopSelectionSpeech();
+                          } else {
+                            pronounceSelection(selectionSpeechTarget.text);
+                          }
+                        }}
+                      >
+                        {speakingSelectionText === selectionSpeechTarget.text ? (
+                          <Square aria-hidden="true" fill="currentColor" />
+                        ) : (
+                          <Volume2 aria-hidden="true" />
+                        )}
+                        <span>
+                          {speakingSelectionText === selectionSpeechTarget.text
+                            ? "Stop"
+                            : "Pronounce"}
+                        </span>
+                      </button>
+                      {selectionSpeechError ? (
+                        <p
+                          className="selection-speech-error"
+                          role="status"
+                          style={{
+                            left: selectionSpeechTarget.x,
+                            top: selectionSpeechTarget.y + 42
+                          }}
+                        >
+                          {selectionSpeechError}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : null}
                   {rangeMenu ? (
                     <div
                       ref={rangeMenuRef}
@@ -2194,13 +2367,25 @@ export function App() {
                         Move end here
                       </button>
                       {rangeMenu.selection ? (
-                        <button
-                          role="menuitem"
-                          type="button"
-                          onClick={() => createAnnotation(rangeMenu.selection!)}
-                        >
-                          Annotate selection
-                        </button>
+                        <>
+                          <button
+                            role="menuitem"
+                            type="button"
+                            onClick={() => {
+                              pronounceSelection(rangeMenu.selection!.text);
+                              setRangeMenu(undefined);
+                            }}
+                          >
+                            Pronounce selection
+                          </button>
+                          <button
+                            role="menuitem"
+                            type="button"
+                            onClick={() => createAnnotation(rangeMenu.selection!)}
+                          >
+                            Annotate selection
+                          </button>
+                        </>
                       ) : null}
                       {rangeMenu.annotationId ? (
                         <button

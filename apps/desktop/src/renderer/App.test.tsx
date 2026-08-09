@@ -246,12 +246,64 @@ function selectText(element: HTMLElement, selectedText: string) {
   const range = document.createRange();
   range.setStart(startTarget.node, selectionStart - startTarget.start);
   range.setEnd(endTarget.node, selectionEnd - endTarget.start);
+  Object.defineProperty(range, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      x: 240,
+      y: 180,
+      top: 180,
+      right: 360,
+      bottom: 204,
+      left: 240,
+      width: 120,
+      height: 24,
+      toJSON: () => ({})
+    })
+  });
   const selection = window.getSelection();
   selection?.removeAllRanges();
   selection?.addRange(range);
 }
 
+function installSpeechSynthesis() {
+  const speak = vi.fn();
+  const cancel = vi.fn();
+  const utterances: MockSpeechSynthesisUtterance[] = [];
+  const englishVoice = {
+    default: false,
+    lang: "en-GB",
+    localService: true,
+    name: "English",
+    voiceURI: "English"
+  } as SpeechSynthesisVoice;
+
+  class MockSpeechSynthesisUtterance {
+    text: string;
+    lang = "";
+    voice: SpeechSynthesisVoice | null = null;
+    rate = 1;
+    pitch = 1;
+    onend: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+
+    constructor(text: string) {
+      this.text = text;
+      utterances.push(this);
+    }
+  }
+
+  vi.stubGlobal("speechSynthesis", {
+    cancel,
+    getVoices: () => [englishVoice],
+    speak
+  });
+  vi.stubGlobal("SpeechSynthesisUtterance", MockSpeechSynthesisUtterance);
+  return { cancel, englishVoice, speak, utterances };
+}
+
 afterEach(() => {
+  vi.unstubAllGlobals();
+  window.getSelection()?.removeAllRanges();
   Object.defineProperty(window, "readerDesktop", {
     configurable: true,
     value: undefined
@@ -2831,6 +2883,266 @@ describe("App", () => {
     expect(tool.querySelector(".annotation-tool-label"))
       .toHaveTextContent("Annotating");
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("speaks the complete reader selection from the floating pronunciation action", async () => {
+    const speech = installSpeechSynthesis();
+    const { getChapterContent, saveAnnotations, saveReadingRange } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>He was <em>reluctant</em> to admit the truth.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+    await waitFor(() => expect(screen.getByRole("button", {
+      name: "Reading segment start"
+    })).toBeInTheDocument());
+    saveAnnotations.mockClear();
+    saveReadingRange.mockClear();
+
+    selectText(article, "reluctant to admit");
+    fireEvent.mouseUp(article);
+    const pronounce = await screen.findByRole("button", {
+      name: "Pronounce selected text"
+    });
+    expect(pronounce).toHaveTextContent("Pronounce");
+    expect(pronounce).toHaveStyle({ left: "300px", top: "212px" });
+
+    fireEvent.click(pronounce);
+
+    expect(speech.cancel).toHaveBeenCalledOnce();
+    expect(speech.speak).toHaveBeenCalledOnce();
+    expect(speech.utterances[0]).toMatchObject({
+      text: "reluctant to admit",
+      lang: "en-GB",
+      voice: speech.englishVoice,
+      rate: 0.85,
+      pitch: 1
+    });
+    expect(saveAnnotations).not.toHaveBeenCalled();
+    expect(saveReadingRange).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Stop pronunciation" }))
+      .toBeInTheDocument();
+  });
+
+  it("speaks the reader selection from the existing right-click menu", async () => {
+    const speech = installSpeechSynthesis();
+    const { getChapterContent } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>He was reluctant to admit the truth.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+
+    selectText(article, "the truth");
+    fireEvent.contextMenu(article.querySelector("p")!, {
+      clientX: 120,
+      clientY: 180
+    });
+    expect(await screen.findByRole("menuitem", { name: "Move start here" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Move end here" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Annotate selection" }))
+      .toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("menuitem", {
+      name: "Pronounce selection"
+    }));
+
+    expect(speech.speak).toHaveBeenCalledOnce();
+    expect(speech.utterances[0]?.text).toBe("the truth");
+  });
+
+  it("stops the current selection speech and replaces it when a new selection plays", async () => {
+    const speech = installSpeechSynthesis();
+    const { getChapterContent } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>He was reluctant to admit the truth.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+
+    selectText(article, "reluctant");
+    fireEvent.mouseUp(article);
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Pronounce selected text"
+    }));
+    const firstUtterance = speech.utterances[0];
+    fireEvent.click(screen.getByRole("button", { name: "Stop pronunciation" }));
+    expect(speech.cancel).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Pronounce selected text" }))
+      .toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pronounce selected text" }));
+    selectText(article, "the truth");
+    fireEvent.mouseUp(article);
+    expect(screen.getByRole("button", { name: "Pronounce selected text" }))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Pronounce selected text" }));
+
+    expect(speech.cancel).toHaveBeenCalledTimes(4);
+    expect(speech.speak).toHaveBeenCalledTimes(3);
+    expect(speech.utterances[2]?.text).toBe("the truth");
+    firstUtterance?.onend?.();
+    expect(screen.getByRole("button", { name: "Stop pronunciation" }))
+      .toBeInTheDocument();
+  });
+
+  it("keeps selection speech available after annotation mode clears the DOM selection", async () => {
+    const speech = installSpeechSynthesis();
+    const { getChapterContent, saveAnnotations } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>He was reluctant to admit the truth.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Turn on annotation mode; 0 annotations in this chapter"
+    }));
+
+    selectText(article, "reluctant to admit");
+    fireEvent.mouseUp(article);
+
+    await waitFor(() => expect(saveAnnotations).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotations: [expect.objectContaining({ text: "reluctant to admit" })]
+      })
+    ));
+    expect(window.getSelection()?.rangeCount).toBe(0);
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Pronounce selected text"
+    }));
+    expect(speech.utterances[0]?.text).toBe("reluctant to admit");
+  });
+
+  it("dismisses selection speech controls and cancels playback when leaving the chapter", async () => {
+    const speech = installSpeechSynthesis();
+    const { getChapterContent } = installLibraryApi();
+    getChapterContent.mockImplementation((_bookId: string, chapterId: string) =>
+      Promise.resolve({
+        bookId: "book-one",
+        chapterId,
+        title: chapterId === "one-1" ? "Opening" : "A New Road",
+        fragment: null,
+        contentHtml: chapterId === "one-1"
+          ? "<p>He was reluctant to admit the truth.</p>"
+          : "<p>The road continued beyond the hill.</p>"
+      })
+    );
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+
+    selectText(article, "reluctant");
+    fireEvent.mouseUp(article);
+    const pronounce = await screen.findByRole("button", {
+      name: "Pronounce selected text"
+    });
+    fireEvent.pointerDown(document.body);
+    expect(pronounce).not.toBeInTheDocument();
+
+    selectText(article, "the truth");
+    fireEvent.mouseUp(article);
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Pronounce selected text"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Next chapter" }));
+
+    await screen.findByLabelText("A New Road chapter content");
+    expect(screen.queryByRole("button", { name: "Stop pronunciation" }))
+      .not.toBeInTheDocument();
+    expect(speech.cancel).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not offer selection speech for whitespace or a missing reader selection", async () => {
+    const speech = installSpeechSynthesis();
+    const { getChapterContent } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>He was reluctant to admit the truth.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+
+    selectText(article, " ");
+    fireEvent.mouseUp(article);
+    expect(screen.queryByRole("button", { name: "Pronounce selected text" }))
+      .not.toBeInTheDocument();
+
+    window.getSelection()?.removeAllRanges();
+    fireEvent.contextMenu(article.querySelector("p")!, {
+      clientX: 120,
+      clientY: 180
+    });
+    expect(await screen.findByRole("menuitem", { name: "Move start here" }))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Pronounce selection" }))
+      .not.toBeInTheDocument();
+    expect(speech.speak).not.toHaveBeenCalled();
+  });
+
+  it("reports unsupported and failed selection speech without blocking reading tools", async () => {
+    const { getChapterContent } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>He was reluctant to admit the truth.</p>"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+
+    selectText(article, "reluctant");
+    fireEvent.mouseUp(article);
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Pronounce selected text"
+    }));
+    expect(screen.getByRole("status"))
+      .toHaveTextContent("Speech playback is not supported on this device.");
+    expect(screen.getByRole("button", {
+      name: "Turn on annotation mode; 0 annotations in this chapter"
+    })).toBeInTheDocument();
+
+    const speech = installSpeechSynthesis();
+    fireEvent.click(screen.getByRole("button", { name: "Pronounce selected text" }));
+    act(() => speech.utterances[0]?.onerror?.());
+    expect(screen.getByRole("status"))
+      .toHaveTextContent("Unable to play pronunciation. Please try again later.");
+    expect(screen.getByRole("button", { name: "Pronounce selected text" }))
+      .toBeInTheDocument();
   });
 
   it("keeps START and END range navigation beside the sticky annotation tool", async () => {
