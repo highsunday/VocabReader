@@ -3,11 +3,16 @@ author: Codex
 date: 2026-08-09
 title: 朗讀章節原文的暫時選取內容
 uuid: 5a93b3a1-0f5e-4cc0-9408-7634db5d5a43
-version: 1.1.0
+version: 1.2.0
 status: implemented
 ---
 
 # Feature Specification - 朗讀章節原文的暫時選取內容
+
+> **後續變更（F57）**：本文件保留 Selection 驗證、懸浮／右鍵入口及生命週期的歷史
+> 規格；章節選取內容的播放後端已由
+> `F57-ai-selection-speech.md` 改為需先套用的 OpenAI AI Voice。學習項目發音仍使用本機
+> Web Speech，但 F56 所述的章節選取 Web Speech 參數與 fallback 已不再是目前行為。
 
 ## 1. Feature Overview
 

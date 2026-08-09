@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import vocabReaderIconAsset from "../../assets/icon/vocabreader-language-learning-v6.png";
@@ -39,6 +39,11 @@ import { registerSettingsIpc } from "./settings-ipc";
 import { SentencePracticeController } from "./sentence-practice-controller";
 import { registerSentencePracticeIpc } from "./sentence-practice-ipc";
 import { LocalSettingsStore } from "./settings-store";
+import { registerSelectionSpeechIpc } from "./selection-speech-ipc";
+import {
+  EncryptedSelectionSpeechApiKeyStore,
+  SelectionSpeechService
+} from "./selection-speech-service";
 import { SpacedReviewController } from "./spaced-review-controller";
 import { registerSpacedReviewIpc } from "./spaced-review-ipc";
 
@@ -101,6 +106,15 @@ app.whenReady().then(() => {
     ? join(app.getPath("temp"), `vocabreader-settings-test-${process.pid}`)
     : join(app.getPath("userData"), "settings");
   const settingsStore = new LocalSettingsStore(settingsPath);
+  const selectionSpeechApiKeyStore = new EncryptedSelectionSpeechApiKeyStore(
+    settingsPath,
+    safeStorage
+  );
+  const selectionSpeechService = new SelectionSpeechService({
+    settingsStore,
+    apiKeyStore: selectionSpeechApiKeyStore
+  });
+  app.once("before-quit", () => selectionSpeechService.dispose());
   const learningLibrary = new LocalLearningLibrary(learningLibraryPath, {
     getReviewPreferences: async () => {
       const current = await settingsStore.load();
@@ -146,6 +160,7 @@ app.whenReady().then(() => {
     defaultDataBackupFileName()
   );
   registerSettingsIpc(ipcMain, settingsStore);
+  registerSelectionSpeechIpc(ipcMain, selectionSpeechService);
   const runtimePath = join(app.getPath("userData"), "codex-runtime");
   const conversationPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `vocabreader-chat-test-${process.pid}`)

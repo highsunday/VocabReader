@@ -5,6 +5,7 @@ import type { DataBackupDesktopApi } from "../shared/data-backup-contracts";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
 import type { SettingsDesktopApi } from "../shared/settings-contracts";
 import type { SentencePracticeDesktopApi } from "../shared/sentence-practice-contracts";
+import type { SelectionSpeechDesktopApi } from "../shared/selection-speech-contracts";
 
 declare global {
 interface ReaderDesktopApi {
@@ -53,6 +54,7 @@ interface ReaderDesktopApi {
   learning: LearningDesktopApi;
   sentencePractice: SentencePracticeDesktopApi;
   settings: SettingsDesktopApi;
+  selectionSpeech: SelectionSpeechDesktopApi;
   dataBackup: DataBackupDesktopApi;
   chat: ChatDesktopApi;
 }

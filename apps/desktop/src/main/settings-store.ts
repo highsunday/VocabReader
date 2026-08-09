@@ -15,6 +15,8 @@ import {
   isExplanationLanguage,
   isReadingPaperWidth,
   isReviewPaperSize,
+  isSelectionSpeechTone,
+  isSelectionSpeechVoice,
   type AppSettings
 } from "../shared/settings-contracts";
 
@@ -26,7 +28,9 @@ const defaultSettings = (): AppSettings => ({
   ebookLineHeight: EBOOK_LINE_HEIGHT.default,
   dailyNewItemCompletionLimit: DAILY_NEW_ITEM_COMPLETION_LIMIT.default,
   dailyDueReviewCompletionLimit: DAILY_DUE_REVIEW_COMPLETION_LIMIT.default,
-  reviewPaperSize: REVIEW_PAPER_SIZE.default
+  reviewPaperSize: REVIEW_PAPER_SIZE.default,
+  selectionSpeechVoice: "cedar",
+  selectionSpeechTone: "learning"
 });
 
 export class LocalSettingsStore {
@@ -74,7 +78,13 @@ export class LocalSettingsStore {
           : defaults.dailyDueReviewCompletionLimit,
         reviewPaperSize: isReviewPaperSize(parsed?.reviewPaperSize)
           ? parsed.reviewPaperSize
-          : defaults.reviewPaperSize
+          : defaults.reviewPaperSize,
+        selectionSpeechVoice: isSelectionSpeechVoice(parsed?.selectionSpeechVoice)
+          ? parsed.selectionSpeechVoice
+          : defaults.selectionSpeechVoice,
+        selectionSpeechTone: isSelectionSpeechTone(parsed?.selectionSpeechTone)
+          ? parsed.selectionSpeechTone
+          : defaults.selectionSpeechTone
       };
     } catch {
       return defaultSettings();

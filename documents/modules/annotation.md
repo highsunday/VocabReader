@@ -16,6 +16,7 @@ related_implements:
   - F25-adjustable-reading-and-conversation-font-sizes
   - F38-export-and-restore-data-backup
   - F56-speak-selected-reader-text
+  - F57-ai-selection-speech
 ---
 
 # 持久標記與 AI 標記解析模組
@@ -24,7 +25,11 @@ related_implements:
 
 本模組讓使用者在 EPUB 章節原文上建立持久的**標記（Annotation）**，並在右側目前選取的 AI 對話中，以預設動作「講解標記內容」要求 AI 解讀，或以「閱讀測驗」進行**區段練習**。標記代表使用者主動指出的困難文字；START／END **範圍標籤（Range Marker）**只界定 AI 可讀的上下文邊界，兩者是不同領域概念。
 
-章節文字選取也支援暫態的**選取朗讀（Selection Speech）**。它使用裝置英文語音播放使用者選取的單字、句子或連續段落，不保存資料、不建立標記，也不加入 AI 上下文；在標記模式中則可在自動建立標記後接續朗讀同一份暫存文字。
+章節文字選取也支援暫態的**選取朗讀（Selection Speech）**。使用者先在 AI Voice 設定
+套用自己的 OpenAI API key、角色與語氣，之後可串流播放選取的單字、句子或連續段落。
+它不保存選取本文、不建立標記，也不加入 AI 對話上下文；只有使用者明確按下朗讀時才把
+該次選取本文送至 OpenAI。標記模式仍可在自動建立標記後接續朗讀同一份暫存文字。
+學習項目詳情中的發音不屬於 Selection Speech，仍使用裝置 Web Speech。
 
 標記的資料模型、保存與序列化仍以本文件為主；兩個 AI 預設 workflow 的細節分別記錄於 `annotation-explanation.md` 與 `reading-comprehension-quiz.md`，App skills 的打包、安裝與隔離記錄於 `skill-management.md`。
 
@@ -38,7 +43,11 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 
 - 章節閱讀頁的持續標記模式；開啟後可連續選取文字直接建立標記，再次點擊、切章或離開閱讀頁時關閉。
 - 選取章節原文後，在選取範圍附近顯示 Pronounce 懸浮操作，並在既有右鍵功能選單提供 Pronounce selection；兩個入口都能播放單字、句子或連續段落。
-- 選取朗讀使用裝置第一個英文 voice、0.85 語速及 1 pitch；播放中可停止，新選取播放會取消舊播放，切章或離開閱讀頁也會取消。
+- 選取朗讀使用已套用的 OpenAI AI Voice，提供 Cedar、Marin、Coral、Onyx 與 Learning、
+  Natural、Calm、Expressive；以 24 kHz PCM 串流播放，長文自動切分，播放中可停止，新選取
+  會取消舊播放，切章或離開閱讀頁也會取消。
+- API key 由 OS secure storage 加密保存；Renderer 只取得是否已設定，key 不進一般設定、
+  日誌或資料備份。未設定時直接開啟 AI Voice 設定，失敗時可重試，且不 fallback 到裝置語音。
 - 標記模式自動建立標記並清除 DOM Selection 後，仍保留剛才的暫存文字與朗讀入口；朗讀不改變標記、START／END、書庫資料或 AI context。
 - 閱讀內容右上角提供捲動時保持可見的緊湊螢光筆膠囊工具；以「標記／標記中」文字、右上角數量徽章（包含 `0`）、淡暖白與淡黃色單色呈現，不使用漸層，也不顯示額外操作提示。
 - 選取原文後透過既有右鍵選單建立標記。
@@ -89,8 +98,13 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 2. 有效選取以 Range viewport rect 建立暫態本文與懸浮位置；空白、collapsed 或章節外選取不建立入口。
 3. 一般模式只顯示 Pronounce；標記模式先保存合法標記並清除 DOM Selection，但暫態朗讀本文維持可用。
 4. 右鍵功能選單重新讀取同一份有效 Selection，並同時提供 Pronounce selection 與既有範圍／標記操作。
-5. 播放前先取消既有 Web Speech utterance，再使用第一個英文 voice；request revision 防止舊 `onend`／`onerror` 覆寫新播放狀態。
-6. 播放自然結束、使用者停止、播放失敗、切章、離開閱讀頁或 App unmount 時清理播放狀態；API 缺失或播放失敗只顯示非阻斷狀態。
+5. 播放前確認 AI Voice 已套用；未設定時開啟 AI Voice 分頁，不呼叫 OpenAI 或裝置語音。
+6. Renderer 經窄化 preload／IPC 只送出選取本文；Main Process 正規化並以 4096 字元上限
+   依段落／句子邊界切分，固定使用 `gpt-4o-mini-tts`、已套用 voice／tone instructions 與 PCM。
+7. Main Process 以 request ID 串流 PCM；Renderer 處理 16-bit little-endian sample、跨 chunk
+   殘留 byte 與連續排程。request revision 和 request ID 共同隔離已取消的舊事件。
+8. 播放自然結束、使用者停止、播放失敗、切章、離開閱讀頁或 App unmount 時清理播放狀態；
+   auth 錯誤提供 Retry 與 AI Voice Settings，其他錯誤提供 Retry，均不阻斷閱讀或裝置 fallback。
 
 ## 5. AI Context Serialization
 
@@ -129,7 +143,12 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 
 ## 7. Settings Boundary
 
-講解語言、AI 對話文字大小與電子書內文字大小都是全域應用程式偏好，不屬於單本書、單章或單一 AI 對話。Main process 的 `LocalSettingsStore` 把受限設定保存到 Electron user data 的 `settings/settings.json`，串行寫入 `.next` 再原子替換。每個欄位獨立驗證與降級：講解語言預設為 `source`，AI 對話預設 13px，電子書內文預設 19px，因此舊版設定可以保留既有語言並取得新欄位預設值。
+講解語言、字體、AI Voice 角色與語氣都是全域應用程式偏好，不屬於單本書、單章或單一
+AI 對話。Main process 的 `LocalSettingsStore` 只把受限非敏感設定保存到 Electron user data
+的 `settings/settings.json`，串行寫入 `.next` 再原子替換。AI Voice 預設為 Cedar／Learning。
+OpenAI API key 則由獨立 credential store 使用 Electron `safeStorage` 加密保存；一般設定 API
+只回傳 `hasApiKey`，不回傳原始 key。按下 Apply and preview 會先以候選設定播放固定短句，
+成功後才提交；移除 key 時也會中止播放並清除 32 MiB 記憶體音訊快取。
 
 講解語言只影響之後的「講解標記內容」以及「閱讀測驗」的題面、問答題回答要求與批改。兩項字體偏好只影響 AI 對話訊息正文與 EPUB 章節內容的呈現；三者都不修改介面語言、EPUB 原文或既有 AI 回覆內容。
 
@@ -145,13 +164,18 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 | `apps/desktop/src/shared/settings-contracts.ts` | 講解語言、字體大小範圍及設定 API 型別 |
 | `apps/desktop/src/main/settings-store.ts` | 全域偏好載入、降級與原子保存 |
 | `apps/desktop/src/main/settings-ipc.ts` | 設定值 IPC enum、整數與範圍驗證 |
+| `apps/desktop/src/shared/selection-speech-contracts.ts` | AI Voice 設定 snapshot、受限 IPC 與 stream event union |
+| `apps/desktop/src/main/selection-speech-service.ts` | encrypted key、候選預覽、OpenAI TTS、長文切分、PCM stream、取消、錯誤與 32 MiB LRU |
+| `apps/desktop/src/main/selection-speech-ipc.ts` | AI Voice 設定與選取朗讀的窄化 IPC 驗證 |
+| `apps/desktop/src/preload/preload.ts` | Selection Speech invoke 與 unsubscribe-capable stream bridge |
 | `apps/desktop/src/main/chat-controller.ts` | 兩個 App skills 的 instructions、marker gate、可信任標記解析與區段練習 input 組成 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | 標記解析 workflow、動態講解語言、CEFR 與複習表規則 |
 | `.agents/skills/practice-reading-comprehension/SKILL.md` | 閱讀測驗 CEFR、8–12／1–3 題、指定語言批改與 final review workflow |
 | `apps/desktop/src/main/bundled-skill.ts` | 將 build 內嵌的 skill 安裝／更新到其他電腦的 user data runtime |
 | `apps/desktop/src/renderer/styles.css` | 標記模式、原文標示與設定視窗樣式 |
 
-`App.tsx` 也持有選取朗讀的暫態本文、懸浮定位、Web Speech 播放生命週期與錯誤狀態；此能力沒有 preload、IPC、main process、server 或持久化邊界。
+`App.tsx` 持有選取朗讀的暫態本文、懸浮定位、AudioContext 排程與錯誤狀態；外部請求、
+credential 與記憶體快取位於 Main Process，沒有 Reader Server 或 Codex App Server 邊界。
 
 ## 9. Testing Notes
 
@@ -163,13 +187,17 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 | `apps/desktop/src/main/library-ipc.test.ts` | 標記 IPC 路由與輸入驗證 |
 | `apps/desktop/src/main/settings-store.test.ts` | 預設、保存、舊檔相容與逐欄損壞／未知值降級 |
 | `apps/desktop/src/main/settings-ipc.test.ts` | 設定 IPC 路由、enum、整數與範圍驗證 |
+| `apps/desktop/src/main/selection-speech-service.test.ts` | 加密 credential、候選預覽／回滾、長文切分、PCM stream、取消、錯誤分類與 LRU |
+| `apps/desktop/src/main/selection-speech-ipc.test.ts` | AI Voice 設定、播放、取消 IPC 與輸入白名單 |
 | `apps/desktop/src/main/chat-controller.test.ts` | 一般 context、兩個 App skills 載入與其他 skills 隔離、既有 thread 恢復、空標記、四種講解語言與型別化 skill input 契約 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀理解 skill 的 CEFR、題型、題數、批改、語言與 final review rubric |
 | `apps/desktop/src/main/bundled-skill.test.ts` | 兩份 App 內建 skills 的首次安裝、無變更略過與升級替換 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | 標記解析／區段練習 intent 與講解語言白名單 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | preload 白名單、設定選項與 Electron 啟動回歸 |
 
-`App.test.tsx` 另覆蓋選取朗讀的懸浮與右鍵入口、跨文字節點本文、英文 voice 參數、停止與取代、舊 callback 隔離、標記模式共存、切章清理、無效選取及語音錯誤；Electron E2E 驗證 production 懸浮樣式與 reduced-motion。
+`App.test.tsx` 另覆蓋選取朗讀的懸浮與右鍵入口、跨文字節點本文、未設定導向、PCM 排程、
+停止與取代、舊 request 隔離、標記模式共存、切章清理、無效選取、auth retry／settings 及
+無裝置語音 fallback；Electron E2E 驗證 production preload、AI Voice 設定與安全 Electron 啟動。
 
 ## 10. Constraints and Follow-up
 
@@ -179,7 +207,8 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - 標記會隨完整書庫進入資料備份並可完整還原；不提供個別標記匯出、合併、搜尋、
   自動同步或復原／重做。
 - Renderer 的 `App.tsx` 目前同時協調閱讀範圍、標記、AI 對話與設定；功能繼續擴張前宜另開 RXX 拆分協調邊界。
-- 選取朗讀第一版固定使用裝置英文 voice 與 0.85 語速；不提供 voice／口音／速度設定、逐字高亮、播放進度、暫停後續播、朗讀歷史或音訊匯出。
+- 選取朗讀只提供四個固定 OpenAI voice 與四種受限語氣，不提供任意 prompt、model、endpoint、
+  自訂語音／複製、逐字高亮、播放進度、暫停後續播、朗讀歷史或音訊匯出；音訊不寫磁碟。
 
 ## 11. Related Documents
 
@@ -202,6 +231,7 @@ Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受
 - `documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md`
 - `documents/implements/F38-export-and-restore-data-backup.md`
 - `documents/implements/F56-speak-selected-reader-text.md`
+- `documents/implements/F57-ai-selection-speech.md`
 - `documents/modules/data-backup.md`
 
 變更標記資料、不重疊規則、Selection offset、選取朗讀、AI 序列化、預設 intent 或講解語言時，必須同步更新本文件與相關 FXX 實作紀錄。

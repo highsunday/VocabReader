@@ -113,9 +113,49 @@ function installLibraryApi(
     ebookLineHeight: 1.9,
     dailyNewItemCompletionLimit: 10,
     dailyDueReviewCompletionLimit: 50,
-    reviewPaperSize: 10
+    reviewPaperSize: 10,
+    selectionSpeechVoice: "cedar",
+    selectionSpeechTone: "learning"
   });
   const saveSettings = vi.fn((settings) => Promise.resolve(settings));
+  let selectionSpeechListener: ((event: {
+    type: "audio" | "done" | "error";
+    requestId: string;
+    audio?: Uint8Array;
+    code?: string;
+    message?: string;
+  }) => void) | undefined;
+  const selectionSpeech = {
+    getSettings: vi.fn().mockResolvedValue({
+      hasApiKey: false,
+      voice: "cedar" as const,
+      tone: "learning" as const
+    }),
+    applySettings: vi.fn().mockResolvedValue({
+      settings: {
+        hasApiKey: true,
+        voice: "marin" as const,
+        tone: "calm" as const
+      },
+      previewAudio: new Uint8Array()
+    }),
+    removeApiKey: vi.fn().mockResolvedValue({
+      hasApiKey: false,
+      voice: "cedar" as const,
+      tone: "learning" as const
+    }),
+    start: vi.fn().mockResolvedValue({ requestId: "selection-speech-1" }),
+    cancel: vi.fn().mockResolvedValue(undefined),
+    onEvent: vi.fn((listener) => {
+      selectionSpeechListener = listener;
+      return () => {
+        selectionSpeechListener = undefined;
+      };
+    }),
+    emit(event: Parameters<NonNullable<typeof selectionSpeechListener>>[0]) {
+      selectionSpeechListener?.(event);
+    }
+  };
   const dataBackup = {
     exportBackup: vi.fn().mockResolvedValue({
       status: "exported",
@@ -200,6 +240,7 @@ function installLibraryApi(
       review,
       sentencePractice,
       settings: { get: getSettings, save: saveSettings },
+      selectionSpeech,
       dataBackup,
       ...(chat ? { chat } : {})
     }
@@ -213,6 +254,7 @@ function installLibraryApi(
     saveAnnotations,
     getSettings,
     saveSettings,
+    selectionSpeech,
     dataBackup,
     learning,
     review,
@@ -301,6 +343,42 @@ function installSpeechSynthesis() {
   return { cancel, englishVoice, speak, utterances };
 }
 
+function installAudioContext() {
+  const sources: Array<{
+    buffer: { duration: number } | null;
+    connect: ReturnType<typeof vi.fn>;
+    start: ReturnType<typeof vi.fn>;
+    stop: ReturnType<typeof vi.fn>;
+    onended: (() => void) | null;
+  }> = [];
+  class MockAudioContext {
+    currentTime = 0;
+    state: AudioContextState = "running";
+    destination = {} as AudioDestinationNode;
+    resume = vi.fn().mockResolvedValue(undefined);
+    close = vi.fn().mockResolvedValue(undefined);
+    createBuffer(_channels: number, length: number, sampleRate: number) {
+      return {
+        duration: length / sampleRate,
+        copyToChannel: vi.fn()
+      } as unknown as AudioBuffer;
+    }
+    createBufferSource() {
+      const source = {
+        buffer: null,
+        connect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn(),
+        onended: null
+      };
+      sources.push(source);
+      return source as unknown as AudioBufferSourceNode;
+    }
+  }
+  vi.stubGlobal("AudioContext", MockAudioContext);
+  return { sources };
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   window.getSelection()?.removeAllRanges();
@@ -362,6 +440,61 @@ describe("App", () => {
       .toBeInTheDocument();
     expect(screen.getByText(/books, reading progress, annotations,\s+learning items, and review history/i))
       .toBeInTheDocument();
+  });
+
+  it("offers a dedicated AI Voice settings tab", async () => {
+    installLibraryApi();
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+
+    expect(screen.getByRole("tab", { name: "AI Voice" })).toBeInTheDocument();
+  });
+
+  it("applies an API key, voice, and tone from AI Voice settings", async () => {
+    const { selectionSpeech } = installLibraryApi();
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "AI Voice" }));
+    const apiKey = await screen.findByLabelText("OpenAI API key");
+    fireEvent.change(apiKey, {
+      target: { value: "sk-test-secret" }
+    });
+    expect(apiKey).toHaveAttribute("type", "password");
+    fireEvent.click(screen.getByRole("button", { name: "Show API key" }));
+    expect(apiKey).toHaveAttribute("type", "text");
+    expect(screen.getByRole("radio", { name: /Cedar voice/ }))
+      .toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /Learning tone/ }))
+      .toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("radio", { name: /Marin voice/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Calm tone/ }));
+    expect(screen.getByRole("radio", { name: /Marin voice/ }))
+      .toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /Calm tone/ }))
+      .toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Apply and preview" }));
+
+    await waitFor(() => expect(selectionSpeech.applySettings).toHaveBeenCalledWith({
+      apiKey: "sk-test-secret",
+      voice: "marin",
+      tone: "calm"
+    }));
+    expect(await screen.findByText("Configured")).toBeInTheDocument();
+    expect(screen.getByLabelText("Saved API key"))
+      .toHaveTextContent("•••• •••• •••• ••••Saved securely");
+    expect(screen.queryByRole("textbox", { name: "OpenAI API key" }))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply and preview" }));
+    await waitFor(() => expect(selectionSpeech.applySettings)
+      .toHaveBeenLastCalledWith({ voice: "marin", tone: "calm" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    expect(screen.getByLabelText("OpenAI API key")).toHaveValue("");
+    expect(screen.getByLabelText("OpenAI API key"))
+      .toHaveAttribute("type", "password");
   });
 
   it("exports a data backup and reports the selected ZIP filename", async () => {
@@ -624,7 +757,9 @@ describe("App", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
-      reviewPaperSize: 10
+      reviewPaperSize: 10,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning"
     }));
   });
 
@@ -663,7 +798,9 @@ describe("App", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 80,
-      reviewPaperSize: 6
+      reviewPaperSize: 6,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning"
     }));
     await waitFor(() => expect(review.getSummary.mock.calls.length)
       .toBeGreaterThan(summariesBeforeSave));
@@ -738,7 +875,9 @@ describe("App", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
-      reviewPaperSize: 10
+      reviewPaperSize: 10,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning"
     }));
 
     fireEvent.click(screen.getByRole("button", { name: "Restore defaults" }));
@@ -753,7 +892,9 @@ describe("App", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
-      reviewPaperSize: 10
+      reviewPaperSize: 10,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning"
     }));
 
     fireEvent.click(screen.getByRole("button", {
@@ -2887,7 +3028,18 @@ describe("App", () => {
 
   it("speaks the complete reader selection from the floating pronunciation action", async () => {
     const speech = installSpeechSynthesis();
-    const { getChapterContent, saveAnnotations, saveReadingRange } = installLibraryApi();
+    const audio = installAudioContext();
+    const {
+      getChapterContent,
+      saveAnnotations,
+      saveReadingRange,
+      selectionSpeech
+    } = installLibraryApi();
+    selectionSpeech.getSettings.mockResolvedValue({
+      hasApiKey: true,
+      voice: "cedar",
+      tone: "learning"
+    });
     getChapterContent.mockResolvedValue({
       bookId: "book-one",
       chapterId: "one-1",
@@ -2915,24 +3067,89 @@ describe("App", () => {
 
     fireEvent.click(pronounce);
 
-    expect(speech.cancel).toHaveBeenCalledOnce();
-    expect(speech.speak).toHaveBeenCalledOnce();
-    expect(speech.utterances[0]).toMatchObject({
-      text: "reluctant to admit",
-      lang: "en-GB",
-      voice: speech.englishVoice,
-      rate: 0.85,
-      pitch: 1
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenCalledWith({
+      text: "reluctant to admit"
+    }));
+    const generatingControl = screen.getByRole("button", {
+      name: "Stop pronunciation"
     });
+    expect(generatingControl).toHaveTextContent("Generating AI voice…");
+    expect(generatingControl).toHaveTextContent("Cedar · Learning");
+    expect(generatingControl.querySelector('[role="status"]'))
+      .toHaveTextContent("Generating AI voice…");
+    expect(speech.speak).not.toHaveBeenCalled();
+    act(() => selectionSpeech.emit({
+      type: "audio",
+      requestId: "selection-speech-1",
+      audio: new Uint8Array([0, 0, 255, 127])
+    }));
+    expect(audio.sources).toHaveLength(1);
+    expect(audio.sources[0]?.start).toHaveBeenCalledOnce();
+    const playingControl = screen.getByRole("button", {
+      name: "Stop pronunciation"
+    });
+    expect(playingControl).toHaveTextContent("Playing selected text");
+    expect(playingControl).toHaveTextContent("Cedar · Learning");
+    expect(playingControl.querySelector('[role="status"]'))
+      .toHaveTextContent("Playing selected text");
+    expect(document.querySelector(".selection-speech-status")).not
+      .toBeInTheDocument();
     expect(saveAnnotations).not.toHaveBeenCalled();
     expect(saveReadingRange).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Stop pronunciation" }))
       .toBeInTheDocument();
+
+    act(() => {
+      selectionSpeech.emit({ type: "done", requestId: "selection-speech-1" });
+      audio.sources[0]?.onended?.();
+    });
+    expect(screen.getByRole("button", { name: "Pronounce selected text" }))
+      .toBeInTheDocument();
+  });
+
+  it("opens AI Voice settings without using device speech when selection speech is not configured", async () => {
+    const speech = installSpeechSynthesis();
+    const { getChapterContent, selectionSpeech } = installLibraryApi();
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: "<p>He was reluctant to admit the truth.</p>"
+    });
+    selectionSpeech.getSettings.mockResolvedValue({
+      hasApiKey: false,
+      voice: "cedar",
+      tone: "learning"
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "The First Book" });
+    fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+
+    selectText(article, "reluctant");
+    fireEvent.mouseUp(article);
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Pronounce selected text"
+    }));
+
+    expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "AI Voice" }))
+      .toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Set up AI Voice in Settings before playing selected text."))
+      .toBeInTheDocument();
+    expect(selectionSpeech.start).not.toHaveBeenCalled();
+    expect(speech.speak).not.toHaveBeenCalled();
   });
 
   it("speaks the reader selection from the existing right-click menu", async () => {
     const speech = installSpeechSynthesis();
-    const { getChapterContent } = installLibraryApi();
+    const { getChapterContent, selectionSpeech } = installLibraryApi();
+    selectionSpeech.getSettings.mockResolvedValue({
+      hasApiKey: true,
+      voice: "cedar",
+      tone: "learning"
+    });
     getChapterContent.mockResolvedValue({
       bookId: "book-one",
       chapterId: "one-1",
@@ -2961,13 +3178,24 @@ describe("App", () => {
       name: "Pronounce selection"
     }));
 
-    expect(speech.speak).toHaveBeenCalledOnce();
-    expect(speech.utterances[0]?.text).toBe("the truth");
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenCalledWith({
+      text: "the truth"
+    }));
+    expect(speech.speak).not.toHaveBeenCalled();
   });
 
   it("stops the current selection speech and replaces it when a new selection plays", async () => {
     const speech = installSpeechSynthesis();
-    const { getChapterContent } = installLibraryApi();
+    const { getChapterContent, selectionSpeech } = installLibraryApi();
+    selectionSpeech.getSettings.mockResolvedValue({
+      hasApiKey: true,
+      voice: "cedar",
+      tone: "learning"
+    });
+    selectionSpeech.start
+      .mockResolvedValueOnce({ requestId: "selection-speech-1" })
+      .mockResolvedValueOnce({ requestId: "selection-speech-2" })
+      .mockResolvedValueOnce({ requestId: "selection-speech-3" });
     getChapterContent.mockResolvedValue({
       bookId: "book-one",
       chapterId: "one-1",
@@ -2985,30 +3213,45 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", {
       name: "Pronounce selected text"
     }));
-    const firstUtterance = speech.utterances[0];
+    await waitFor(() => expect(screen.getByRole("button", {
+      name: "Stop pronunciation"
+    })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Stop pronunciation" }));
-    expect(speech.cancel).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(selectionSpeech.cancel)
+      .toHaveBeenCalledWith("selection-speech-1"));
     expect(screen.getByRole("button", { name: "Pronounce selected text" }))
       .toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Pronounce selected text" }));
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenCalledTimes(2));
     selectText(article, "the truth");
     fireEvent.mouseUp(article);
     expect(screen.getByRole("button", { name: "Pronounce selected text" }))
       .toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Pronounce selected text" }));
 
-    expect(speech.cancel).toHaveBeenCalledTimes(4);
-    expect(speech.speak).toHaveBeenCalledTimes(3);
-    expect(speech.utterances[2]?.text).toBe("the truth");
-    firstUtterance?.onend?.();
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenLastCalledWith({
+      text: "the truth"
+    }));
+    expect(selectionSpeech.cancel)
+      .toHaveBeenCalledWith("selection-speech-2");
+    expect(speech.speak).not.toHaveBeenCalled();
+    act(() => selectionSpeech.emit({
+      type: "done",
+      requestId: "selection-speech-1"
+    }));
     expect(screen.getByRole("button", { name: "Stop pronunciation" }))
       .toBeInTheDocument();
   });
 
   it("keeps selection speech available after annotation mode clears the DOM selection", async () => {
     const speech = installSpeechSynthesis();
-    const { getChapterContent, saveAnnotations } = installLibraryApi();
+    const { getChapterContent, saveAnnotations, selectionSpeech } = installLibraryApi();
+    selectionSpeech.getSettings.mockResolvedValue({
+      hasApiKey: true,
+      voice: "cedar",
+      tone: "learning"
+    });
     getChapterContent.mockResolvedValue({
       bookId: "book-one",
       chapterId: "one-1",
@@ -3036,12 +3279,20 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", {
       name: "Pronounce selected text"
     }));
-    expect(speech.utterances[0]?.text).toBe("reluctant to admit");
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenCalledWith({
+      text: "reluctant to admit"
+    }));
+    expect(speech.speak).not.toHaveBeenCalled();
   });
 
   it("dismisses selection speech controls and cancels playback when leaving the chapter", async () => {
     const speech = installSpeechSynthesis();
-    const { getChapterContent } = installLibraryApi();
+    const { getChapterContent, selectionSpeech } = installLibraryApi();
+    selectionSpeech.getSettings.mockResolvedValue({
+      hasApiKey: true,
+      voice: "cedar",
+      tone: "learning"
+    });
     getChapterContent.mockImplementation((_bookId: string, chapterId: string) =>
       Promise.resolve({
         bookId: "book-one",
@@ -3071,12 +3322,17 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", {
       name: "Pronounce selected text"
     }));
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenCalledWith({
+      text: "the truth"
+    }));
     fireEvent.click(screen.getByRole("button", { name: "Next chapter" }));
 
     await screen.findByLabelText("A New Road chapter content");
     expect(screen.queryByRole("button", { name: "Stop pronunciation" }))
       .not.toBeInTheDocument();
-    expect(speech.cancel).toHaveBeenCalledTimes(2);
+    expect(selectionSpeech.cancel)
+      .toHaveBeenCalledWith("selection-speech-1");
+    expect(speech.speak).not.toHaveBeenCalled();
   });
 
   it("does not offer selection speech for whitespace or a missing reader selection", async () => {
@@ -3111,8 +3367,17 @@ describe("App", () => {
     expect(speech.speak).not.toHaveBeenCalled();
   });
 
-  it("reports unsupported and failed selection speech without blocking reading tools", async () => {
-    const { getChapterContent } = installLibraryApi();
+  it("offers retry and AI Voice settings after an auth failure without device fallback", async () => {
+    const speech = installSpeechSynthesis();
+    const { getChapterContent, selectionSpeech } = installLibraryApi();
+    selectionSpeech.getSettings.mockResolvedValue({
+      hasApiKey: true,
+      voice: "cedar",
+      tone: "learning"
+    });
+    selectionSpeech.start
+      .mockResolvedValueOnce({ requestId: "selection-speech-1" })
+      .mockResolvedValueOnce({ requestId: "selection-speech-2" });
     getChapterContent.mockResolvedValue({
       bookId: "book-one",
       chapterId: "one-1",
@@ -3130,19 +3395,39 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", {
       name: "Pronounce selected text"
     }));
-    expect(screen.getByRole("status"))
-      .toHaveTextContent("Speech playback is not supported on this device.");
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenCalledOnce());
+    act(() => selectionSpeech.emit({
+      type: "error",
+      requestId: "selection-speech-1",
+      code: "auth",
+      message: "OpenAI rejected the API key. Update it in AI Voice settings."
+    }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "OpenAI rejected the API key. Update it in AI Voice settings."
+    );
     expect(screen.getByRole("button", {
       name: "Turn on annotation mode; 0 annotations in this chapter"
     })).toBeInTheDocument();
+    expect(speech.speak).not.toHaveBeenCalled();
 
-    const speech = installSpeechSynthesis();
-    fireEvent.click(screen.getByRole("button", { name: "Pronounce selected text" }));
-    act(() => speech.utterances[0]?.onerror?.());
-    expect(screen.getByRole("status"))
-      .toHaveTextContent("Unable to play pronunciation. Please try again later.");
-    expect(screen.getByRole("button", { name: "Pronounce selected text" }))
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(selectionSpeech.start).toHaveBeenCalledTimes(2));
+    expect(selectionSpeech.start).toHaveBeenLastCalledWith({ text: "reluctant" });
+
+    act(() => selectionSpeech.emit({
+      type: "error",
+      requestId: "selection-speech-2",
+      code: "auth",
+      message: "OpenAI rejected the API key. Update it in AI Voice settings."
+    }));
+    fireEvent.click(screen.getByRole("button", {
+      name: "Open AI Voice Settings"
+    }));
+    expect(await screen.findByRole("dialog", { name: "Settings" }))
       .toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "AI Voice" }))
+      .toHaveAttribute("aria-selected", "true");
   });
 
   it("keeps START and END range navigation beside the sticky annotation tool", async () => {
@@ -3412,7 +3697,9 @@ describe("App", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
-      reviewPaperSize: 10
+      reviewPaperSize: 10,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning"
     }));
     fireEvent.click(screen.getByRole("button", { name: "Close Settings" }));
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));

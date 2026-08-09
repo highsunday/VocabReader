@@ -44,6 +44,13 @@ import type {
   AppSettings,
   SettingsDesktopApi
 } from "../shared/settings-contracts";
+import type {
+  ApplySelectionSpeechSettingsInput,
+  ApplySelectionSpeechSettingsResult,
+  SelectionSpeechDesktopApi,
+  SelectionSpeechSettingsSnapshot,
+  SelectionSpeechStreamEvent
+} from "../shared/selection-speech-contracts";
 
 const desktopApi = Object.freeze({
   platform: process.platform,
@@ -134,6 +141,27 @@ const desktopApi = Object.freeze({
     save: (settings: AppSettings): Promise<AppSettings> =>
       ipcRenderer.invoke("settings:save", settings)
   } satisfies SettingsDesktopApi),
+  selectionSpeech: Object.freeze({
+    getSettings: (): Promise<SelectionSpeechSettingsSnapshot> =>
+      ipcRenderer.invoke("selection-speech:get-settings"),
+    applySettings: (
+      input: ApplySelectionSpeechSettingsInput
+    ): Promise<ApplySelectionSpeechSettingsResult> =>
+      ipcRenderer.invoke("selection-speech:apply-settings", input),
+    removeApiKey: (): Promise<SelectionSpeechSettingsSnapshot> =>
+      ipcRenderer.invoke("selection-speech:remove-api-key"),
+    start: (input: { text: string }): Promise<{ requestId: string }> =>
+      ipcRenderer.invoke("selection-speech:start", input),
+    cancel: (requestId: string): Promise<void> =>
+      ipcRenderer.invoke("selection-speech:cancel", requestId),
+    onEvent: (listener: (event: SelectionSpeechStreamEvent) => void) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+        listener(payload as SelectionSpeechStreamEvent);
+      };
+      ipcRenderer.on("selection-speech:event", wrapped);
+      return () => ipcRenderer.off("selection-speech:event", wrapped);
+    }
+  } satisfies SelectionSpeechDesktopApi),
   dataBackup: Object.freeze({
     exportBackup: (): Promise<ExportDataBackupResult> =>
       ipcRenderer.invoke("data-backup:export"),

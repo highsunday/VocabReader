@@ -18,7 +18,9 @@ describe("settings IPC", () => {
         ebookLineHeight: 1.9,
         dailyNewItemCompletionLimit: 10,
         dailyDueReviewCompletionLimit: 50,
-        reviewPaperSize: 10
+        reviewPaperSize: 10,
+        selectionSpeechVoice: "cedar",
+        selectionSpeechTone: "learning"
       }),
       save: vi.fn().mockResolvedValue({
         explanationLanguage: "zh-TW",
@@ -28,7 +30,9 @@ describe("settings IPC", () => {
         ebookLineHeight: 2.2,
         dailyNewItemCompletionLimit: 0,
         dailyDueReviewCompletionLimit: 999,
-        reviewPaperSize: 20
+        reviewPaperSize: 20,
+        selectionSpeechVoice: "onyx",
+        selectionSpeechTone: "natural"
       })
     };
 
@@ -42,7 +46,9 @@ describe("settings IPC", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
-      reviewPaperSize: 10
+      reviewPaperSize: 10,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning"
     });
     await expect(handlers.get("settings:save")?.({}, {
       explanationLanguage: "zh-TW",
@@ -52,7 +58,9 @@ describe("settings IPC", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 999,
-      reviewPaperSize: 20
+      reviewPaperSize: 20,
+      selectionSpeechVoice: "onyx",
+      selectionSpeechTone: "natural"
     })).resolves.toEqual({
       explanationLanguage: "zh-TW",
       aiConversationFontSize: 18,
@@ -61,7 +69,9 @@ describe("settings IPC", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 999,
-      reviewPaperSize: 20
+      reviewPaperSize: 20,
+      selectionSpeechVoice: "onyx",
+      selectionSpeechTone: "natural"
     });
     expect(store.save).toHaveBeenCalledWith({
       explanationLanguage: "zh-TW",
@@ -71,7 +81,9 @@ describe("settings IPC", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 999,
-      reviewPaperSize: 20
+      reviewPaperSize: 20,
+      selectionSpeechVoice: "onyx",
+      selectionSpeechTone: "natural"
     });
   });
 
@@ -159,6 +171,22 @@ describe("settings IPC", () => {
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
       ebookLineHeight: 2.25
+    },
+    {
+      explanationLanguage: "en",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2,
+      selectionSpeechVoice: "unknown"
+    },
+    {
+      explanationLanguage: "en",
+      aiConversationFontSize: 18,
+      ebookContentFontSize: 24,
+      readingPaperWidth: 900,
+      ebookLineHeight: 2.2,
+      selectionSpeechTone: "dramatic"
     }
   ])("rejects invalid settings before touching the store", (settings) => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
@@ -174,6 +202,8 @@ describe("settings IPC", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       reviewPaperSize: 10,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning",
       ...settings
     }))
       .toThrow(/Invalid application settings/);
@@ -208,6 +238,8 @@ describe("settings IPC", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       reviewPaperSize: 10,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning",
       [field]: value
     })).toThrow(/Invalid application settings/);
     expect(store.save).not.toHaveBeenCalled();

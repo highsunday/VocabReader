@@ -560,6 +560,15 @@ test("launches the secure Electron reading shell", async () => {
       .toBeVisible();
     await expect(page.getByRole("button", { name: "Import backup" }))
       .toBeVisible();
+    await page.getByRole("tab", { name: "AI Voice" }).click();
+    await expect(page.getByLabel("OpenAI API key")).toBeVisible();
+    await expect(page.getByRole("radio", { name: /Cedar voice/ }))
+      .toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("radio", { name: /Learning tone/ }))
+      .toHaveAttribute("aria-checked", "true");
+    await expect(page.getByText("AI-generated · uses your OpenAI credits"))
+      .toBeVisible();
+    await page.getByRole("tab", { name: "General" }).click();
     const language = page.getByLabel("Explanation language");
     await expect(language.locator("option")).toHaveText([
       "Source language (default)",
@@ -592,7 +601,9 @@ test("launches the secure Electron reading shell", async () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
-      reviewPaperSize: 10
+      reviewPaperSize: 10,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning"
     }));
     await page.reload();
     await expect(page).toHaveTitle("VocabReader");
@@ -707,7 +718,9 @@ test("launches the secure Electron reading shell", async () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
-      reviewPaperSize: 10
+      reviewPaperSize: 10,
+      selectionSpeechVoice: "cedar",
+      selectionSpeechTone: "learning"
     });
 
     const dataImageLoads = await page.evaluate(async () => {

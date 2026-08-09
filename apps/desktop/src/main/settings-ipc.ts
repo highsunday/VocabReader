@@ -6,6 +6,8 @@ import {
   isExplanationLanguage,
   isReadingPaperWidth,
   isReviewPaperSize,
+  isSelectionSpeechTone,
+  isSelectionSpeechVoice,
   type AppSettings
 } from "../shared/settings-contracts";
 
@@ -39,7 +41,9 @@ export function registerSettingsIpc(
       !isEbookLineHeight(settings.ebookLineHeight) ||
       !isDailyReviewCompletionLimit(settings.dailyNewItemCompletionLimit) ||
       !isDailyReviewCompletionLimit(settings.dailyDueReviewCompletionLimit) ||
-      !isReviewPaperSize(settings.reviewPaperSize)
+      !isReviewPaperSize(settings.reviewPaperSize) ||
+      !isSelectionSpeechVoice(settings.selectionSpeechVoice) ||
+      !isSelectionSpeechTone(settings.selectionSpeechTone)
     ) {
       throw new Error("Invalid application settings");
     }
@@ -51,7 +55,9 @@ export function registerSettingsIpc(
       ebookLineHeight: settings.ebookLineHeight,
       dailyNewItemCompletionLimit: settings.dailyNewItemCompletionLimit,
       dailyDueReviewCompletionLimit: settings.dailyDueReviewCompletionLimit,
-      reviewPaperSize: settings.reviewPaperSize
+      reviewPaperSize: settings.reviewPaperSize,
+      selectionSpeechVoice: settings.selectionSpeechVoice,
+      selectionSpeechTone: settings.selectionSpeechTone
     });
   });
 }

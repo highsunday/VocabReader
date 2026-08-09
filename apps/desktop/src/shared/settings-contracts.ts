@@ -1,4 +1,20 @@
 export type ExplanationLanguage = "source" | "zh-TW" | "en" | "ja";
+export type SelectionSpeechVoice = "cedar" | "marin" | "coral" | "onyx";
+export type SelectionSpeechTone = "learning" | "natural" | "calm" | "expressive";
+
+export const selectionSpeechVoices: readonly SelectionSpeechVoice[] = [
+  "cedar",
+  "marin",
+  "coral",
+  "onyx"
+];
+
+export const selectionSpeechTones: readonly SelectionSpeechTone[] = [
+  "learning",
+  "natural",
+  "calm",
+  "expressive"
+];
 
 export const AI_CONVERSATION_FONT_SIZE = {
   min: 12,
@@ -56,6 +72,8 @@ export interface AppSettings {
   dailyNewItemCompletionLimit: number;
   dailyDueReviewCompletionLimit: number;
   reviewPaperSize: number;
+  selectionSpeechVoice: SelectionSpeechVoice;
+  selectionSpeechTone: SelectionSpeechTone;
 }
 
 export interface SettingsDesktopApi {
@@ -74,6 +92,18 @@ export function isExplanationLanguage(
   value: unknown
 ): value is ExplanationLanguage {
   return explanationLanguages.includes(value as ExplanationLanguage);
+}
+
+export function isSelectionSpeechVoice(
+  value: unknown
+): value is SelectionSpeechVoice {
+  return selectionSpeechVoices.includes(value as SelectionSpeechVoice);
+}
+
+export function isSelectionSpeechTone(
+  value: unknown
+): value is SelectionSpeechTone {
+  return selectionSpeechTones.includes(value as SelectionSpeechTone);
 }
 
 function isIntegerInRange(value: unknown, min: number, max: number) {

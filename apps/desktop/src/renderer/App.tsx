@@ -10,12 +10,26 @@ import {
 import type { CSSProperties } from "react";
 import {
   Brain,
+  Check,
   CircleCheck,
+  Drama,
+  Eye,
+  EyeOff,
+  Focus,
+  GraduationCap,
+  KeyRound,
+  Leaf,
   LibraryBig,
   LoaderCircle,
+  LockKeyhole,
+  MessageCircle,
+  MoonStar,
   PenLine,
   Settings as SettingsIcon,
+  Sparkles,
   Square,
+  SunMedium,
+  Waves,
   Volume2
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -43,6 +57,12 @@ import type {
 import type { LearningDesktopApi } from "../shared/learning-contracts";
 import type { ReviewDesktopApi } from "../shared/review-contracts";
 import type { SentencePracticeDesktopApi } from "../shared/sentence-practice-contracts";
+import type {
+  SelectionSpeechDesktopApi,
+  SelectionSpeechErrorCode,
+  SelectionSpeechSettingsSnapshot,
+  SelectionSpeechStreamEvent
+} from "../shared/selection-speech-contracts";
 import {
   AI_CONVERSATION_FONT_SIZE,
   DAILY_DUE_REVIEW_COMPLETION_LIMIT,
@@ -53,6 +73,8 @@ import {
   REVIEW_PAPER_SIZE,
   type AppSettings,
   type ExplanationLanguage,
+  type SelectionSpeechTone,
+  type SelectionSpeechVoice,
   type SettingsDesktopApi
 } from "../shared/settings-contracts";
 import {
@@ -88,7 +110,7 @@ type WorkspaceMode =
   | "learning-library"
   | "spaced-review"
   | "sentence-practice";
-type SettingsSection = "general" | "review" | "account";
+type SettingsSection = "general" | "review" | "voice" | "account";
 
 const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
 const COLLAPSED_PANEL_WIDTH = 48;
@@ -96,8 +118,30 @@ const MIN_ASSISTANT_PANEL_WIDTH = 320;
 const MAX_ASSISTANT_PANEL_WIDTH = 640;
 const MIN_READING_AREA_WIDTH = 520;
 const EXPANDED_LEFT_SIDEBAR_WIDTH = 220;
+const selectionSpeechVoiceLabels: Record<SelectionSpeechVoice, string> = {
+  cedar: "Cedar",
+  marin: "Marin",
+  coral: "Coral",
+  onyx: "Onyx"
+};
+const selectionSpeechToneLabels: Record<SelectionSpeechTone, string> = {
+  learning: "Learning",
+  natural: "Natural",
+  calm: "Calm",
+  expressive: "Expressive"
+};
 const COLLAPSED_LEFT_SIDEBAR_WIDTH = 48;
 const ASSISTANT_PANEL_RESIZE_STEP = 16;
+
+interface ActiveSelectionSpeechPlayback {
+  requestId: string;
+  context?: AudioContext;
+  sources: Set<AudioBufferSourceNode>;
+  nextStartTime: number;
+  remainder: Uint8Array;
+  streamDone: boolean;
+  started: boolean;
+}
 
 const initialChatSnapshot: ChatSnapshot = {
   connection: "disconnected",
@@ -128,6 +172,7 @@ function desktopBridge(): {
   review?: ReviewDesktopApi;
   sentencePractice?: SentencePracticeDesktopApi;
   settings?: SettingsDesktopApi;
+  selectionSpeech?: SelectionSpeechDesktopApi;
   dataBackup?: DataBackupDesktopApi;
   chat?: ChatDesktopApi;
 } | undefined {
@@ -139,6 +184,7 @@ function desktopBridge(): {
         review?: ReviewDesktopApi;
         sentencePractice?: SentencePracticeDesktopApi;
         settings?: SettingsDesktopApi;
+        selectionSpeech?: SelectionSpeechDesktopApi;
         dataBackup?: DataBackupDesktopApi;
         chat?: ChatDesktopApi;
       };
@@ -168,6 +214,10 @@ function desktopSentencePractice(): SentencePracticeDesktopApi | undefined {
 
 function desktopSettings(): SettingsDesktopApi | undefined {
   return desktopBridge()?.settings;
+}
+
+function desktopSelectionSpeech(): SelectionSpeechDesktopApi | undefined {
+  return desktopBridge()?.selectionSpeech;
 }
 
 function desktopDataBackup(): DataBackupDesktopApi | undefined {
@@ -275,7 +325,11 @@ export function App() {
     y: number;
   }>();
   const [speakingSelectionText, setSpeakingSelectionText] = useState<string>();
+  const [selectionSpeechPhase, setSelectionSpeechPhase] =
+    useState<"loading" | "playing">();
   const [selectionSpeechError, setSelectionSpeechError] = useState("");
+  const [selectionSpeechErrorCode, setSelectionSpeechErrorCode] =
+    useState<SelectionSpeechErrorCode>();
   const [markerTops, setMarkerTops] = useState({ start: 0, end: 0 });
   const [draft, setDraft] = useState("");
   const [chatSnapshot, setChatSnapshot] = useState(initialChatSnapshot);
@@ -295,7 +349,9 @@ export function App() {
     ebookLineHeight: EBOOK_LINE_HEIGHT.default,
     dailyNewItemCompletionLimit: DAILY_NEW_ITEM_COMPLETION_LIMIT.default,
     dailyDueReviewCompletionLimit: DAILY_DUE_REVIEW_COMPLETION_LIMIT.default,
-    reviewPaperSize: REVIEW_PAPER_SIZE.default
+    reviewPaperSize: REVIEW_PAPER_SIZE.default,
+    selectionSpeechVoice: "cedar",
+    selectionSpeechTone: "learning"
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeSettingsSection, setActiveSettingsSection] =
@@ -303,6 +359,22 @@ export function App() {
   const [isReadingLayoutOpen, setIsReadingLayoutOpen] = useState(false);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
+  const [aiVoiceSettings, setAiVoiceSettings] =
+    useState<SelectionSpeechSettingsSnapshot>({
+      hasApiKey: false,
+      voice: "cedar",
+      tone: "learning"
+    });
+  const [aiVoiceApiKey, setAiVoiceApiKey] = useState("");
+  const [isAiVoiceKeyVisible, setIsAiVoiceKeyVisible] = useState(false);
+  const [isReplacingAiVoiceKey, setIsReplacingAiVoiceKey] = useState(false);
+  const [aiVoiceDraft, setAiVoiceDraft] = useState<{
+    voice: SelectionSpeechVoice;
+    tone: SelectionSpeechTone;
+  }>({ voice: "cedar", tone: "learning" });
+  const [isAiVoiceApplying, setIsAiVoiceApplying] = useState(false);
+  const [aiVoiceMessage, setAiVoiceMessage] = useState("");
+  const [aiVoiceError, setAiVoiceError] = useState("");
   const [dataBackupOperation, setDataBackupOperation] = useState<
     "exporting" | "selecting" | "cancelling" | "restoring" | null
   >(null);
@@ -335,7 +407,10 @@ export function App() {
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const annotationCounterRef = useRef(0);
   const selectionSpeechRequestRef = useRef(0);
-  const speakingSelectionTextRef = useRef<string | undefined>(undefined);
+  const activeSelectionSpeechRef =
+    useRef<ActiveSelectionSpeechPlayback | undefined>(undefined);
+  const previewAudioRef = useRef<HTMLAudioElement | undefined>(undefined);
+  const previewAudioUrlRef = useRef<string | undefined>(undefined);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const settingsSaveTimerRef =
     useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -512,6 +587,32 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const api = desktopSelectionSpeech();
+    if (!api) return;
+    let active = true;
+    void api.getSettings()
+      .then((stored) => {
+        if (!active) return;
+        setAiVoiceSettings(stored);
+        setAiVoiceDraft({ voice: stored.voice, tone: stored.tone });
+        setIsReplacingAiVoiceKey(false);
+      })
+      .catch(() => {
+        if (active) setAiVoiceError("Unable to load AI Voice settings.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => () => {
+    previewAudioRef.current?.pause();
+    if (previewAudioUrlRef.current) {
+      URL.revokeObjectURL(previewAudioUrlRef.current);
+    }
+  }, []);
+
   useEffect(() => () => {
     if (settingsSaveTimerRef.current) {
       clearTimeout(settingsSaveTimerRef.current);
@@ -639,6 +740,7 @@ export function App() {
       if (!selected || !selection?.rangeCount) {
         setSelectionSpeechTarget(undefined);
         setSelectionSpeechError("");
+        setSelectionSpeechErrorCode(undefined);
         return;
       }
       const rect = selection.getRangeAt(0).getBoundingClientRect();
@@ -649,6 +751,7 @@ export function App() {
       const y = Math.min(window.innerHeight - 44, Math.max(8, rect.bottom + 8));
       setSelectionSpeechTarget({ text: selected.text, x, y });
       setSelectionSpeechError("");
+      setSelectionSpeechErrorCode(undefined);
       if (
         isAnnotationMode &&
         !hasAnnotationOverlap(annotations, selected)
@@ -687,6 +790,7 @@ export function App() {
           y: Math.min(window.innerHeight - 44, Math.max(8, event.clientY + 8))
         });
         setSelectionSpeechError("");
+        setSelectionSpeechErrorCode(undefined);
       }
       setRangeMenu({
         x: event.clientX,
@@ -721,27 +825,27 @@ export function App() {
       }
       setSelectionSpeechTarget(undefined);
       setSelectionSpeechError("");
+      setSelectionSpeechErrorCode(undefined);
     };
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [selectionSpeechTarget]);
 
   useEffect(() => {
-    selectionSpeechRequestRef.current += 1;
-    if (speakingSelectionTextRef.current) {
-      window.speechSynthesis?.cancel();
-    }
-    speakingSelectionTextRef.current = undefined;
-    setSpeakingSelectionText(undefined);
+    stopSelectionSpeech();
     setSelectionSpeechTarget(undefined);
     setSelectionSpeechError("");
+    setSelectionSpeechErrorCode(undefined);
   }, [mode, selectedBookId, activeChapterId]);
 
-  useEffect(() => () => {
-    selectionSpeechRequestRef.current += 1;
-    if (speakingSelectionTextRef.current) {
-      window.speechSynthesis?.cancel();
-    }
+  useEffect(() => {
+    const api = desktopSelectionSpeech();
+    if (!api) return;
+    const unsubscribe = api.onEvent(handleSelectionSpeechStreamEvent);
+    return () => {
+      unsubscribe();
+      stopSelectionSpeech();
+    };
   }, []);
 
   useEffect(() => {
@@ -988,52 +1092,245 @@ export function App() {
 
   function stopSelectionSpeech() {
     selectionSpeechRequestRef.current += 1;
-    window.speechSynthesis?.cancel();
-    speakingSelectionTextRef.current = undefined;
+    const active = activeSelectionSpeechRef.current;
+    activeSelectionSpeechRef.current = undefined;
+    if (active) {
+      void desktopSelectionSpeech()?.cancel(active.requestId);
+      for (const source of active.sources) {
+        try {
+          source.stop();
+        } catch {
+          // A source that already ended needs no further cleanup.
+        }
+      }
+      void active.context?.close();
+    }
     setSpeakingSelectionText(undefined);
+    setSelectionSpeechPhase(undefined);
   }
 
-  function pronounceSelection(text: string) {
-    setSelectionSpeechError("");
-    if (
-      typeof window.speechSynthesis === "undefined" ||
-      typeof SpeechSynthesisUtterance === "undefined"
-    ) {
-      setSelectionSpeechError("Speech playback is not supported on this device.");
+  function finishSelectionSpeech(requestId: string) {
+    const active = activeSelectionSpeechRef.current;
+    if (!active || active.requestId !== requestId) return;
+    activeSelectionSpeechRef.current = undefined;
+    void active.context?.close();
+    setSpeakingSelectionText(undefined);
+    setSelectionSpeechPhase(undefined);
+  }
+
+  function scheduleSelectionSpeechAudio(
+    active: ActiveSelectionSpeechPlayback,
+    incoming: Uint8Array
+  ) {
+    const joined = new Uint8Array(active.remainder.byteLength + incoming.byteLength);
+    joined.set(active.remainder);
+    joined.set(incoming, active.remainder.byteLength);
+    const completeLength = joined.byteLength - (joined.byteLength % 2);
+    active.remainder = joined.slice(completeLength);
+    if (!completeLength) return;
+
+    const AudioContextConstructor = globalThis.AudioContext;
+    if (!AudioContextConstructor) {
+      throw new Error("Audio playback is not supported on this device.");
+    }
+    const context = active.context ?? new AudioContextConstructor({ sampleRate: 24_000 });
+    active.context = context;
+    if (context.state === "suspended") void context.resume();
+
+    const sampleCount = completeLength / 2;
+    const samples = new Float32Array(sampleCount);
+    const view = new DataView(joined.buffer, joined.byteOffset, completeLength);
+    for (let index = 0; index < sampleCount; index += 1) {
+      samples[index] = view.getInt16(index * 2, true) / 32_768;
+    }
+    const buffer = context.createBuffer(1, sampleCount, 24_000);
+    buffer.copyToChannel(samples, 0);
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    const startTime = Math.max(
+      context.currentTime + (active.started ? 0.01 : 0.04),
+      active.nextStartTime
+    );
+    active.nextStartTime = startTime + buffer.duration;
+    active.started = true;
+    active.sources.add(source);
+    source.onended = () => {
+      active.sources.delete(source);
+      if (active.streamDone && active.sources.size === 0) {
+        finishSelectionSpeech(active.requestId);
+      }
+    };
+    source.start(startTime);
+    setSelectionSpeechPhase("playing");
+  }
+
+  function handleSelectionSpeechStreamEvent(event: SelectionSpeechStreamEvent) {
+    const active = activeSelectionSpeechRef.current;
+    if (!active || active.requestId !== event.requestId) return;
+    if (event.type === "audio") {
+      try {
+        scheduleSelectionSpeechAudio(active, event.audio);
+      } catch (error) {
+        stopSelectionSpeech();
+        setSelectionSpeechError(
+          error instanceof Error ? error.message : "Unable to play AI pronunciation."
+        );
+        setSelectionSpeechErrorCode("service");
+      }
       return;
     }
+    if (event.type === "done") {
+      active.streamDone = true;
+      if (active.sources.size === 0) finishSelectionSpeech(event.requestId);
+      return;
+    }
+    activeSelectionSpeechRef.current = undefined;
+    for (const source of active.sources) {
+      try {
+        source.stop();
+      } catch {
+        // Ignore sources that already ended.
+      }
+    }
+    void active.context?.close();
+    setSpeakingSelectionText(undefined);
+    setSelectionSpeechPhase(undefined);
+    setSelectionSpeechError(event.message);
+    setSelectionSpeechErrorCode(event.code);
+  }
 
-    const requestId = selectionSpeechRequestRef.current + 1;
-    selectionSpeechRequestRef.current = requestId;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      const englishVoice = window.speechSynthesis.getVoices().find((voice) =>
-        voice.lang.toLowerCase().startsWith("en")
+  async function pronounceSelection(text: string) {
+    setSelectionSpeechError("");
+    setSelectionSpeechErrorCode(undefined);
+    const api = desktopSelectionSpeech();
+    if (!aiVoiceSettings.hasApiKey || !api) {
+      setSelectionSpeechError(
+        "Set up AI Voice in Settings before playing selected text."
       );
-      utterance.lang = englishVoice?.lang ?? "en-US";
-      utterance.voice = englishVoice ?? null;
-      utterance.rate = 0.85;
-      utterance.pitch = 1;
-      utterance.onend = () => {
-        if (selectionSpeechRequestRef.current !== requestId) return;
-        speakingSelectionTextRef.current = undefined;
-        setSpeakingSelectionText(undefined);
+      setSelectionSpeechErrorCode("not-configured");
+      setActiveSettingsSection("voice");
+      setIsSettingsOpen(true);
+      return;
+    }
+    stopSelectionSpeech();
+    const revision = selectionSpeechRequestRef.current;
+    setSpeakingSelectionText(text);
+    setSelectionSpeechPhase("loading");
+    try {
+      const { requestId } = await api.start({ text });
+      if (selectionSpeechRequestRef.current !== revision) {
+        void api.cancel(requestId);
+        return;
+      }
+      activeSelectionSpeechRef.current = {
+        requestId,
+        sources: new Set(),
+        nextStartTime: 0,
+        remainder: new Uint8Array(),
+        streamDone: false,
+        started: false
       };
-      utterance.onerror = () => {
-        if (selectionSpeechRequestRef.current !== requestId) return;
-        speakingSelectionTextRef.current = undefined;
-        setSpeakingSelectionText(undefined);
-        setSelectionSpeechError("Unable to play pronunciation. Please try again later.");
-      };
-      speakingSelectionTextRef.current = text;
-      setSpeakingSelectionText(text);
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      selectionSpeechRequestRef.current += 1;
-      speakingSelectionTextRef.current = undefined;
+    } catch (error) {
+      if (selectionSpeechRequestRef.current !== revision) return;
       setSpeakingSelectionText(undefined);
-      setSelectionSpeechError("Unable to play pronunciation. Please try again later.");
+      setSelectionSpeechPhase(undefined);
+      setSelectionSpeechError(
+        error instanceof Error ? error.message : "Unable to start AI pronunciation."
+      );
+      setSelectionSpeechErrorCode("service");
+    }
+  }
+
+  function playAiVoicePreview(audio: Uint8Array) {
+    if (!audio.byteLength || typeof Audio === "undefined") return;
+    previewAudioRef.current?.pause();
+    if (previewAudioUrlRef.current) {
+      URL.revokeObjectURL(previewAudioUrlRef.current);
+    }
+    const previewBytes = new Uint8Array(audio.byteLength);
+    previewBytes.set(audio);
+    const url = URL.createObjectURL(new Blob(
+      [previewBytes.buffer],
+      { type: "audio/wav" }
+    ));
+    const player = new Audio(url);
+    previewAudioRef.current = player;
+    previewAudioUrlRef.current = url;
+    const release = () => {
+      if (previewAudioUrlRef.current !== url) return;
+      URL.revokeObjectURL(url);
+      previewAudioUrlRef.current = undefined;
+      previewAudioRef.current = undefined;
+    };
+    player.addEventListener("ended", release, { once: true });
+    player.addEventListener("error", release, { once: true });
+    void player.play().catch(() => {
+      setAiVoiceError("The settings were applied, but the preview could not play.");
+      release();
+    });
+  }
+
+  async function applyAiVoiceSettings() {
+    const api = desktopSelectionSpeech();
+    if (!api) {
+      setAiVoiceError("AI Voice is not available in this build.");
+      return;
+    }
+    setIsAiVoiceApplying(true);
+    setAiVoiceError("");
+    setAiVoiceMessage("");
+    try {
+      const result = await api.applySettings({
+        ...(aiVoiceApiKey.trim() ? { apiKey: aiVoiceApiKey } : {}),
+        voice: aiVoiceDraft.voice,
+        tone: aiVoiceDraft.tone
+      });
+      setAiVoiceSettings(result.settings);
+      setAiVoiceDraft({
+        voice: result.settings.voice,
+        tone: result.settings.tone
+      });
+      setSettings((current) => ({
+        ...current,
+        selectionSpeechVoice: result.settings.voice,
+        selectionSpeechTone: result.settings.tone
+      }));
+      setAiVoiceApiKey("");
+      setIsAiVoiceKeyVisible(false);
+      setIsReplacingAiVoiceKey(false);
+      setAiVoiceMessage("AI Voice settings applied. Previewing the selected voice.");
+      playAiVoicePreview(result.previewAudio);
+    } catch (error) {
+      setAiVoiceError(
+        error instanceof Error ? error.message : "Unable to apply AI Voice settings."
+      );
+    } finally {
+      setIsAiVoiceApplying(false);
+    }
+  }
+
+  async function removeAiVoiceApiKey() {
+    const api = desktopSelectionSpeech();
+    if (!api) return;
+    setIsAiVoiceApplying(true);
+    setAiVoiceError("");
+    setAiVoiceMessage("");
+    try {
+      const next = await api.removeApiKey();
+      setAiVoiceSettings(next);
+      setAiVoiceDraft({ voice: next.voice, tone: next.tone });
+      setAiVoiceApiKey("");
+      setIsAiVoiceKeyVisible(false);
+      setIsReplacingAiVoiceKey(false);
+      setAiVoiceMessage("OpenAI API key removed.");
+      stopSelectionSpeech();
+    } catch (error) {
+      setAiVoiceError(
+        error instanceof Error ? error.message : "Unable to remove the API key."
+      );
+    } finally {
+      setIsAiVoiceApplying(false);
     }
   }
 
@@ -2298,7 +2595,7 @@ export function App() {
                         ref={selectionSpeechRef}
                         className={`selection-speech-action${
                           speakingSelectionText === selectionSpeechTarget.text
-                            ? " is-speaking"
+                            ? ` is-speaking is-${selectionSpeechPhase ?? "loading"}`
                             : ""
                         }`}
                         type="button"
@@ -2308,7 +2605,12 @@ export function App() {
                             : "Pronounce selected text"
                         }
                         style={{
-                          left: selectionSpeechTarget.x,
+                          left: speakingSelectionText === selectionSpeechTarget.text
+                            ? Math.min(
+                                window.innerWidth - 144,
+                                Math.max(144, selectionSpeechTarget.x)
+                              )
+                            : selectionSpeechTarget.x,
                           top: selectionSpeechTarget.y
                         }}
                         onMouseDown={(event) => event.preventDefault()}
@@ -2316,32 +2618,81 @@ export function App() {
                           if (speakingSelectionText === selectionSpeechTarget.text) {
                             stopSelectionSpeech();
                           } else {
-                            pronounceSelection(selectionSpeechTarget.text);
+                            void pronounceSelection(selectionSpeechTarget.text);
                           }
                         }}
                       >
                         {speakingSelectionText === selectionSpeechTarget.text ? (
-                          <Square aria-hidden="true" fill="currentColor" />
+                          <>
+                            <span className="selection-speech-activity" aria-hidden="true">
+                              {selectionSpeechPhase === "playing" ? (
+                                <span className="selection-speech-equalizer">
+                                  <span />
+                                  <span />
+                                  <span />
+                                </span>
+                              ) : (
+                                <LoaderCircle className="selection-speech-spinner" />
+                              )}
+                            </span>
+                            <span className="selection-speech-copy">
+                              <span role="status" aria-live="polite">
+                                {selectionSpeechPhase === "playing"
+                                  ? "Playing selected text"
+                                  : "Generating AI voice…"}
+                              </span>
+                              <small>
+                                {selectionSpeechVoiceLabels[aiVoiceSettings.voice]}
+                                {" · "}
+                                {selectionSpeechToneLabels[aiVoiceSettings.tone]}
+                              </small>
+                            </span>
+                            <span className="selection-speech-stop" aria-hidden="true">
+                              <Square fill="currentColor" />
+                              <span>Stop</span>
+                            </span>
+                          </>
                         ) : (
-                          <Volume2 aria-hidden="true" />
+                          <>
+                            <Volume2 aria-hidden="true" />
+                            <span>Pronounce</span>
+                          </>
                         )}
-                        <span>
-                          {speakingSelectionText === selectionSpeechTarget.text
-                            ? "Stop"
-                            : "Pronounce"}
-                        </span>
                       </button>
                       {selectionSpeechError ? (
-                        <p
+                        <div
                           className="selection-speech-error"
-                          role="status"
                           style={{
                             left: selectionSpeechTarget.x,
                             top: selectionSpeechTarget.y + 42
                           }}
                         >
-                          {selectionSpeechError}
-                        </p>
+                          <p role="status">{selectionSpeechError}</p>
+                          <div className="selection-speech-error-actions">
+                            {selectionSpeechErrorCode !== "not-configured" ? (
+                              <button
+                                type="button"
+                                onClick={() => void pronounceSelection(
+                                  selectionSpeechTarget.text
+                                )}
+                              >
+                                Retry
+                              </button>
+                            ) : null}
+                            {selectionSpeechErrorCode === "auth" ||
+                            selectionSpeechErrorCode === "not-configured" ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveSettingsSection("voice");
+                                  setIsSettingsOpen(true);
+                                }}
+                              >
+                                Open AI Voice Settings
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
                       ) : null}
                     </>
                   ) : null}
@@ -2372,7 +2723,7 @@ export function App() {
                             role="menuitem"
                             type="button"
                             onClick={() => {
-                              pronounceSelection(rangeMenu.selection!.text);
+                              void pronounceSelection(rangeMenu.selection!.text);
                               setRangeMenu(undefined);
                             }}
                           >
@@ -2958,6 +3309,16 @@ export function App() {
               <button
                 type="button"
                 role="tab"
+                id="settings-tab-voice"
+                aria-selected={activeSettingsSection === "voice"}
+                aria-controls="settings-panel-voice"
+                onClick={() => setActiveSettingsSection("voice")}
+              >
+                AI Voice
+              </button>
+              <button
+                type="button"
+                role="tab"
                 id="settings-tab-account"
                 aria-selected={activeSettingsSection === "account"}
                 aria-controls="settings-panel-account"
@@ -3170,6 +3531,312 @@ export function App() {
                     />
                   </div>
                 </fieldset>
+              </section>
+            ) : null}
+            {activeSettingsSection === "voice" ? (
+              <section
+                className="settings-panel"
+                role="tabpanel"
+                id="settings-panel-voice"
+                aria-labelledby="settings-tab-voice"
+              >
+                <div className="settings-section-intro ai-voice-intro">
+                  <h3>Build your reading voice</h3>
+                </div>
+                <section className="ai-voice-key-card">
+                  <div className="ai-voice-key-heading">
+                    <div>
+                      <span className="ai-voice-heading-icon" aria-hidden="true">
+                        <KeyRound />
+                      </span>
+                      <div>
+                        <label
+                          id="ai-voice-key-label"
+                          htmlFor={aiVoiceSettings.hasApiKey && !isReplacingAiVoiceKey
+                            ? undefined
+                            : "ai-voice-api-key"}
+                        >
+                          OpenAI API key
+                        </label>
+                        <span>Used only to generate your selected-text audio.</span>
+                      </div>
+                    </div>
+                    <strong className={`ai-voice-status ${
+                      aiVoiceSettings.hasApiKey ? "is-configured" : ""
+                    }`}>
+                      {aiVoiceSettings.hasApiKey ? <Check aria-hidden="true" /> : null}
+                      {aiVoiceSettings.hasApiKey ? "Configured" : "Required"}
+                    </strong>
+                  </div>
+                  {aiVoiceSettings.hasApiKey && !isReplacingAiVoiceKey ? (
+                    <div className="ai-voice-key-input ai-voice-saved-key">
+                      <LockKeyhole aria-hidden="true" />
+                      <span aria-label="Saved API key">
+                        <strong>•••• •••• •••• ••••</strong>
+                        <small>Saved securely</small>
+                      </span>
+                      <button
+                        type="button"
+                        className="ai-voice-replace-key"
+                        disabled={isAiVoiceApplying}
+                        onClick={() => {
+                          setIsReplacingAiVoiceKey(true);
+                          setAiVoiceApiKey("");
+                          setIsAiVoiceKeyVisible(false);
+                        }}
+                      >
+                        Replace
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="ai-voice-key-input">
+                      <KeyRound aria-hidden="true" />
+                      <input
+                        id="ai-voice-api-key"
+                        aria-label="OpenAI API key"
+                        type={isAiVoiceKeyVisible ? "text" : "password"}
+                        autoComplete="off"
+                        spellCheck="false"
+                        value={aiVoiceApiKey}
+                        placeholder={aiVoiceSettings.hasApiKey
+                          ? "Paste a new key to replace the saved key"
+                          : "Paste your OpenAI API key"}
+                        disabled={isAiVoiceApplying}
+                        onChange={(event) => setAiVoiceApiKey(event.target.value)}
+                      />
+                      <button
+                        type="button"
+                        aria-label={isAiVoiceKeyVisible ? "Hide API key" : "Show API key"}
+                        disabled={isAiVoiceApplying || !aiVoiceApiKey}
+                        onClick={() => setIsAiVoiceKeyVisible((current) => !current)}
+                      >
+                        {isAiVoiceKeyVisible
+                          ? <EyeOff aria-hidden="true" />
+                          : <Eye aria-hidden="true" />}
+                      </button>
+                    </div>
+                  )}
+                  <p className="ai-voice-security-note">
+                    <LockKeyhole aria-hidden="true" />
+                    Encrypted on this device. The original value is never shown or
+                    included in backups.
+                  </p>
+                </section>
+
+                <fieldset className="ai-voice-choice-section">
+                  <legend>Choose a voice</legend>
+                  <div className="ai-voice-choice-grid">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={aiVoiceDraft.voice === "cedar"}
+                      aria-label="Cedar voice, clear and steady"
+                      className={aiVoiceDraft.voice === "cedar" ? "is-selected" : ""}
+                      disabled={isAiVoiceApplying}
+                      onClick={() => setAiVoiceDraft((current) => ({
+                        ...current,
+                        voice: "cedar"
+                      }))}
+                    >
+                      <span className="ai-voice-choice-icon cedar" aria-hidden="true">
+                        <Focus />
+                      </span>
+                      <span><strong>Cedar</strong><small>Clear &amp; steady</small></span>
+                      {aiVoiceDraft.voice === "cedar"
+                        ? <Check className="ai-voice-choice-check" aria-hidden="true" />
+                        : null}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={aiVoiceDraft.voice === "marin"}
+                      aria-label="Marin voice, warm and natural"
+                      className={aiVoiceDraft.voice === "marin" ? "is-selected" : ""}
+                      disabled={isAiVoiceApplying}
+                      onClick={() => setAiVoiceDraft((current) => ({
+                        ...current,
+                        voice: "marin"
+                      }))}
+                    >
+                      <span className="ai-voice-choice-icon marin" aria-hidden="true">
+                        <Waves />
+                      </span>
+                      <span><strong>Marin</strong><small>Warm &amp; natural</small></span>
+                      {aiVoiceDraft.voice === "marin"
+                        ? <Check className="ai-voice-choice-check" aria-hidden="true" />
+                        : null}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={aiVoiceDraft.voice === "coral"}
+                      aria-label="Coral voice, bright and friendly"
+                      className={aiVoiceDraft.voice === "coral" ? "is-selected" : ""}
+                      disabled={isAiVoiceApplying}
+                      onClick={() => setAiVoiceDraft((current) => ({
+                        ...current,
+                        voice: "coral"
+                      }))}
+                    >
+                      <span className="ai-voice-choice-icon coral" aria-hidden="true">
+                        <SunMedium />
+                      </span>
+                      <span><strong>Coral</strong><small>Bright &amp; friendly</small></span>
+                      {aiVoiceDraft.voice === "coral"
+                        ? <Check className="ai-voice-choice-check" aria-hidden="true" />
+                        : null}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={aiVoiceDraft.voice === "onyx"}
+                      aria-label="Onyx voice, deep and narrative"
+                      className={aiVoiceDraft.voice === "onyx" ? "is-selected" : ""}
+                      disabled={isAiVoiceApplying}
+                      onClick={() => setAiVoiceDraft((current) => ({
+                        ...current,
+                        voice: "onyx"
+                      }))}
+                    >
+                      <span className="ai-voice-choice-icon onyx" aria-hidden="true">
+                        <MoonStar />
+                      </span>
+                      <span><strong>Onyx</strong><small>Deep &amp; narrative</small></span>
+                      {aiVoiceDraft.voice === "onyx"
+                        ? <Check className="ai-voice-choice-check" aria-hidden="true" />
+                        : null}
+                    </button>
+                  </div>
+                </fieldset>
+
+                <fieldset className="ai-voice-choice-section ai-voice-tone-section">
+                  <legend>Choose a tone</legend>
+                  <div className="ai-voice-choice-grid">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={aiVoiceDraft.tone === "learning"}
+                      aria-label="Learning tone, clear and slightly slower"
+                      className={aiVoiceDraft.tone === "learning" ? "is-selected" : ""}
+                      disabled={isAiVoiceApplying}
+                      onClick={() => setAiVoiceDraft((current) => ({
+                        ...current,
+                        tone: "learning"
+                      }))}
+                    >
+                      <span className="ai-voice-choice-icon learning" aria-hidden="true">
+                        <GraduationCap />
+                      </span>
+                      <span><strong>Learning</strong><small>Clear &amp; slower</small></span>
+                      {aiVoiceDraft.tone === "learning"
+                        ? <Check className="ai-voice-choice-check" aria-hidden="true" />
+                        : null}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={aiVoiceDraft.tone === "natural"}
+                      aria-label="Natural tone, everyday reading pace"
+                      className={aiVoiceDraft.tone === "natural" ? "is-selected" : ""}
+                      disabled={isAiVoiceApplying}
+                      onClick={() => setAiVoiceDraft((current) => ({
+                        ...current,
+                        tone: "natural"
+                      }))}
+                    >
+                      <span className="ai-voice-choice-icon natural" aria-hidden="true">
+                        <MessageCircle />
+                      </span>
+                      <span><strong>Natural</strong><small>Everyday pace</small></span>
+                      {aiVoiceDraft.tone === "natural"
+                        ? <Check className="ai-voice-choice-check" aria-hidden="true" />
+                        : null}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={aiVoiceDraft.tone === "calm"}
+                      aria-label="Calm tone, gentle with measured pauses"
+                      className={aiVoiceDraft.tone === "calm" ? "is-selected" : ""}
+                      disabled={isAiVoiceApplying}
+                      onClick={() => setAiVoiceDraft((current) => ({
+                        ...current,
+                        tone: "calm"
+                      }))}
+                    >
+                      <span className="ai-voice-choice-icon calm" aria-hidden="true">
+                        <Leaf />
+                      </span>
+                      <span><strong>Calm</strong><small>Gentle pauses</small></span>
+                      {aiVoiceDraft.tone === "calm"
+                        ? <Check className="ai-voice-choice-check" aria-hidden="true" />
+                        : null}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={aiVoiceDraft.tone === "expressive"}
+                      aria-label="Expressive tone, restrained storytelling"
+                      className={aiVoiceDraft.tone === "expressive" ? "is-selected" : ""}
+                      disabled={isAiVoiceApplying}
+                      onClick={() => setAiVoiceDraft((current) => ({
+                        ...current,
+                        tone: "expressive"
+                      }))}
+                    >
+                      <span className="ai-voice-choice-icon expressive" aria-hidden="true">
+                        <Drama />
+                      </span>
+                      <span><strong>Expressive</strong><small>Storytelling</small></span>
+                      {aiVoiceDraft.tone === "expressive"
+                        ? <Check className="ai-voice-choice-check" aria-hidden="true" />
+                        : null}
+                    </button>
+                  </div>
+                </fieldset>
+
+                <div className="ai-voice-apply-panel">
+                  <div>
+                    <Sparkles aria-hidden="true" />
+                    <span>
+                      <strong>{aiVoiceDraft.voice} · {aiVoiceDraft.tone}</strong>
+                      <small>AI-generated · uses your OpenAI credits</small>
+                    </span>
+                  </div>
+                  <div className="ai-voice-actions">
+                    {aiVoiceSettings.hasApiKey ? (
+                      <button
+                        className="ai-voice-remove-key"
+                        type="button"
+                        onClick={() => void removeAiVoiceApiKey()}
+                        disabled={isAiVoiceApplying}
+                      >
+                        Remove key
+                      </button>
+                    ) : null}
+                    <button
+                      className="ai-voice-apply"
+                      type="button"
+                      onClick={() => void applyAiVoiceSettings()}
+                      disabled={isAiVoiceApplying ||
+                        (!aiVoiceSettings.hasApiKey && !aiVoiceApiKey.trim())}
+                    >
+                      {isAiVoiceApplying ? (
+                        <><LoaderCircle aria-hidden="true" /> Applying…</>
+                      ) : (
+                        <><Volume2 aria-hidden="true" /> Apply and preview</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                {aiVoiceMessage ? (
+                  <output className="data-backup-message">{aiVoiceMessage}</output>
+                ) : null}
+                {aiVoiceError ? (
+                  <small className="data-backup-error" role="alert">
+                    {aiVoiceError}
+                  </small>
+                ) : null}
               </section>
             ) : null}
             {settingsError ? <small role="alert">{settingsError}</small> : null}
