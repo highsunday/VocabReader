@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatDesktopApi, ChatSnapshot } from "../shared/chat-contracts";
 import type { LibraryBook } from "../shared/library-contracts";
+import type { ListenRepeatDesktopApi } from "../shared/listen-repeat-contracts";
 import type {
   LearningDesktopApi,
   LearningItem,
@@ -222,6 +223,26 @@ function installLibraryApi(
     submit: vi.fn(),
     generateExamples: vi.fn()
   };
+  const listenRepeat = {
+    getSnapshot: vi.fn(async () => ({
+      practice: null,
+      progress: {
+        shortCompleted: 0,
+        shortTotal: 0,
+        longCompleted: 0,
+        longTotal: 0,
+        complete: false
+      },
+      hasAiVoice: false
+    })),
+    saveDraft: vi.fn(),
+    process: vi.fn(),
+    saveRecording: vi.fn(),
+    getRecording: vi.fn(),
+    prepareAiAudio: vi.fn(),
+    cancelAiAudio: vi.fn(async () => undefined),
+    clear: vi.fn()
+  } satisfies ListenRepeatDesktopApi;
   Object.defineProperty(window, "readerDesktop", {
     configurable: true,
     value: {
@@ -239,6 +260,7 @@ function installLibraryApi(
       learning,
       review,
       sentencePractice,
+      listenRepeat,
       settings: { get: getSettings, save: saveSettings },
       selectionSpeech,
       dataBackup,
@@ -258,7 +280,8 @@ function installLibraryApi(
     dataBackup,
     learning,
     review,
-    sentencePractice
+    sentencePractice,
+    listenRepeat
   };
 }
 
@@ -1415,6 +1438,23 @@ describe("App", () => {
       .toBeInTheDocument();
     expect(sentencePractice.getSnapshot).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/does not change review scheduling/))
+      .toBeInTheDocument();
+  });
+
+  it("opens Listen & Repeat immediately after Sentence Practice", async () => {
+    installLibraryApi();
+    render(<App />);
+
+    const sentence = await screen.findByRole("button", { name: "Sentence Practice" });
+    const listenRepeat = screen.getByRole("button", { name: "Listen & Repeat" });
+    expect(sentence.compareDocumentPosition(listenRepeat) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+
+    fireEvent.click(listenRepeat);
+
+    expect(await screen.findByRole("heading", { name: "Listen & Repeat Practice" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expand right sidebar" }))
       .toBeInTheDocument();
   });
 

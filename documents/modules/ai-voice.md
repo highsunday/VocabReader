@@ -1,11 +1,12 @@
 ---
-title: AI 語音與選取朗讀模組
+title: AI 語音、選取朗讀與跟讀示範模組
 module: ai-voice
 status: active
 last_updated: 2026-08-10
 related_implements:
   - F56-speak-selected-reader-text
   - F57-ai-selection-speech
+  - F58-listen-and-repeat-practice
 ---
 
 # AI 語音與選取朗讀模組
@@ -16,9 +17,9 @@ related_implements:
 設定產生並播放英文語音。它負責 AI Voice 設定、API key 安全保存、OpenAI Speech API
 請求、長選取成本提醒、文字分段、PCM 串流播放、停止／取消與暫態音訊快取。
 
-本模組只處理章節原文的**選取朗讀（Selection Speech）**。學習項目詳情中的發音仍由裝置
-Web Speech API 提供，不使用 OpenAI、AI Voice 設定或使用者的 API 額度。Codex App Server
-也不參與語音產生或憑證轉送。
+本模組同時供章節原文的**選取朗讀（Selection Speech）**與 Listen & Repeat 的 **AI 示範
+語音**共用同一組安全 credential、voice 與 tone。兩個 consumer 的 instructions、format、
+cache 與 cancellation 彼此隔離。學習項目詳情中的發音仍由裝置 Web Speech API 提供。
 
 ## 2. Current Implementation Status
 
@@ -41,6 +42,9 @@ Web Speech API 提供，不使用 OpenAI、AI Voice 設定或使用者的 API �
   LRU 快取重用，不重複產生費用。
 - 401／403、429、網路及服務錯誤會轉成安全、可操作的錯誤；不顯示供應商 response body，
   也不自動 fallback 到裝置語音。
+- Listen & Repeat 以 exact chunk、語言中性 instructions 產生完整 WAV，依 model、instruction
+  revision、voice、tone 與本文 fingerprint 持久化於目前練習；跨 App restart 命中不重送。
+- Listen & Repeat 的 Continuous mode 最多準備目前與下一 chunk，停止時取消未完成 request。
 
 ## 3. Product and Domain Boundaries
 
@@ -70,6 +74,13 @@ Selection 的擷取、章節內 offset 驗證及與標記模式共存仍屬於 A
 `LearningLibraryWorkspace` 中的學習項目發音是另一個產品能力，固定沿用裝置
 `speechSynthesis`、英文 voice、`rate 0.85` 與 `pitch 1`。AI Voice key、tone、快取、錯誤或
 移除設定都不得改變它。
+
+### Listen & Repeat AI Model Audio
+
+跟讀示範只接受已驗證 current practice 的 chunk ID；Main 從 store 取得 exact text，Renderer
+不能自訂 TTS instructions、model 或 endpoint。instructions 固定要求維持 input 的原語言與
+每個字元，再套用相同 tone 意圖。音訊使用 WAV disk cache，不進 Selection Speech 的 PCM
+LRU，也不加入 Data Backup。
 
 ## 4. Voice and Tone Configuration
 
@@ -180,6 +191,10 @@ Main Process 以 request ID 與 `AbortController` 管理 active request，並透
 
 停止或取代播放會 abort 目前正在進行的 request，後續尚未開始的文字片段不再送出。已由
 OpenAI 完成產生或已回傳的音訊仍可能已計費，因此 Stop 不能保證把當次費用降為零。
+
+Listen & Repeat 另使用 `listen-repeat-v1` fingerprint 與 current-practice disk cache；voice、
+tone、model、instruction revision 或 exact text 不同即 miss。新音訊 metadata 成功後淘汰同
+chunk 舊 fingerprint，learner recording 不受影響。建立新練習或 Clear 會刪除整個舊 cache。
 
 ## 9. Error Model
 

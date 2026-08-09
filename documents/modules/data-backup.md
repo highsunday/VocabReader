@@ -127,6 +127,8 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 
 - chat conversation store 與 AI 草稿。
 - settings store。
+- `userData/listen-and-repeat` 的目前素材、片段、學習者錄音與 AI 示範語音；restore 也不
+  覆寫、搬移或清除這個專用路徑。
 - Codex 帳戶、登入、模型、skills 或 runtime。
 - `SpacedReviewController` 記憶體中的試卷、答案、詳細回饋與未確認評級。
 
@@ -147,7 +149,7 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 
 | Test file | Coverage |
 |---|---|
-| `data-backup-service.test.ts` | 完整／空備份、失效閱讀章節正規化、驗證、預覽、取代、loader、rollback 與安全拒絕 |
+| `data-backup-service.test.ts` | 完整／空備份、失效閱讀章節正規化、驗證、預覽、取代、listen-and-repeat 排除、loader、rollback 與安全拒絕 |
 | `data-restore-restart.test.ts` | 開發版不退出程序、正式版 relaunch／exit |
 | `data-backup-ipc.test.ts` | Main-owned path、dialog、取消、附檔名與 token |
 | `library-service.test.ts` | 書庫 idle boundary |

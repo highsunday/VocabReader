@@ -3,6 +3,7 @@
 import type { ChatDesktopApi } from "../shared/chat-contracts";
 import type { DataBackupDesktopApi } from "../shared/data-backup-contracts";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
+import type { ListenRepeatDesktopApi } from "../shared/listen-repeat-contracts";
 import type { SettingsDesktopApi } from "../shared/settings-contracts";
 import type { SentencePracticeDesktopApi } from "../shared/sentence-practice-contracts";
 import type { SelectionSpeechDesktopApi } from "../shared/selection-speech-contracts";
@@ -53,6 +54,7 @@ interface ReaderDesktopApi {
   };
   learning: LearningDesktopApi;
   sentencePractice: SentencePracticeDesktopApi;
+  listenRepeat: ListenRepeatDesktopApi;
   settings: SettingsDesktopApi;
   selectionSpeech: SelectionSpeechDesktopApi;
   dataBackup: DataBackupDesktopApi;

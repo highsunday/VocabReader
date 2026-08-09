@@ -21,7 +21,8 @@ function installBundledSkill(
     | "create-learning-items"
     | "edit-learning-item"
     | "practice-spaced-review"
-    | "practice-integrated-sentences",
+    | "practice-integrated-sentences"
+    | "prepare-listen-and-repeat-practice",
   markdown: string
 ): BundledSkillInstallResult {
   const path = join(
@@ -109,6 +110,17 @@ export function installBundledSentencePracticeSkill(
   return installBundledSkill(
     runtimePath,
     "practice-integrated-sentences",
+    markdown
+  );
+}
+
+export function installBundledListenRepeatSkill(
+  runtimePath: string,
+  markdown: string
+): BundledSkillInstallResult {
+  return installBundledSkill(
+    runtimePath,
+    "prepare-listen-and-repeat-practice",
     markdown
   );
 }

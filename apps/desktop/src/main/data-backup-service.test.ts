@@ -261,6 +261,11 @@ describe("DataBackupService", () => {
       cautionNote: ""
     });
     await sourceLearning.trashItem(sourceItems[0].id);
+    await mkdir(join(root, "source", "listen-and-repeat"), { recursive: true });
+    await writeFile(
+      join(root, "source", "listen-and-repeat", "current.json"),
+      "source local practice"
+    );
     const archivePath = join(root, "portable.zip");
     const sourceService = new DataBackupService({
       libraryPath: sourceLibraryPath,
@@ -277,6 +282,10 @@ describe("DataBackupService", () => {
       relaunch: () => undefined
     });
     await sourceService.exportToPath(archivePath);
+    const portableArchive = await JSZip.loadAsync(await readFile(archivePath));
+    expect(Object.keys(portableArchive.files).some((path) =>
+      path.includes("listen-and-repeat")
+    )).toBe(false);
 
     const targetLibraryPath = join(root, "target", "library");
     const targetLearningPath = join(
@@ -291,8 +300,13 @@ describe("DataBackupService", () => {
     await targetLearning.listItems({ status: "active", sort: "recent" });
     await mkdir(join(root, "target", "settings"), { recursive: true });
     await mkdir(join(root, "target", "chat"), { recursive: true });
+    await mkdir(join(root, "target", "listen-and-repeat"), { recursive: true });
     await writeFile(join(root, "target", "settings", "settings.json"), "local settings");
     await writeFile(join(root, "target", "chat", "index.json"), "local chat");
+    await writeFile(
+      join(root, "target", "listen-and-repeat", "current.json"),
+      "target local practice"
+    );
     let relaunchCount = 0;
     const targetService = new DataBackupService({
       libraryPath: targetLibraryPath,
@@ -368,6 +382,10 @@ describe("DataBackupService", () => {
       join(root, "target", "chat", "index.json"),
       "utf8"
     )).toBe("local chat");
+    expect(await readFile(
+      join(root, "target", "listen-and-repeat", "current.json"),
+      "utf8"
+    )).toBe("target local practice");
     expect(relaunchCount).toBe(1);
   });
 

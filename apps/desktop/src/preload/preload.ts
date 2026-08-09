@@ -41,6 +41,12 @@ import type {
   SubmitSentencePracticeInput
 } from "../shared/sentence-practice-contracts";
 import type {
+  ListenRepeatDesktopApi,
+  ListenRepeatMode,
+  ProcessListenRepeatInput,
+  SaveListenRepeatRecordingInput
+} from "../shared/listen-repeat-contracts";
+import type {
   AppSettings,
   SettingsDesktopApi
 } from "../shared/settings-contracts";
@@ -136,6 +142,22 @@ const desktopApi = Object.freeze({
     generateExamples: (input: GenerateSentencePracticeExamplesInput) =>
       ipcRenderer.invoke("sentence-practice:examples", input)
   } satisfies SentencePracticeDesktopApi),
+  listenRepeat: Object.freeze({
+    getSnapshot: () => ipcRenderer.invoke("listen-repeat:snapshot"),
+    saveDraft: (input: { material: string; mode: ListenRepeatMode }) =>
+      ipcRenderer.invoke("listen-repeat:draft", input),
+    process: (input: ProcessListenRepeatInput) =>
+      ipcRenderer.invoke("listen-repeat:process", input),
+    saveRecording: (input: SaveListenRepeatRecordingInput) =>
+      ipcRenderer.invoke("listen-repeat:save-recording", input),
+    getRecording: (input: { practiceId: string; chunkId: string }) =>
+      ipcRenderer.invoke("listen-repeat:recording", input),
+    prepareAiAudio: (input: { practiceId: string; chunkId: string }) =>
+      ipcRenderer.invoke("listen-repeat:ai-audio", input),
+    cancelAiAudio: (input: { practiceId: string; chunkId?: string }) =>
+      ipcRenderer.invoke("listen-repeat:cancel-ai-audio", input),
+    clear: () => ipcRenderer.invoke("listen-repeat:clear")
+  } satisfies ListenRepeatDesktopApi),
   settings: Object.freeze({
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
     save: (settings: AppSettings): Promise<AppSettings> =>

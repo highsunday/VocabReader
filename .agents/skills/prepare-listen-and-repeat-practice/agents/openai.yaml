@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prepare Listen & Repeat"
+  short_description: "Split exact source text into practice chunks"
+  default_prompt: "Use $prepare-listen-and-repeat-practice to segment this App-supplied practice passage."

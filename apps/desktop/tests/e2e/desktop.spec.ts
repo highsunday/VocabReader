@@ -1,9 +1,88 @@
 import { _electron as electron, expect, test } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const desktopApp = fileURLToPath(new URL("../..", import.meta.url));
+
+test("presents a ready Listen & Repeat practice as a focused learning path", async () => {
+  const electronApp = await electron.launch({
+    args: [desktopApp],
+    env: {
+      ...process.env,
+      NODE_ENV: "test"
+    }
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    const runtime = await electronApp.evaluate(({ app }) => ({
+      temporaryPath: app.getPath("temp"),
+      processId: process.pid
+    }));
+    const practiceRoot = join(
+      runtime.temporaryPath,
+      `vocabreader-listen-repeat-test-${runtime.processId}`
+    );
+    mkdirSync(join(practiceRoot, "recordings"), { recursive: true });
+    writeFileSync(join(practiceRoot, "recordings", "short-1.webm"), Buffer.from([1, 2, 3]));
+    writeFileSync(join(practiceRoot, "current.json"), `${JSON.stringify({
+      id: "ui-practice",
+      material: "Every small phrase builds your speaking confidence.",
+      mode: "progressive",
+      phase: "ready",
+      error: null,
+      createdAt: "2026-08-10T00:00:00.000Z",
+      updatedAt: "2026-08-10T00:00:00.000Z",
+      longChunks: [{
+        id: "long-1",
+        kind: "long",
+        text: "Every small phrase builds your speaking confidence.",
+        parentId: null,
+        recording: null,
+        aiAudio: null,
+        recordingUnlocked: false,
+        shortChunks: [{
+          id: "short-1",
+          kind: "short",
+          text: "Every small phrase ",
+          parentId: "long-1",
+          recording: {
+            mimeType: "audio/webm",
+            bytes: 3,
+            updatedAt: "2026-08-10T00:00:00.000Z"
+          },
+          recordingFile: "short-1.webm",
+          aiAudio: null,
+          recordingUnlocked: true,
+          shortChunks: []
+        }, {
+          id: "short-2",
+          kind: "short",
+          text: "builds your speaking confidence.",
+          parentId: "long-1",
+          recording: null,
+          aiAudio: null,
+          recordingUnlocked: true,
+          shortChunks: []
+        }]
+      }]
+    }, null, 2)}\n`, "utf8");
+
+    await page.getByRole("button", { name: "Listen & Repeat" }).click();
+    await expect(page.getByRole("heading", { name: "Listen & Repeat Practice" }))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "Back to material" })).toBeVisible();
+    await expect(page.getByLabel("Practice material")).not.toBeAttached();
+    await expect(page.getByText("Short 1/2")).toBeVisible();
+    await expect(page.getByText("Long 0/1")).toBeVisible();
+    await expect(page.getByText("Sentence 1")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Play AI for short chunk 1" }))
+      .toBeVisible();
+  } finally {
+    await electronApp.close();
+  }
+});
 
 test("launches the secure Electron reading shell", async () => {
   const electronApp = await electron.launch({
@@ -64,6 +143,14 @@ test("launches the secure Electron reading shell", async () => {
       .toContain("name: practice-spaced-review");
     expect(installedReviewSkill)
       .toContain("review-grade");
+    const installedListenRepeatSkill = readFileSync(join(
+      userDataPath,
+      "codex-runtime/.agents/skills/prepare-listen-and-repeat-practice/SKILL.md"
+    ), "utf8");
+    expect(installedListenRepeatSkill)
+      .toContain("name: prepare-listen-and-repeat-practice");
+    expect(installedListenRepeatSkill)
+      .toContain("exactly reconstruct");
     await expect(page).toHaveTitle("VocabReader");
     await expect(page.getByText("VocabReader", { exact: true })).toBeVisible();
     const brandIcon = page.locator("img.brand-mark");
@@ -81,6 +168,26 @@ test("launches the secure Electron reading shell", async () => {
     await expect(page.getByRole("button", { name: "Conversation history" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
     await expect(page.getByLabel("Codex status")).toBeVisible();
+    const sentencePracticeEntry = page.getByRole("button", {
+      name: "Sentence Practice"
+    });
+    const listenRepeatEntry = page.getByRole("button", {
+      name: "Listen & Repeat"
+    });
+    await expect(sentencePracticeEntry).toBeVisible();
+    await expect(listenRepeatEntry).toBeVisible();
+    expect(await sentencePracticeEntry.evaluate((sentence) => {
+      const listen = document.querySelector('[aria-label="Listen & Repeat"]');
+      return Boolean(listen && sentence.compareDocumentPosition(listen) &
+        Node.DOCUMENT_POSITION_FOLLOWING);
+    })).toBe(true);
+    await listenRepeatEntry.click();
+    await expect(page.getByRole("heading", {
+      name: "Listen & Repeat Practice"
+    })).toBeVisible();
+    await expect(page.getByLabel("Practice material")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Process with AI" }))
+      .toBeDisabled();
 
     const annotationToolVisual = await page.evaluate(() => {
       const content = document.querySelector<HTMLElement>(".content");
@@ -181,11 +288,14 @@ test("launches the secure Electron reading shell", async () => {
     await annotationProbe.evaluate((element) => element.remove());
     await selectionSpeechProbe.evaluate((element) => element.remove());
 
+    await page.getByRole("button", { name: "Expand right sidebar" }).click();
     const assistantPanel = page.getByLabel("AI Tutor");
     const resizeHandle = page.getByRole("separator", {
       name: "Resize AI conversation panel"
     });
     await expect(resizeHandle).toBeVisible();
+    await expect.poll(async () => (await assistantPanel.boundingBox())?.width)
+      .toBeCloseTo(360, 0);
     const initialAssistantBox = await assistantPanel.boundingBox();
     if (!initialAssistantBox) throw new Error("AI panel bounds are unavailable");
 

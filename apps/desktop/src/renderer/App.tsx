@@ -56,6 +56,7 @@ import type {
   ReadingRange
 } from "../shared/library-contracts";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
+import type { ListenRepeatDesktopApi } from "../shared/listen-repeat-contracts";
 import type { ReviewDesktopApi } from "../shared/review-contracts";
 import type { SentencePracticeDesktopApi } from "../shared/sentence-practice-contracts";
 import type {
@@ -91,6 +92,7 @@ import {
   textOffsetAtPoint
 } from "./reading-range";
 import { LearningLibraryWorkspace } from "./LearningLibraryWorkspace";
+import { ListenRepeatWorkspace } from "./ListenRepeatWorkspace";
 import {
   LearningItemBatchAction,
   LearningItemDraftDialog
@@ -110,7 +112,8 @@ type WorkspaceMode =
   | "reader"
   | "learning-library"
   | "spaced-review"
-  | "sentence-practice";
+  | "sentence-practice"
+  | "listen-repeat";
 type SettingsSection = "general" | "review" | "voice" | "account";
 
 const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
@@ -181,6 +184,7 @@ function desktopBridge(): {
   learning?: LearningDesktopApi;
   review?: ReviewDesktopApi;
   sentencePractice?: SentencePracticeDesktopApi;
+  listenRepeat?: ListenRepeatDesktopApi;
   settings?: SettingsDesktopApi;
   selectionSpeech?: SelectionSpeechDesktopApi;
   dataBackup?: DataBackupDesktopApi;
@@ -193,6 +197,7 @@ function desktopBridge(): {
         learning?: LearningDesktopApi;
         review?: ReviewDesktopApi;
         sentencePractice?: SentencePracticeDesktopApi;
+        listenRepeat?: ListenRepeatDesktopApi;
         settings?: SettingsDesktopApi;
         selectionSpeech?: SelectionSpeechDesktopApi;
         dataBackup?: DataBackupDesktopApi;
@@ -220,6 +225,10 @@ function desktopReview(): ReviewDesktopApi | undefined {
 
 function desktopSentencePractice(): SentencePracticeDesktopApi | undefined {
   return desktopBridge()?.sentencePractice;
+}
+
+function desktopListenRepeat(): ListenRepeatDesktopApi | undefined {
+  return desktopBridge()?.listenRepeat;
 }
 
 function desktopSettings(): SettingsDesktopApi | undefined {
@@ -2141,6 +2150,22 @@ export function App() {
                     <span className="nav-item-label">Sentence Practice</span>
                   </button>
                   <button
+                    className={mode === "listen-repeat" ? "nav-item active" : "nav-item"}
+                    aria-label="Listen & Repeat"
+                    onClick={() => {
+                      saveCurrentReaderPosition();
+                      setIsRightSidebarCollapsed(true);
+                      setMode("listen-repeat");
+                    }}
+                  >
+                    <Waves
+                      className="sidebar-action-icon"
+                      aria-hidden="true"
+                      strokeWidth={1.8}
+                    />
+                    <span className="nav-item-label">Listen & Repeat</span>
+                  </button>
+                  <button
                     className={mode === "learning-library" ? "nav-item active" : "nav-item"}
                     aria-label={`Library ${learningCounts.active}`}
                     onClick={() => {
@@ -2230,6 +2255,8 @@ export function App() {
                   ? "content spaced-review-content"
                   : mode === "sentence-practice"
                     ? "content sentence-practice-content"
+                    : mode === "listen-repeat"
+                      ? "content listen-repeat-content"
                   : "content"
           }
           ref={contentRef}
@@ -2406,6 +2433,17 @@ export function App() {
               reviewApi={desktopReview()}
               explanationLanguage={settings.explanationLanguage}
               active={mode === "sentence-practice"}
+            />
+          ) : null}
+
+          {desktopListenRepeat() ? (
+            <ListenRepeatWorkspace
+              api={desktopListenRepeat()!}
+              active={mode === "listen-repeat"}
+              onOpenAiVoice={() => {
+                setActiveSettingsSection("voice");
+                setIsSettingsOpen(true);
+              }}
             />
           ) : null}
 
@@ -2849,6 +2887,16 @@ export function App() {
                 <h1 id="sentence-practice-fallback-title">Sentence Practice</h1>
                 <p className="library-error" role="alert">
                   Sentence practice is currently unavailable.
+                </p>
+              </section>
+            )
+          ) : mode === "listen-repeat" ? (
+            desktopListenRepeat() ? null : (
+              <section className="learning-library-panel" aria-labelledby="listen-repeat-fallback-title">
+                <span className="eyebrow">Pronunciation practice</span>
+                <h1 id="listen-repeat-fallback-title">Listen & Repeat Practice</h1>
+                <p className="library-error" role="alert">
+                  Listen & Repeat is currently unavailable.
                 </p>
               </section>
             )

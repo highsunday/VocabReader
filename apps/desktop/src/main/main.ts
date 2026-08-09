@@ -9,6 +9,7 @@ import readingComprehensionSkillMarkdown from "../../../../.agents/skills/practi
 import segmentRetellingSkillMarkdown from "../../../../.agents/skills/practice-segment-retelling/SKILL.md";
 import spacedReviewSkillMarkdown from "../../../../.agents/skills/practice-spaced-review/SKILL.md";
 import sentencePracticeSkillMarkdown from "../../../../.agents/skills/practice-integrated-sentences/SKILL.md";
+import listenRepeatSkillMarkdown from "../../../../.agents/skills/prepare-listen-and-repeat-practice/SKILL.md";
 import {
   installBundledAnnotationSkill,
   installBundledLearningItemCreationSkill,
@@ -16,6 +17,7 @@ import {
   installBundledReadingComprehensionSkill,
   installBundledSegmentRetellingSkill,
   installBundledSentencePracticeSkill,
+  installBundledListenRepeatSkill,
   installBundledSpacedReviewSkill
 } from "./bundled-skill";
 import { ChatController } from "./chat-controller";
@@ -34,6 +36,10 @@ import { registerLearningLibraryIpc } from "./learning-library-ipc";
 import { LearningItemEditController } from "./learning-item-edit-controller";
 import { registerLearningItemEditIpc } from "./learning-item-edit-ipc";
 import { LocalLearningLibrary } from "./learning-library-service";
+import { ListenRepeatController } from "./listen-repeat-controller";
+import { registerListenRepeatIpc } from "./listen-repeat-ipc";
+import { LocalListenRepeatStore } from "./listen-repeat-store";
+import { ListenRepeatVoiceService } from "./listen-repeat-voice-service";
 import { classifyLearningItemDuplicatesWithCodex } from "./learning-item-duplicate-classifier";
 import { registerSettingsIpc } from "./settings-ipc";
 import { SentencePracticeController } from "./sentence-practice-controller";
@@ -194,6 +200,10 @@ app.whenReady().then(() => {
     runtimePath,
     sentencePracticeSkillMarkdown
   );
+  const listenRepeatSkill = installBundledListenRepeatSkill(
+    runtimePath,
+    listenRepeatSkillMarkdown
+  );
   learningItemEditController = new LearningItemEditController({
     createClient: () => new SpawnedCodexAppServerClient(),
     workingDirectory: runtimePath,
@@ -215,6 +225,24 @@ app.whenReady().then(() => {
     skillPath: sentencePracticeSkill.path,
     skillInstructions: sentencePracticeSkillMarkdown,
     library: learningLibrary
+  }));
+  const listenRepeatPath = process.env.NODE_ENV === "test"
+    ? join(app.getPath("temp"), `vocabreader-listen-repeat-test-${process.pid}`)
+    : join(app.getPath("userData"), "listen-and-repeat");
+  const listenRepeatStore = new LocalListenRepeatStore(listenRepeatPath);
+  const listenRepeatVoice = new ListenRepeatVoiceService({
+    store: listenRepeatStore,
+    settingsStore,
+    apiKeyStore: selectionSpeechApiKeyStore
+  });
+  app.once("before-quit", () => listenRepeatVoice.dispose());
+  registerListenRepeatIpc(ipcMain, new ListenRepeatController({
+    createClient: () => new SpawnedCodexAppServerClient(),
+    workingDirectory: runtimePath,
+    skillPath: listenRepeatSkill.path,
+    skillInstructions: listenRepeatSkillMarkdown,
+    store: listenRepeatStore,
+    voice: listenRepeatVoice
   }));
   chatController = new ChatController({
     createClient: () => new SpawnedCodexAppServerClient(),
