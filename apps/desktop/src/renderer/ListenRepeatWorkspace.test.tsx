@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type {
   ListenRepeatDesktopApi,
@@ -99,6 +99,17 @@ function advancedReady(): ListenRepeatSnapshot {
   return snapshot;
 }
 
+function draft(): ListenRepeatSnapshot {
+  const snapshot = advancedReady();
+  snapshot.progress = empty.progress;
+  snapshot.practice = {
+    ...snapshot.practice!,
+    phase: "draft",
+    longChunks: []
+  };
+  return snapshot;
+}
+
 function api(snapshot = empty): ListenRepeatDesktopApi {
   return {
     getSnapshot: vi.fn(async () => snapshot),
@@ -113,6 +124,38 @@ function api(snapshot = empty): ListenRepeatDesktopApi {
 }
 
 describe("ListenRepeatWorkspace", () => {
+  it("keeps a long AI segmentation visibly alive with elapsed feedback", async () => {
+    let finishProcessing: ((snapshot: ListenRepeatSnapshot) => void) | undefined;
+    const desktopApi = api(draft());
+    desktopApi.process = vi.fn(() => new Promise<ListenRepeatSnapshot>((resolve) => {
+      finishProcessing = resolve;
+    }));
+    render(<ListenRepeatWorkspace api={desktopApi} active onOpenAiVoice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Listen & Repeat Practice" });
+    vi.useFakeTimers();
+
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Process with AI" }));
+
+      expect(screen.getByRole("status")).toHaveTextContent("Sending your material to AI");
+      expect(screen.getByLabelText("Practice material")).toBeDisabled();
+      expect(screen.getByRole("radio", { name: /Advanced/ })).toBeDisabled();
+
+      act(() => vi.advanceTimersByTime(30_000));
+
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Still working—your practice is being prepared"
+      );
+      expect(screen.getByRole("status")).toHaveTextContent("0:30");
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Some passages can take around 1–2 minutes. This is normal."
+      );
+    } finally {
+      finishProcessing?.(ready());
+      vi.useRealTimers();
+    }
+  });
+
   it("processes an independent arbitrary-language material with a grapheme counter", async () => {
     const desktopApi = api();
     render(<ListenRepeatWorkspace api={desktopApi} active onOpenAiVoice={vi.fn()} />);

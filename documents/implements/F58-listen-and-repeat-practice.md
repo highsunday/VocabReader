@@ -3,7 +3,7 @@ author: Codex
 date: 2026-08-10
 title: 以 AI 斷句、示範語音與本機錄音進行逐句跟讀練習
 uuid: 3b1251fb-3f1a-4aec-9c7b-83588d9ee7e1
-version: 2.0.0
+version: 2.0.1
 status: implemented
 ---
 
@@ -55,6 +55,10 @@ status: implemented
 - 超過上限時顯示明確錯誤並停用 AI 處理；不得自動截斷、刪除或正規化素材。
 - AI 處理以使用者實際送出的字串為 canonical material。除 textarea／IPC 所必需的字串
   傳遞外，不得 trim、合併空白、改標點、改大小寫、轉換全半形或統一 Unicode 字形。
+- 送出後必須顯示 request 仍在運作的狀態與實際經過時間；等待超過 30 秒時，明示部分素材
+  可能需要約 1–2 分鐘。不得用無 server 依據的完成百分比誤導使用者。
+- 處理中鎖定 textarea 與 mode，避免畫面顯示值和已送出的 canonical material 不一致。
+- 處理成功後 `01` 素材區退出、只顯示 `02` 練習區；使用者主動返回素材時才重新顯示。
 
 ### 3.3 AI 斷句的唯一權限
 
@@ -491,6 +495,8 @@ fingerprint)` 去重；取消 one-ahead request 不應取消正在播放的目�
 - Delivery: 新增獨立 Listen & Repeat workspace、受控 Codex 斷句 skill、exact reconstruction
   parser、單一 current-practice store、持久化 TTS cache、每片錄音與 Continuous mode。
 - Scope decision preserved: 沒有 Play All、發音評分、ASR、歷史清單、備份或手動調整片段。
+- UI refinement: prepare／practice 改為互斥 stage、片段卡縮短、Advanced 移除重複句子層，
+  並以 live elapsed status 解決正常 Codex 等待容易被誤認為卡住的問題。
 
 ### 9.2 Acceptance Verification
 
@@ -556,11 +562,11 @@ fingerprint)` 去重；取消 one-ahead request 不應取消正在播放的目�
 
 ### 9.5 Verification Commands
 
-- `npm test` — server 3/3 and desktop 472/472 passed.
+- `npm test` — server 3/3 and desktop 475/475 passed.
 - `npm run typecheck` — server and desktop passed.
 - `npm run build` — server and desktop production builds passed; Vite reports the existing
   renderer chunk-size advisory only.
-- `npx playwright test tests/e2e/desktop.spec.ts --workers=1` — 2/2 passed.
+- `npx playwright test tests/e2e/desktop.spec.ts --workers=1` — 3/3 passed.
 - Skill contract/install tests passed. Official `quick_validate.py` could not start because the
   bundled Python environments do not include PyYAML; an equivalent Ruby YAML/frontmatter validation
   returned `Skill is valid`, and runtime installation is covered by unit and Electron E2E tests.
@@ -573,6 +579,9 @@ fingerprint)` 去重；取消 one-ahead request 不應取消正在播放的目�
 - 最終 E2E 首輪中既有 center-scroll 案例逾時，沒有 assertion failure。該案例單獨重跑 1.6 秒
   通過，完整兩案例重跑 2/2 通過，判定為 Electron worker 偶發啟停波動，未更動該測試等待策略。
 - 2–4 秒 short、5–10 秒 long 保留為跨語言 prompt heuristic，沒有偽裝成硬性音訊長度保證。
+- 實機回報的 `Creating practice…` 並非 hang，而是正常請求時間較長；回歸測試先固定 pending
+  process，證明原 UI 在 30 秒後仍沒有 activity status，再加入 elapsed time、分段文案和輸入鎖定。
+  UI 不顯示虛假的百分比，Main 的 120 秒 timeout 行為保持不變。
 
 ### 9.7 Architectural Observation
 

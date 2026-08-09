@@ -10,7 +10,9 @@ import {
   Check,
   CircleAlert,
   CircleStop,
+  Clock3,
   Headphones,
+  LoaderCircle,
   LockKeyhole,
   Mic2,
   Play,
@@ -138,12 +140,37 @@ function chunkLabel(chunk: ListenRepeatChunk, index: number) {
   return `${chunk.kind === "short" ? "short" : "long"} chunk ${index + 1}`;
 }
 
+function formatProcessingTime(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function processingFeedback(seconds: number) {
+  if (seconds < 10) {
+    return {
+      title: "Sending your material to AI",
+      detail: "Keep this page open while the practice is prepared."
+    };
+  }
+  if (seconds < 30) {
+    return {
+      title: "Finding natural practice breaks",
+      detail: "Your original wording and punctuation will be preserved."
+    };
+  }
+  return {
+    title: "Still working—your practice is being prepared",
+    detail: "Some passages can take around 1–2 minutes. This is normal."
+  };
+}
+
 export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
   const [snapshot, setSnapshot] = useState<ListenRepeatSnapshot>(emptySnapshot);
   const [material, setMaterial] = useState("");
   const [mode, setMode] = useState<ListenRepeatMode>("progressive");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [processingElapsedSeconds, setProcessingElapsedSeconds] = useState(0);
   const [error, setError] = useState("");
   const [recordingChunkId, setRecordingChunkId] = useState<string>();
   const [playingChunkId, setPlayingChunkId] = useState<string>();
@@ -216,6 +243,15 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
     return () => clearTimeout(timeout);
   }, [active, api, loading, material, mode, snapshot.practice]);
 
+  useEffect(() => {
+    if (!processing) return;
+    const startedAt = Date.now();
+    const interval = setInterval(() => {
+      setProcessingElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000));
+    }, 1_000);
+    return () => clearInterval(interval);
+  }, [processing]);
+
   const validation = validateListenRepeatMaterial(material);
   const count = countListenRepeatGraphemes(material);
   const practice = snapshot.practice;
@@ -233,6 +269,7 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
     ? snapshot.progress.shortCompleted / snapshot.progress.shortTotal : 0;
   const longProgress = snapshot.progress.longTotal
     ? snapshot.progress.longCompleted / snapshot.progress.longTotal : 0;
+  const processingStatus = processingFeedback(processingElapsedSeconds);
 
   async function processMaterial(replaceConfirmed = false) {
     if (!validation.valid) return;
@@ -244,6 +281,7 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
       return;
     }
     setConfirmReplace(false);
+    setProcessingElapsedSeconds(0);
     setProcessing(true);
     setError("");
     try {
@@ -634,6 +672,7 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
           <button
             type="button"
             className="listen-repeat-clear-action"
+            disabled={processing}
             onClick={() => setConfirmClear(true)}
           >
             <Trash2 aria-hidden="true" />
@@ -679,6 +718,7 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
               id="listen-repeat-material"
               rows={7}
               value={material}
+              disabled={processing}
               onChange={(event) => setMaterial(event.target.value)}
               placeholder="Paste a paragraph in any language…"
             />
@@ -688,7 +728,7 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
             {!validation.valid && validation.reason === "too-long" ? (
               <p role="alert">Material must contain no more than 2,000 characters.</p>
             ) : null}
-            <fieldset className="listen-repeat-modes">
+            <fieldset className="listen-repeat-modes" disabled={processing}>
               <legend>Choose your practice path</legend>
               <label className={mode === "progressive" ? "is-selected" : ""}>
                 <input
@@ -719,8 +759,29 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
                 </span>
               </label>
             </fieldset>
-            <div className="listen-repeat-material-footer">
-              <p><Sparkles aria-hidden="true" /> AI finds natural pauses without rewriting your text.</p>
+            <div className={`listen-repeat-material-footer${processing ? " is-processing" : ""}`}>
+              {processing ? (
+                <div
+                  className="listen-repeat-processing-status"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <span className="listen-repeat-processing-spinner" aria-hidden="true">
+                    <LoaderCircle />
+                  </span>
+                  <span className="listen-repeat-processing-copy">
+                    <strong>{processingStatus.title}</strong>
+                    <span>{processingStatus.detail}</span>
+                  </span>
+                  <time aria-hidden="true">
+                    <Clock3 aria-hidden="true" />
+                    {formatProcessingTime(processingElapsedSeconds)}
+                  </time>
+                </div>
+              ) : (
+                <p><Sparkles aria-hidden="true" /> AI finds natural pauses without rewriting your text.</p>
+              )}
               <button
                 type="button"
                 className="listen-repeat-process-action"
@@ -728,7 +789,9 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
                 disabled={!validation.valid || processing}
                 onClick={() => void processMaterial(false)}
               >
-                <Sparkles aria-hidden="true" />
+                {processing
+                  ? <LoaderCircle className="is-spinning" aria-hidden="true" />
+                  : <Sparkles aria-hidden="true" />}
                 <span>{processing ? "Creating practice…" : "Create practice with AI"}</span>
               </button>
             </div>

@@ -27,6 +27,12 @@ Spaced Review，也不提供 Play All 或跨片段音訊串接。
 - Sidebar 中位於 Sentence Practice 後方的 `Listen & Repeat` 獨立 workspace。
 - 任意語言／混合語言素材與 2,000 Unicode grapheme 上限；超限不截斷。
 - `Progressive` 的 long → short 階層與 `Advanced` 的 long-only 結構。
+- 準備與練習採互斥兩階段：處理成功後只顯示 `02` 練習區；使用者按 `Back to material`
+  才回到 `01`，並可用 `Return to practice` 返回既有結果。
+- 片段卡採緊湊資訊層級；Advanced 每個句子只顯示一個可操作卡，不重複外層句子文字或
+  `Full sentence` 元件。
+- Codex 斷句等待期間顯示動態活動文案、實際經過時間與 1–2 分鐘長等待提示，不使用無法
+  驗證的百分比進度；本次素材與模式在處理完成前鎖定。
 - 所有 long chunks 重組為完整原文；Progressive children 重組為所屬 parent 的 deterministic
   artifact 驗證。
 - 每個 short／long chunk 獨立的 AI 示範、錄音、重錄與 learner audio 回放。
@@ -103,6 +109,11 @@ ai-audio/<chunk-id>-<fingerprint>.wav
 `ListenRepeatWorkspace` 負責素材、mode、progress、chunk cards、dialogs、audio playback、mic 與
 focus view。`listen-repeat-flow.ts` 保存可獨立測試的 domain UI 邏輯：
 
+- 頁面以 prepare／practice 互斥 stage 呈現，避免有效結果出現後仍佔用高度顯示素材表單。
+- Codex process 尚未回傳時，以 `role=status` 呈現經過秒數和分段式等待說明；這只表示請求
+  仍在進行，不假造 server 端百分比或精確完成時間。
+- Advanced long chunk 直接使用唯一 sentence card；Progressive 才保留 parent／children 階層。
+
 - Progressive sequence：每組 children → parent long → 下一組。
 - Advanced sequence：ordered long chunks。
 - Resume：第一個未完成且可錄音 chunk。
@@ -119,6 +130,7 @@ narrow IPC 傳給 Main；不把 learner audio 傳給 Codex、OpenAI TTS 或其�
 draft material + mode
   → Main validates grapheme/mode
   → isolated Codex segmentation
+      Renderer: live elapsed time + honest long-wait guidance; material/mode locked
   → exact artifact validation
       ├─ invalid/error → keep previous current practice
       └─ valid → atomically replace current practice
@@ -182,17 +194,17 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 | `listen-repeat-ipc.test.ts` | narrow operations 與 malformed payload |
 | `listen-repeat-skill.test.ts` | skill contract 與 runtime install |
 | `listen-repeat-flow.test.ts` | sequence、resume、overwrite scope 與 VAD guards |
-| `ListenRepeatWorkspace.test.tsx` | material UI、limit、hierarchy、AI Voice、overwrite、clear |
+| `ListenRepeatWorkspace.test.tsx` | stage exclusivity、compact Advanced、processing feedback、material UI、limit、hierarchy、AI Voice、overwrite、clear |
 | `App.test.tsx` | Sidebar order 與 independent workspace |
 | `data-backup-service.test.ts` | export/restore 排除 current practice |
 | `desktop.spec.ts` | production bundle、skill install、preload 與真實頁面入口 |
 
 最近驗證（2026-08-10）：
 
-- Root Vitest：server 3/3、Desktop 472/472 passed。
+- Root Vitest：server 3/3、Desktop 475/475 passed。
 - Root TypeScript typecheck：server、Desktop passed。
 - Root production build：server、Desktop passed（只有既有 renderer chunk-size advisory）。
-- Electron Playwright E2E：2/2 passed；既有 center-scroll 案例曾偶發逾時，單獨與完整重跑皆通過。
+- Electron Playwright E2E：3/3 passed；既有 center-scroll 案例曾偶發逾時，單獨與完整重跑皆通過。
 
 ## 9. Known Limitations
 
@@ -200,6 +212,8 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 - TTS 實際秒數受語言、voice、tone 與內容影響；2–4／5–10 秒是 segmentation heuristic。
 - 不進行 ASR、音素對齊或發音評分。
 - 不提供 Play All、歷史、雲端、備份、匯出或手動 chunk boundary 編輯。
+- Codex 斷句只有 request-level 狀態，尚無 server 回傳的細部階段或 determinate percentage；
+  UI 因此只顯示實際經過時間與正常等待說明。Main 端仍以 120 秒 timeout 防止無限等待。
 
 ## 10. Related Documents
 

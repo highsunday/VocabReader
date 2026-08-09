@@ -9447,6 +9447,11 @@ h1 {
   background: #fff6f3;
 }
 
+.listen-repeat-clear-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .listen-repeat-clear-action svg {
   width: 15px;
   height: 15px;
@@ -9570,6 +9575,12 @@ h1 {
   color: #a3a69e;
 }
 
+.listen-repeat-material textarea:disabled {
+  color: #4e5b53;
+  background: #f8f7f2;
+  cursor: wait;
+}
+
 .listen-repeat-character-track {
   height: 3px;
   margin: -4px 12px 0;
@@ -9627,6 +9638,11 @@ h1 {
   border-color: #71907d;
   background: #f2f7f2;
   box-shadow: 0 0 0 3px rgba(80, 124, 96, 0.09);
+}
+
+.listen-repeat-modes:disabled label {
+  opacity: 0.72;
+  cursor: wait;
 }
 
 .listen-repeat-modes input {
@@ -9709,6 +9725,76 @@ h1 {
   color: #6c8c77;
 }
 
+.listen-repeat-material-footer.is-processing {
+  align-items: stretch;
+}
+
+.listen-repeat-processing-status {
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid #d6e2d8;
+  border-radius: 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  color: #365541;
+  background: #f2f7f2;
+}
+
+.listen-repeat-processing-spinner {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #39714e;
+  background: #deebe0;
+}
+
+.listen-repeat-processing-spinner svg {
+  width: 17px;
+  height: 17px;
+  animation: listen-repeat-spin 1s linear infinite;
+}
+
+.listen-repeat-processing-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.listen-repeat-processing-copy strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listen-repeat-processing-copy > span {
+  color: #748078;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.listen-repeat-processing-status time {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #597064;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.listen-repeat-processing-status time svg {
+  width: 13px;
+  height: 13px;
+}
+
 .listen-repeat-process-action {
   min-height: 46px !important;
   padding: 11px 18px;
@@ -9732,6 +9818,10 @@ h1 {
 .listen-repeat-process-action svg {
   width: 16px;
   height: 16px;
+}
+
+.listen-repeat-process-action svg.is-spinning {
+  animation: listen-repeat-spin 1s linear infinite;
 }
 
 .listen-repeat-error {
@@ -10464,6 +10554,10 @@ h1 {
   50% { opacity: 1; transform: scaleX(1.08); }
 }
 
+@keyframes listen-repeat-spin {
+  to { transform: rotate(360deg); }
+}
+
 @keyframes listen-repeat-recording {
   0% { box-shadow: 0 0 0 0 rgba(166, 76, 63, 0.22); }
   75%, 100% { box-shadow: 0 0 0 10px rgba(166, 76, 63, 0); }
@@ -10543,6 +10637,14 @@ h1 {
 
   .listen-repeat-material-footer p {
     align-items: flex-start;
+  }
+
+  .listen-repeat-processing-status {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .listen-repeat-processing-status time {
+    grid-column: 2;
   }
 
   .listen-repeat-process-action {
