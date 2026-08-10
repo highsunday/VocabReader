@@ -30,8 +30,9 @@ Do not call tools, request context, or add commentary.
   group. A short chunk may extend to approximately 2 seconds only when a shorter split would break
   a tightly bound phrase or produce a fragment that is not useful to repeat by itself.
 - For whitespace-delimited languages, prefer 1–4 lexical words in most short chunks. Avoid five or
-  more lexical words whenever any defensible natural boundary exists. A subject may stand alone
-  before its predicate when keeping them together would exceed this guidance.
+  more lexical words whenever any defensible natural boundary exists. When length guidance and
+  spoken phrasing compete, prioritize a genuine prosodic, breath, or silence boundary; do not split
+  a subject from its predicate merely to create a shorter card.
 - Prefer paragraph, sentence, clause, semantic-group, breath, and natural-pause boundaries.
 - Keep tightly bound phrases together. Avoid isolated function words and chunks that are only
   punctuation or whitespace.

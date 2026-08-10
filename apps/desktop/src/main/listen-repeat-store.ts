@@ -39,6 +39,22 @@ interface ReplacePracticeInput {
   longChunks: ParsedListenRepeatChunk[];
 }
 
+export interface ListenRepeatAudioContext {
+  requested: {
+    id: string;
+    kind: "short" | "long";
+    text: string;
+  };
+  parent: {
+    id: string;
+    text: string;
+  };
+  children: Array<{
+    id: string;
+    text: string;
+  }>;
+}
+
 interface StoreOptions {
   now?: () => Date;
 }
@@ -384,6 +400,34 @@ export class LocalListenRepeatStore {
     return chunk.text;
   }
 
+  async getAudioContext(
+    practiceId: string,
+    chunkId: string
+  ): Promise<ListenRepeatAudioContext> {
+    const practice = await this.#load();
+    if (!practice || practice.id !== practiceId) {
+      throw new Error("Invalid listen-and-repeat practice");
+    }
+    const requested = allChunks(practice).find(({ id }) => id === chunkId);
+    if (!requested) throw new Error("Invalid listen-and-repeat chunk");
+    const parent = requested.kind === "long"
+      ? requested
+      : practice.longChunks.find(({ id }) => id === requested.parentId);
+    if (!parent) throw new Error("Invalid listen-and-repeat parent chunk");
+    return {
+      requested: {
+        id: requested.id,
+        kind: requested.kind,
+        text: requested.text
+      },
+      parent: {
+        id: parent.id,
+        text: parent.text
+      },
+      children: parent.shortChunks.map(({ id, text }) => ({ id, text }))
+    };
+  }
+
   async getAiAudio(
     practiceId: string,
     chunkId: string,
@@ -415,33 +459,74 @@ export class LocalListenRepeatStore {
     fingerprint: string;
     audio: Uint8Array;
   }): Promise<void> {
+    await this.saveAiAudioBatch([input]);
+  }
+
+  async saveAiAudioBatch(inputs: Array<{
+    practiceId: string;
+    chunkId: string;
+    fingerprint: string;
+    audio: Uint8Array;
+  }>): Promise<void> {
+    if (inputs.length === 0) return;
     const practice = await this.#load();
-    if (!practice || practice.id !== input.practiceId) {
+    const practiceId = inputs[0].practiceId;
+    if (!practice || practice.id !== practiceId ||
+      inputs.some((input) => input.practiceId !== practiceId)) {
       throw new Error("Invalid listen-and-repeat practice");
     }
-    const chunk = allChunks(practice).find(({ id }) => id === input.chunkId);
-    if (!chunk) throw new Error("Invalid listen-and-repeat chunk");
-    if (!(input.audio instanceof Uint8Array) || input.audio.byteLength === 0 ||
-      input.audio.byteLength > MAXIMUM_AI_AUDIO_BYTES ||
-      !/^[a-f0-9]{64}$/u.test(input.fingerprint)) {
-      throw new Error("Invalid AI audio");
+    if (new Set(inputs.map(({ chunkId }) => chunkId)).size !== inputs.length) {
+      throw new Error("Invalid AI audio batch");
     }
+    const entries = inputs.map((input) => {
+      const chunk = allChunks(practice).find(({ id }) => id === input.chunkId);
+      if (!chunk) throw new Error("Invalid listen-and-repeat chunk");
+      if (!(input.audio instanceof Uint8Array) || input.audio.byteLength === 0 ||
+        input.audio.byteLength > MAXIMUM_AI_AUDIO_BYTES ||
+        !/^[a-f0-9]{64}$/u.test(input.fingerprint)) {
+        throw new Error("Invalid AI audio");
+      }
+      const file = `${chunk.id}-${input.fingerprint}.wav`;
+      return {
+        input,
+        chunk,
+        file,
+        finalPath: join(this.#aiAudioPath, file),
+        oldAudio: chunk.aiAudio,
+        oldFile: chunk.aiAudioFile
+      };
+    });
     await mkdir(this.#aiAudioPath, { recursive: true });
-    const file = `${chunk.id}-${input.fingerprint}.wav`;
-    const finalPath = join(this.#aiAudioPath, file);
-    await writeFile(`${finalPath}.next`, input.audio);
-    await rename(`${finalPath}.next`, finalPath);
-    const oldFile = chunk.aiAudioFile;
-    chunk.aiAudio = {
-      fingerprint: input.fingerprint,
-      bytes: input.audio.byteLength
-    };
-    chunk.aiAudioFile = file;
-    practice.updatedAt = this.#now();
-    await this.#save(practice);
-    if (safeFileName(oldFile) && oldFile !== file) {
-      await unlink(join(this.#aiAudioPath, oldFile)).catch(() => undefined);
+    const written: string[] = [];
+    const previousUpdatedAt = practice.updatedAt;
+    try {
+      for (const entry of entries) {
+        const temporaryPath = `${entry.finalPath}.next`;
+        await writeFile(temporaryPath, entry.input.audio);
+        await rename(temporaryPath, entry.finalPath);
+        written.push(entry.finalPath);
+        entry.chunk.aiAudio = {
+          fingerprint: entry.input.fingerprint,
+          bytes: entry.input.audio.byteLength
+        };
+        entry.chunk.aiAudioFile = entry.file;
+      }
+      practice.updatedAt = this.#now();
+      await this.#save(practice);
+    } catch (error) {
+      for (const entry of entries) {
+        entry.chunk.aiAudio = entry.oldAudio;
+        entry.chunk.aiAudioFile = entry.oldFile;
+      }
+      practice.updatedAt = previousUpdatedAt;
+      await Promise.all(written.map((path) => unlink(path).catch(() => undefined)));
+      throw error;
     }
+    await Promise.all(entries.map(({ oldFile, file }) =>
+      safeFileName(oldFile) && oldFile !== file
+        ? unlink(join(this.#aiAudioPath, oldFile)).catch(() => undefined)
+        : undefined
+    ));
   }
 
   async clear(hasAiVoice: boolean): Promise<ListenRepeatSnapshot> {

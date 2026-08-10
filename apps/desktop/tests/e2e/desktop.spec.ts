@@ -77,6 +77,21 @@ test("presents a ready Listen & Repeat practice as a focused learning path", asy
     await expect(page.getByText("Short 1/2")).toBeVisible();
     await expect(page.getByText("Long 0/1")).toBeVisible();
     await expect(page.getByText("Sentence 1")).toBeVisible();
+    await expect(page.getByText("Hear the whole sentence")).toBeVisible();
+    await expect(page.getByText("Build it in short phrases")).toBeVisible();
+    await expect(page.getByText(
+      "Every small phrase builds your speaking confidence.",
+      { exact: true }
+    )).toHaveCount(1);
+    const parentCard = page.locator('[data-chunk-id="long-1"]');
+    const firstPhraseCard = page.locator('[data-chunk-id="short-1"]');
+    await expect(parentCard.getByText("Full sentence", { exact: true })).toBeVisible();
+    expect(await parentCard.evaluate((parent) => {
+      const phrase = document.querySelector('[data-chunk-id="short-1"]');
+      return Boolean(phrase && parent.compareDocumentPosition(phrase) &
+        Node.DOCUMENT_POSITION_FOLLOWING);
+    })).toBe(true);
+    await expect(firstPhraseCard).toBeVisible();
     await expect(page.getByRole("button", { name: "Play AI for short chunk 1" }))
       .toBeVisible();
   } finally {

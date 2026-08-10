@@ -174,6 +174,7 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
   const [error, setError] = useState("");
   const [recordingChunkId, setRecordingChunkId] = useState<string>();
   const [playingChunkId, setPlayingChunkId] = useState<string>();
+  const [preparingLongId, setPreparingLongId] = useState<string>();
   const [continuous, setContinuous] = useState<ContinuousState | null>(null);
   const [continuousStart, setContinuousStart] = useState<string>();
   const [confirmClear, setConfirmClear] = useState(false);
@@ -303,15 +304,19 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
       throw new Error("Set up AI Voice in Settings.");
     }
     if (!current.practice) throw new Error("Practice is unavailable.");
+    const longId = chunk.kind === "long" ? chunk.id : chunk.parentId;
     setPlayingChunkId(chunk.id);
+    setPreparingLongId(longId ?? undefined);
     try {
       const audio = await api.prepareAiAudio({
         practiceId: current.practice.id,
         chunkId: chunk.id
       });
+      setPreparingLongId(undefined);
       await playAudio(audio, waitForEnd);
       return audio;
     } finally {
+      setPreparingLongId(undefined);
       setPlayingChunkId(undefined);
     }
   }
@@ -562,6 +567,8 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
     const label = chunkLabel(chunk, index);
     const isRecording = recordingChunkId === chunk.id;
     const isAdvancedSentence = practice?.mode === "advanced" && chunk.kind === "long";
+    const longId = chunk.kind === "long" ? chunk.id : chunk.parentId;
+    const groupPreparing = Boolean(longId && preparingLongId === longId);
     return (
       <article
         key={chunk.id}
@@ -591,18 +598,34 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
           )}
         </div>
         <p className="listen-repeat-chunk-text">{chunk.text}</p>
+        {practice?.mode === "progressive" && chunk.kind === "long" ? (
+          <p className="listen-repeat-parent-source-note">
+            <AudioLines aria-hidden="true" />
+            The short phrases below use exact excerpts from this full-sentence take.
+          </p>
+        ) : null}
+        {chunk.kind === "long" && groupPreparing ? (
+          <p className="listen-repeat-parent-preparing" role="status">
+            <LoaderCircle aria-hidden="true" />
+            Preparing the full sentence and aligning every short phrase…
+          </p>
+        ) : null}
         <div className="listen-repeat-chunk-actions">
           <button
             type="button"
             className="listen-repeat-action listen-repeat-action-ai"
             aria-label={`Play AI for ${label}`}
-            disabled={playingChunkId === chunk.id}
+            disabled={groupPreparing || playingChunkId === chunk.id}
             onClick={() => void playAi(chunk).catch((caught) => {
               setError(caught instanceof Error ? caught.message : "AI playback failed.");
             })}
           >
-            {playingChunkId === chunk.id ? <AudioLines aria-hidden="true" /> : <Play aria-hidden="true" />}
-            <span>{playingChunkId === chunk.id ? "Preparing…" : "Play AI"}</span>
+            {groupPreparing && playingChunkId === chunk.id
+              ? <LoaderCircle className="listen-repeat-inline-spinner" aria-hidden="true" />
+              : playingChunkId === chunk.id
+                ? <AudioLines aria-hidden="true" /> : <Play aria-hidden="true" />}
+            <span>{groupPreparing && playingChunkId === chunk.id
+              ? "Preparing sentence…" : "Play AI"}</span>
           </button>
           {isRecording ? (
             <button
@@ -882,7 +905,7 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
                     <header className="listen-repeat-group-heading">
                       <div>
                         <span>Sentence {longIndex + 1}</span>
-                        <h3>{long.text}</h3>
+                        <strong>Whole sentence · phrase source</strong>
                       </div>
                       <span className={long.recording ? "is-complete" : ""}>
                         {long.recording ? <Check aria-hidden="true" /> : null}
@@ -891,18 +914,23 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
                     </header>
                     <div className="listen-repeat-ladder-label">
                       <span>1</span>
-                      <div><strong>Build it in short phrases</strong><small>Master each piece before the full sentence.</small></div>
+                      <div><strong>Hear the whole sentence</strong><small>Start with its natural rhythm and intonation.</small></div>
+                    </div>
+                    {renderChunk(long, longIndex)}
+                    <div className="listen-repeat-ladder-label">
+                      <span>2</span>
+                      <div><strong>Build it in short phrases</strong><small>Practice each excerpt, then return to the whole sentence.</small></div>
                     </div>
                     <div className="listen-repeat-short-list">
                       {long.shortChunks.map(renderChunk)}
                     </div>
                     <div className="listen-repeat-ladder-label is-final">
-                      <span>2</span>
-                      <div><strong>Bring it together</strong><small>Now repeat the complete sentence naturally.</small></div>
+                      <span>3</span>
+                      <div><strong>Bring it together</strong><small>When every phrase is recorded, the full-sentence recording above unlocks.</small></div>
                     </div>
                   </>
                 ) : null}
-                {renderChunk(long, longIndex)}
+                {practice.mode === "advanced" ? renderChunk(long, longIndex) : null}
               </section>
             ))}
           </div>

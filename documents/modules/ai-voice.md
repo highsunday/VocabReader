@@ -2,11 +2,12 @@
 title: AI 語音、選取朗讀與跟讀示範模組
 module: ai-voice
 status: active
-last_updated: 2026-08-10
+last_updated: 2026-08-11
 related_implements:
   - F56-speak-selected-reader-text
   - F57-ai-selection-speech
   - F58-listen-and-repeat-practice
+  - B20-derive-listen-repeat-short-audio-from-long-take
 ---
 
 # AI 語音與選取朗讀模組
@@ -42,8 +43,10 @@ cache 與 cancellation 彼此隔離。學習項目詳情中的發音仍由裝置
   LRU 快取重用，不重複產生費用。
 - 401／403、429、網路及服務錯誤會轉成安全、可操作的錯誤；不顯示供應商 response body，
   也不自動 fallback 到裝置語音。
-- Listen & Repeat 以 exact chunk、語言中性 instructions 產生完整 WAV，依 model、instruction
-  revision、voice、tone 與本文 fingerprint 持久化於目前練習；跨 App restart 命中不重送。
+- Listen & Repeat Advanced 以 exact long chunk 產生 WAV；Progressive 每個 parent long 只產生
+  一份完整朗讀母帶，再以 word timestamps 切出所有 short AI 示範。
+- parent 與 derived child 的 model、instruction／alignment revision、voice、tone 與文字
+  fingerprint 持久化於目前練習；跨 App restart 命中不重送。
 - Listen & Repeat 的 Continuous mode 最多準備目前與下一 chunk，停止時取消未完成 request。
 
 ## 3. Product and Domain Boundaries
@@ -77,10 +80,11 @@ Selection 的擷取、章節內 offset 驗證及與標記模式共存仍屬於 A
 
 ### Listen & Repeat AI Model Audio
 
-跟讀示範只接受已驗證 current practice 的 chunk ID；Main 從 store 取得 exact text，Renderer
-不能自訂 TTS instructions、model 或 endpoint。instructions 固定要求維持 input 的原語言與
-每個字元，再套用相同 tone 意圖。音訊使用 WAV disk cache，不進 Selection Speech 的 PCM
-LRU，也不加入 Data Backup。
+跟讀示範只接受已驗證 current practice 的 chunk ID；Main 從 store 解析 requested chunk、
+parent 與 ordered children，Renderer 不能自訂 TTS／transcription instructions、model 或
+endpoint。Progressive TTS instructions 固定要求保留整句原語言、exact text、延續語調、連音
+與節奏；`whisper-1` 只對齊這份 AI 產生的 parent WAV，不接收 Learner Recording。音訊使用
+WAV disk cache，不進 Selection Speech 的 PCM LRU，也不加入 Data Backup。
 
 ## 4. Voice and Tone Configuration
 
@@ -192,9 +196,12 @@ Main Process 以 request ID 與 `AbortController` 管理 active request，並透
 停止或取代播放會 abort 目前正在進行的 request，後續尚未開始的文字片段不再送出。已由
 OpenAI 完成產生或已回傳的音訊仍可能已計費，因此 Stop 不能保證把當次費用降為零。
 
-Listen & Repeat 另使用 `listen-repeat-v1` fingerprint 與 current-practice disk cache；voice、
-tone、model、instruction revision 或 exact text 不同即 miss。新音訊 metadata 成功後淘汰同
-chunk 舊 fingerprint，learner recording 不受影響。建立新練習或 Clear 會刪除整個舊 cache。
+Listen & Repeat 另使用 parent-take revision 與 current-practice disk cache；voice、tone、
+TTS model、instruction revision 或 parent exact text 不同即重建母帶。Progressive child
+fingerprint 再包含 alignment model／revision 與 ordered child ID／text；同 parent 的 TTS 與
+alignment 進行中去重，所有 child 切片以一次 metadata transaction 安裝。新音訊 metadata
+成功後淘汰同 chunk 舊 fingerprint，Learner Recording 不受影響。建立新練習或 Clear 會刪除
+整個舊 cache。
 
 ## 9. Error Model
 
@@ -218,6 +225,8 @@ chunk 舊 fingerprint，learner recording 不受影響。建立新練習或 Clea
 | `apps/desktop/src/shared/selection-speech-contracts.ts` | 設定 snapshot、apply input/result、error code、stream event 與 desktop API |
 | `apps/desktop/src/main/settings-store.ts` | 非敏感 voice／tone 的預設、驗證與原子保存 |
 | `apps/desktop/src/main/selection-speech-service.ts` | credential store、預覽套用、OpenAI request、分段、取消、錯誤與 LRU |
+| `apps/desktop/src/main/listen-repeat-voice-service.ts` | parent long TTS、word-timestamp alignment orchestration、group cache 與 cancellation |
+| `apps/desktop/src/main/listen-repeat-audio-alignment.ts` | 16-bit PCM／streaming WAV 驗證、zero-duration-safe exact word-boundary mapping 與 child slicing |
 | `apps/desktop/src/main/selection-speech-ipc.ts` | 窄化 IPC route 與輸入驗證 |
 | `apps/desktop/src/main/main.ts` | service composition、`safeStorage` 注入與 quit disposal |
 | `apps/desktop/src/preload/preload.ts` | context-isolated typed bridge 與 stream unsubscribe |
@@ -232,12 +241,13 @@ chunk 舊 fingerprint，learner recording 不受影響。建立新練習或 Clea
 | `apps/desktop/src/main/selection-speech-service.test.ts` | tone 差異、候選設定與回滾、安全 credential、PCM、1,000 字元分段、取消、錯誤與 LRU |
 | `apps/desktop/src/main/selection-speech-ipc.test.ts` | 設定白名單、固定 event channel、start／cancel 邊界 |
 | `apps/desktop/src/main/settings-store.test.ts` | voice／tone defaults、保存、損壞值回退 |
+| `apps/desktop/src/main/listen-repeat-voice-service.test.ts` | parent-only TTS、word timestamps、child slicing、dedupe、disk cache、invalidation 與取消 |
 | `apps/desktop/src/renderer/App.test.tsx` | 設定 UI、懸浮／右鍵入口、1,200 字元警告、確認／取消、PCM、停止、生命週期與錯誤 |
 | `apps/desktop/src/renderer/LearningLibraryWorkspace.test.tsx` | 學習項目 Web Speech 邊界回歸 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | production preload、AI Voice 設定 UI 與 Selection Speech 基本樣式 |
 
-截至 2026-08-10，Desktop Vitest 為 42 files、439/439 passed，TypeScript typecheck、production
-build 與 Electron Playwright 2/2 均通過。Production build 仍有既有的 renderer chunk size
+截至 2026-08-11，Desktop Vitest 為 52 files、497/497 passed，TypeScript typecheck、production
+build 與 Electron Playwright 3/3 均通過。Production build 仍有既有的 renderer chunk size
 warning，與 AI Voice 正確性無關。
 
 ## 12. Known Limitations and Follow-ups
@@ -248,6 +258,8 @@ warning，與 AI Voice 正確性無關。
   很快 Stop 時，已完成或正在產生的片段仍可能產生成本。
 - 沒有暫停／繼續、播放進度拖曳、逐字高亮、音訊匯出、磁碟快取或離線 AI 語音。
 - 不支援任意 voice、model、prompt、endpoint、voice cloning 或供應商切換。
+- Progressive short alignment 必須證明 normalized transcript 與已知 parent／children 邊界
+  一致；無法安全對齊時會拒絕並要求重試，不猜測切點。
 - `App.tsx` 目前同時負責 Selection UI、AI Voice 設定與 Web Audio 排程；若再加入進度、
   backpressure 或更多播放控制，應以獨立 Selection Speech controller／hook 降低耦合。
 
@@ -256,6 +268,8 @@ warning，與 AI Voice 正確性無關。
 - `documents/implements/F56-speak-selected-reader-text.md`：選取入口、Selection 驗證與原本裝置
   Web Speech 行為的歷史規格；章節播放後端已由 F57 取代。
 - `documents/implements/F57-ai-selection-speech.md`：目前 AI Voice 功能需求、驗收與實作紀錄。
+- `documents/implements/B20-derive-listen-repeat-short-audio-from-long-take.md`：Progressive
+  parent take、word-timestamp alignment、derived cache 與 parent-first UI。
 - `documents/modules/annotation.md`：Selection 擷取、標記模式共存與 Selection Speech 交界。
 - `documents/modules/data-backup.md`：備份不包含全域設定、credential 或暫態音訊。
 

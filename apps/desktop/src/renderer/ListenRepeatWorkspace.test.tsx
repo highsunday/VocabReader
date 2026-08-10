@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type {
+  ListenRepeatAudioResult,
   ListenRepeatDesktopApi,
   ListenRepeatSnapshot
 } from "../shared/listen-repeat-contracts";
@@ -195,9 +196,17 @@ describe("ListenRepeatWorkspace", () => {
 
     expect(await screen.findByText("Short 1/2")).toBeInTheDocument();
     expect(screen.getByText("Long 0/1")).toBeInTheDocument();
-    expect(screen.getAllByText("One, two.")).toHaveLength(2);
+    expect(screen.getAllByText("One, two.")).toHaveLength(1);
     expect(screen.getByText("One,")).toBeInTheDocument();
     expect(screen.getByText("two.")).toBeInTheDocument();
+    expect(screen.getByText("Hear the whole sentence")).toBeInTheDocument();
+    expect(screen.getByText("Build it in short phrases")).toBeInTheDocument();
+    const parent = screen.getByText("Full sentence").closest("article");
+    const firstChild = screen.getAllByText("Short phrase")[0].closest("article");
+    expect(parent).not.toBeNull();
+    expect(firstChild).not.toBeNull();
+    expect(parent!.compareDocumentPosition(firstChild!) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
     expect(screen.getByRole("button", { name: "Record long chunk 1" }))
       .toBeDisabled();
     expect(screen.getByText(/Complete every short chunk to unlock recording/))
@@ -243,6 +252,27 @@ describe("ListenRepeatWorkspace", () => {
     expect(desktopApi.prepareAiAudio).not.toHaveBeenCalled();
   });
 
+  it("shows one parent-level preparation state while a phrase take is aligned", async () => {
+    const snapshot = ready();
+    snapshot.hasAiVoice = true;
+    const desktopApi = api(snapshot);
+    desktopApi.prepareAiAudio = vi.fn(() =>
+      new Promise<ListenRepeatAudioResult>(() => undefined)
+    );
+    render(<ListenRepeatWorkspace api={desktopApi} active onOpenAiVoice={vi.fn()} />);
+    await screen.findByText("Short 1/2");
+
+    fireEvent.click(screen.getByRole("button", { name: "Play AI for short chunk 1" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Preparing the full sentence and aligning every short phrase"
+    );
+    expect(screen.getByRole("button", { name: "Play AI for long chunk 1" }))
+      .toBeDisabled();
+    expect(screen.getByRole("button", { name: "Play AI for short chunk 2" }))
+      .toBeDisabled();
+  });
+
   it("keeps the practice intact and reports an actionable microphone error", async () => {
     const desktopApi = api(ready());
     render(<ListenRepeatWorkspace api={desktopApi} active onOpenAiVoice={vi.fn()} />);
@@ -264,7 +294,7 @@ describe("ListenRepeatWorkspace", () => {
     await screen.findByText("Short 1/2");
 
     const startButtons = screen.getAllByRole("button", { name: "Start here" });
-    fireEvent.click(startButtons[0]);
+    fireEvent.click(startButtons.find((button) => !button.hasAttribute("disabled"))!);
 
     expect(screen.getByRole("heading", {
       name: "Replace recordings as you continue?"

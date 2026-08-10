@@ -25,6 +25,10 @@ describe("prepare-listen-and-repeat-practice skill", () => {
     expect(normalizedSkill).toContain("not merge two independently repeatable short groups");
     expect(normalizedSkill).toContain("prefer 1–4 lexical words");
     expect(normalizedSkill).toContain("Avoid five or more lexical words");
+    expect(normalizedSkill).toContain(
+      "prioritize a genuine prosodic, breath, or silence boundary"
+    );
+    expect(normalizedSkill).not.toContain("A subject may stand alone");
     expect(normalizedSkill).toContain("Never choose a short or long boundary that leaves punctuation");
     expect(normalizedSkill).toContain("Keep closing punctuation with the preceding spoken text");
     expect(skill).toContain("5–10 seconds");

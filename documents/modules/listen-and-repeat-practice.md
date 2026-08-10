@@ -2,9 +2,10 @@
 title: 逐句跟讀練習模組
 module: listen-and-repeat-practice
 status: active
-last_updated: 2026-08-10
+last_updated: 2026-08-11
 related_implements:
   - F58-listen-and-repeat-practice
+  - B20-derive-listen-repeat-short-audio-from-long-take
 ---
 
 # 逐句跟讀練習模組
@@ -39,7 +40,8 @@ Spaced Review，也不提供 Play All 或跨片段音訊串接。
   artifact 驗證。
 - Main 會在不改變 canonical material 的前提下，把 AI 錯切出的純標點／空白片段併回相鄰的
   可朗讀片段，不為它產生獨立練習卡。
-- 每個 short／long chunk 獨立的 AI 示範、錄音、重錄與 learner audio 回放。
+- 每個 chunk 獨立的錄音、重錄與 learner audio 回放；Progressive 每個 long 只合成一份
+  完整朗讀母帶，所有 short AI 示範由該 WAV 對齊切出。
 - Progressive 所有 child 錄音完成後永久解鎖 parent long recording。
 - 麥克風先等候人聲；人聲後約 1.5 秒 sustained silence 自動停止，8 秒無聲不保存，30 秒
   maximum-duration guard。
@@ -101,6 +103,8 @@ ai-audio/<chunk-id>-<fingerprint>.wav
 - learner recording 先寫新 revision，metadata 成功後才刪舊 revision。
 - IPC／store 驗證 practice ID、chunk ID、recording eligibility、MIME 與 24 MiB byte limit。
 - Progressive parent unlock 寫入 metadata；child re-record 不會重新鎖定。
+- AI audio batch 先寫入所有切片，再以一次 metadata transaction 安裝整組 child cache；
+  失敗時不留下部分可用的短片段。
 - `Clear` 等待 metadata write queue 後，只遞迴刪除專用 root。
 
 ### ListenRepeatVoiceService
@@ -108,11 +112,22 @@ ai-audio/<chunk-id>-<fingerprint>.wav
 本服務和 Selection Speech 共用同一個 encrypted API key store 與 Settings voice／tone，但有
 獨立 request instructions、AbortController、fingerprint 與 disk cache：
 
-- model 固定 `gpt-4o-mini-tts`，format 使用 WAV。
-- instructions 要求使用 input 的相同語言、逐字保留 exact text，再套用 tone 風格。
-- fingerprint 包含 model、`listen-repeat-v1` instructions revision、voice、tone 與 exact text。
-- cache hit 直接從 store 回傳；miss 才呼叫 OpenAI。
-- 同 chunk 進行中的 prepare 會去重；Stop 可取消指定 chunk 或整個 practice。
+- TTS model 固定 `gpt-4o-mini-tts`，format 使用 PCM WAV；Progressive 只將 parent long
+  exact text 送入 TTS。
+- instructions 要求使用 input 的相同語言、逐字保留 exact text，並保留整句 continuation
+  intonation、connected speech 與 rhythm。
+- Progressive 以 `whisper-1` verbose JSON word timestamps 對齊已知 parent／children 文字；
+  只有 normalized transcript 與原文相等且每個 short break 落在 word boundary 時才切片。
+- `listen-repeat-audio-alignment.ts` 只接受可驗證的 16-bit PCM WAV，以共享 sample boundary
+  切出 children，再加入 60 ms 靜音與 8 ms fade；OpenAI streaming WAV 的 `0xFFFFFFFF`
+  unknown-length sentinel 會以實際收到的 data bytes 解析。
+- Whisper word timestamp 可以是 zero-duration；只要 timestamps 仍有序、全文完全吻合且
+  child boundary 落在 word boundary，就可安全切片，不因 `start === end` 誤拒絕。
+- parent fingerprint 包含 TTS model、instructions revision、voice、tone 與 parent exact text；
+  child fingerprint 再包含 alignment revision 與 ordered children。
+- cache hit 直接從 store 回傳；同 parent group 進行中的 TTS／alignment 去重；Stop 可取消
+  指定 chunk 所屬 group 或整個 practice。
+- 對齊、transcript 或 WAV 驗證失敗時使用安全 service error，不退回獨立 short TTS。
 - 401／403、429、network 與 service error 使用和 AI Voice 相同的安全錯誤分類，不透傳
   response body 或 API key。
 
@@ -124,7 +139,10 @@ focus view。`listen-repeat-flow.ts` 保存可獨立測試的 domain UI 邏輯�
 - 頁面以 prepare／practice 互斥 stage 呈現，避免有效結果出現後仍佔用高度顯示素材表單。
 - Codex process 尚未回傳時，以 `role=status` 呈現經過秒數和分段式等待說明；這只表示請求
   仍在進行，不假造 server 端百分比或精確完成時間。
-- Advanced long chunk 直接使用唯一 sentence card；Progressive 才保留 parent／children 階層。
+- Advanced long chunk 直接使用唯一 sentence card；Progressive 的可操作 long parent 卡在上、
+  short children 在下，完整長片段文字只顯示一次。
+- 任一 child 準備音訊時，parent 卡以單一 `role=status` 表示正在準備整句並對齊所有短片段，
+  同 group 的播放動作暫時停用。
 
 - Progressive sequence：每組 children → parent long → 下一組。
 - Advanced sequence：ordered long chunks。
@@ -148,7 +166,9 @@ draft material + mode
       ├─ invalid/error → keep previous current practice
       └─ valid → atomically replace current practice
   → manual chunk practice
-      AI audio (lazy persistent cache) ↔ learner recording (one revision)
+      Advanced: long TTS ↔ learner recording
+      Progressive: parent long TTS → word timestamps → all child WAV slices
+                   canonical parent/child cache ↔ independent learner recordings
   → or Continuous mode from any eligible chunk
       Preparing → AI playback → Countdown → Recording → Saving → next
       no speech/error/Stop → pause at current chunk
@@ -188,7 +208,8 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 | `apps/desktop/src/main/listen-repeat-artifacts.ts` | exact units、numeric boundary parser 與 reconstruction |
 | `apps/desktop/src/main/listen-repeat-controller.ts` | 隔離 Codex turn 與 orchestration |
 | `apps/desktop/src/main/listen-repeat-store.ts` | current metadata、recording、AI cache 與 cleanup |
-| `apps/desktop/src/main/listen-repeat-voice-service.ts` | 語言中性 TTS、fingerprint、dedupe 與 cancellation |
+| `apps/desktop/src/main/listen-repeat-voice-service.ts` | parent TTS、word timestamps、group fingerprint、dedupe 與 cancellation |
+| `apps/desktop/src/main/listen-repeat-audio-alignment.ts` | exact transcript 對齊、PCM WAV 驗證、sample slicing 與 edge treatment |
 | `apps/desktop/src/main/listen-repeat-ipc.ts` | 8 個 narrow IPC operations |
 | `.agents/skills/prepare-listen-and-repeat-practice/SKILL.md` | 只斷句、不改文與 artifact schema |
 | `apps/desktop/src/renderer/listen-repeat-flow.ts` | sequence、resume、overwrite scope 與 VAD |
@@ -203,7 +224,7 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 | `listen-repeat-artifacts.test.ts` | numbered units、Advanced/Progressive reconstruction 與無效邊界拒絕 |
 | `listen-repeat-controller.test.ts` | single result、fast model routing、atomic install/preserve、confirm、isolation |
 | `listen-repeat-store.test.ts` | restart、unlock、recording replace、ID/MIME、temporary cleanup、clear |
-| `listen-repeat-voice-service.test.ts` | language-neutral request、restart cache、fingerprint、cancel |
+| `listen-repeat-voice-service.test.ts` | parent-only TTS、timestamps、derived slices、group dedupe、restart cache、fingerprint、cancel |
 | `listen-repeat-ipc.test.ts` | narrow operations 與 malformed payload |
 | `listen-repeat-skill.test.ts` | skill contract 與 runtime install |
 | `listen-repeat-flow.test.ts` | sequence、resume、overwrite scope 與 VAD guards |
@@ -212,9 +233,9 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 | `data-backup-service.test.ts` | export/restore 排除 current practice |
 | `desktop.spec.ts` | production bundle、skill install、preload 與真實頁面入口 |
 
-最近驗證（2026-08-10）：
+最近驗證（2026-08-11）：
 
-- Root Vitest：server 3/3、Desktop 479/479 passed。
+- Root Vitest：server 3/3、Desktop 497/497 passed。
 - Root TypeScript typecheck：server、Desktop passed。
 - Root production build：server、Desktop passed（只有既有 renderer chunk-size advisory）。
 - Electron Playwright E2E：3/3 passed；既有 center-scroll 案例曾偶發逾時，單獨與完整重跑皆通過。
@@ -223,7 +244,10 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 
 - VAD threshold 與時間常數是跨裝置基準，極端噪音環境可能需要後續調校。
 - TTS 實際秒數受語言、voice、tone 與內容影響；Progressive short 通常 0.75–1.5 秒、為保留可獨立跟讀的緊密詞組時可到約 2 秒，long 為 5–10 秒，均屬 segmentation heuristic。
-- 不進行 ASR、音素對齊或發音評分。
+- word timestamps 只對齊 OpenAI 產生的完整朗讀母帶；不轉錄 Learner Recording，
+  不進行音素對齊或發音評分。
+- transcript 文字或 short boundary 無法安全對應時整組拒絕並要求重試，不使用字數比例猜測
+  或語氣不一致的 fallback。
 - 不提供 Play All、歷史、雲端、備份、匯出或手動 chunk boundary 編輯。
 - Codex 斷句只有 request-level 狀態，尚無 server 回傳的細部階段或 determinate percentage；
   UI 因此只顯示實際經過時間與等待說明。Main 端仍以 120 秒 timeout 防止模型服務異常。
@@ -233,5 +257,6 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 - `CONTEXT.md`
 - `documents/implements/F58-listen-and-repeat-practice.md`
 - `documents/implements/B18-complete-listen-repeat-segmentation-in-one-result.md`
+- `documents/implements/B20-derive-listen-repeat-short-audio-from-long-take.md`
 - `documents/modules/ai-voice.md`
 - `documents/modules/data-backup.md`
