@@ -33,6 +33,7 @@ import { restartAfterDataRestore } from "./data-restore-restart";
 import { registerLibraryIpc } from "./library-ipc";
 import { LocalBookLibrary } from "./library-service";
 import { registerLearningLibraryIpc } from "./learning-library-ipc";
+import { LearningItemRepresentativeImageService } from "./learning-item-representative-image";
 import { LearningItemEditController } from "./learning-item-edit-controller";
 import { registerLearningItemEditIpc } from "./learning-item-edit-ipc";
 import { LocalLearningLibrary } from "./learning-library-service";
@@ -132,7 +133,15 @@ app.whenReady().then(() => {
     }
   });
   learningLibraryForShutdown = learningLibrary;
-  registerLearningLibraryIpc(ipcMain, learningLibrary);
+  const learningItemRepresentativeImages = new LearningItemRepresentativeImageService(
+    dialog,
+    learningLibrary
+  );
+  registerLearningLibraryIpc(
+    ipcMain,
+    learningLibrary,
+    learningItemRepresentativeImages
+  );
   const dataBackupService = new DataBackupService({
     libraryPath,
     learningDatabasePath: learningLibraryPath,

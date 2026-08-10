@@ -98,6 +98,18 @@ const desktopApi = Object.freeze({
       ipcRenderer.invoke("learning:restore", itemId),
     emptyTrash: (): Promise<{ deleted: number }> =>
       ipcRenderer.invoke("learning:empty-trash"),
+    selectRepresentativeImage: (itemId: string) =>
+      ipcRenderer.invoke("learning:select-representative-image", itemId),
+    setRepresentativeImageFromUrl: (
+      itemId: string,
+      imageUrl: string
+    ): Promise<LearningItem> => ipcRenderer.invoke(
+      "learning:set-representative-image-from-url",
+      itemId,
+      imageUrl
+    ),
+    removeRepresentativeImage: (itemId: string): Promise<LearningItem> =>
+      ipcRenderer.invoke("learning:remove-representative-image", itemId),
     aiEdit: Object.freeze({
       start: (itemId: string): Promise<LearningItemEditSnapshot> =>
         ipcRenderer.invoke("learning-edit:start", itemId),

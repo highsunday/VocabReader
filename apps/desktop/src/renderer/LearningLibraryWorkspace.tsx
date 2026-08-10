@@ -9,11 +9,14 @@ import {
 } from "react";
 import {
   Check,
+  Image as ImageIcon,
+  Link,
   LoaderCircle,
   Search,
   Send,
   Sparkles,
   Trash2,
+  Upload,
   Volume2
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -164,6 +167,13 @@ export function LearningItemDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
+  const [isImageRemoveConfirming, setIsImageRemoveConfirming] = useState(false);
+  const [isImageUrlOpen, setIsImageUrlOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+  const [imageError, setImageError] = useState("");
+  const [imageOperation, setImageOperation] = useState<
+    "device" | "url" | "remove"
+  >();
   const [pronunciationError, setPronunciationError] = useState("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [reviewDetail, setReviewDetail] = useState<LearningItemReviewDetail>();
@@ -184,6 +194,10 @@ export function LearningItemDialog({
         setAiDiscardTarget(undefined);
         return;
       }
+      if (isImageRemoveConfirming) {
+        setIsImageRemoveConfirming(false);
+        return;
+      }
       if (isDeleteConfirming) {
         setIsDeleteConfirming(false);
         return;
@@ -192,7 +206,14 @@ export function LearningItemDialog({
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [aiDiscardTarget, aiEdit, isDeleteConfirming, isSaving, onClose]);
+  }, [
+    aiDiscardTarget,
+    aiEdit,
+    isDeleteConfirming,
+    isImageRemoveConfirming,
+    isSaving,
+    onClose
+  ]);
 
   useEffect(() => () => {
     speechRequestRef.current += 1;
@@ -255,6 +276,76 @@ export function LearningItemDialog({
 
   function updateDraft(update: Partial<UpdateLearningItemInput>) {
     setDraft((current) => current ? { ...current, ...update } : current);
+  }
+
+  async function selectRepresentativeImage() {
+    if (
+      readOnly || isSaving || !draft || aiEdit || !onChanged ||
+      !api.selectRepresentativeImage
+    ) return;
+    setImageOperation("device");
+    setIsSaving(true);
+    setImageError("");
+    try {
+      const result = await api.selectRepresentativeImage(item.id);
+      if (result.status === "updated") await onChanged(result.item);
+    } catch (cause) {
+      setImageError(
+        cause instanceof Error ? cause.message : "Unable to update the image."
+      );
+    } finally {
+      setImageOperation(undefined);
+      setIsSaving(false);
+    }
+  }
+
+  async function setRepresentativeImageFromUrl() {
+    if (
+      readOnly || isSaving || !draft || aiEdit || !onChanged ||
+      !api.setRepresentativeImageFromUrl || !imageUrl.trim()
+    ) return;
+    setImageOperation("url");
+    setIsSaving(true);
+    setImageError("");
+    try {
+      const updated = await api.setRepresentativeImageFromUrl(
+        item.id,
+        imageUrl.trim()
+      );
+      setImageUrl("");
+      setIsImageUrlOpen(false);
+      await onChanged(updated);
+    } catch (cause) {
+      setImageError(
+        cause instanceof Error ? cause.message : "Unable to import the image."
+      );
+    } finally {
+      setImageOperation(undefined);
+      setIsSaving(false);
+    }
+  }
+
+  async function removeRepresentativeImage() {
+    if (
+      readOnly || isSaving || !draft || aiEdit || !onChanged ||
+      !api.removeRepresentativeImage
+    ) return;
+    setImageOperation("remove");
+    setIsSaving(true);
+    setImageError("");
+    try {
+      const updated = await api.removeRepresentativeImage(item.id);
+      setIsImageRemoveConfirming(false);
+      await onChanged(updated);
+    } catch (cause) {
+      setIsImageRemoveConfirming(false);
+      setImageError(
+        cause instanceof Error ? cause.message : "Unable to remove the image."
+      );
+    } finally {
+      setImageOperation(undefined);
+      setIsSaving(false);
+    }
   }
 
   async function startAiEdit() {
@@ -411,7 +502,9 @@ export function LearningItemDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="learning-item-dialog-title"
-        aria-hidden={isDeleteConfirming || Boolean(aiDiscardTarget)}
+        aria-hidden={
+          isDeleteConfirming || isImageRemoveConfirming || Boolean(aiDiscardTarget)
+        }
         onMouseDown={ignoreInnerMouseDown}
       >
         <div className="learning-dialog-heading">
@@ -454,9 +547,11 @@ export function LearningItemDialog({
 
         {error ? <p className="library-error" role="alert">{error}</p> : null}
 
-        {draft ? (
+        {draft && !readOnly ? (
           <form className="learning-edit-form" onSubmit={save}>
-            <div className="learning-edit-fields">
+            <div className="learning-edit-scroll">
+              <div className="learning-edit-overview">
+                <div className="learning-edit-fields">
               <label>
                 Title
                 <input
@@ -503,7 +598,7 @@ export function LearningItemDialog({
                   ))}
                 </select>
               </label>
-              <label>
+              <label className="learning-sense-editor">
                 Sense
                 <input
                   required
@@ -511,8 +606,171 @@ export function LearningItemDialog({
                   onChange={(event) => updateDraft({ sense: event.target.value })}
                 />
               </label>
-            </div>
-            <div className="learning-markdown-editor">
+              <label className="learning-caution-editor">
+                Learning caution
+                <textarea
+                  value={draft.cautionNote}
+                  onChange={(event) => updateDraft({ cautionNote: event.target.value })}
+                  placeholder="Optional reminder about an easy mistake or confusing distinction"
+                />
+              </label>
+                </div>
+                <section
+                  className="learning-image-editor"
+                  aria-labelledby="learning-image-editor-title"
+                >
+                  <div className="learning-image-editor-heading">
+                    <strong id="learning-image-editor-title">
+                      Image
+                    </strong>
+                    <div className="learning-image-source-actions">
+                      {api.selectRepresentativeImage ? (
+                        <button
+                          type="button"
+                          className="learning-image-source-button is-primary"
+                          onClick={() => void selectRepresentativeImage()}
+                          disabled={isSaving}
+                        >
+                          <Upload aria-hidden="true" />
+                          {imageOperation === "device"
+                            ? "Processing…"
+                            : item.representativeImageDataUrl
+                              ? "Replace"
+                              : "Upload"}
+                        </button>
+                      ) : null}
+                      {api.setRepresentativeImageFromUrl ? (
+                        <button
+                          type="button"
+                          className="learning-image-source-button"
+                          aria-expanded={isImageUrlOpen}
+                          aria-controls="learning-image-url-fields"
+                          onClick={() => {
+                            setImageError("");
+                            setIsImageUrlOpen((current) => !current);
+                          }}
+                          disabled={isSaving}
+                        >
+                          <Link aria-hidden="true" />
+                          <span aria-hidden="true">URL</span>
+                          <span className="visually-hidden">From URL</span>
+                        </button>
+                      ) : null}
+                      {item.representativeImageDataUrl &&
+                      api.removeRepresentativeImage ? (
+                        <button
+                          type="button"
+                          className="learning-image-remove-button"
+                          onClick={() => setIsImageRemoveConfirming(true)}
+                          disabled={isSaving}
+                          title="Remove image"
+                        >
+                          <Trash2 aria-hidden="true" />
+                          <span className="visually-hidden">Remove</span>
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="learning-image-editor-body">
+                    <button
+                      type="button"
+                      className="learning-image-editor-preview"
+                      aria-label={item.representativeImageDataUrl
+                        ? "Replace representative image from device"
+                        : "Upload representative image from device"}
+                      onClick={() => void selectRepresentativeImage()}
+                      disabled={isSaving || !api.selectRepresentativeImage}
+                    >
+                      {item.representativeImageDataUrl ? (
+                        <img
+                          src={item.representativeImageDataUrl}
+                          alt={`Representative image for ${item.title}: ${item.sense}`}
+                          width={256}
+                          height={256}
+                        />
+                      ) : (
+                        <div className="learning-image-empty-state">
+                          <ImageIcon aria-hidden="true" strokeWidth={1.5} />
+                          <span>Add image</span>
+                        </div>
+                      )}
+                      {imageOperation ? (
+                        <div className="learning-image-processing" role="status">
+                          <LoaderCircle aria-hidden="true" />
+                          <span>{imageOperation === "remove"
+                            ? "Removing…"
+                            : "Processing…"}</span>
+                        </div>
+                      ) : null}
+                      {!imageOperation && item.representativeImageDataUrl ? (
+                        <span className="learning-image-preview-affordance">
+                          <Upload aria-hidden="true" />
+                          Change
+                        </span>
+                      ) : null}
+                    </button>
+                  </div>
+                  {imageError ? (
+                    <p className="learning-image-error" role="alert">{imageError}</p>
+                  ) : null}
+                  {isImageUrlOpen ? (
+                    <div
+                      className="learning-image-url-fields"
+                      id="learning-image-url-fields"
+                    >
+                      <label htmlFor="learning-image-url">Image URL</label>
+                      <div className="learning-image-url-input-row">
+                        <input
+                          id="learning-image-url"
+                          type="url"
+                          inputMode="url"
+                          placeholder="https://example.com/image.jpg"
+                          value={imageUrl}
+                          onChange={(event) => setImageUrl(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              void setRepresentativeImageFromUrl();
+                            }
+                          }}
+                          disabled={isSaving}
+                          autoFocus
+                        />
+                      </div>
+                      <div className="learning-image-url-footer">
+                        <small>Copied into your library, not linked.</small>
+                        <div>
+                          <button
+                            type="button"
+                            className="secondary-action"
+                            onClick={() => {
+                              setImageUrl("");
+                              setImageError("");
+                              setIsImageUrlOpen(false);
+                            }}
+                            disabled={isSaving}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="primary-action"
+                            onClick={() => void setRepresentativeImageFromUrl()}
+                            disabled={isSaving || !imageUrl.trim()}
+                          >
+                            {imageOperation === "url" ? "Importing…" : "Import"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  <p className="learning-image-meta">
+                    <span><Check aria-hidden="true" /> Saves instantly</span>
+                    <span>256 × 256 · JPG, PNG, WebP · 10 MB max</span>
+                  </p>
+                </section>
+              </div>
+              <div className="learning-markdown-editor">
               <label>
                 Markdown content
                 <textarea
@@ -537,15 +795,8 @@ export function LearningItemDialog({
                   {draft.markdownContent}
                 </MarkdownContent>
               </section>
+              </div>
             </div>
-            <label className="learning-caution-editor">
-              Learning caution
-              <textarea
-                value={draft.cautionNote}
-                onChange={(event) => updateDraft({ cautionNote: event.target.value })}
-                placeholder="Optional reminder about an easy mistake or confusing distinction"
-              />
-            </label>
             <div className="learning-dialog-actions">
               <button
                 type="button"
@@ -556,7 +807,7 @@ export function LearningItemDialog({
                 Cancel
               </button>
               <button type="submit" className="primary-action" disabled={isSaving}>
-                {isSaving ? "Saving…" : "Save"}
+                {isSaving && !imageOperation ? "Saving…" : "Save"}
               </button>
             </div>
           </form>
@@ -564,6 +815,22 @@ export function LearningItemDialog({
           <>
             <div className="learning-dialog-scroll">
               <div className="learning-dialog-content">
+                {item.representativeImageDataUrl ? (
+                  <section
+                    className="learning-representative-image-panel"
+                    aria-label="Representative image"
+                  >
+                    {item.representativeImageDataUrl ? (
+                      <img
+                        className="learning-representative-image"
+                        src={item.representativeImageDataUrl}
+                        alt={`Representative image for ${item.title}: ${item.sense}`}
+                        width={256}
+                        height={256}
+                      />
+                    ) : null}
+                  </section>
+                ) : null}
                 {shownCaution ? (
                   <p className="learning-caution" aria-label="Learning caution">
                     <strong>Note:</strong> {shownCaution}
@@ -779,7 +1046,11 @@ export function LearningItemDialog({
                 <button
                   type="button"
                   className="primary-action"
-                  onClick={() => setDraft(fieldsFor(item))}
+                  onClick={() => {
+                    setDraft(fieldsFor(item));
+                    setIsImageUrlOpen(false);
+                    setImageUrl("");
+                  }}
                   disabled={isSaving}
                 >
                   Edit
@@ -833,6 +1104,45 @@ export function LearningItemDialog({
                 disabled={isSaving}
               >
                 {isSaving ? "Moving…" : "Move to Trash"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isImageRemoveConfirming && !readOnly && item.representativeImageDataUrl ? (
+        <div
+          className="dialog-backdrop learning-delete-confirm-backdrop"
+          onMouseDown={ignoreInnerMouseDown}
+        >
+          <section
+            className="delete-dialog learning-delete-confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="remove-learning-item-image-title"
+            aria-describedby="remove-learning-item-image-description"
+          >
+            <span className="delete-dialog-icon" aria-hidden="true">!</span>
+            <h2 id="remove-learning-item-image-title">Remove image?</h2>
+            <p id="remove-learning-item-image-description">
+              This representative image will be permanently removed from the learning item.
+            </p>
+            <div className="delete-dialog-actions">
+              <button
+                type="button"
+                onClick={() => setIsImageRemoveConfirming(false)}
+                disabled={isSaving}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger-action"
+                onClick={() => void removeRepresentativeImage()}
+                disabled={isSaving}
+              >
+                {imageOperation === "remove" ? "Removing…" : "Remove image"}
               </button>
             </div>
           </section>

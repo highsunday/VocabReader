@@ -24,6 +24,12 @@ interface LearningLibrary extends Pick<
   countItems(): Promise<LearningItemCounts>;
 }
 
+interface RepresentativeImageOperations {
+  select(itemId: string): Promise<unknown>;
+  setFromUrl(itemId: string, imageUrl: string): Promise<unknown>;
+  remove(itemId: string): Promise<unknown>;
+}
+
 function nonEmptyString(value: unknown): value is string {
   return typeof value === "string" && Boolean(value.trim());
 }
@@ -86,7 +92,8 @@ function validUpdate(value: unknown): value is UpdateLearningItemInput {
 
 export function registerLearningLibraryIpc(
   ipc: IpcRegistrar,
-  library: LearningLibrary
+  library: LearningLibrary,
+  representativeImages?: RepresentativeImageOperations
 ): void {
   ipc.handle("learning:list", (_event, input) => {
     if (!validListInput(input)) throw new Error("Invalid Learning Library query");
@@ -110,4 +117,29 @@ export function registerLearningLibraryIpc(
     return library.restoreItem(itemId);
   });
   ipc.handle("learning:empty-trash", () => library.emptyTrash());
+  if (representativeImages) {
+    ipc.handle("learning:select-representative-image", (_event, itemId) => {
+      if (!nonEmptyString(itemId)) {
+        throw new Error("Invalid learning-item representative image request");
+      }
+      return representativeImages.select(itemId);
+    });
+    ipc.handle("learning:set-representative-image-from-url", (
+      _event,
+      itemId,
+      imageUrl
+    ) => {
+      if (!nonEmptyString(itemId) || !nonEmptyString(imageUrl) ||
+        imageUrl.length > 4096) {
+        throw new Error("Invalid learning-item representative image URL");
+      }
+      return representativeImages.setFromUrl(itemId, imageUrl);
+    });
+    ipc.handle("learning:remove-representative-image", (_event, itemId) => {
+      if (!nonEmptyString(itemId)) {
+        throw new Error("Invalid learning-item representative image request");
+      }
+      return representativeImages.remove(itemId);
+    });
+  }
 }

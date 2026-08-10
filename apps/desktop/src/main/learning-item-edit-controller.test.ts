@@ -90,6 +90,7 @@ describe("LearningItemEditController", () => {
       sense: "weaken or damage",
       markdownContent: "## Meaning\n損害或削弱。",
       cautionNote: "",
+      representativeImageDataUrl: "data:image/jpeg;base64,cHJpdmF0ZS1pbWFnZQ==",
       status: "active" as const,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
@@ -135,6 +136,7 @@ describe("LearningItemEditController", () => {
       request: "我常把 impair 誤解成 repair。"
     });
     expect(payload).not.toHaveProperty("cefr");
+    expect(payload).not.toHaveProperty("representativeImageDataUrl");
     await controller.apply(started.sessionId);
     expect(library.applyAiEdit).toHaveBeenCalledWith(expect.objectContaining({
       itemId: item.id,

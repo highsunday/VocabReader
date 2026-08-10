@@ -8,7 +8,7 @@
     "dev": "concurrently -k -n renderer,electron -c blue,green \"vite --host 127.0.0.1\" \"npm run dev:electron\"",
     "dev:electron": "wait-on tcp:5173 && npm run build:main && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
     "build": "npm run build:main && vite build",
-    "build:main": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --format=cjs --outdir=dist-electron --entry-names=[name] --out-extension:.js=.cjs --external:electron --loader:.md=text --loader:.png=file --asset-names=assets/[name]-[hash]",
+    "build:main": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --format=cjs --outdir=dist-electron --entry-names=[name] --out-extension:.js=.cjs --external:electron --external:sharp --loader:.md=text --loader:.png=file --asset-names=assets/[name]-[hash]",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
@@ -22,6 +22,7 @@
     "react-dom": "^19.2.7",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "sharp": "^0.35.3",
     "ts-fsrs": "^5.4.1"
   },
   "devDependencies": {

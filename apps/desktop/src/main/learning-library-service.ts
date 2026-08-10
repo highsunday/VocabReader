@@ -45,8 +45,8 @@ import {
   type SentencePracticeItem
 } from "../shared/sentence-practice-contracts";
 
-// Schema 6 adds a persisted optional caution to every learning item.
-export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 6;
+// Schema 7 adds one optional processed representative image to every learning item.
+export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 7;
 
 interface LearningItemRow {
   id: string;
@@ -57,6 +57,7 @@ interface LearningItemRow {
   sense: string;
   markdown_content: string;
   caution_note: string;
+  representative_image: Uint8Array | null;
   status: LearningItemStatus;
   created_at: string;
   updated_at: string;
@@ -472,6 +473,9 @@ function itemFromRow(row: LearningItemRow): LearningItem {
     sense: row.sense,
     markdownContent: row.markdown_content,
     cautionNote: row.caution_note,
+    representativeImageDataUrl: row.representative_image
+      ? `data:image/jpeg;base64,${Buffer.from(row.representative_image).toString("base64")}`
+      : null,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -837,6 +841,7 @@ export class LocalLearningLibrary {
           sense TEXT NOT NULL,
           markdown_content TEXT NOT NULL,
           caution_note TEXT NOT NULL DEFAULT '',
+          representative_image BLOB,
           status TEXT NOT NULL CHECK (status IN ('active', 'trashed')),
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
@@ -917,6 +922,16 @@ export class LocalLearningLibrary {
       database.prepare(`
         INSERT OR IGNORE INTO schema_migrations (version, applied_at)
         VALUES (6, CURRENT_TIMESTAMP)
+      `).run();
+      const imageColumns = database.prepare(
+        "PRAGMA table_info(learning_items)"
+      ).all() as unknown as Array<{ name: string }>;
+      if (!imageColumns.some(({ name }) => name === "representative_image")) {
+        database.exec("ALTER TABLE learning_items ADD COLUMN representative_image BLOB");
+      }
+      database.prepare(`
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+        VALUES (7, CURRENT_TIMESTAMP)
       `).run();
       database.exec(`
         CREATE INDEX IF NOT EXISTS learning_items_status_language_created_idx
@@ -1323,8 +1338,12 @@ export class LocalLearningLibrary {
     const selectedItems: ReviewQueueItem[] = selectedRows.map((row) => {
       const learningKind = progress.states.get(row.id)?.learningKind;
       const reviewKind = learningKind ?? (row.due_at ? "due" : "new");
+      const {
+        representativeImageDataUrl: _representativeImageDataUrl,
+        ...item
+      } = itemFromRow(row);
       return {
-        ...itemFromRow(row),
+        ...item,
         reviewKind,
         dueAt: row.due_at
       };
@@ -1660,6 +1679,44 @@ export class LocalLearningLibrary {
       throw new Error("This learning item changed. Reopen AI editing and try again.");
     }
     return this.getItem(itemId);
+  }
+
+  async setRepresentativeImage(
+    itemId: string,
+    jpegBytes: Buffer
+  ): Promise<LearningItem> {
+    const id = requiredText(itemId, "learning item");
+    if (
+      !Buffer.isBuffer(jpegBytes) ||
+      jpegBytes.byteLength < 4 ||
+      jpegBytes[0] !== 0xff ||
+      jpegBytes[1] !== 0xd8 ||
+      jpegBytes[2] !== 0xff
+    ) {
+      throw new Error("Invalid representative image");
+    }
+    const result = this.#open().prepare(`
+      UPDATE learning_items
+      SET representative_image = ?, updated_at = ?
+      WHERE id = ? AND status = 'active'
+    `).run(jpegBytes, new Date().toISOString(), id);
+    if (result.changes !== 1) {
+      throw new Error("No editable learning item was found");
+    }
+    return this.getItem(id);
+  }
+
+  async removeRepresentativeImage(itemId: string): Promise<LearningItem> {
+    const id = requiredText(itemId, "learning item");
+    const result = this.#open().prepare(`
+      UPDATE learning_items
+      SET representative_image = NULL, updated_at = ?
+      WHERE id = ? AND status = 'active'
+    `).run(new Date().toISOString(), id);
+    if (result.changes !== 1) {
+      throw new Error("No editable learning item was found");
+    }
+    return this.getItem(id);
   }
 
   async trashItem(itemId: string): Promise<LearningItem> {

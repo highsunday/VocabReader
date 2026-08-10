@@ -493,7 +493,10 @@ test("launches the secure Electron reading shell", async () => {
       "countItems",
       "getItem",
       "listItems",
+      "removeRepresentativeImage",
       "restoreItem",
+      "selectRepresentativeImage",
+      "setRepresentativeImageFromUrl",
       "trashItem",
       "updateItem"
     ].sort());

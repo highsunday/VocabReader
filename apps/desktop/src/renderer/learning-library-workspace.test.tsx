@@ -120,6 +120,95 @@ function api() {
 }
 
 describe("LearningLibraryWorkspace", () => {
+  it("shows image management only in edit mode and accepts device or URL sources", async () => {
+    const originalImage = "data:image/jpeg;base64,b2xk";
+    const replacementImage = "data:image/jpeg;base64,bmV3";
+    const imageItem = {
+      ...activeItems[0],
+      representativeImageDataUrl: originalImage
+    } as LearningItem;
+    const learning = Object.assign(api(), {
+      selectRepresentativeImage: vi.fn(async () => ({
+        status: "updated" as const,
+        item: { ...imageItem, representativeImageDataUrl: replacementImage }
+      })),
+      setRepresentativeImageFromUrl: vi.fn(async () => ({
+        ...imageItem,
+        representativeImageDataUrl: replacementImage
+      })),
+      removeRepresentativeImage: vi.fn(async () => ({
+        ...imageItem,
+        representativeImageDataUrl: null
+      }))
+    });
+    const onChanged = vi.fn(async () => undefined);
+    const { rerender } = render(
+      <LearningItemDialog
+        item={imageItem}
+        api={learning as LearningDesktopApi}
+        onChanged={onChanged}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("img", {
+      name: "Representative image for bank: side of a river"
+    })).toHaveAttribute("src", originalImage);
+    expect(screen.queryByRole("button", { name: "Replace" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove" }))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("button", {
+      name: "Replace representative image from device"
+    })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {
+      name: "Replace representative image from device"
+    }));
+    await waitFor(() => expect(learning.selectRepresentativeImage)
+      .toHaveBeenCalledWith("item-bank"));
+    expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({
+      representativeImageDataUrl: replacementImage
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "From URL" }));
+    fireEvent.change(screen.getByLabelText("Image URL"), {
+      target: { value: "https://images.example/bank.png" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    await waitFor(() => expect(learning.setRepresentativeImageFromUrl)
+      .toHaveBeenCalledWith("item-bank", "https://images.example/bank.png"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    const confirmation = screen.getByRole("alertdialog", { name: "Remove image?" });
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel" }));
+    expect(learning.removeRepresentativeImage).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    fireEvent.click(within(
+      screen.getByRole("alertdialog", { name: "Remove image?" })
+    ).getByRole("button", { name: "Remove image" }));
+    await waitFor(() => expect(learning.removeRepresentativeImage)
+      .toHaveBeenCalledWith("item-bank"));
+
+    rerender(
+      <LearningItemDialog
+        item={imageItem}
+        api={learning as LearningDesktopApi}
+        readOnly
+        onClose={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("img", {
+      name: "Representative image for bank: side of a river"
+    })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Replace" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove" }))
+      .not.toBeInTheDocument();
+  });
+
   it("does not offer AI editing from a read-only learning-item detail", () => {
     const learning = Object.assign(api(), {
       aiEdit: {

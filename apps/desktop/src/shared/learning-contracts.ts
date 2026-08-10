@@ -16,6 +16,7 @@ export interface LearningItem {
   sense: string;
   markdownContent: string;
   cautionNote?: string;
+  representativeImageDataUrl?: string | null;
   status: LearningItemStatus;
   createdAt: string;
   updatedAt: string;
@@ -127,6 +128,10 @@ export interface LearningItemEditDesktopApi {
   discard(sessionId: string): Promise<void>;
 }
 
+export type SelectRepresentativeImageResult =
+  | { status: "cancelled" }
+  | { status: "updated"; item: LearningItem };
+
 export interface LearningDesktopApi {
   listItems(input: LearningItemListInput): Promise<LearningItemPage>;
   countItems(): Promise<LearningItemCounts>;
@@ -135,5 +140,13 @@ export interface LearningDesktopApi {
   trashItem(itemId: string): Promise<LearningItem>;
   restoreItem(itemId: string): Promise<LearningItem>;
   emptyTrash(): Promise<{ deleted: number }>;
+  selectRepresentativeImage?(
+    itemId: string
+  ): Promise<SelectRepresentativeImageResult>;
+  setRepresentativeImageFromUrl?(
+    itemId: string,
+    imageUrl: string
+  ): Promise<LearningItem>;
+  removeRepresentativeImage?(itemId: string): Promise<LearningItem>;
   aiEdit?: LearningItemEditDesktopApi;
 }

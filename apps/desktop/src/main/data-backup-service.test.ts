@@ -260,6 +260,10 @@ describe("DataBackupService", () => {
       markdownContent: sourceItems[1].markdownContent,
       cautionNote: ""
     });
+    const activeImage = Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x11]);
+    const trashedImage = Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x22]);
+    await sourceLearning.setRepresentativeImage(multilingualItem.id, activeImage);
+    await sourceLearning.setRepresentativeImage(sourceItems[0].id, trashedImage);
     await sourceLearning.trashItem(sourceItems[0].id);
     await mkdir(join(root, "source", "listen-and-repeat"), { recursive: true });
     await writeFile(
@@ -371,9 +375,13 @@ describe("DataBackupService", () => {
     expect(restoredActive).toHaveLength(9);
     expect(restoredActive.find(({ id }) => id === multilingualItem.id)?.language)
       .toBe("ja");
+    expect((await restoredLearning.getItem(multilingualItem.id)).representativeImageDataUrl)
+      .toBe(`data:image/jpeg;base64,${activeImage.toString("base64")}`);
     await expect(
       restoredLearning.listItems({ status: "trashed", sort: "recent" })
     ).resolves.toHaveLength(1);
+    expect((await restoredLearning.getItem(sourceItems[0].id)).representativeImageDataUrl)
+      .toBe(`data:image/jpeg;base64,${trashedImage.toString("base64")}`);
     expect(await readFile(
       join(root, "target", "settings", "settings.json"),
       "utf8"
@@ -527,7 +535,7 @@ describe("DataBackupService", () => {
     });
   });
 
-  it("exports schema version 6 and rejects a newer database", async () => {
+  it("exports schema version 7 and rejects a newer database", async () => {
     const root = await temporaryDirectory();
     const libraryPath = join(root, "library");
     const learningDatabasePath = join(
@@ -546,7 +554,7 @@ describe("DataBackupService", () => {
       VALUES (4, CURRENT_TIMESTAMP)
     `).run();
     database.close();
-    const archivePath = join(root, "schema-v6.zip");
+    const archivePath = join(root, "schema-v7.zip");
     const service = new DataBackupService({
       libraryPath,
       learningDatabasePath,
@@ -572,10 +580,10 @@ describe("DataBackupService", () => {
     const newerDatabase = new DatabaseSync(learningDatabasePath);
     newerDatabase.prepare(`
       INSERT INTO schema_migrations (version, applied_at)
-      VALUES (7, CURRENT_TIMESTAMP)
+      VALUES (8, CURRENT_TIMESTAMP)
     `).run();
     newerDatabase.close();
-    await expect(service.exportToPath(join(root, "schema-v7.zip")))
+    await expect(service.exportToPath(join(root, "schema-v8.zip")))
       .rejects.toThrow("The backup uses a newer Learning Library version");
   });
 

@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   LocalLearningLibrary,
+  MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION,
   sentencePracticeMeaning
 } from "./learning-library-service";
 
@@ -28,6 +29,84 @@ afterEach(async () => {
 });
 
 describe("LocalLearningLibrary", () => {
+  it("persists one representative image without adding it to list summaries", async () => {
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: 20,
+        dailyDueReviewCompletionLimit: 20,
+        reviewPaperSize: 20
+      })
+    });
+    const created = await library.createItem({
+      title: "ibex",
+      itemType: "word",
+      language: "en",
+      cefr: "B2",
+      sense: "a wild mountain goat",
+      markdownContent: "## Meaning\n一種野生山羊。"
+    });
+    const imageBytes = Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x01, 0x02]);
+    const imageLibrary = library as unknown as {
+      setRepresentativeImage(itemId: string, jpegBytes: Buffer): Promise<{
+        representativeImageDataUrl: string | null;
+      }>;
+      removeRepresentativeImage(itemId: string): Promise<{
+        representativeImageDataUrl: string | null;
+      }>;
+    };
+
+    const withImage = await imageLibrary.setRepresentativeImage(created.id, imageBytes);
+    expect(withImage.representativeImageDataUrl).toBe(
+      `data:image/jpeg;base64,${imageBytes.toString("base64")}`
+    );
+    const page = await library.listItemPage({ status: "active", sort: "recent" });
+    expect(page.items.find(({ id }) => id === created.id))
+      .not.toHaveProperty("representativeImageDataUrl");
+    const review = await library.getReviewSummary("2026-08-10T08:00:00.000Z");
+    expect(review.selectedItems.find(({ id }) => id === created.id))
+      .not.toHaveProperty("representativeImageDataUrl");
+
+    await library.updateItem({
+      itemId: created.id,
+      title: created.title,
+      itemType: created.itemType,
+      language: created.language,
+      cefr: created.cefr,
+      sense: "a sure-footed wild mountain goat",
+      markdownContent: created.markdownContent,
+      cautionNote: ""
+    });
+    expect((await library.getItem(created.id)).representativeImageDataUrl)
+      .toBe(withImage.representativeImageDataUrl);
+    const beforeAiEdit = await library.getItem(created.id);
+    await library.applyAiEdit({
+      itemId: created.id,
+      baseUpdatedAt: beforeAiEdit.updatedAt,
+      markdownContent: `${beforeAiEdit.markdownContent}\n\n## Habitat\nRocky mountains.`,
+      cautionNote: ""
+    });
+    expect((await library.getItem(created.id)).representativeImageDataUrl)
+      .toBe(withImage.representativeImageDataUrl);
+
+    await library.trashItem(created.id);
+    expect((await library.getItem(created.id)).representativeImageDataUrl)
+      .toBe(withImage.representativeImageDataUrl);
+    await library.restoreItem(created.id);
+    expect((await library.getItem(created.id)).representativeImageDataUrl)
+      .toBe(withImage.representativeImageDataUrl);
+
+    const withoutImage = await imageLibrary.removeRepresentativeImage(created.id);
+    expect(withoutImage.representativeImageDataUrl).toBeNull();
+    expect(MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION).toBe(7);
+
+    await imageLibrary.setRepresentativeImage(created.id, imageBytes);
+    await library.trashItem(created.id);
+    await expect(imageLibrary.setRepresentativeImage(created.id, imageBytes))
+      .rejects.toThrow(/editable learning item/);
+    await library.emptyTrash();
+    await expect(library.getItem(created.id)).rejects.toThrow(/not found/);
+  });
+
   it("uses the first Meaning paragraph and falls back to the target sense", () => {
     expect(sentencePracticeMeaning(
       "# Card\n\n## Meaning\n第一行\n第二行\n\n## Examples\n1. Example.",
@@ -197,6 +276,9 @@ describe("LocalLearningLibrary", () => {
     if (legacyItemColumns.some(({ name }) => name === "caution_note")) {
       legacyDatabase.exec("ALTER TABLE learning_items DROP COLUMN caution_note");
     }
+    if (legacyItemColumns.some(({ name }) => name === "representative_image")) {
+      legacyDatabase.exec("ALTER TABLE learning_items DROP COLUMN representative_image");
+    }
     legacyDatabase.prepare(
       "DELETE FROM schema_migrations WHERE version >= 4"
     ).run();
@@ -236,9 +318,11 @@ describe("LocalLearningLibrary", () => {
       name: "caution_note",
       notnull: 1
     });
+    expect(itemColumns.find(({ name }) => name === "representative_image"))
+      .toMatchObject({ name: "representative_image", notnull: 0 });
     expect(languages).toEqual([{ language: "en" }]);
     expect(cautions).toEqual([{ caution_note: "" }]);
-    expect(migration.version).toBe(6);
+    expect(migration.version).toBe(7);
   });
 
   it("never reseeds after every example is permanently removed", async () => {
