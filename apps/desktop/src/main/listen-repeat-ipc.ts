@@ -1,6 +1,7 @@
 import {
   LISTEN_REPEAT_RECORDING_LIMIT,
-  isListenRepeatMode
+  isListenRepeatMode,
+  isListenRepeatShortChunkLength
 } from "../shared/listen-repeat-contracts";
 import type { ListenRepeatController } from "./listen-repeat-controller";
 
@@ -29,14 +30,23 @@ export function registerListenRepeatIpc(
   ipc.handle("listen-repeat:snapshot", () => controller.getSnapshot());
   ipc.handle("listen-repeat:draft", (_event, raw) => {
     if (!isObject(raw) || typeof raw.material !== "string" ||
-      raw.material.length > 20_000 || !isListenRepeatMode(raw.mode)) {
+      raw.material.length > 20_000 || !isListenRepeatMode(raw.mode) ||
+      (raw.shortChunkLength !== undefined &&
+        !isListenRepeatShortChunkLength(raw.shortChunkLength))) {
       throw new Error("Invalid listen-and-repeat draft request");
     }
-    return controller.saveDraft({ material: raw.material, mode: raw.mode });
+    return controller.saveDraft({
+      material: raw.material,
+      mode: raw.mode,
+      ...(isListenRepeatShortChunkLength(raw.shortChunkLength)
+        ? { shortChunkLength: raw.shortChunkLength } : {})
+    });
   });
   ipc.handle("listen-repeat:process", (_event, raw) => {
     if (!isObject(raw) || typeof raw.material !== "string" ||
       !isListenRepeatMode(raw.mode) ||
+      (raw.shortChunkLength !== undefined &&
+        !isListenRepeatShortChunkLength(raw.shortChunkLength)) ||
       (raw.replaceConfirmed !== undefined &&
         typeof raw.replaceConfirmed !== "boolean")) {
       throw new Error("Invalid listen-and-repeat process request");
@@ -44,6 +54,8 @@ export function registerListenRepeatIpc(
     return controller.process({
       material: raw.material,
       mode: raw.mode,
+      ...(isListenRepeatShortChunkLength(raw.shortChunkLength)
+        ? { shortChunkLength: raw.shortChunkLength } : {}),
       ...(typeof raw.replaceConfirmed === "boolean"
         ? { replaceConfirmed: raw.replaceConfirmed } : {})
     });

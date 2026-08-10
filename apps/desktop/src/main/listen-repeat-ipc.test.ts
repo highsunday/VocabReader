@@ -32,12 +32,24 @@ describe("listen-and-repeat IPC", () => {
     await handlers.get("listen-repeat:process")?.({}, {
       material: "Practice.",
       mode: "advanced",
+      shortChunkLength: "medium",
       replaceConfirmed: false
     });
     expect(controller.process).toHaveBeenCalledWith({
       material: "Practice.",
       mode: "advanced",
+      shortChunkLength: "medium",
       replaceConfirmed: false
+    });
+    await handlers.get("listen-repeat:draft")?.({}, {
+      material: "Draft.",
+      mode: "progressive",
+      shortChunkLength: "long"
+    });
+    expect(controller.saveDraft).toHaveBeenCalledWith({
+      material: "Draft.",
+      mode: "progressive",
+      shortChunkLength: "long"
     });
     await handlers.get("listen-repeat:save-recording")?.({}, {
       practiceId: "practice",
@@ -51,6 +63,16 @@ describe("listen-and-repeat IPC", () => {
       material: "Practice.",
       mode: "unknown"
     })).toThrow(/process request/i);
+    expect(() => handlers.get("listen-repeat:process")?.({}, {
+      material: "Practice.",
+      mode: "progressive",
+      shortChunkLength: "2 seconds"
+    })).toThrow(/process request/i);
+    expect(() => handlers.get("listen-repeat:draft")?.({}, {
+      material: "Practice.",
+      mode: "progressive",
+      shortChunkLength: "2 seconds"
+    })).toThrow(/draft request/i);
     expect(() => handlers.get("listen-repeat:save-recording")?.({}, {
       practiceId: "../bad",
       chunkId: "chunk",

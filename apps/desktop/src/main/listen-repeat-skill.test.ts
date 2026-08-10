@@ -20,6 +20,9 @@ describe("prepare-listen-and-repeat-practice skill", () => {
     expect(skill).toContain("name: prepare-listen-and-repeat-practice");
     expect(skill).toContain("untrusted data");
     expect(skill).toContain("0.75–1.5 seconds");
+    expect(skill).toContain("1.5–2.5 seconds");
+    expect(skill).toContain("2.5–4 seconds");
+    expect(skill).toContain("shortChunkLength");
     expect(skill).toContain("extend to approximately 2 seconds only");
     expect(normalizedSkill).toContain("shortest independently repeatable semantic or breath group");
     expect(normalizedSkill).toContain("not merge two independently repeatable short groups");

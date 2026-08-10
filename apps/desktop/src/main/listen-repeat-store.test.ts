@@ -8,6 +8,7 @@ const progressive = {
   practiceId: "practice-1",
   material: "One, two.",
   mode: "progressive" as const,
+  shortChunkLength: "medium" as const,
   longChunks: [{
     text: "One, two.",
     shortChunks: [{ text: "One, " }, { text: "two." }]
@@ -24,6 +25,7 @@ describe("LocalListenRepeatStore", () => {
     const restored = await new LocalListenRepeatStore(root).getSnapshot(false);
 
     expect(first.practice?.material).toBe(progressive.material);
+    expect(first.practice?.shortChunkLength).toBe("medium");
     expect(restored.practice).toEqual(first.practice);
     expect(restored.progress).toEqual({
       shortCompleted: 0,
@@ -31,6 +33,35 @@ describe("LocalListenRepeatStore", () => {
       longCompleted: 0,
       longTotal: 1,
       complete: false
+    });
+  });
+
+  it("persists draft length and defaults legacy metadata to Short", async () => {
+    const draftRoot = await mkdtemp(join(tmpdir(), "listen-repeat-draft-length-"));
+    await new LocalListenRepeatStore(draftRoot).saveDraft({
+      material: "Draft.",
+      mode: "progressive",
+      shortChunkLength: "long"
+    });
+    expect((await new LocalListenRepeatStore(draftRoot).getSnapshot(false))
+      .practice?.shortChunkLength).toBe("long");
+
+    const legacyRoot = await mkdtemp(join(tmpdir(), "listen-repeat-legacy-length-"));
+    await writeFile(join(legacyRoot, "current.json"), JSON.stringify({
+      id: "legacy",
+      material: "Legacy.",
+      mode: "progressive",
+      phase: "ready",
+      longChunks: [],
+      error: null,
+      createdAt: "2026-08-10T00:00:00.000Z",
+      updatedAt: "2026-08-10T00:00:00.000Z"
+    }), "utf8");
+    const legacy = await new LocalListenRepeatStore(legacyRoot).getSnapshot(false);
+    expect(legacy.practice).toMatchObject({
+      id: "legacy",
+      material: "Legacy.",
+      shortChunkLength: "short"
     });
   });
 

@@ -42,8 +42,8 @@ import type {
 } from "../shared/sentence-practice-contracts";
 import type {
   ListenRepeatDesktopApi,
-  ListenRepeatMode,
   ProcessListenRepeatInput,
+  SaveListenRepeatDraftInput,
   SaveListenRepeatRecordingInput
 } from "../shared/listen-repeat-contracts";
 import type {
@@ -156,7 +156,7 @@ const desktopApi = Object.freeze({
   } satisfies SentencePracticeDesktopApi),
   listenRepeat: Object.freeze({
     getSnapshot: () => ipcRenderer.invoke("listen-repeat:snapshot"),
-    saveDraft: (input: { material: string; mode: ListenRepeatMode }) =>
+    saveDraft: (input: SaveListenRepeatDraftInput) =>
       ipcRenderer.invoke("listen-repeat:draft", input),
     process: (input: ProcessListenRepeatInput) =>
       ipcRenderer.invoke("listen-repeat:process", input),

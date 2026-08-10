@@ -2,9 +2,14 @@ import { randomUUID } from "node:crypto";
 import type {
   ListenRepeatSnapshot,
   ProcessListenRepeatInput,
+  SaveListenRepeatDraftInput,
   SaveListenRepeatRecordingInput
 } from "../shared/listen-repeat-contracts";
-import { validateListenRepeatMaterial } from "../shared/listen-repeat-contracts";
+import {
+  DEFAULT_LISTEN_REPEAT_SHORT_CHUNK_LENGTH,
+  isListenRepeatShortChunkLength,
+  validateListenRepeatMaterial
+} from "../shared/listen-repeat-contracts";
 import type {
   CodexAppServerClient,
   CodexNotification
@@ -101,7 +106,8 @@ async function selectFastListenRepeatModel(
 
 function segmentationPrompt(
   practiceId: string,
-  input: ProcessListenRepeatInput
+  input: ProcessListenRepeatInput,
+  shortChunkLength: "short" | "medium" | "long"
 ): string {
   const materialUnits = unitizeListenRepeatMaterial(input.material)
     .map((text, index) => [index + 1, text] as const);
@@ -113,6 +119,7 @@ function segmentationPrompt(
       version: 3,
       practiceId,
       mode: input.mode,
+      ...(input.mode === "progressive" ? { shortChunkLength } : {}),
       materialUnits
     })}`,
     "Each material unit is [id, exactText]. Select only interior break IDs; " +
@@ -283,12 +290,17 @@ export class ListenRepeatController {
     if (input.mode !== "advanced" && input.mode !== "progressive") {
       throw new Error("Invalid listen-and-repeat mode");
     }
+    const shortChunkLength = input.shortChunkLength ??
+      DEFAULT_LISTEN_REPEAT_SHORT_CHUNK_LENGTH;
+    if (!isListenRepeatShortChunkLength(shortChunkLength)) {
+      throw new Error("Invalid Progressive short-chunk length");
+    }
     const current = await this.getSnapshot();
     if (hasRecordings(current) && !input.replaceConfirmed) {
       throw new Error("Replacement confirmation is required");
     }
     const practiceId = randomUUID();
-    const prompt = segmentationPrompt(practiceId, input);
+    const prompt = segmentationPrompt(practiceId, input, shortChunkLength);
     const outputSchema = segmentationOutputSchema(
       practiceId,
       input.mode,
@@ -306,20 +318,21 @@ export class ListenRepeatController {
       practiceId,
       material: input.material,
       mode: input.mode,
+      shortChunkLength,
       longChunks: parsed.longChunks
     });
     return this.getSnapshot();
   }
 
-  async saveDraft(input: {
-    material: string;
-    mode: "progressive" | "advanced";
-  }): Promise<ListenRepeatSnapshot> {
+  async saveDraft(input: SaveListenRepeatDraftInput): Promise<ListenRepeatSnapshot> {
+    const shortChunkLength = input.shortChunkLength ??
+      DEFAULT_LISTEN_REPEAT_SHORT_CHUNK_LENGTH;
     if (typeof input.material !== "string" || input.material.length > 20_000 ||
-      (input.mode !== "advanced" && input.mode !== "progressive")) {
+      (input.mode !== "advanced" && input.mode !== "progressive") ||
+      !isListenRepeatShortChunkLength(shortChunkLength)) {
       throw new Error("Invalid listen-and-repeat draft");
     }
-    await this.options.store.saveDraft(input);
+    await this.options.store.saveDraft({ ...input, shortChunkLength });
     return this.getSnapshot();
   }
 

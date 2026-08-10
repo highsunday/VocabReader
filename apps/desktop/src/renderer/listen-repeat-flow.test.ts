@@ -20,6 +20,7 @@ function practice(): ListenRepeatPractice {
     id: "practice",
     material: "A B. C D.",
     mode: "progressive",
+    shortChunkLength: "short",
     phase: "ready",
     error: null,
     createdAt: "2026-08-10T00:00:00.000Z",

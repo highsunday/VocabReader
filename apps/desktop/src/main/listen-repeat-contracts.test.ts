@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LISTEN_REPEAT_MATERIAL_LIMIT,
   countListenRepeatGraphemes,
+  isListenRepeatShortChunkLength,
   validateListenRepeatMaterial
 } from "../shared/listen-repeat-contracts";
 
@@ -28,5 +29,12 @@ describe("listen-and-repeat material contracts", () => {
       count: 3,
       reason: "empty"
     });
+  });
+
+  it("allowlists the three Progressive short-chunk length preferences", () => {
+    expect(["short", "medium", "long"].every(isListenRepeatShortChunkLength))
+      .toBe(true);
+    expect(isListenRepeatShortChunkLength("2.5 seconds")).toBe(false);
+    expect(isListenRepeatShortChunkLength(undefined)).toBe(false);
   });
 });

@@ -16,10 +16,15 @@ import type {
   ListenRepeatMode,
   ListenRepeatPractice,
   ListenRepeatProgress,
+  ListenRepeatShortChunkLength,
   ListenRepeatSnapshot,
   SaveListenRepeatRecordingInput
 } from "../shared/listen-repeat-contracts";
-import { LISTEN_REPEAT_RECORDING_LIMIT } from "../shared/listen-repeat-contracts";
+import {
+  DEFAULT_LISTEN_REPEAT_SHORT_CHUNK_LENGTH,
+  LISTEN_REPEAT_RECORDING_LIMIT,
+  isListenRepeatShortChunkLength
+} from "../shared/listen-repeat-contracts";
 import type { ParsedListenRepeatChunk } from "./listen-repeat-artifacts";
 
 interface StoredChunk extends Omit<ListenRepeatChunk, "shortChunks"> {
@@ -28,7 +33,11 @@ interface StoredChunk extends Omit<ListenRepeatChunk, "shortChunks"> {
   aiAudioFile?: string;
 }
 
-interface StoredPractice extends Omit<ListenRepeatPractice, "longChunks"> {
+interface StoredPractice extends Omit<
+  ListenRepeatPractice,
+  "longChunks" | "shortChunkLength"
+> {
+  shortChunkLength?: ListenRepeatShortChunkLength;
   longChunks: StoredChunk[];
 }
 
@@ -36,6 +45,7 @@ interface ReplacePracticeInput {
   practiceId: string;
   material: string;
   mode: ListenRepeatMode;
+  shortChunkLength?: ListenRepeatShortChunkLength;
   longChunks: ParsedListenRepeatChunk[];
 }
 
@@ -87,6 +97,8 @@ function publicPractice(practice: StoredPractice): ListenRepeatPractice {
     id: practice.id,
     material: practice.material,
     mode: practice.mode,
+    shortChunkLength: isListenRepeatShortChunkLength(practice.shortChunkLength)
+      ? practice.shortChunkLength : DEFAULT_LISTEN_REPEAT_SHORT_CHUNK_LENGTH,
     phase: practice.phase,
     longChunks: practice.longChunks.map(publicChunk),
     error: practice.error,
@@ -247,6 +259,8 @@ export class LocalListenRepeatStore {
       id: input.practiceId,
       material: input.material,
       mode: input.mode,
+      shortChunkLength: input.shortChunkLength ??
+        DEFAULT_LISTEN_REPEAT_SHORT_CHUNK_LENGTH,
       phase: "ready",
       error: null,
       createdAt: timestamp,
@@ -286,6 +300,7 @@ export class LocalListenRepeatStore {
   async saveDraft(input: {
     material: string;
     mode: ListenRepeatMode;
+    shortChunkLength?: ListenRepeatShortChunkLength;
   }): Promise<ListenRepeatSnapshot> {
     const current = await this.#load();
     if (current && current.phase !== "draft") return this.getSnapshot(false);
@@ -294,6 +309,8 @@ export class LocalListenRepeatStore {
       id: randomUUID(),
       material: "",
       mode: input.mode,
+      shortChunkLength: input.shortChunkLength ??
+        DEFAULT_LISTEN_REPEAT_SHORT_CHUNK_LENGTH,
       phase: "draft",
       longChunks: [],
       error: null,
@@ -302,6 +319,8 @@ export class LocalListenRepeatStore {
     };
     practice.material = input.material;
     practice.mode = input.mode;
+    practice.shortChunkLength = input.shortChunkLength ??
+      DEFAULT_LISTEN_REPEAT_SHORT_CHUNK_LENGTH;
     practice.updatedAt = timestamp;
     await this.#save(practice);
     this.#practice = practice;

@@ -1,7 +1,9 @@
 export const LISTEN_REPEAT_MATERIAL_LIMIT = 2_000;
 export const LISTEN_REPEAT_RECORDING_LIMIT = 24 * 1024 * 1024;
+export const DEFAULT_LISTEN_REPEAT_SHORT_CHUNK_LENGTH = "short";
 
 export type ListenRepeatMode = "progressive" | "advanced";
+export type ListenRepeatShortChunkLength = "short" | "medium" | "long";
 export type ListenRepeatChunkKind = "short" | "long";
 
 export interface ListenRepeatRecordingSummary {
@@ -30,6 +32,7 @@ export interface ListenRepeatPractice {
   id: string;
   material: string;
   mode: ListenRepeatMode;
+  shortChunkLength: ListenRepeatShortChunkLength;
   phase: "draft" | "processing" | "ready" | "error";
   longChunks: ListenRepeatChunk[];
   error: string | null;
@@ -54,7 +57,14 @@ export interface ListenRepeatSnapshot {
 export interface ProcessListenRepeatInput {
   material: string;
   mode: ListenRepeatMode;
+  shortChunkLength?: ListenRepeatShortChunkLength;
   replaceConfirmed?: boolean;
+}
+
+export interface SaveListenRepeatDraftInput {
+  material: string;
+  mode: ListenRepeatMode;
+  shortChunkLength?: ListenRepeatShortChunkLength;
 }
 
 export interface SaveListenRepeatRecordingInput {
@@ -72,7 +82,7 @@ export interface ListenRepeatAudioResult {
 
 export interface ListenRepeatDesktopApi {
   getSnapshot(): Promise<ListenRepeatSnapshot>;
-  saveDraft(input: { material: string; mode: ListenRepeatMode }): Promise<ListenRepeatSnapshot>;
+  saveDraft(input: SaveListenRepeatDraftInput): Promise<ListenRepeatSnapshot>;
   process(input: ProcessListenRepeatInput): Promise<ListenRepeatSnapshot>;
   saveRecording(input: SaveListenRepeatRecordingInput): Promise<ListenRepeatSnapshot>;
   getRecording(input: { practiceId: string; chunkId: string }): Promise<ListenRepeatAudioResult>;
@@ -127,4 +137,10 @@ export function validateListenRepeatMaterial(
 
 export function isListenRepeatMode(value: unknown): value is ListenRepeatMode {
   return value === "progressive" || value === "advanced";
+}
+
+export function isListenRepeatShortChunkLength(
+  value: unknown
+): value is ListenRepeatShortChunkLength {
+  return value === "short" || value === "medium" || value === "long";
 }

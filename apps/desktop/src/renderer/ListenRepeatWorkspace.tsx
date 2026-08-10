@@ -27,6 +27,7 @@ import type {
   ListenRepeatChunk,
   ListenRepeatDesktopApi,
   ListenRepeatMode,
+  ListenRepeatShortChunkLength,
   ListenRepeatSnapshot
 } from "../shared/listen-repeat-contracts";
 import {
@@ -164,10 +165,30 @@ function processingFeedback(seconds: number) {
   };
 }
 
+const shortChunkLengthOptions: Array<{
+  value: ListenRepeatShortChunkLength;
+  label: string;
+  seconds: string;
+}> = [{
+  value: "short",
+  label: "Short",
+  seconds: "0.75–1.5"
+}, {
+  value: "medium",
+  label: "Medium",
+  seconds: "1.5–2.5"
+}, {
+  value: "long",
+  label: "Long",
+  seconds: "2.5–4"
+}];
+
 export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
   const [snapshot, setSnapshot] = useState<ListenRepeatSnapshot>(emptySnapshot);
   const [material, setMaterial] = useState("");
   const [mode, setMode] = useState<ListenRepeatMode>("progressive");
+  const [shortChunkLength, setShortChunkLength] =
+    useState<ListenRepeatShortChunkLength>("short");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [processingElapsedSeconds, setProcessingElapsedSeconds] = useState(0);
@@ -202,9 +223,14 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
       if (next.practice) {
         setMaterial(next.practice.material);
         setMode(next.practice.mode);
+        setShortChunkLength(next.practice.shortChunkLength);
         setMaterialExpanded(next.practice.phase !== "ready");
         if (next.practice.phase === "draft") {
-          lastDraftRef.current = `${next.practice.mode}\0${next.practice.material}`;
+          lastDraftRef.current = [
+            next.practice.mode,
+            next.practice.shortChunkLength,
+            next.practice.material
+          ].join("\0");
         }
       }
       setError("");
@@ -229,11 +255,11 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
   useEffect(() => {
     if (!active || loading ||
       (snapshot.practice && snapshot.practice.phase !== "draft")) return;
-    const signature = `${mode}\0${material}`;
+    const signature = [mode, shortChunkLength, material].join("\0");
     if (lastDraftRef.current === signature) return;
     const timeout = setTimeout(() => {
       lastDraftRef.current = signature;
-      void api.saveDraft({ material, mode }).then((next) => {
+      void api.saveDraft({ material, mode, shortChunkLength }).then((next) => {
         setSnapshot(next);
         snapshotRef.current = next;
       }).catch(() => {
@@ -242,7 +268,7 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
       });
     }, 500);
     return () => clearTimeout(timeout);
-  }, [active, api, loading, material, mode, snapshot.practice]);
+  }, [active, api, loading, material, mode, shortChunkLength, snapshot.practice]);
 
   useEffect(() => {
     if (!processing) return;
@@ -271,6 +297,10 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
   const longProgress = snapshot.progress.longTotal
     ? snapshot.progress.longCompleted / snapshot.progress.longTotal : 0;
   const processingStatus = processingFeedback(processingElapsedSeconds);
+  const shortChunkLengthIndex = shortChunkLengthOptions.findIndex(
+    ({ value }) => value === shortChunkLength
+  );
+  const shortChunkLengthOption = shortChunkLengthOptions[shortChunkLengthIndex];
 
   async function processMaterial(replaceConfirmed = false) {
     if (!validation.valid) return;
@@ -286,7 +316,12 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
     setProcessing(true);
     setError("");
     try {
-      const next = await api.process({ material, mode, replaceConfirmed });
+      const next = await api.process({
+        material,
+        mode,
+        shortChunkLength,
+        replaceConfirmed
+      });
       setSnapshot(next);
       snapshotRef.current = next;
       if (next.practice?.phase === "ready") setMaterialExpanded(false);
@@ -753,34 +788,105 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
             ) : null}
             <fieldset className="listen-repeat-modes" disabled={processing}>
               <legend>Choose your practice path</legend>
-              <label className={mode === "progressive" ? "is-selected" : ""}>
-                <input
-                  type="radio"
-                  name="listen-repeat-mode"
-                  checked={mode === "progressive"}
-                  onChange={() => setMode("progressive")}
-                />
-                <span className="listen-repeat-mode-icon"><Waves aria-hidden="true" /></span>
-                <span>
-                  <strong>Progressive <em>Recommended</em></strong>
-                  Start with short phrases, then join them into complete sentences.
-                  <small>Best for working memory and new sounds</small>
-                </span>
-              </label>
-              <label className={mode === "advanced" ? "is-selected" : ""}>
-                <input
-                  type="radio"
-                  name="listen-repeat-mode"
-                  checked={mode === "advanced"}
-                  onChange={() => setMode("advanced")}
-                />
-                <span className="listen-repeat-mode-icon"><AudioLines aria-hidden="true" /></span>
-                <span>
-                  <strong>Advanced</strong>
-                  Practise complete, natural-length sentences right away.
-                  <small>Best for fluent shadowing practice</small>
-                </span>
-              </label>
+              <div className="listen-repeat-mode-grid">
+                <div className={`listen-repeat-mode-card is-progressive${
+                  mode === "progressive" ? " is-selected" : ""
+                }`}>
+                  <label className="listen-repeat-mode-choice">
+                    <input
+                      type="radio"
+                      name="listen-repeat-mode"
+                      checked={mode === "progressive"}
+                      onChange={() => setMode("progressive")}
+                    />
+                    <span className="listen-repeat-mode-icon"><Waves aria-hidden="true" /></span>
+                    <span>
+                      <strong>Progressive <em>Recommended</em></strong>
+                      Start with short phrases, then join them into complete sentences.
+                      <small>Best for working memory and new sounds</small>
+                    </span>
+                  </label>
+                  <section
+                    className="listen-repeat-length-control"
+                    aria-labelledby="listen-repeat-length-title"
+                  >
+                      <div className="listen-repeat-length-heading">
+                        <span id="listen-repeat-length-title">Phrase length</span>
+                        <strong>{shortChunkLengthOption.label}</strong>
+                        <p>About {shortChunkLengthOption.seconds} sec</p>
+                      </div>
+                      <div className="listen-repeat-length-slider">
+                        <input
+                          type="range"
+                          min="0"
+                          max="2"
+                          step="1"
+                          value={shortChunkLengthIndex}
+                          disabled={processing}
+                          aria-label="Progressive phrase length"
+                          aria-valuetext={`${shortChunkLengthOption.label}, about ${shortChunkLengthOption.seconds} seconds`}
+                          style={{
+                            background: `linear-gradient(to right, #5b8f6d 0 ${shortChunkLengthIndex * 50}%, #d9ded9 ${shortChunkLengthIndex * 50}% 100%)`
+                          }}
+                          onChange={(event) => {
+                            const option = shortChunkLengthOptions[Number(event.target.value)];
+                            if (option) {
+                              setMode("progressive");
+                              setShortChunkLength(option.value);
+                            }
+                          }}
+                          onPointerDown={() => setMode("progressive")}
+                        />
+                        <span className="listen-repeat-length-marks" aria-hidden="true">
+                          {shortChunkLengthOptions.map(({ value }) => (
+                            <i
+                              className={value === shortChunkLength ? "is-active" : ""}
+                              key={value}
+                            />
+                          ))}
+                        </span>
+                      </div>
+                      <div className="listen-repeat-length-labels" aria-hidden="true">
+                        {shortChunkLengthOptions.map(({ value, label }) => (
+                          <span
+                            className={value === shortChunkLength ? "is-active" : ""}
+                            key={value}
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                  </section>
+                </div>
+                <div className={`listen-repeat-mode-card is-advanced${
+                  mode === "advanced" ? " is-selected" : ""
+                }`}>
+                  <label className="listen-repeat-mode-choice">
+                    <input
+                      type="radio"
+                      name="listen-repeat-mode"
+                      checked={mode === "advanced"}
+                      onChange={() => setMode("advanced")}
+                    />
+                    <span className="listen-repeat-mode-icon"><AudioLines aria-hidden="true" /></span>
+                    <span>
+                      <strong>Advanced</strong>
+                      Practise complete, natural-length sentences right away.
+                      <small>Best for fluent shadowing practice</small>
+                    </span>
+                  </label>
+                  <section
+                    className="listen-repeat-advanced-summary"
+                    aria-label="Advanced practice unit"
+                  >
+                    <div>
+                      <span>Practice unit</span>
+                      <strong>Full sentence</strong>
+                    </div>
+                    <p><Check aria-hidden="true" /> No phrase splitting</p>
+                  </section>
+                </div>
+              </div>
             </fieldset>
             <div className={`listen-repeat-material-footer${processing ? " is-processing" : ""}`}>
               {processing ? (

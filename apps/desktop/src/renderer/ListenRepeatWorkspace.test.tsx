@@ -33,6 +33,7 @@ function ready(): ListenRepeatSnapshot {
       id: "practice",
       material: "One, two.",
       mode: "progressive",
+      shortChunkLength: "short",
       phase: "ready",
       error: null,
       createdAt: "2026-08-10T00:00:00.000Z",
@@ -105,6 +106,8 @@ function draft(): ListenRepeatSnapshot {
   snapshot.progress = empty.progress;
   snapshot.practice = {
     ...snapshot.practice!,
+    mode: "progressive",
+    shortChunkLength: "medium",
     phase: "draft",
     longChunks: []
   };
@@ -125,6 +128,59 @@ function api(snapshot = empty): ListenRepeatDesktopApi {
 }
 
 describe("ListenRepeatWorkspace", () => {
+  it("shows the recommended Short phrase-length slider for Progressive material", async () => {
+    render(<ListenRepeatWorkspace api={api()} active onOpenAiVoice={vi.fn()} />);
+
+    await screen.findByRole("heading", { name: "Listen & Repeat Practice" });
+    const slider = screen.getByRole("slider", {
+      name: "Progressive phrase length"
+    });
+    const progressive = screen.getByRole("radio", { name: /Progressive/ });
+    const progressiveCard = progressive.closest(".listen-repeat-mode-card");
+
+    expect(slider).toHaveValue("0");
+    expect(progressiveCard).not.toBeNull();
+    expect(progressiveCard).toContainElement(slider);
+    expect(progressive.compareDocumentPosition(slider) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(slider).toHaveAttribute("aria-valuetext", "Short, about 0.75–1.5 seconds");
+    expect(screen.getByText("Phrase length")).toBeInTheDocument();
+    expect(screen.getByLabelText("Advanced practice unit"))
+      .toHaveTextContent(/Full sentence.*No phrase splitting/);
+    expect(screen.getAllByText("Recommended").length).toBeGreaterThan(0);
+    expect(screen.getByText("About 0.75–1.5 sec")).toBeInTheDocument();
+  });
+
+  it("sends a selected Medium phrase length and preserves Long across mode changes", async () => {
+    const desktopApi = api();
+    render(<ListenRepeatWorkspace api={desktopApi} active onOpenAiVoice={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Listen & Repeat Practice" });
+    const slider = screen.getByRole("slider", { name: "Progressive phrase length" });
+
+    fireEvent.change(slider, { target: { value: "2" } });
+    expect(slider).toHaveAttribute("aria-valuetext", "Long, about 2.5–4 seconds");
+    fireEvent.click(screen.getByRole("radio", { name: /Advanced/ }));
+    expect(screen.getByRole("slider", { name: "Progressive phrase length" })).toHaveValue("2");
+
+    fireEvent.pointerDown(screen.getByRole("slider", { name: "Progressive phrase length" }));
+    expect(screen.getByRole("radio", { name: /Progressive/ })).toBeChecked();
+
+    fireEvent.change(screen.getByRole("slider", {
+      name: "Progressive phrase length"
+    }), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Practice material"), {
+      target: { value: "A natural phrase to practise." }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Process with AI" }));
+
+    await waitFor(() => expect(desktopApi.process).toHaveBeenCalledWith({
+      material: "A natural phrase to practise.",
+      mode: "progressive",
+      shortChunkLength: "medium",
+      replaceConfirmed: false
+    }));
+  });
+
   it("keeps a long AI segmentation visibly alive with elapsed feedback", async () => {
     let finishProcessing: ((snapshot: ListenRepeatSnapshot) => void) | undefined;
     const desktopApi = api(draft());
@@ -141,6 +197,8 @@ describe("ListenRepeatWorkspace", () => {
       expect(screen.getByRole("status")).toHaveTextContent("Sending your material to AI");
       expect(screen.getByLabelText("Practice material")).toBeDisabled();
       expect(screen.getByRole("radio", { name: /Advanced/ })).toBeDisabled();
+      expect(screen.getByRole("slider", { name: "Progressive phrase length" }))
+        .toBeDisabled();
 
       act(() => vi.advanceTimersByTime(30_000));
 
@@ -172,6 +230,7 @@ describe("ListenRepeatWorkspace", () => {
     await waitFor(() => expect(desktopApi.process).toHaveBeenCalledWith({
       material: "Hello. 你好。",
       mode: "advanced",
+      shortChunkLength: "short",
       replaceConfirmed: false
     }));
     expect(screen.queryByRole("button", { name: /Play All/i }))

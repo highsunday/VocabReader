@@ -203,6 +203,52 @@ test("launches the secure Electron reading shell", async () => {
       name: "Listen & Repeat Practice"
     })).toBeVisible();
     await expect(page.getByLabel("Practice material")).toBeVisible();
+    const phraseLength = page.getByRole("slider", {
+      name: "Progressive phrase length"
+    });
+    await expect(phraseLength).toBeVisible();
+    await expect(phraseLength).toHaveValue("0");
+    await expect(phraseLength).toHaveAttribute(
+      "aria-valuetext",
+      "Short, about 0.75–1.5 seconds"
+    );
+    const modeLayout = await page.evaluate(() => {
+      const length = document.querySelector<HTMLElement>(".listen-repeat-length-control");
+      const progressive = length?.closest<HTMLElement>(".listen-repeat-mode-card");
+      const progressiveChoice = progressive?.querySelector<HTMLElement>(
+        ".listen-repeat-mode-choice"
+      );
+      const cards = Array.from(document.querySelectorAll<HTMLElement>(
+        ".listen-repeat-mode-card"
+      ));
+      const advanced = cards.find((card) => card !== progressive);
+      if (!progressive || !progressiveChoice || !length || !advanced) {
+        throw new Error("Listen & Repeat mode layout is unavailable");
+      }
+      const progressiveRect = progressive.getBoundingClientRect();
+      const progressiveChoiceRect = progressiveChoice.getBoundingClientRect();
+      const lengthRect = length.getBoundingClientRect();
+      const advancedRect = advanced.getBoundingClientRect();
+      return {
+        lengthBelowProgressiveCopy: lengthRect.top >= progressiveChoiceRect.bottom - 1,
+        lengthInsideProgressiveCard:
+          lengthRect.left >= progressiveRect.left &&
+          lengthRect.right <= progressiveRect.right &&
+          lengthRect.bottom <= progressiveRect.bottom,
+        cardsTopAligned: Math.abs(progressiveRect.top - advancedRect.top) < 1,
+        cardsEqualHeight: Math.abs(progressiveRect.height - advancedRect.height) < 1
+      };
+    });
+    expect(modeLayout).toEqual({
+      lengthBelowProgressiveCopy: true,
+      lengthInsideProgressiveCard: true,
+      cardsTopAligned: true,
+      cardsEqualHeight: true
+    });
+    await page.getByRole("radio", { name: /Advanced/ }).click();
+    await expect(phraseLength).toBeVisible();
+    await phraseLength.press("ArrowRight");
+    await expect(page.getByRole("radio", { name: /Progressive/ })).toBeChecked();
     await expect(page.getByRole("button", { name: "Process with AI" }))
       .toBeDisabled();
 
