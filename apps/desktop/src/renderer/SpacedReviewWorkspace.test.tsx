@@ -879,6 +879,198 @@ describe("SpacedReviewWorkspace", () => {
       .not.toBeInTheDocument();
   });
 
+  it("loads and shows a representative image only after the question is graded", async () => {
+    const api = reviewApi();
+    const learning = learningApi();
+    const imageUrl = "data:image/jpeg;base64,cmV2aWV3LWltYWdl";
+    learning.getItem = vi.fn(async (itemId: string) => ({
+      id: itemId,
+      title: "bank",
+      itemType: "word" as const,
+      language: "en" as const,
+      cefr: "A2" as const,
+      sense: "financial institution",
+      markdownContent: "## Meaning\n銀行／金融機構",
+      representativeImageDataUrl: imageUrl,
+      status: "active" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      trashedAt: null
+    }));
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: /Start a \d+-question review/
+    }));
+    await screen.findByLabelText("Meaning of this word in the sentence");
+    expect(learning.getItem).not.toHaveBeenCalled();
+    expect(screen.queryByRole("img", {
+      name: "Representative image for bank: financial institution"
+    })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {
+      name: "Submit paper (1 unanswered)"
+    }));
+
+    const image = await screen.findByRole("img", {
+      name: "Representative image for bank: financial institution"
+    });
+    expect(image).toHaveAttribute("src", imageUrl);
+    expect(image).toHaveClass("review-feedback-image");
+    expect(learning.getItem).toHaveBeenCalledTimes(1);
+    expect(learning.getItem).toHaveBeenCalledWith("item-1");
+  });
+
+  it("does not reserve an image placeholder when the graded item has no image", async () => {
+    const api = reviewApi();
+    const learning = learningApi();
+    learning.getItem = vi.fn(async (itemId: string) => ({
+      id: itemId,
+      title: "bank",
+      itemType: "word" as const,
+      language: "en" as const,
+      cefr: "A2" as const,
+      sense: "financial institution",
+      markdownContent: "## Meaning\n銀行／金融機構",
+      representativeImageDataUrl: null,
+      status: "active" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      trashedAt: null
+    }));
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: /Start a \d+-question review/
+    }));
+    await screen.findByLabelText("Meaning of this word in the sentence");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Submit paper (1 unanswered)"
+    }));
+
+    await waitFor(() => expect(learning.getItem).toHaveBeenCalledWith("item-1"));
+    expect(screen.queryByRole("img", {
+      name: "Representative image for bank: financial institution"
+    })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("review-image-placeholder"))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Meaning assessment" }))
+      .toHaveTextContent("答案完整且符合語境。");
+  });
+
+  it("keeps grading usable when a representative image cannot be loaded", async () => {
+    const api = reviewApi();
+    const learning = learningApi();
+    learning.getItem = vi.fn(async () => {
+      throw new Error("Learning item not found");
+    });
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: /Start a \d+-question review/
+    }));
+    await screen.findByLabelText("Meaning of this word in the sentence");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Submit paper (1 unanswered)"
+    }));
+
+    await waitFor(() => expect(learning.getItem).toHaveBeenCalledWith("item-1"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Easy" })).toBeChecked();
+    expect(screen.getByRole("button", {
+      name: "Accept ratings and update schedule"
+    })).toBeEnabled();
+  });
+
+  it("syncs a graded thumbnail after replacing and removing the image in details", async () => {
+    const api = reviewApi();
+    const originalImage = "data:image/jpeg;base64,b2xkLXJldmlldy1pbWFnZQ==";
+    const replacementImage = "data:image/jpeg;base64,bmV3LXJldmlldy1pbWFnZQ==";
+    const originalItem = {
+      id: "item-1",
+      title: "bank",
+      itemType: "word" as const,
+      language: "en" as const,
+      cefr: "A2" as const,
+      sense: "financial institution",
+      markdownContent: "## Meaning\n銀行／金融機構",
+      representativeImageDataUrl: originalImage,
+      status: "active" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      trashedAt: null
+    };
+    const learning = Object.assign(learningApi(), {
+      getItem: vi.fn(async () => originalItem),
+      selectRepresentativeImage: vi.fn(async () => ({
+        status: "updated" as const,
+        item: {
+          ...originalItem,
+          representativeImageDataUrl: replacementImage
+        }
+      })),
+      removeRepresentativeImage: vi.fn(async () => ({
+        ...originalItem,
+        representativeImageDataUrl: null
+      }))
+    });
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        learningApi={learning}
+        explanationLanguage="zh-TW"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: /Start a \d+-question review/
+    }));
+    await screen.findByLabelText("Meaning of this word in the sentence");
+    fireEvent.click(screen.getByRole("button", {
+      name: "Submit paper (1 unanswered)"
+    }));
+    const thumbnail = await screen.findByRole("img", {
+      name: "Representative image for bank: financial institution"
+    });
+    expect(thumbnail).toHaveAttribute("src", originalImage);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open learning card" }));
+    const dialog = await screen.findByRole("dialog", { name: "bank" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
+    fireEvent.click(within(dialog).getByRole("button", {
+      name: "Replace representative image from device"
+    }));
+    await waitFor(() => expect(thumbnail).toHaveAttribute("src", replacementImage));
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+    fireEvent.click(within(screen.getByRole("alertdialog", {
+      name: "Remove image?"
+    })).getByRole("button", { name: "Remove image" }));
+    await waitFor(() => expect(screen.queryByRole("img", {
+      name: "Representative image for bank: financial institution"
+    })).not.toBeInTheDocument());
+    expect(api.gradePaper).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("radio", { name: "Easy" })).toBeChecked();
+  });
+
   it("colors the current rating and allows editing but not Trash after grading", async () => {
     const api = reviewApi();
     api.getItemDetail = vi.fn(async () => ({

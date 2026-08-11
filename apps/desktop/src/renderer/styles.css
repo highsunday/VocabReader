@@ -4141,6 +4141,24 @@ button {
   background: #f0f8ef;
 }
 
+.review-feedback-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 18px;
+}
+
+.review-feedback-image {
+  display: block;
+  width: 84px;
+  height: 84px;
+  border: 1px solid rgb(77 91 73 / 18%);
+  border-radius: 12px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 4px 14px rgb(43 55 40 / 10%);
+}
+
 .review-feedback[data-rating="hard"] .review-meaning-feedback > strong,
 .review-feedback[data-rating="hard"] legend {
   color: #8d541e;
@@ -4256,6 +4274,18 @@ button {
   border-radius: 999px;
   background: #fff;
   cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .review-feedback-summary {
+    gap: 12px;
+  }
+
+  .review-feedback-image {
+    width: 64px;
+    height: 64px;
+    border-radius: 9px;
+  }
 }
 
 .review-grading-state {

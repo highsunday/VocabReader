@@ -254,6 +254,9 @@ export function SpacedReviewWorkspace({
     useState(false);
   const [isAbandoning, setIsAbandoning] = useState(false);
   const [selectedItem, setSelectedItem] = useState<LearningItem>();
+  const [reviewItemsById, setReviewItemsById] = useState<
+    Record<string, LearningItem>
+  >({});
   const generationAttemptRef = useRef(0);
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const settingsRevisionRef = useRef(settingsRevision);
@@ -269,6 +272,7 @@ export function SpacedReviewWorkspace({
     setIsPaperViewPaused(false);
     setIsAbandonConfirmationOpen(false);
     setSelectedItem(undefined);
+    setReviewItemsById({});
     try {
       const next = await api.getSummary();
       setSummary(next);
@@ -305,6 +309,27 @@ export function SpacedReviewWorkspace({
     }, 1_000);
     return () => window.clearInterval(timer);
   }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "reviewing" || !paper || !learningApi) return;
+    let cancelled = false;
+    for (const { itemId } of paper.questions) {
+      void learningApi.getItem(itemId).then((item) => {
+        if (cancelled) return;
+        setReviewItemsById((current) => current[itemId]
+          ? current
+          : {
+              ...current,
+              [itemId]: item
+            });
+      }).catch(() => {
+        // A missing image must not block feedback or schedule confirmation.
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [learningApi, paper, phase]);
 
   useEffect(() => {
     if (
@@ -378,6 +403,7 @@ export function SpacedReviewWorkspace({
     setPhase("generating");
     setError("");
     setPaper(undefined);
+    setReviewItemsById({});
     setIsPaperViewPaused(false);
     setGenerationProgress({
       phase: "preparing",
@@ -512,6 +538,10 @@ export function SpacedReviewWorkspace({
 
   async function handleItemChanged(item: LearningItem) {
     setSelectedItem(item);
+    setReviewItemsById((current) => ({
+      ...current,
+      [item.id]: item
+    }));
     if (item.status !== "trashed" || !learningApi) return;
     try {
       onLearningCountsChange?.(await learningApi.countItems());
@@ -780,6 +810,7 @@ export function SpacedReviewWorkspace({
             const currentRatingLabel = currentRating
               ? ratingOptions.find(({ value }) => value === currentRating)?.label
               : undefined;
+            const reviewItem = reviewItemsById[question.itemId];
             return (
               <article className="review-question-card" key={question.questionId}>
                 <header>
@@ -823,19 +854,30 @@ export function SpacedReviewWorkspace({
                     data-rating={currentRating}
                     aria-label={`Grading result: ${currentRatingLabel}`}
                   >
-                    <section
-                      className="review-meaning-feedback"
-                      aria-label="Meaning assessment"
-                    >
-                      <strong>Meaning assessment</strong>
-                      <p>{result.feedback}</p>
-                      {result.recommendedAnswer ? (
-                        <div className="review-recommended-answer">
-                          <span>A better answer for next time</span>
-                          <p>{result.recommendedAnswer}</p>
-                        </div>
+                    <div className="review-feedback-summary">
+                      <section
+                        className="review-meaning-feedback"
+                        aria-label="Meaning assessment"
+                      >
+                        <strong>Meaning assessment</strong>
+                        <p>{result.feedback}</p>
+                        {result.recommendedAnswer ? (
+                          <div className="review-recommended-answer">
+                            <span>A better answer for next time</span>
+                            <p>{result.recommendedAnswer}</p>
+                          </div>
+                        ) : null}
+                      </section>
+                      {reviewItem?.representativeImageDataUrl ? (
+                        <img
+                          className="review-feedback-image"
+                          src={reviewItem.representativeImageDataUrl}
+                          alt={`Representative image for ${reviewItem.title}: ${reviewItem.sense}`}
+                          width={84}
+                          height={84}
+                        />
                       ) : null}
-                    </section>
+                    </div>
                     {learningApi ? (
                       <button
                         type="button"
