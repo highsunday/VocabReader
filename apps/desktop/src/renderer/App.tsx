@@ -2077,24 +2077,37 @@ export function App() {
 
           {!isLeftSidebarCollapsed ? (
             <div className="sidebar-content" id="left-sidebar-content">
-              <div className="book-list" aria-label="Imported books">
-                {books.map((book) => (
-                  <button
-                    className={book.id === selectedBook?.id ? "book-item active" : "book-item"}
-                    key={book.id}
-                    type="button"
-                    onClick={() => selectBook(book.id)}
-                  >
-                    <span className="book-item-cover" aria-hidden="true">
-                      {book.coverDataUrl ? <img src={book.coverDataUrl} alt="" /> : "Aa"}
-                    </span>
-                    <span>
-                      <strong>{book.title}</strong>
-                      <small>{book.author}</small>
-                    </span>
-                  </button>
-                ))}
-              </div>
+              {books.length ? (
+                <section className="book-library-panel" aria-label="Book library">
+                  <div className="book-list" aria-label="Imported books">
+                    {books.map((book) => (
+                      <button
+                        className={book.id === selectedBook?.id ? "book-item active" : "book-item"}
+                        key={book.id}
+                        type="button"
+                        aria-label={`${book.title}, ${book.author}, ${book.progressPercent}% read`}
+                        aria-pressed={book.id === selectedBook?.id}
+                        onClick={() => selectBook(book.id)}
+                      >
+                        <span className="book-item-cover" aria-hidden="true">
+                          {book.coverDataUrl ? <img src={book.coverDataUrl} alt="" /> : "Aa"}
+                        </span>
+                        <span className="book-item-copy">
+                          <strong title={book.title}>{book.title}</strong>
+                          <small title={book.author}>{book.author}</small>
+                          <span className="book-progress" aria-hidden="true">
+                            <span
+                              style={{
+                                width: `${Math.min(100, Math.max(0, book.progressPercent))}%`
+                              }}
+                            />
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
               <div className="sidebar-footer">
                 <nav>
@@ -2182,7 +2195,9 @@ export function App() {
                     <em>{learningCounts.active}</em>
                   </button>
                 </nav>
+              </div>
 
+              <div className="sidebar-utilities">
                 <button
                   className="settings-button"
                   type="button"

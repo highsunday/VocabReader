@@ -169,7 +169,7 @@ button {
   flex: 1 1 auto;
   flex-direction: column;
   overflow: hidden;
-  padding: 18px;
+  padding: 14px 14px 12px;
 }
 
 .panel-toggle {
@@ -221,40 +221,123 @@ button {
   line-height: 1.25;
 }
 
+.book-library-panel {
+  --book-panel-max-height: min(390px, 46vh);
+  min-height: 0;
+  max-height: var(--book-panel-max-height);
+  display: flex;
+  flex: 0 1 auto;
+  padding: 7px 4px 7px 7px;
+  border: 1px solid #cdd2ca;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 36%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 52%),
+    0 1px 2px rgb(54 61 54 / 3%);
+}
+
 .book-list {
   min-height: 0;
   display: grid;
   flex: 1 1 auto;
   align-content: start;
-  gap: 7px;
-  max-height: 290px;
-  margin: 0 0 22px;
+  gap: 6px;
+  margin: 0;
+  padding: 0 4px 0 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+  transition: scrollbar-color 160ms ease;
+}
+
+.book-list:hover,
+.book-list:focus-within {
+  scrollbar-color: #aeb4ac transparent;
+}
+
+.book-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.book-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.book-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+
+.book-list:hover::-webkit-scrollbar-thumb,
+.book-list:focus-within::-webkit-scrollbar-thumb {
+  background: #aeb4ac;
 }
 
 .book-item {
+  position: relative;
   width: 100%;
-  padding: 8px;
-  border: 0;
-  border-radius: 12px;
+  min-height: 70px;
+  padding: 7px 9px 7px 11px;
+  border: 1px solid transparent;
+  border-radius: 11px;
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 11px;
   align-items: center;
   text-align: left;
   background: transparent;
   cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
-.book-item:hover,
+.book-item::before {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 3px;
+  width: 3px;
+  border-radius: 99px;
+  background: #426c52;
+  content: "";
+  opacity: 0;
+  transform: scaleY(0.55);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.book-item:hover {
+  background: rgb(255 255 255 / 42%);
+  transform: translateX(2px);
+}
+
 .book-item.active {
-  background: #dde6da;
+  border-color: #cbd7cb;
+  background: rgb(250 251 246 / 86%);
+  box-shadow: 0 5px 16px rgb(50 66 55 / 8%);
+}
+
+.book-item.active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.book-item:focus-visible {
+  outline: 2px solid #477057;
+  outline-offset: 2px;
 }
 
 .book-item-cover {
-  width: 38px;
-  height: 50px;
-  border-radius: 5px;
+  width: 42px;
+  height: 56px;
+  border: 1px solid rgb(104 97 83 / 12%);
+  border-radius: 6px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -262,7 +345,15 @@ button {
   background: #f8f5ec;
   font-family: Georgia, serif;
   font-size: 12px;
-  box-shadow: 0 3px 10px rgb(59 53 42 / 12%);
+  box-shadow: 0 3px 9px rgb(59 53 42 / 13%);
+  transition:
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.book-item.active .book-item-cover {
+  box-shadow: 0 5px 12px rgb(45 57 48 / 18%);
+  transform: translateY(-1px);
 }
 
 .book-item-cover img {
@@ -271,10 +362,10 @@ button {
   object-fit: cover;
 }
 
-.book-item > span:last-child {
+.book-item-copy {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  gap: 4px;
 }
 
 .book-item strong,
@@ -285,13 +376,41 @@ button {
 }
 
 .book-item strong {
-  font-family: Georgia, "Times New Roman", serif;
+  color: #2f3932;
   font-size: 13px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
 .book-item small {
-  color: #777d76;
-  font-size: 10px;
+  color: #777e78;
+  font-size: 10.5px;
+  line-height: 1.2;
+}
+
+.book-item.active strong {
+  color: #284a37;
+}
+
+.book-progress {
+  width: min(82px, 68%);
+  height: 2px;
+  margin-top: 2px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: #e0e3dc;
+}
+
+.book-progress > span {
+  height: 100%;
+  border-radius: inherit;
+  display: block;
+  background: #9aab9c;
+}
+
+.book-item.active .book-progress > span {
+  background: #537861;
 }
 
 .eyebrow {
@@ -304,13 +423,22 @@ button {
 
 .sidebar nav {
   display: grid;
-  gap: 7px;
+  gap: 4px;
 }
 
 .sidebar-footer {
+  flex: 0 0 auto;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd9cf;
+}
+
+.sidebar-utilities {
   display: grid;
-  gap: 10px;
+  flex: 0 0 auto;
+  gap: 8px;
   margin-top: auto;
+  padding-top: 10px;
 }
 
 .nav-item {
