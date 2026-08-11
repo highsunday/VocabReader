@@ -3006,7 +3006,7 @@ export function App() {
                   <div className="conversation-history-heading">
                     <div>
                       <span className="eyebrow">Conversation history</span>
-                      <h2 id="conversation-history-title">All AI conversations</h2>
+                      <h2 id="conversation-history-title">10 most recent conversations</h2>
                     </div>
                     <span>{chatSnapshot.conversations.length}</span>
                   </div>

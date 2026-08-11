@@ -1999,7 +1999,7 @@ describe("App", () => {
     await screen.findByText("Latest question", { selector: ".message-content p" });
 
     fireEvent.click(screen.getByRole("button", { name: "Conversation history" }));
-    expect(screen.getByRole("heading", { name: "All AI conversations" }))
+    expect(screen.getByRole("heading", { name: "10 most recent conversations" }))
       .toBeInTheDocument();
     expect(screen.getByText("The First Book • Opening")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open Older question" }));
