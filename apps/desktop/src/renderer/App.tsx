@@ -403,7 +403,7 @@ export function App() {
   const [dataBackupError, setDataBackupError] = useState("");
   const [dataRestorePreview, setDataRestorePreview] =
     useState<DataBackupPreview>();
-  const [learningCounts, setLearningCounts] = useState({ active: 0, trashed: 0 });
+  const [unlearnedNewCount, setUnlearnedNewCount] = useState(0);
   const [reviewAvailableCount, setReviewAvailableCount] = useState(0);
   const [reviewSettingsRevision, setReviewSettingsRevision] = useState(0);
   const [reviewWorkspaceStatus, setReviewWorkspaceStatus] =
@@ -527,7 +527,10 @@ export function App() {
     let active = true;
     void review.getSummary()
       .then((summary) => {
-        if (active) setReviewAvailableCount(summary.totalAvailable);
+        if (active) {
+          setReviewAvailableCount(summary.totalAvailable);
+          setUnlearnedNewCount(summary.newCount);
+        }
       })
       .catch(() => {
         // The review workspace provides a retryable error when opened.
@@ -536,24 +539,6 @@ export function App() {
       active = false;
     };
   }, [learningLibraryRevision]);
-
-  useEffect(() => {
-    const learning = desktopLearning();
-    if (!learning) return;
-
-    let active = true;
-    void learning.countItems()
-      .then((counts) => {
-        if (active) setLearningCounts(counts);
-      })
-      .catch(() => {
-        // The learning workspace presents actionable loading errors when opened.
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     const chat = desktopChat();
@@ -2180,7 +2165,7 @@ export function App() {
                   </button>
                   <button
                     className={mode === "learning-library" ? "nav-item active" : "nav-item"}
-                    aria-label={`Library ${learningCounts.active}`}
+                    aria-label={`Library ${unlearnedNewCount}`}
                     onClick={() => {
                       saveCurrentReaderPosition();
                       setMode("learning-library");
@@ -2192,7 +2177,7 @@ export function App() {
                       strokeWidth={1.8}
                     />
                     Library
-                    <em>{learningCounts.active}</em>
+                    <em>{unlearnedNewCount}</em>
                   </button>
                 </nav>
               </div>
@@ -2436,7 +2421,17 @@ export function App() {
               settingsRevision={reviewSettingsRevision}
               active={mode === "spaced-review"}
               onAvailableCountChange={setReviewAvailableCount}
-              onLearningCountsChange={setLearningCounts}
+              onNewCountChange={setUnlearnedNewCount}
+              onLearningCountsChange={() => {
+                void desktopReview()?.getSummary()
+                  .then((summary) => {
+                    setReviewAvailableCount(summary.totalAvailable);
+                    setUnlearnedNewCount(summary.newCount);
+                  })
+                  .catch(() => {
+                    // The review workspace provides a retryable error.
+                  });
+              }}
               onStatusChange={setReviewWorkspaceStatus}
             />
           ) : null}
@@ -2921,11 +2916,12 @@ export function App() {
                 key={learningLibraryRevision}
                 api={desktopLearning()!}
                 reviewApi={desktopReview()}
-                onCountsChange={(counts) => {
-                  setLearningCounts(counts);
+                onCountsChange={() => {
                   void desktopReview()?.getSummary()
-                    .then((summary) =>
-                      setReviewAvailableCount(summary.totalAvailable))
+                    .then((summary) => {
+                      setReviewAvailableCount(summary.totalAvailable);
+                      setUnlearnedNewCount(summary.newCount);
+                    })
                     .catch(() => {
                       // The review workspace provides a retryable error.
                     });

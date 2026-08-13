@@ -1403,18 +1403,25 @@ describe("App", () => {
   });
 
   it("uses concise Review and Library labels in the sidebar", async () => {
-    installLibraryApi();
+    const { learning, review } = installLibraryApi();
+    const summary = await review.getSummary();
+    review.getSummary.mockResolvedValue({
+      ...summary,
+      newCount: 7
+    });
+    learning.countItems.mockResolvedValue({ active: 466, trashed: 0 });
     render(<App />);
 
     const reviewButton = await screen.findByRole("button", {
       name: /^Review 1/
     });
     const libraryButton = screen.getByRole("button", {
-      name: /^Library 1/
+      name: /^Library 7/
     });
 
     expect(reviewButton).toHaveTextContent(/Review\s*1/);
-    expect(libraryButton).toHaveTextContent(/Library\s*1/);
+    expect(libraryButton).toHaveTextContent(/Library\s*7/);
+    expect(libraryButton).not.toHaveTextContent("466");
     expect(screen.queryByRole("button", {
       name: /^Spaced Review/
     })).not.toBeInTheDocument();

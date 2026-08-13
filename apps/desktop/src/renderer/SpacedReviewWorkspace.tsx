@@ -217,6 +217,7 @@ export function SpacedReviewWorkspace({
   settingsRevision = 0,
   active = true,
   onAvailableCountChange,
+  onNewCountChange,
   onLearningCountsChange,
   onStatusChange
 }: {
@@ -226,6 +227,7 @@ export function SpacedReviewWorkspace({
   settingsRevision?: number;
   active?: boolean;
   onAvailableCountChange?(count: number): void;
+  onNewCountChange?(count: number): void;
   onLearningCountsChange?(counts: LearningItemCounts): void;
   onStatusChange?(status: ReviewWorkspaceStatus): void;
 }) {
@@ -277,6 +279,7 @@ export function SpacedReviewWorkspace({
       const next = await api.getSummary();
       setSummary(next);
       onAvailableCountChange?.(next.totalAvailable);
+      onNewCountChange?.(next.newCount);
       setPhase("ready");
     } catch (loadError) {
       setError(loadError instanceof Error
@@ -344,6 +347,7 @@ export function SpacedReviewWorkspace({
       void api.getSummary().then((next) => {
         setSummary(next);
         onAvailableCountChange?.(next.totalAvailable);
+        onNewCountChange?.(next.newCount);
       }).catch(() => {
         // A later settings change or explicit review action will retry.
       });
@@ -355,6 +359,7 @@ export function SpacedReviewWorkspace({
   }, [
     api,
     onAvailableCountChange,
+    onNewCountChange,
     phase,
     summary?.nextDueAt,
     summary?.totalAvailable
@@ -377,6 +382,7 @@ export function SpacedReviewWorkspace({
         ? { ...next, selectedItems: current.selectedItems }
         : next);
       onAvailableCountChange?.(next.totalAvailable);
+      onNewCountChange?.(next.newCount);
     }).catch(() => {
       // The saved settings remain valid; the next normal refresh retries.
     });
@@ -384,6 +390,7 @@ export function SpacedReviewWorkspace({
     api,
     hasActivePaper,
     onAvailableCountChange,
+    onNewCountChange,
     settingsRevision
   ]);
 
@@ -503,6 +510,7 @@ export function SpacedReviewWorkspace({
         const nextSummary = await api.getSummary();
         setSummary(nextSummary);
         onAvailableCountChange?.(nextSummary.totalAvailable);
+        onNewCountChange?.(nextSummary.newCount);
       } catch {
         // Confirmation already succeeded; keep the completion result and the
         // best-known remaining count if the non-critical refresh fails.
