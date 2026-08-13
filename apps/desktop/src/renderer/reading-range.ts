@@ -41,8 +41,8 @@ function endAfterWords(text: string, start: number, desiredWords: number) {
   return text.length;
 }
 
-export function initialReadingRange(_text: string): ReadingRange {
-  return { start: 0, end: 0 };
+export function initialReadingRange(text: string): ReadingRange {
+  return { start: 0, end: text.length };
 }
 
 export function extractReadingSegment(text: string, range: ReadingRange) {
@@ -266,16 +266,23 @@ export function markerTopForTextOffset(
 ) {
   const nodes = textNodes(root);
   let remaining = Math.max(0, textOffset);
+  let lastReadableNode: Text | undefined;
   for (const node of nodes) {
+    if (node.data.length === 0) continue;
+    lastReadableNode = node;
+    if (edge === "before" && remaining === node.data.length) {
+      remaining = 0;
+      continue;
+    }
     if (remaining <= node.data.length) {
       const range = root.ownerDocument.createRange();
-      if (edge === "after" && node.data.length > 0) {
+      if (edge === "after") {
         const end = Math.min(node.data.length, remaining || 1);
         range.setStart(node, Math.max(0, end - 1));
         range.setEnd(node, end);
       } else {
         range.setStart(node, remaining);
-        range.collapse(true);
+        range.setEnd(node, Math.min(node.data.length, remaining + 1));
       }
       const rectangle = typeof range.getBoundingClientRect === "function"
         ? range.getBoundingClientRect()
@@ -287,6 +294,18 @@ export function markerTopForTextOffset(
         : Math.max(0, boundary - rootRectangle.top);
     }
     remaining -= node.data.length;
+  }
+  if (edge === "before" && lastReadableNode) {
+    const range = root.ownerDocument.createRange();
+    range.setStart(lastReadableNode, lastReadableNode.data.length - 1);
+    range.setEnd(lastReadableNode, lastReadableNode.data.length);
+    const rectangle = typeof range.getBoundingClientRect === "function"
+      ? range.getBoundingClientRect()
+      : null;
+    const rootRectangle = root.getBoundingClientRect();
+    return rectangle?.top === undefined
+      ? 0
+      : Math.max(0, rectangle.top - rootRectangle.top);
   }
   return 0;
 }

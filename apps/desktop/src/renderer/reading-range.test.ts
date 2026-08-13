@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   advanceReadingRange,
   annotatedReadingSegment,
@@ -15,12 +15,23 @@ function words(count: number, prefix = "word") {
   return Array.from({ length: count }, (_, index) => `${prefix}${index + 1}`).join(" ");
 }
 
-describe("reading range", () => {
-  it("initializes both markers on the first line of a new chapter", () => {
-    const chapter = words(1_000);
+afterEach(() => {
+  vi.restoreAllMocks();
+  document.body.replaceChildren();
+});
 
-    expect(initialReadingRange(chapter)).toEqual({ start: 0, end: 0 });
-    expect(initialReadingRange(words(10))).toEqual({ start: 0, end: 0 });
+describe("reading range", () => {
+  it("initializes a new chapter range across the full chapter", () => {
+    const chapter = words(1_000);
+    const shortChapter = words(10);
+
+    expect(initialReadingRange(chapter)).toEqual({ start: 0, end: chapter.length });
+    expect(extractReadingSegment(chapter, initialReadingRange(chapter))).toBe(chapter);
+    expect(initialReadingRange(shortChapter)).toEqual({
+      start: 0,
+      end: shortChapter.length
+    });
+    expect(initialReadingRange("")).toEqual({ start: 0, end: 0 });
   });
 
   it("extracts only the selected text and excludes both outside regions", () => {
@@ -79,6 +90,83 @@ describe("reading range", () => {
 
     expect(markerTopForTextOffset(root, 5, "before")).toBe(10);
     expect(markerTopForTextOffset(root, 5, "after")).toBe(28);
+
+    createRange.mockRestore();
+    root.remove();
+  });
+
+  it("places START from the first selected glyph instead of the previous visual line caret", () => {
+    const root = document.createElement("article");
+    root.textContent = "PreviousNext";
+    document.body.append(root);
+    vi.spyOn(root, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 10, 300, 100)
+    );
+    const range = document.createRange();
+    Object.defineProperty(range, "getBoundingClientRect", {
+      configurable: true,
+      value: vi.fn(() => range.collapsed
+        ? new DOMRect(0, 20, 80, 18)
+        : new DOMRect(0, 50, 80, 18))
+    });
+    const setStart = vi.spyOn(range, "setStart");
+    const setEnd = vi.spyOn(range, "setEnd");
+    const createRange = vi.spyOn(document, "createRange").mockReturnValue(range);
+    const text = root.firstChild as Text;
+
+    expect(markerTopForTextOffset(root, "Previous".length, "before")).toBe(40);
+    expect(setStart).toHaveBeenCalledWith(text, "Previous".length);
+    expect(setEnd).toHaveBeenCalledWith(text, "Previous".length + 1);
+
+    createRange.mockRestore();
+    root.remove();
+  });
+
+  it("uses the next text node when START is exactly at a DOM text boundary", () => {
+    const root = document.createElement("article");
+    root.innerHTML = "<p>Previous</p><p>Next</p>";
+    document.body.append(root);
+    vi.spyOn(root, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 10, 300, 100)
+    );
+    const range = document.createRange();
+    Object.defineProperty(range, "getBoundingClientRect", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(new DOMRect(0, 50, 80, 18))
+    });
+    const setStart = vi.spyOn(range, "setStart");
+    const setEnd = vi.spyOn(range, "setEnd");
+    const createRange = vi.spyOn(document, "createRange").mockReturnValue(range);
+    const nextText = root.querySelectorAll("p")[1].firstChild as Text;
+
+    expect(markerTopForTextOffset(root, "Previous".length, "before")).toBe(40);
+    expect(setStart).toHaveBeenCalledWith(nextText, 0);
+    expect(setEnd).toHaveBeenCalledWith(nextText, 1);
+
+    createRange.mockRestore();
+    root.remove();
+  });
+
+  it("safely anchors START at the last glyph when its offset is at chapter end", () => {
+    const root = document.createElement("article");
+    root.textContent = "Last";
+    document.body.append(root);
+    vi.spyOn(root, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 10, 300, 100)
+    );
+    const range = document.createRange();
+    Object.defineProperty(range, "getBoundingClientRect", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(new DOMRect(0, 50, 80, 18))
+    });
+    const setStart = vi.spyOn(range, "setStart");
+    const setEnd = vi.spyOn(range, "setEnd");
+    const createRange = vi.spyOn(document, "createRange").mockReturnValue(range);
+    const text = root.firstChild as Text;
+
+    expect(markerTopForTextOffset(root, text.length, "before")).toBe(40);
+    expect(setStart).toHaveBeenCalledWith(text, text.length - 1);
+    expect(setEnd).toHaveBeenCalledWith(text, text.length);
 
     createRange.mockRestore();
     root.remove();

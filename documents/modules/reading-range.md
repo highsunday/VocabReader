@@ -2,7 +2,7 @@
 title: 閱讀區段與 START／END 範圍標籤模組
 module: reading-range
 status: active
-last_updated: 2026-07-29
+last_updated: 2026-08-13
 related_implements:
   - F05-ai-reading-range-markers
   - F06-reading-range-boundary-lines
@@ -16,6 +16,8 @@ related_implements:
   - B02-persist-range-marker-on-drag-release
   - F40-reader-jump-to-range-markers
   - B14-jump-to-reading-range-markers
+  - B22-default-reading-range-to-whole-chapter
+  - B23-align-advanced-range-start-with-first-unread-line
 ---
 
 # 閱讀區段與 START／END 範圍標籤模組
@@ -38,7 +40,7 @@ related_implements:
 目前支援：
 
 - 每章恰有一對 START／END，不支援同章多組範圍。
-- 首次開啟尚未保存範圍的章節時，START／END 都預設位於內文第一行，初始 offset 為 `start = end = 0`。
+- 首次開啟尚未保存範圍的章節時，START 預設位於章首、END 預設位於章末，初始 offset 為 `{ start: 0, end: text.length }`，閱讀區段涵蓋完整章節。
 - 已保存的章節範圍會在重新開啟、切換書籍及重新啟動應用程式後恢復。
 - START／END 以章內文字 offset 定位，不依賴 EPUB 頁碼、捲動比例或固定像素。
 - 可拖曳左側書籤，拖曳途中即時預覽，放開時保存一次。
@@ -46,6 +48,7 @@ related_implements:
 - START 不得位於 END 之後；拖曳或右鍵更新若越界，另一個標籤會跟到正在移動的新位置，使兩者位於同一位置。
 - 浮動標記工具旁提供 START／END 快捷按鈕，可把對應範圍標籤置中捲入視野；快捷導覽不改動或保存範圍。
 - 每個書籤向內文延伸具名分隔線；位置過近時會上下錯開，避免重疊。
+- START 以起始 offset 處第一個字元的 glyph rectangle 定位在該視覺行之前，不採用可能落在上一行的 collapsed caret rectangle；END 以終止 offset 前一字元定位在該視覺行之後。
 - 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍，章末停止且不跨章。
 - 已提供只擷取 START／END 之間原文的共用函式；AI 對話面板、標記講解與閱讀測驗都使用此邊界，禁止讀取範圍外內容。
 - 標記講解與互動式閱讀測驗已透過 AI 對話面板實作；結果顯示在產生它的 AI 對話中，不由本模組另存一份結構化解析紀錄。
@@ -101,7 +104,7 @@ related_implements:
 
 1. Renderer 載入安全的 `ChapterContent.contentHtml`，並由穩定的 `ChapterArticle` DOM 取得 `textContent`。
 2. 若 `selectedBook.chapterRanges[chapterId]` 存在、順序有效且 END 未超出目前文字長度，直接恢復保存值。
-3. 否則 `initialReadingRange()` 將 START／END 都設為章節內文第一行，建立 `{ start: 0, end: 0 }` 的初始空範圍。
+3. 否則 `initialReadingRange()` 將 START 設為章首、END 設為章末，建立 `{ start: 0, end: text.length }` 的完整章節初始範圍；空章節仍為 `{ start: 0, end: 0 }`。
 4. 只有完全沒有保存值時，初始範圍會立即透過 `saveReadingRange()` 持久化。
 5. 範圍狀態改變時不重建章節原文 DOM，避免中斷文字選取、右鍵定位或 Pointer 拖曳。
 
@@ -195,7 +198,7 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 
 | Test file | Coverage |
 |---|---|
-| `apps/desktop/src/renderer/reading-range.test.ts` | START／END 第一行初始化、嚴格裁切、等長推進、章末停止、點位轉 offset、START 在線前／END 在線後、標記資料不受推進影響 |
+| `apps/desktop/src/renderer/reading-range.test.ts` | 新章節完整範圍初始化、空章節邊界、嚴格裁切、等長推進、章末停止、點位轉 offset、START 依第一個 glyph 所在視覺行定位、DOM text node 邊界與章末 fallback、END 在線後、標記資料不受推進影響 |
 | `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線與快捷導覽、浮動工具位置、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、明確推進、AI 對話嚴格裁切、相同區段去重與邊界／來源變更重傳 |
 | `apps/desktop/src/main/library-service.test.ts` | 每章範圍保存、快速連續寫入、無效範圍與不存在章節拒絕 |
 | `apps/desktop/src/main/library-ipc.test.ts` | 保存 IPC 路由及輸入格式驗證 |
@@ -224,7 +227,7 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 - 標記講解與閱讀測驗已接上目前閱讀區段，但結果仍屬 AI 對話內容；本模組不另存可獨立查詢的結構化解析或練習紀錄。
 - 尚未提供鍵盤調整 START／END 的操作。
 - 尚未提供範圍歷史、復原／重做或多組範圍。
-- 初始 `start === end` 是空閱讀區段；使用者需移動 END 後才會建立可供 AI 裁切的非空範圍。
+- 非空新章節預設建立完整章節閱讀區段；只有空章節或使用者明確把兩個範圍標籤移到同一位置時，才會形成合法的 `start === end` 空閱讀區段。
 - 已存在但超出新章節文字長度的舊範圍只在畫面回退，不會立即覆寫持久化值。
 - E2E 尚未以真實 EPUB 自動操作 START／END 拖曳；主要互動覆蓋位於 renderer 行為測試。
 
@@ -245,5 +248,7 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 - `documents/implements/B02-persist-range-marker-on-drag-release.md`
 - `documents/implements/F40-reader-jump-to-range-markers.md`
 - `documents/implements/B14-jump-to-reading-range-markers.md`
+- `documents/implements/B22-default-reading-range-to-whole-chapter.md`
+- `documents/implements/B23-align-advanced-range-start-with-first-unread-line.md`
 
 更新範圍資料格式、定位語意、拖曳生命週期、保存流程、自動推進或 AI 裁切邊界時，必須同步更新本文件及相關 FXX／BXX 實作紀錄。

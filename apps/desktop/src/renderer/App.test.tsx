@@ -2827,8 +2827,8 @@ describe("App", () => {
       .toHaveAttribute("data-text-offset", "20");
   });
 
-  it("starts both markers of an unsaved chapter range at the first line", async () => {
-    const { getChapterContent } = installLibraryApi();
+  it("defaults and persists an unsaved chapter range across the full chapter", async () => {
+    const { getChapterContent, saveReadingRange } = installLibraryApi();
     getChapterContent.mockResolvedValue({
       bookId: "book-one",
       chapterId: "one-1",
@@ -2839,11 +2839,18 @@ describe("App", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+    const article = await screen.findByLabelText("Opening chapter content");
+    const chapterLength = article.textContent?.length ?? 0;
 
     expect(await screen.findByRole("button", { name: "Reading segment start" }))
       .toHaveAttribute("data-text-offset", "0");
     expect(screen.getByRole("button", { name: "Reading segment end" }))
-      .toHaveAttribute("data-text-offset", "0");
+      .toHaveAttribute("data-text-offset", String(chapterLength));
+    await waitFor(() => expect(saveReadingRange).toHaveBeenCalledWith({
+      bookId: "book-one",
+      chapterId: "one-1",
+      range: { start: 0, end: chapterLength }
+    }));
   });
 
   it("restores saved offsets and keeps them through layout changes", async () => {
@@ -2851,13 +2858,16 @@ describe("App", () => {
       ...books[0],
       chapterRanges: { "one-1": { start: 3, end: 14 } }
     }];
-    installLibraryApi(savedBooks);
+    const { saveReadingRange } = installLibraryApi(savedBooks);
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
 
     const start = await screen.findByRole("button", { name: "Reading segment start" });
     expect(start).toHaveAttribute("data-text-offset", "3");
+    expect(screen.getByRole("button", { name: "Reading segment end" }))
+      .toHaveAttribute("data-text-offset", "14");
+    expect(saveReadingRange).not.toHaveBeenCalled();
     fireEvent(window, new Event("resize"));
     expect(start).toHaveAttribute("data-text-offset", "3");
   });
@@ -2932,20 +2942,25 @@ describe("App", () => {
   });
 
   it("advances only from the explicit completion action and stops inside the chapter", async () => {
-    const { getChapterContent, saveReadingRange } = installLibraryApi();
+    const words = Array.from({ length: 900 }, (_, index) => `word${index + 1}`);
+    const firstRangeEnd = words.slice(0, 100).join(" ").length;
+    const rangedBooks: LibraryBook[] = [{
+      ...books[0],
+      chapterRanges: { "one-1": { start: 0, end: firstRangeEnd } }
+    }];
+    const { getChapterContent, saveReadingRange } = installLibraryApi(rangedBooks);
     getChapterContent.mockResolvedValue({
       bookId: "book-one",
       chapterId: "one-1",
       title: "Opening",
       fragment: null,
-      contentHtml: `<p>${Array.from({ length: 900 }, (_, index) => `word${index + 1}`).join(" ")}</p>`
+      contentHtml: `<p>${words.join(" ")}</p>`
     });
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     await screen.findByRole("button", { name: "Reading segment start" });
-    await waitFor(() => expect(saveReadingRange).toHaveBeenCalled());
-    saveReadingRange.mockClear();
+    expect(saveReadingRange).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText("Ask about current content"), {
       target: { value: "Explain this range" }
