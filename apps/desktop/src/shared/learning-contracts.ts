@@ -4,6 +4,8 @@ export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 export type LearningItemStatus = "active" | "trashed";
 export type LearningItemStudyStatus =
   "new" | "learning" | "due" | "scheduled";
+export type LearningItemProgressStatus =
+  "new" | "studying" | "familiar" | "strong";
 export type LearningItemSort =
   "recent" | "alphabetical" | "study-status" | "next-due";
 
@@ -50,6 +52,7 @@ export interface LearningItemListInput {
   language?: LearningItemLanguage;
   cefr?: CefrLevel;
   studyStatus?: LearningItemStudyStatus;
+  progressStatus?: LearningItemProgressStatus;
   sort: LearningItemSort;
   cursor?: string;
 }
@@ -62,6 +65,7 @@ export interface LearningItemPage {
 export interface LearningItemCounts {
   active: number;
   trashed: number;
+  progress: Record<LearningItemProgressStatus, number>;
 }
 
 export interface CreateLearningItemInput {

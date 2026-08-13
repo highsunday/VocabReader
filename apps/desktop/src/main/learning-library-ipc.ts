@@ -5,6 +5,7 @@ import type {
   LearningItemListInput,
   LearningItemLanguage,
   LearningItemPage,
+  LearningItemProgressStatus,
   LearningItemSort,
   LearningItemStatus,
   LearningItemStudyStatus,
@@ -62,6 +63,11 @@ function validStudyStatus(value: unknown): value is LearningItemStudyStatus {
     value === "due" || value === "scheduled";
 }
 
+function validProgressStatus(value: unknown): value is LearningItemProgressStatus {
+  return value === "new" || value === "studying" ||
+    value === "familiar" || value === "strong";
+}
+
 function validListInput(value: unknown): value is LearningItemListInput {
   if (!value || typeof value !== "object") return false;
   const input = value as Partial<LearningItemListInput>;
@@ -73,6 +79,8 @@ function validListInput(value: unknown): value is LearningItemListInput {
     (input.cefr === undefined || validCefr(input.cefr)) &&
     (input.studyStatus === undefined ||
       validStudyStatus(input.studyStatus)) &&
+    (input.progressStatus === undefined ||
+      validProgressStatus(input.progressStatus)) &&
     (input.cursor === undefined ||
       (nonEmptyString(input.cursor) && input.cursor.length <= 4096));
 }

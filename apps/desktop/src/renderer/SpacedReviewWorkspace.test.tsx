@@ -114,7 +114,11 @@ function reviewApi(): ReviewDesktopApi {
 function learningApi() {
   return {
     listItems: vi.fn(async () => ({ items: [], nextCursor: null })),
-    countItems: vi.fn(async () => ({ active: 0, trashed: 0 })),
+    countItems: vi.fn(async () => ({
+      active: 0,
+      trashed: 0,
+      progress: { new: 0, studying: 0, familiar: 0, strong: 0 }
+    })),
     getItem: vi.fn(async (itemId: string) => ({
       id: itemId,
       title: "bank",
@@ -1735,7 +1739,11 @@ describe("SpacedReviewWorkspace", () => {
       updatedAt: "2026-08-08T09:31:00.000Z",
       trashedAt: "2026-08-08T09:31:00.000Z"
     }));
-    learning.countItems = vi.fn(async () => ({ active: 0, trashed: 1 }));
+    learning.countItems = vi.fn(async () => ({
+      active: 0,
+      trashed: 1,
+      progress: { new: 0, studying: 0, familiar: 0, strong: 0 }
+    }));
 
     render(
       <SpacedReviewWorkspace
@@ -1788,7 +1796,8 @@ describe("SpacedReviewWorkspace", () => {
     expect(learning.trashItem).toHaveBeenCalledWith("item-1");
     await waitFor(() => expect(onLearningCountsChange).toHaveBeenCalledWith({
       active: 0,
-      trashed: 1
+      trashed: 1,
+      progress: { new: 0, studying: 0, familiar: 0, strong: 0 }
     }));
     expect(screen.queryByRole("dialog", { name: "bank" }))
       .not.toBeInTheDocument();

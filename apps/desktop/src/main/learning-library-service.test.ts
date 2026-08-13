@@ -435,7 +435,8 @@ describe("LocalLearningLibrary", () => {
     expect(first.items[0]).not.toHaveProperty("markdownContent");
     await expect(library.countItems()).resolves.toEqual({
       active: 55,
-      trashed: 0
+      trashed: 0,
+      progress: { new: 55, studying: 0, familiar: 0, strong: 0 }
     });
   });
 
@@ -515,7 +516,8 @@ describe("LocalLearningLibrary", () => {
     expect(first.items.every((item) => !("markdownContent" in item))).toBe(true);
     await expect(reopened.countItems()).resolves.toEqual({
       active: 10_000,
-      trashed: 0
+      trashed: 0,
+      progress: { new: 10_000, studying: 0, familiar: 0, strong: 0 }
     });
   });
 
@@ -574,6 +576,17 @@ describe("LocalLearningLibrary", () => {
       }]
     });
 
+    await expect(library.countItems(now)).resolves.toEqual({
+      active: 10,
+      trashed: 0,
+      progress: {
+        new: 7,
+        studying: 1,
+        familiar: 2,
+        strong: 0
+      }
+    });
+
     const prioritized = await library.listItems({
       status: "active",
       sort: "study-status"
@@ -628,6 +641,27 @@ describe("LocalLearningLibrary", () => {
         studyStatus: "scheduled"
       })
     ]);
+
+    const studyingProgress = await library.listItemPage({
+      status: "active",
+      progressStatus: "studying",
+      sort: "recent"
+    }, now);
+    const familiarProgress = await library.listItemPage({
+      status: "active",
+      progressStatus: "familiar",
+      sort: "recent"
+    }, now);
+    const newProgress = await library.listItemPage({
+      status: "active",
+      progressStatus: "new",
+      sort: "recent"
+    }, now);
+    expect(studyingProgress.items.map(({ id }) => id)).toEqual([items[2].id]);
+    expect(new Set(familiarProgress.items.map(({ id }) => id))).toEqual(
+      new Set([items[0].id, items[1].id])
+    );
+    expect(newProgress.items).toHaveLength(7);
   });
 
   it("persists valid edits and rejects invalid structured values", async () => {
@@ -1517,6 +1551,30 @@ describe("LocalLearningLibrary", () => {
       recallRate30Days: 100,
       recallReviewCount30Days: 1
     });
+    const libraryCounts = await library.countItems(now);
+    expect(libraryCounts.progress).toEqual({
+      new: 7,
+      studying: 0,
+      familiar: 1,
+      strong: progress.solidItemCount
+    });
+    expect(libraryCounts.progress.strong).toBe(progress.solidItemCount);
+    expect(Object.values(libraryCounts.progress).reduce(
+      (total, count) => total + count,
+      0
+    )).toBe(libraryCounts.active);
+    const strongItems = await library.listItemPage({
+      status: "active",
+      progressStatus: "strong",
+      sort: "recent"
+    }, now);
+    const familiarItems = await library.listItemPage({
+      status: "active",
+      progressStatus: "familiar",
+      sort: "recent"
+    }, now);
+    expect(strongItems.items.map(({ id }) => id)).toEqual([solidItem.id]);
+    expect(familiarItems.items.map(({ id }) => id)).toEqual([buildingItem.id]);
     expect(progress.daily.at(-1)).toMatchObject({
       date: now.toLocaleDateString("en-CA"),
       solidItemCount: 1

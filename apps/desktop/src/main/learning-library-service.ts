@@ -17,6 +17,7 @@ import type {
   LearningItemListInput,
   LearningItemLanguage,
   LearningItemPage,
+  LearningItemProgressStatus,
   LearningItemStatus,
   LearningItemStudyStatus,
   LearningItemSummary,
@@ -144,6 +145,12 @@ const studyStatuses = new Set<LearningItemStudyStatus>([
   "due",
   "scheduled"
 ]);
+const progressStatuses = new Set<LearningItemProgressStatus>([
+  "new",
+  "studying",
+  "familiar",
+  "strong"
+]);
 const LEARNING_LIBRARY_PAGE_SIZE = 50;
 const reviewRatings = new Set<ReviewRating>([
   "forgotten",
@@ -195,6 +202,7 @@ function reviewProgress(
   completedDueToday: number;
   newLearningCount: number;
   dueLearningCount: number;
+  solidItemIds: Set<string>;
   learningProgress: ReviewLearningProgress;
   reviewActivity: ReviewActivity;
 } {
@@ -307,7 +315,11 @@ function reviewProgress(
       solidItemCount: solidCountAt(evaluationTime)
     };
   });
-  const solidItemCount = solidCountAt(now);
+  const solidItemIds = new Set<string>();
+  for (const [itemId, itemEvents] of eventsByItem) {
+    if (isSolidAt(itemEvents, now)) solidItemIds.add(itemId);
+  }
+  const solidItemCount = solidItemIds.size;
   const comparisonTime = new Date(now);
   comparisonTime.setDate(comparisonTime.getDate() - 30);
   const solidItemCountDelta30Days =
@@ -334,6 +346,7 @@ function reviewProgress(
     completedDueToday,
     newLearningCount,
     dueLearningCount,
+    solidItemIds,
     learningProgress: {
       periodDays,
       solidItemCount,
@@ -351,6 +364,27 @@ function reviewProgress(
       daily: activityDaily
     }
   };
+}
+
+function progressItemIds(
+  progress: ReturnType<typeof reviewProgress>,
+  newItemIds: Set<string>,
+  status: LearningItemProgressStatus
+): Set<string> {
+  if (status === "new") return newItemIds;
+  if (status === "strong") return progress.solidItemIds;
+  const ids = new Set<string>();
+  for (const [itemId, state] of progress.states) {
+    if (status === "studying" && state.learningKind) ids.add(itemId);
+    if (
+      status === "familiar" &&
+      !state.learningKind &&
+      !progress.solidItemIds.has(itemId)
+    ) {
+      ids.add(itemId);
+    }
+  }
+  return ids;
 }
 
 function ratingForFsrs(rating: ReviewRating): Grade {
@@ -515,6 +549,7 @@ function listQueryFingerprint(input: LearningItemListInput): string {
     language: input.language ?? null,
     cefr: input.cefr ?? null,
     studyStatus: input.studyStatus ?? null,
+    progressStatus: input.progressStatus ?? null,
     sort: input.sort
   })).digest("base64url");
 }
@@ -1007,6 +1042,12 @@ export class LocalLearningLibrary {
     ) {
       throw new Error("Invalid study-status filter");
     }
+    if (
+      input.progressStatus !== undefined &&
+      !progressStatuses.has(input.progressStatus)
+    ) {
+      throw new Error("Invalid progress-status filter");
+    }
 
     const clauses = ["i.status = ?"];
     const values: Array<string> = [input.status];
@@ -1049,6 +1090,12 @@ export class LocalLearningLibrary {
       ORDER BY e.learning_item_id ASC, e.reviewed_at ASC, e.id ASC
     `).all(nowIso) as unknown as ReviewProgressRow[];
     const progress = reviewProgress(progressRows, now);
+    const newItemIds = new Set(rows
+      .filter((row) => !row.due_at)
+      .map((row) => row.id));
+    const selectedProgressIds = input.progressStatus
+      ? progressItemIds(progress, newItemIds, input.progressStatus)
+      : null;
     const libraryItems = rows.map((row): LearningLibraryItem => {
       const learningKind = progress.states.get(row.id)?.learningKind;
       const studyStatus: LearningItemStudyStatus = learningKind
@@ -1064,7 +1111,8 @@ export class LocalLearningLibrary {
         nextDueAt: row.due_at
       };
     }).filter((item) =>
-      !input.studyStatus || item.studyStatus === input.studyStatus
+      (!input.studyStatus || item.studyStatus === input.studyStatus) &&
+      (!selectedProgressIds || selectedProgressIds.has(item.id))
     );
     if (input.sort === "study-status") {
       const priority: Record<LearningItemStudyStatus, number> = {
@@ -1125,6 +1173,12 @@ export class LocalLearningLibrary {
     ) {
       throw new Error("Invalid study-status filter");
     }
+    if (
+      input.progressStatus !== undefined &&
+      !progressStatuses.has(input.progressStatus)
+    ) {
+      throw new Error("Invalid progress-status filter");
+    }
     if (input.cursor !== undefined && typeof input.cursor !== "string") {
       throw new Error("Invalid Learning Library cursor");
     }
@@ -1135,6 +1189,7 @@ export class LocalLearningLibrary {
       : null;
     const offset = decoded?.offset ?? 0;
     const asOf = decoded?.asOf ?? validDate(nowInput, "current time").toISOString();
+    const database = this.#open();
     const clauses = ["status = ?"];
     const values: Array<string | number> = [input.status];
     const search = input.search?.trim().toLocaleLowerCase();
@@ -1158,6 +1213,33 @@ export class LocalLearningLibrary {
       clauses.push("study_status = ?");
       values.push(input.studyStatus);
     }
+    if (input.progressStatus) {
+      const progressRows = database.prepare(`
+        SELECT e.id, e.learning_item_id, e.reviewed_at, e.next_due_at,
+          e.final_rating, e.next_card_json
+        FROM learning_review_events e
+        JOIN learning_items i ON i.id = e.learning_item_id
+        WHERE i.status = 'active' AND e.reviewed_at <= ?
+        ORDER BY e.learning_item_id ASC, e.reviewed_at ASC, e.id ASC
+      `).all(asOf) as unknown as ReviewProgressRow[];
+      const newRows = database.prepare(`
+        SELECT i.id
+        FROM learning_items i
+        LEFT JOIN learning_review_schedules s ON s.learning_item_id = i.id
+        WHERE i.status = 'active' AND s.learning_item_id IS NULL
+      `).all() as unknown as Array<{ id: string }>;
+      const selectedIds = progressItemIds(
+        reviewProgress(progressRows, new Date(asOf)),
+        new Set(newRows.map(({ id }) => id)),
+        input.progressStatus
+      );
+      if (selectedIds.size === 0) {
+        clauses.push("0");
+      } else {
+        clauses.push("id IN (SELECT value FROM json_each(?))");
+        values.push(JSON.stringify([...selectedIds]));
+      }
+    }
     const order = input.sort === "alphabetical"
       ? "LOWER(title) ASC, sense ASC, id ASC"
       : input.sort === "study-status"
@@ -1171,7 +1253,7 @@ export class LocalLearningLibrary {
           ? `CASE WHEN due_at IS NULL THEN 1 ELSE 0 END ASC,
             due_at ASC, LOWER(title) ASC, id ASC`
           : "created_at DESC, id ASC";
-    const rows = this.#open().prepare(`
+    const rows = database.prepare(`
       WITH summaries AS (
         SELECT
           i.id,
@@ -1221,8 +1303,13 @@ export class LocalLearningLibrary {
     };
   }
 
-  async countItems(): Promise<LearningItemCounts> {
-    const rows = this.#open().prepare(`
+  async countItems(
+    nowInput: Date | string = new Date()
+  ): Promise<LearningItemCounts> {
+    const now = validDate(nowInput, "current time");
+    const nowIso = now.toISOString();
+    const database = this.#open();
+    const statusRows = database.prepare(`
       SELECT status, COUNT(*) AS count
       FROM learning_items
       GROUP BY status
@@ -1230,8 +1317,39 @@ export class LocalLearningLibrary {
       status: LearningItemStatus;
       count: number;
     }>;
-    const counts: LearningItemCounts = { active: 0, trashed: 0 };
-    for (const row of rows) counts[row.status] = row.count;
+    const progressRows = database.prepare(`
+      SELECT e.id, e.learning_item_id, e.reviewed_at, e.next_due_at,
+        e.final_rating, e.next_card_json
+      FROM learning_review_events e
+      JOIN learning_items i ON i.id = e.learning_item_id
+      WHERE i.status = 'active' AND e.reviewed_at <= ?
+      ORDER BY e.learning_item_id ASC, e.reviewed_at ASC, e.id ASC
+    `).all(nowIso) as unknown as ReviewProgressRow[];
+    const newCountRow = database.prepare(`
+      SELECT COUNT(*) AS count
+      FROM learning_items i
+      LEFT JOIN learning_review_schedules s ON s.learning_item_id = i.id
+      WHERE i.status = 'active' AND s.learning_item_id IS NULL
+    `).get() as { count: number };
+    const progress = reviewProgress(progressRows, now);
+    const counts: LearningItemCounts = {
+      active: 0,
+      trashed: 0,
+      progress: {
+        new: newCountRow.count,
+        studying: progress.newLearningCount + progress.dueLearningCount,
+        familiar: 0,
+        strong: progress.learningProgress.solidItemCount
+      }
+    };
+    for (const row of statusRows) {
+      counts[row.status] += row.count;
+    }
+    counts.progress.familiar = Math.max(
+      0,
+      counts.active - counts.progress.new - counts.progress.studying -
+        counts.progress.strong
+    );
     return counts;
   }
 

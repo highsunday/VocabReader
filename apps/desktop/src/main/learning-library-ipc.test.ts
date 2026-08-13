@@ -23,7 +23,11 @@ function setup() {
       items: [{ ...item, markdownContent: undefined }],
       nextCursor: "next-page"
     }),
-    countItems: vi.fn().mockResolvedValue({ active: 1, trashed: 0 }),
+    countItems: vi.fn().mockResolvedValue({
+      active: 1,
+      trashed: 0,
+      progress: { new: 1, studying: 0, familiar: 0, strong: 0 }
+    }),
     getItem: vi.fn().mockResolvedValue(item),
     updateItem: vi.fn().mockResolvedValue(item),
     trashItem: vi.fn().mockResolvedValue({ ...item, status: "trashed" }),
@@ -83,7 +87,8 @@ describe("learning library IPC", () => {
     });
     await expect(handlers.get("learning:counts")?.({})).resolves.toEqual({
       active: 1,
-      trashed: 0
+      trashed: 0,
+      progress: { new: 1, studying: 0, familiar: 0, strong: 0 }
     });
     await expect(handlers.get("learning:get")?.({}, item.id)).resolves.toEqual(item);
     await expect(handlers.get("learning:update")?.({}, updateInput)).resolves.toEqual(item);
@@ -118,6 +123,11 @@ describe("learning library IPC", () => {
     expect(() => handlers.get("learning:list")?.({}, {
       status: "active",
       studyStatus: "mastered",
+      sort: "recent"
+    })).toThrow(/Invalid Learning Library query/);
+    expect(() => handlers.get("learning:list")?.({}, {
+      status: "active",
+      progressStatus: "mastered",
       sort: "recent"
     })).toThrow(/Invalid Learning Library query/);
     expect(() => handlers.get("learning:list")?.({}, {

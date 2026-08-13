@@ -670,6 +670,45 @@ test("launches the secure Electron reading shell", async () => {
 
     await page.getByRole("button", { name: /^Library \d+/ }).click();
     await expect(page.getByRole("heading", { name: "Learning Library" })).toBeVisible();
+    await page.setViewportSize({ width: 1180, height: 820 });
+    const compactProgressCounts = await page.evaluate(() => {
+      const overview = document.querySelector<HTMLElement>(
+        ".learning-status-overview"
+      );
+      const actions = document.querySelector<HTMLElement>(
+        ".learning-library-header-actions"
+      );
+      const heading = document.querySelector<HTMLElement>(
+        ".learning-library-header > div:first-child"
+      );
+      if (!overview || !actions || !heading) {
+        throw new Error("learning progress overview is unavailable");
+      }
+      const overviewRect = overview.getBoundingClientRect();
+      const buttons = Array.from(overview.querySelectorAll<HTMLElement>("button"));
+      return {
+        buttonCount: buttons.length,
+        allButtonsInsideOverview: buttons.every((button) => {
+          const rect = button.getBoundingClientRect();
+          return rect.left >= overviewRect.left - 1 &&
+            rect.right <= overviewRect.right + 1 &&
+            rect.top >= overviewRect.top - 1 &&
+            rect.bottom <= overviewRect.bottom + 1;
+        }),
+        hasHorizontalOverflow: overview.scrollWidth > overview.clientWidth + 1,
+        overflowX: getComputedStyle(overview).overflowX,
+        actionsBelowHeading:
+          actions.getBoundingClientRect().top >=
+          heading.getBoundingClientRect().bottom - 1
+      };
+    });
+    expect(compactProgressCounts).toEqual({
+      buttonCount: 4,
+      allButtonsInsideOverview: true,
+      hasHorizontalOverflow: false,
+      overflowX: "visible",
+      actionsBelowHeading: true
+    });
     await expect(page.locator(".learning-item-card")).toHaveCount(10);
     await page.getByRole("button", {
       name: /bank, New, word, English, A2, financial institution/

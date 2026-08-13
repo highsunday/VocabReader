@@ -94,7 +94,9 @@ function api() {
         (!input.itemType || item.itemType === input.itemType) &&
         (!input.language || item.language === input.language) &&
         (!input.cefr || item.cefr === input.cefr) &&
-        (!input.studyStatus || item.studyStatus === input.studyStatus);
+        (!input.studyStatus || item.studyStatus === input.studyStatus) &&
+        (!("progressStatus" in input) || input.progressStatus !== "familiar" ||
+          item.id === "item-bank");
     });
     const items = input.sort === "alphabetical"
       ? filtered.toSorted((left, right) => left.title.localeCompare(right.title))
@@ -103,7 +105,11 @@ function api() {
   });
   return {
     listItems,
-    countItems: vi.fn(async () => ({ active: 2, trashed: 1 })),
+    countItems: vi.fn(async () => ({
+      active: 2,
+      trashed: 1,
+      progress: { new: 0, studying: 0, familiar: 1, strong: 1 }
+    })),
     getItem: vi.fn(async (itemId: string) =>
       [...activeItems, trashedItem].find((item) => item.id === itemId) ?? activeItems[0]
     ),
@@ -443,7 +449,11 @@ describe("LearningLibraryWorkspace", () => {
         title: "second trashed item"
       };
       const learning = api();
-      learning.countItems.mockResolvedValue({ active: 2, trashed: 2 });
+      learning.countItems.mockResolvedValue({
+        active: 2,
+        trashed: 2,
+        progress: { new: 0, studying: 0, familiar: 1, strong: 1 }
+      });
       learning.listItems.mockImplementation(async (input) => {
         if (input.status === "active") {
           return { items: activeLibraryItems, nextCursor: null };
@@ -608,9 +618,27 @@ describe("LearningLibraryWorkspace", () => {
       .toBeInTheDocument();
   });
 
-  it("shows study states and supports status filtering and priority sorting", async () => {
+  it("shows compact progress counts and uses them for progress filtering", async () => {
     const learning = api();
     render(<LearningLibraryWorkspace api={learning} />);
+
+    const overview = await screen.findByRole("group", {
+      name: "Learning item progress counts"
+    });
+    const familiarFilter = await within(overview).findByRole("button", {
+      name: "Familiar, 1 learning item"
+    });
+    expect(within(overview).getByRole("button", {
+      name: "New, 0 learning items"
+    })).toBeInTheDocument();
+    expect(within(overview).getByRole("button", {
+      name: "Studying, 0 learning items"
+    })).toBeInTheDocument();
+    expect(within(overview).getByRole("button", {
+      name: "Strong, 1 learning item"
+    })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Study status")).not.toBeInTheDocument();
+    expect(familiarFilter).toHaveAttribute("aria-pressed", "false");
 
     const dueCard = await screen.findByRole("button", {
       name: /bank, Due/
@@ -626,23 +654,26 @@ describe("LearningLibraryWorkspace", () => {
       "Scheduled; next review in 2 days"
     );
 
-    fireEvent.change(screen.getByLabelText("Study status"), {
-      target: { value: "due" }
-    });
+    fireEvent.click(familiarFilter);
     await waitFor(() => expect(learning.listItems).toHaveBeenCalledWith({
       status: "active",
       search: "",
-      studyStatus: "due",
+      progressStatus: "familiar",
       sort: "recent"
     }));
     expect(screen.getByRole("button", { name: /bank, Due/ }))
       .toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /take for granted/ }))
       .not.toBeInTheDocument();
+    expect(familiarFilter).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.change(screen.getByLabelText("Study status"), {
-      target: { value: "all" }
+    fireEvent.click(familiarFilter);
+    await waitFor(() => {
+      const latest = learning.listItems.mock.calls.at(-1)?.[0];
+      expect(latest).not.toHaveProperty("progressStatus");
     });
+    expect(familiarFilter).toHaveAttribute("aria-pressed", "false");
+
     fireEvent.change(screen.getByLabelText("Sort"), {
       target: { value: "study-status" }
     });
@@ -686,7 +717,10 @@ describe("LearningLibraryWorkspace", () => {
     ]) {
       expect(await screen.findByText(label)).toBeInTheDocument();
     }
-    expect(screen.getByLabelText("Study status")).toHaveTextContent("Scheduled");
+    expect(within(screen.getByRole("group", {
+      name: "Learning item progress counts"
+    })).getByRole("button", { name: "Strong, 1 learning item" }))
+      .toBeInTheDocument();
   });
 
   it("opens a centered safe Markdown detail and closes only at modal boundaries", async () => {

@@ -24,10 +24,12 @@ import remarkGfm from "remark-gfm";
 import type {
   CefrLevel,
   LearningDesktopApi,
+  LearningItemCounts,
   LearningItemEditSnapshot,
   LearningItem,
   LearningItemLanguage,
   LearningItemListInput,
+  LearningItemProgressStatus,
   LearningItemSummary,
   LearningItemSort,
   LearningItemStudyStatus,
@@ -53,6 +55,18 @@ const studyStatusLabels: Record<LearningItemStudyStatus, string> = {
   due: "Due",
   scheduled: "Scheduled"
 };
+const progressStatusLabels: Record<LearningItemProgressStatus, string> = {
+  new: "New",
+  studying: "Studying",
+  familiar: "Familiar",
+  strong: "Strong"
+};
+const progressStatusOrder: LearningItemProgressStatus[] = [
+  "new",
+  "studying",
+  "familiar",
+  "strong"
+];
 
 function daysUntilLocalDate(value: string, now = new Date()) {
   const due = new Date(value);
@@ -1200,15 +1214,19 @@ export function LearningLibraryWorkspace({
 }) {
   const [view, setView] = useState<"active" | "trashed">("active");
   const [items, setItems] = useState<LearningItemSummary[]>([]);
-  const [counts, setCounts] = useState({ active: 0, trashed: 0 });
+  const [counts, setCounts] = useState<LearningItemCounts>({
+    active: 0,
+    trashed: 0,
+    progress: { new: 0, studying: 0, familiar: 0, strong: 0 }
+  });
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [itemType, setItemType] = useState<LearningItemType | "all">("all");
   const [language, setLanguage] =
     useState<LearningItemLanguage | "all">("all");
   const [cefr, setCefr] = useState<CefrLevel | "all">("all");
-  const [studyStatus, setStudyStatus] =
-    useState<LearningItemStudyStatus | "all">("all");
+  const [progressStatus, setProgressStatus] =
+    useState<LearningItemProgressStatus | "all">("all");
   const [sort, setSort] = useState<LearningItemSort>("recent");
   const [selectedItem, setSelectedItem] = useState<LearningItem>();
   const [isLoading, setIsLoading] = useState(true);
@@ -1248,7 +1266,7 @@ export function LearningLibraryWorkspace({
           ...(itemType === "all" ? {} : { itemType }),
           ...(language === "all" ? {} : { language }),
           ...(cefr === "all" ? {} : { cefr }),
-          ...(studyStatus === "all" ? {} : { studyStatus }),
+          ...(progressStatus === "all" ? {} : { progressStatus }),
           sort,
           ...(cursor ? { cursor } : {})
         }
@@ -1256,7 +1274,7 @@ export function LearningLibraryWorkspace({
           status: "trashed",
           sort: "recent",
           ...(cursor ? { cursor } : {})
-        }, [cefr, debouncedSearch, itemType, language, sort, studyStatus, view]);
+        }, [cefr, debouncedSearch, itemType, language, progressStatus, sort, view]);
 
   useEffect(() => {
     const generation = ++queryGenerationRef.current;
@@ -1442,7 +1460,7 @@ export function LearningLibraryWorkspace({
     itemType !== "all" ||
     language !== "all" ||
     cefr !== "all" ||
-    studyStatus !== "all" ||
+    progressStatus !== "all" ||
     sort !== "recent"
   );
 
@@ -1451,7 +1469,7 @@ export function LearningLibraryWorkspace({
     setItemType("all");
     setLanguage("all");
     setCefr("all");
-    setStudyStatus("all");
+    setProgressStatus("all");
     setSort("recent");
   }
 
@@ -1585,19 +1603,44 @@ export function LearningLibraryWorkspace({
               </p>
             </div>
             {view === "active" ? (
-              <button
-                type="button"
-                className="trash-entry-button"
-                onClick={() => setView("trashed")}
-              >
-                <Trash2
-                  className="trash-entry-icon"
-                  aria-hidden="true"
-                  strokeWidth={1.8}
-                />
-                Trash
-                <span className="trash-entry-count">{counts.trashed}</span>
-              </button>
+              <div className="learning-library-header-actions">
+                <div
+                  className="learning-status-overview"
+                  role="group"
+                  aria-label="Learning item progress counts"
+                >
+                  {progressStatusOrder.map((status) => {
+                    const count = counts.progress[status];
+                    const selected = progressStatus === status;
+                    return (
+                      <button
+                        type="button"
+                        key={status}
+                        data-progress-status={status}
+                        aria-pressed={selected}
+                        aria-label={`${progressStatusLabels[status]}, ${count} learning ${count === 1 ? "item" : "items"}`}
+                        onClick={() => setProgressStatus(selected ? "all" : status)}
+                      >
+                        <span>{progressStatusLabels[status]}</span>
+                        <strong>{count}</strong>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className="trash-entry-button"
+                  onClick={() => setView("trashed")}
+                >
+                  <Trash2
+                    className="trash-entry-icon"
+                    aria-hidden="true"
+                    strokeWidth={1.8}
+                  />
+                  <span className="trash-entry-label">Trash</span>
+                  <span className="trash-entry-count">{counts.trashed}</span>
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
@@ -1663,21 +1706,6 @@ export function LearningLibraryWorkspace({
                   {cefrLevels.map((level) => (
                     <option value={level} key={level}>{level}</option>
                   ))}
-                </select>
-              </label>
-              <label>
-                Study status
-                <select
-                  value={studyStatus}
-                  onChange={(event) => setStudyStatus(
-                    event.target.value as LearningItemStudyStatus | "all"
-                  )}
-                >
-                  <option value="all">All statuses</option>
-                  <option value="new">New</option>
-                  <option value="learning">Learning</option>
-                  <option value="due">Due</option>
-                  <option value="scheduled">Scheduled</option>
                 </select>
               </label>
               <label>

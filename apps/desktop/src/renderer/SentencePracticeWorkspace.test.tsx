@@ -115,7 +115,11 @@ function sentencePracticeApi(): SentencePracticeDesktopApi {
 function learningApi(): LearningDesktopApi {
   return {
     listItems: vi.fn(async () => ({ items: [], nextCursor: null })),
-    countItems: vi.fn(async () => ({ active: 2, trashed: 0 })),
+    countItems: vi.fn(async () => ({
+      active: 2,
+      trashed: 0,
+      progress: { new: 2, studying: 0, familiar: 0, strong: 0 }
+    })),
     getItem: vi.fn(async (itemId) => ({
       id: itemId,
       title: itemId === "item-1" ? "create" : "on the verge of",

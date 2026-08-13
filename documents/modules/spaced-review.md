@@ -121,6 +121,9 @@ related_implements:
   FSRS stability 至少 30 天、最新評級仍為 Good／Easy，且查詢時間的 retrievability
   至少 85% 才屬於穩定掌握。具有排程但未達標或已衰退者屬於正在鞏固。90 天每日點
   依當日結束前最後事件重建，今天只算到查詢時間；30 天淨成長可以為負。
+- 生詞庫頁的 Strong 直接復用同一次 `reviewProgress()` 產生的 Solid recall 項目集合；
+  因此相同查詢時點的 Library Strong 必須等於 `learningProgress.solidItemCount`，不另
+  維護近似門檻或第二套熟悉度規則。
 - `reviewActivity` 是投入：沿用「下一次到期日期進入隔天或更晚才算完成」規則，
   彙整最近 30 個本地日期的新項目與到期複習完成次數。它只驅動活動方格，不影響
   穩定掌握判定。

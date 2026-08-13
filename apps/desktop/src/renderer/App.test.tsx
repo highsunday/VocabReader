@@ -173,7 +173,13 @@ function installLibraryApi(
     })),
     countItems: vi.fn(async () => ({
       active: learningLibraryItems.length,
-      trashed: 0
+      trashed: 0,
+      progress: {
+        new: learningLibraryItems.length,
+        studying: 0,
+        familiar: 0,
+        strong: 0
+      }
     })),
     getItem: vi.fn(async () => learningItems[0]),
     updateItem: vi.fn(async (input) => ({ ...learningItems[0], ...input })),
@@ -1409,7 +1415,11 @@ describe("App", () => {
       ...summary,
       newCount: 7
     });
-    learning.countItems.mockResolvedValue({ active: 466, trashed: 0 });
+    learning.countItems.mockResolvedValue({
+      active: 466,
+      trashed: 0,
+      progress: { new: 466, studying: 0, familiar: 0, strong: 0 }
+    });
     render(<App />);
 
     const reviewButton = await screen.findByRole("button", {

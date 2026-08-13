@@ -41,7 +41,10 @@ related_implements:
 - 首次建立 SQLite 時執行 schema migration，並以 metadata 記錄一次性 seed 完成狀態。
 - 十筆穩定範例涵蓋單字、片語、A1–C2、三句英文例句，以及 `bank` 的兩個獨立語義。
 - 標題限定、大小寫不敏感的部分字串搜尋。
-- 語言、類型、CEFR 與學習狀態複合篩選，以及最近新增、學習優先、下次複習與字母排序。
+- 語言、類型、CEFR 與學習進度複合篩選，以及最近新增、學習優先、下次複習與字母排序。
+- 頁首以單列緊湊按鈕顯示 New、Studying、Familiar、Strong 四個互斥進度數量；
+  按鈕同時作為篩選入口。Strong 直接共用 Review 的 Solid recall 項目集合與數量，
+  Due／Scheduled 等時間狀態仍保留於卡片。
 - 學習項目語言固定為英文、日文、繁體中文與其他語言；AI 新增時逐筆判定，詳情編輯
   可修正，清單卡片、草稿預覽與完整詳情皆顯示人類可讀標籤。
 - 同標題不同語義以不同不可變 id 保存，不合併內容。
@@ -78,8 +81,10 @@ related_implements:
 - 驗證語言、類型、CEFR、狀態、排序及必要文字欄位。
 - 組合參數化 SQL，讓搜尋只比對 `title`。
 - 以 query-bound opaque cursor、固定 50 筆摘要及 deterministic tie-breaker 執行
-  使用中清單與垃圾桶查詢；study status filter／sort 在 page 選取前完成。
-- 以獨立 count query 取得 active／trash 數量，不讀取完整項目或複習歷史。
+  使用中清單與垃圾桶查詢；progress／study status filter 與 sort 在 page 選取前完成。
+- 以 Main-owned 完整資料取得 active／trash 與四個進度數量；New 對齊 Review 的
+  `newCount`，Studying 對齊兩類 learning count，Strong 復用 Solid recall 判定，
+  Familiar 是已開始且不屬於 Studying／Strong 的其餘 active 項目。
 - 更新學習內容與時間戳。
 - 以 `applyAiEdit()` 只更新 Markdown、注意事項與時間戳，並以 active 狀態與原始
   `updatedAt` 拒絕過期或垃圾桶工作階段覆寫。
@@ -130,7 +135,9 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 `LearningLibraryWorkspace` 負責：
 
 - 使用中清單與垃圾桶視圖。
-- 搜尋、語言、類型、CEFR、study status、排序及漸進結果集合。
+- 搜尋、語言、類型、CEFR、進度狀態、排序及漸進結果集合；卡片時間狀態保持獨立。
+- 顯示 New／Studying／Familiar／Strong 的緊湊可切換按鈕；中等寬度時整列移至標題
+  下方並維持四欄同時可見，不使用水平捲動或隱藏捲軸。
 - 固定工具區與獨立結果捲動區。
 - 管理 query identity、250 ms 搜尋 debounce、stale response、下一批 loading／retry，
   並在 query 改變時回頂部、mutation refresh 時保留鄰近 anchor。
@@ -203,7 +210,7 @@ Renderer control
   → LocalLearningLibrary validation
   → parameterized SQLite query / mutation
   → typed LearningItemPage / LearningItemCounts result
-  → append page or refresh visible window and active / trash counts
+  → append page or refresh visible window and active / trash / progress counts
 ```
 
 搜尋值會 trim、轉為小寫並跳脫 `%`、`_` 與反斜線，再套用到 `LOWER(title) LIKE ?`。
@@ -213,6 +220,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 
 - 中央工作區本身不捲動；上方工具區固定，結果區使用自己的 `overflow-y: auto`。
 - 工具區保留生詞庫標題、說明、垃圾桶入口、搜尋、語言、類型、CEFR 與排序。
+- 頁首四個進度數量是可存取的 pressed-state 篩選按鈕；四欄在窄版壓縮並完整可見，
+  不產生水平捲動。為抵銷 action 換列高度，中等寬度隱藏標題說明文字。
 - 結果區不顯示已載入／總符合筆數；接近底部時自動載入，失敗時保留既有卡片並提供
   Retry，最後一批不顯示結束文案。
 - 卡片以類型、語言、CEFR、標題與語義形成清楚層級，hover／focus 有一致回饋。
@@ -257,15 +266,15 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 | `spaced-review-artifacts.test.ts`、`spaced-review-controller.test.ts` | 有限 AI scope、artifact 與暫態生命週期 |
 | `learning-library-ipc.test.ts`、`learning-item-edit-ipc.test.ts` | 一般與 AI edit IPC 白名單、惡意／錯誤 payload 拒絕 |
 | `learning-item-artifacts.test.ts`、`learning-item-edit-controller.test.ts` | 嚴格 edit artifact、最小 scope、暫態草稿、Apply 與停止競態 |
-| `learning-library-workspace.test.tsx` | 查詢、分批、Trash、retry、視窗化、共用 modal、安全 Markdown、注意事項、AI 草稿／停止／放棄／Apply 與唯讀邊界 |
+| `learning-library-workspace.test.tsx` | 查詢、四進度指標與切換篩選、卡片時間狀態、分批、Trash、retry、視窗化、共用 modal、安全 Markdown、注意事項、AI 草稿／停止／放棄／Apply 與唯讀邊界 |
 | `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
 | `learning-item-draft-dialog.test.tsx` | 已存在項目唯讀詳情、雙層 Escape 與載入失敗重試 |
 | `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情，以及捲到底後工具區位置不變 |
 
-最近驗證（2026-08-09）：
+最近驗證（2026-08-14）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：401/401 passed。
+- Desktop Vitest：515/515 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
 - Electron Playwright E2E：2/2 passed，包含 runtime edit skill 與 `learning.aiEdit` 白名單。
