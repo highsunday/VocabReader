@@ -159,6 +159,12 @@ app.whenReady().then(() => {
     snapshotBookIndex: () => bookLibrary.listBooks(),
     snapshotLearningDatabase: (destinationPath) =>
       learningLibrary.backupTo(destinationPath),
+    sentencePracticeProgressPath: join(
+      settingsPath,
+      "sentence-practice-progress.json"
+    ),
+    snapshotSentencePracticeProgress: () =>
+      sentencePracticeProgressStore.snapshotBytes(),
     closeLearningDatabase: () => learningLibrary.close(),
     relaunch: () => {
       restartAfterDataRestore({

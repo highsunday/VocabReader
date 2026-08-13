@@ -91,9 +91,22 @@ export interface SentencePracticeSession {
   exampleGeneration: SentencePracticeExampleGeneration;
 }
 
+export interface SentencePracticeActivityDay {
+  date: string;
+  completedItemCount: number;
+}
+
+export interface SentencePracticeStatistics {
+  todayCompletedItemCount: number;
+  totalCompletedItemCount: number;
+  completedItemCount30Days: number;
+  dailyActivity: SentencePracticeActivityDay[];
+}
+
 export interface SentencePracticeSnapshot {
   eligibleCount: number;
   dailyCompletedItemCount: number;
+  statistics?: SentencePracticeStatistics;
   session: SentencePracticeSession | null;
 }
 

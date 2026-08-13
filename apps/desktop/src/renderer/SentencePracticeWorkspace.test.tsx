@@ -169,7 +169,198 @@ function reviewApi(): ReviewDesktopApi {
   };
 }
 
+function statistics(
+  todayCompletedItemCount: number,
+  totalCompletedItemCount = todayCompletedItemCount,
+  completedItemCount30Days = todayCompletedItemCount
+) {
+  return {
+    todayCompletedItemCount,
+    totalCompletedItemCount,
+    completedItemCount30Days,
+    dailyActivity: Array.from({ length: 30 }, (_, index) => ({
+      date: new Date(Date.UTC(2026, 6, 16 + index))
+        .toISOString().slice(0, 10),
+      completedItemCount: index === 28
+        ? completedItemCount30Days - todayCompletedItemCount
+        : index === 29
+          ? todayCompletedItemCount
+          : 0
+    }))
+  };
+}
+
 describe("SentencePracticeWorkspace", () => {
+  it("shows today's goal, all-time usage, and accessible thirty-day activity", async () => {
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 84,
+        dailyCompletedItemCount: 7,
+        statistics: statistics(7, 100, 20),
+        session: null
+      })),
+      startSession: vi.fn(),
+      submit: vi.fn(),
+      generateExamples: vi.fn()
+    };
+
+    render(
+      <SentencePracticeWorkspace
+        api={api}
+        learningApi={learningApi()}
+        explanationLanguage="en"
+        dailyGoal={10}
+      />
+    );
+
+    const today = await screen.findByRole("region", {
+      name: "Today's sentence practice"
+    });
+    expect(today).toHaveTextContent("7 / 10");
+    expect(today).toHaveTextContent("3 left today");
+    expect(within(today).getByRole("progressbar", {
+      name: "Daily sentence practice goal"
+    })).toHaveAttribute("aria-valuenow", "7");
+    expect(screen.getByRole("region", { name: "All-time sentence practice" }))
+      .toHaveTextContent("100");
+    const activity = screen.getByRole("region", {
+      name: "30-day writing activity"
+    });
+    expect(activity).toHaveTextContent("20 successful uses");
+    expect(within(activity).getByLabelText(
+      "2026-08-13: 13 successful uses"
+    )).toBeInTheDocument();
+    expect(activity).not.toHaveTextContent(/active days|passages/i);
+  });
+
+  it("shows a low-distraction completed state after exceeding the goal", async () => {
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 20,
+        dailyCompletedItemCount: 13,
+        statistics: statistics(13, 40, 20),
+        session: null
+      })),
+      startSession: vi.fn(),
+      submit: vi.fn(),
+      generateExamples: vi.fn()
+    };
+
+    render(
+      <SentencePracticeWorkspace
+        api={api}
+        learningApi={learningApi()}
+        explanationLanguage="en"
+        dailyGoal={10}
+      />
+    );
+
+    const today = await screen.findByRole("region", {
+      name: "Today's sentence practice"
+    });
+    expect(today).toHaveTextContent("13 / 10");
+    expect(today).toHaveTextContent("Today's goal complete");
+    expect(within(today).getByRole("progressbar"))
+      .toHaveAttribute("aria-valuenow", "10");
+    expect(screen.getByRole("button", { name: "Start practice" }))
+      .toBeEnabled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps usage statistics while the daily goal is off", async () => {
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 20,
+        dailyCompletedItemCount: 5,
+        statistics: statistics(5, 25, 12),
+        session: null
+      })),
+      startSession: vi.fn(),
+      submit: vi.fn(),
+      generateExamples: vi.fn()
+    };
+
+    render(
+      <SentencePracticeWorkspace
+        api={api}
+        learningApi={learningApi()}
+        explanationLanguage="en"
+        dailyGoal={0}
+      />
+    );
+
+    const today = await screen.findByRole("region", {
+      name: "Today's sentence practice"
+    });
+    expect(today).toHaveTextContent("5 successful uses today");
+    expect(within(today).queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(today).not.toHaveTextContent(/left today|goal complete|\//i);
+    expect(screen.getByRole("region", { name: "All-time sentence practice" }))
+      .toHaveTextContent("25");
+  });
+
+  it("hides full statistics during writing and keeps a compact today status", async () => {
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 20,
+        dailyCompletedItemCount: 7,
+        statistics: statistics(7, 100, 20),
+        session: session()
+      })),
+      startSession: vi.fn(),
+      submit: vi.fn(),
+      generateExamples: vi.fn()
+    };
+
+    render(
+      <SentencePracticeWorkspace
+        api={api}
+        learningApi={learningApi()}
+        explanationLanguage="en"
+        dailyGoal={10}
+      />
+    );
+
+    expect(await screen.findByText("Today 7 / 10")).toBeInTheDocument();
+    expect(screen.queryByRole("region", {
+      name: "Today's sentence practice"
+    })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", {
+      name: "All-time sentence practice"
+    })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Your story or passage" }))
+      .toBeInTheDocument();
+  });
+
+  it("recomputes today's presentation immediately when the goal changes", async () => {
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 20,
+        dailyCompletedItemCount: 7,
+        statistics: statistics(7, 100, 20),
+        session: null
+      })),
+      startSession: vi.fn(),
+      submit: vi.fn(),
+      generateExamples: vi.fn()
+    };
+    const props = {
+      api,
+      learningApi: learningApi(),
+      explanationLanguage: "en" as const
+    };
+    const view = render(
+      <SentencePracticeWorkspace {...props} dailyGoal={10} />
+    );
+
+    expect(await screen.findByText("7 / 10")).toBeInTheDocument();
+    view.rerender(<SentencePracticeWorkspace {...props} dailyGoal={0} />);
+    expect(screen.getByText("7 successful uses today")).toBeInTheDocument();
+    view.rerender(<SentencePracticeWorkspace {...props} dailyGoal={20} />);
+    expect(screen.getByText("7 / 20")).toBeInTheDocument();
+    expect(screen.getByText("13 left today")).toBeInTheDocument();
+  });
+
   it("refreshes today's completed count at the next local calendar day", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 7, 14, 23, 59, 59, 900));
@@ -233,12 +424,14 @@ describe("SentencePracticeWorkspace", () => {
       getSnapshot: vi.fn(async () => ({
         eligibleCount: 3,
         dailyCompletedItemCount: 4,
+        statistics: statistics(4, 104, 14),
         session: session()
       })),
       startSession: vi.fn(),
       submit: vi.fn(async () => ({
         eligibleCount: 3,
         dailyCompletedItemCount: 6,
+        statistics: statistics(6, 106, 16),
         session: completedSession
       })),
       generateExamples: vi.fn()
@@ -248,6 +441,7 @@ describe("SentencePracticeWorkspace", () => {
         api={api}
         learningApi={learningApi()}
         explanationLanguage="en"
+        dailyGoal={5}
         onDailyCompletedItemCountChange={onDailyCompletedItemCountChange}
       />
     );
@@ -257,10 +451,15 @@ describe("SentencePracticeWorkspace", () => {
     });
     await waitFor(() => expect(onDailyCompletedItemCountChange)
       .toHaveBeenLastCalledWith(4));
+    expect(screen.getByText("Today 4 / 5")).toBeInTheDocument();
     fireEvent.change(draft, { target: { value: completedSession.draft } });
     fireEvent.click(screen.getByRole("button", { name: "Check my writing" }));
     await waitFor(() => expect(onDailyCompletedItemCountChange)
       .toHaveBeenLastCalledWith(6));
+    expect(screen.getByText("Today 6 / 5")).toHaveAttribute(
+      "data-complete",
+      "true"
+    );
   });
 
   it("blocks setup below two eligible items", async () => {

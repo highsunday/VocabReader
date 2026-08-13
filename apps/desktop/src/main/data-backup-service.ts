@@ -25,13 +25,19 @@ import type { LibraryBook } from "../shared/library-contracts";
 import {
   MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION
 } from "./learning-library-service";
+import {
+  emptySentencePracticeProgressBytes,
+  parseSentencePracticeProgressBytes
+} from "./sentence-practice-progress-store";
 
 const backupFormat = "lingoshelf-data-backup";
-const backupFormatVersion = 1;
+const backupFormatVersion = 2;
+const minimumBackupFormatVersion = 1;
+const sentencePracticeActivityPath = "sentence-practice/activity.json";
 const maximumArchiveBytes = 512 * 1024 * 1024;
 const maximumEntryBytes = 256 * 1024 * 1024;
 const maximumExtractedBytes = 1024 * 1024 * 1024;
-const maximumEntryCount = 1003;
+const maximumEntryCount = 1004;
 
 export function defaultDataBackupFileName(now = new Date()): string {
   const part = (value: number) => String(value).padStart(2, "0");
@@ -58,7 +64,7 @@ interface ManifestFile {
 
 interface DataBackupManifest {
   format: typeof backupFormat;
-  version: typeof backupFormatVersion;
+  version: number;
   createdAt: string;
   appVersion: string;
   counts: {
@@ -83,10 +89,13 @@ export interface DataBackupServiceOptions {
   waitForBookWrites: () => Promise<void>;
   snapshotBookIndex?: () => Promise<LibraryBook[]>;
   snapshotLearningDatabase: (destinationPath: string) => Promise<void>;
+  sentencePracticeProgressPath?: string;
+  snapshotSentencePracticeProgress?: () => Promise<Uint8Array>;
   closeLearningDatabase: () => void;
   relaunch: () => void;
   onRestoreStep?: (
-    step: "library-replaced" | "learning-library-replaced"
+    step: "library-replaced" | "learning-library-replaced" |
+      "sentence-practice-replaced"
   ) => void;
 }
 
@@ -327,7 +336,9 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
   if (manifest?.format !== backupFormat) {
     throw new Error("This is not a VocabReader data backup");
   }
-  if (manifest.version !== backupFormatVersion) {
+  if (!Number.isInteger(manifest.version) ||
+    Number(manifest.version) < minimumBackupFormatVersion ||
+    Number(manifest.version) > backupFormatVersion) {
     throw new Error(
       typeof manifest.version === "number" &&
       manifest.version > backupFormatVersion
@@ -374,7 +385,7 @@ function parseManifest(bytes: Buffer): DataBackupManifest {
   }
   return {
     format: backupFormat,
-    version: backupFormatVersion,
+    version: Number(manifest.version),
     createdAt: manifest.createdAt,
     appVersion: manifest.appVersion,
     counts: {
@@ -401,6 +412,7 @@ function allowedPayloadPath(path: string): boolean {
   return (
     path === "library/index.json" ||
     path === "learning-library/learning-items.sqlite" ||
+    path === sentencePracticeActivityPath ||
     /^library\/books\/[a-f0-9]{64}\/book\.epub$/.test(path)
   );
 }
@@ -410,6 +422,7 @@ function allowedDirectoryPath(path: string): boolean {
     path === "library" ||
     path === "library/books" ||
     path === "learning-library" ||
+    path === "sentence-practice" ||
     /^library\/books\/[a-f0-9]{64}$/.test(path)
   );
 }
@@ -454,6 +467,30 @@ export class DataBackupService {
     this.#now = options.now ?? (() => new Date());
   }
 
+  #sentencePracticeProgressPath(): string {
+    return this.options.sentencePracticeProgressPath ?? join(
+      dirname(dirname(this.options.learningDatabasePath)),
+      "settings",
+      "sentence-practice-progress.json"
+    );
+  }
+
+  async #snapshotSentencePracticeProgress(): Promise<Buffer> {
+    let bytes: Buffer;
+    if (this.options.snapshotSentencePracticeProgress) {
+      bytes = Buffer.from(await this.options.snapshotSentencePracticeProgress());
+    } else {
+      try {
+        bytes = await readFile(this.#sentencePracticeProgressPath());
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        bytes = emptySentencePracticeProgressBytes();
+      }
+    }
+    parseSentencePracticeProgressBytes(bytes);
+    return bytes;
+  }
+
   async exportToPath(destinationPath: string): Promise<ExportDataBackupResult> {
     if (this.#busy) throw new Error("Another data-backup operation is in progress");
     this.#busy = true;
@@ -491,6 +528,8 @@ export class DataBackupService {
       );
       await this.options.snapshotLearningDatabase(learningSnapshotPath);
       const learningBytes = await readFile(learningSnapshotPath);
+      const sentencePracticeBytes =
+        await this.#snapshotSentencePracticeProgress();
       const counts = databaseCounts(learningSnapshotPath);
       const payloads: Array<{ path: string; bytes: Buffer }> = [{
         path: "library/index.json",
@@ -511,6 +550,10 @@ export class DataBackupService {
       payloads.push({
         path: "learning-library/learning-items.sqlite",
         bytes: learningBytes
+      });
+      payloads.push({
+        path: sentencePracticeActivityPath,
+        bytes: sentencePracticeBytes
       });
       const manifest: DataBackupManifest = {
         format: backupFormat,
@@ -655,6 +698,16 @@ export class DataBackupService {
         throw new Error("The backup is missing Book Library or Learning Library data");
       }
       const books = parseBookIndex(indexBytes);
+      const sentencePracticeBytes = payloads.get(sentencePracticeActivityPath);
+      if (manifest.version === 2 && !sentencePracticeBytes) {
+        throw new Error("The backup is missing Sentence Practice activity data");
+      }
+      if (manifest.version === 1 && sentencePracticeBytes) {
+        throw new Error("The legacy backup contains unsupported Sentence Practice data");
+      }
+      const normalizedSentencePracticeBytes = sentencePracticeBytes ??
+        emptySentencePracticeProgressBytes();
+      parseSentencePracticeProgressBytes(normalizedSentencePracticeBytes);
       if (books.length !== manifest.counts.books) {
         throw new Error("The backup book count does not match the manifest");
       }
@@ -679,6 +732,14 @@ export class DataBackupService {
         const destination = join(preparedDirectory, path);
         await mkdir(dirname(destination), { recursive: true });
         await writeFile(destination, bytes);
+      }
+      if (!sentencePracticeBytes) {
+        const destination = join(
+          preparedDirectory,
+          sentencePracticeActivityPath
+        );
+        await mkdir(dirname(destination), { recursive: true });
+        await writeFile(destination, normalizedSentencePracticeBytes);
       }
       const actualCounts = databaseCounts(join(
         preparedDirectory,
@@ -740,16 +801,28 @@ export class DataBackupService {
     const currentLearningPath = dirname(this.options.learningDatabasePath);
     const preparedLibraryPath = join(prepared.directory, "library");
     const preparedLearningPath = join(prepared.directory, "learning-library");
+    const currentSentencePracticePath = this.#sentencePracticeProgressPath();
+    const preparedSentencePracticePath = join(
+      prepared.directory,
+      sentencePracticeActivityPath
+    );
     const rollbackPath = join(
       dirname(currentLibraryPath),
       `.data-backup-rollback-${randomUUID()}`
     );
     const rollbackLibraryPath = join(rollbackPath, "library");
     const rollbackLearningPath = join(rollbackPath, "learning-library");
+    const rollbackSentencePracticePath = join(
+      rollbackPath,
+      "sentence-practice",
+      "sentence-practice-progress.json"
+    );
     let originalLibraryMoved = false;
     let originalLearningMoved = false;
+    let originalSentencePracticeMoved = false;
     let newLibraryInstalled = false;
     let newLearningInstalled = false;
+    let newSentencePracticeInstalled = false;
     let restoreCommitted = false;
     try {
       await this.options.waitForBookWrites();
@@ -771,12 +844,33 @@ export class DataBackupService {
       renameSync(preparedLearningPath, currentLearningPath);
       newLearningInstalled = true;
       this.options.onRestoreStep?.("learning-library-replaced");
+      originalSentencePracticeMoved = moveIfPresent(
+        currentSentencePracticePath,
+        rollbackSentencePracticePath
+      );
+      mkdirSync(dirname(currentSentencePracticePath), { recursive: true });
+      renameSync(preparedSentencePracticePath, currentSentencePracticePath);
+      newSentencePracticeInstalled = true;
+      this.options.onRestoreStep?.("sentence-practice-replaced");
       parseBookIndex(readFileSync(join(currentLibraryPath, "index.json")));
       databaseCounts(this.options.learningDatabasePath);
+      parseSentencePracticeProgressBytes(
+        readFileSync(currentSentencePracticePath)
+      );
       this.options.relaunch();
       restoreCommitted = true;
     } catch (error) {
       try {
+        if (newSentencePracticeInstalled) {
+          rmSync(currentSentencePracticePath, { force: true });
+        }
+        if (originalSentencePracticeMoved) {
+          mkdirSync(dirname(currentSentencePracticePath), { recursive: true });
+          renameSync(
+            rollbackSentencePracticePath,
+            currentSentencePracticePath
+          );
+        }
         if (newLearningInstalled) {
           rmSync(currentLearningPath, { recursive: true, force: true });
         }

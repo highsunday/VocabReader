@@ -4,6 +4,7 @@ import type {
   SentencePracticeItem,
   SentencePracticeSession,
   SentencePracticeSnapshot,
+  SentencePracticeStatistics,
   StartSentencePracticeInput,
   SubmitSentencePracticeInput
 } from "../shared/sentence-practice-contracts";
@@ -27,6 +28,7 @@ interface SentencePracticeLibrary {
 
 interface SentencePracticeProgress {
   getDailyCompletedItemCount(): Promise<number>;
+  getStatistics(): Promise<SentencePracticeStatistics>;
   recordCompletedSession(sessionId: string, itemCount: number): Promise<number>;
 }
 
@@ -69,6 +71,15 @@ function publicItem(item: SentencePracticeSourceItem): SentencePracticeItem {
     cefr: item.cefr,
     sense: item.sense,
     meaning: item.meaning
+  };
+}
+
+function emptyStatistics(): SentencePracticeStatistics {
+  return {
+    todayCompletedItemCount: 0,
+    totalCompletedItemCount: 0,
+    completedItemCount30Days: 0,
+    dailyActivity: []
   };
 }
 
@@ -226,12 +237,16 @@ export class SentencePracticeController {
   constructor(private readonly options: SentencePracticeControllerOptions) {}
 
   async getSnapshot(): Promise<SentencePracticeSnapshot> {
+    const [eligibleCount, statistics] = await Promise.all([
+      this.options.library.getSentencePracticeEligibleCount(),
+      this.options.progress
+        ? this.options.progress.getStatistics()
+        : Promise.resolve(emptyStatistics())
+    ]);
     return {
-      eligibleCount: await this.options.library
-        .getSentencePracticeEligibleCount(),
-      dailyCompletedItemCount: this.options.progress
-        ? await this.options.progress.getDailyCompletedItemCount()
-        : 0,
+      eligibleCount,
+      dailyCompletedItemCount: statistics.todayCompletedItemCount,
+      statistics,
       session: this.#session ? structuredClone(this.#session) : null
     };
   }
@@ -267,11 +282,13 @@ export class SentencePracticeController {
         error: null
       }
     };
+    const statistics = this.options.progress
+      ? await this.options.progress.getStatistics()
+      : emptyStatistics();
     return {
       eligibleCount,
-      dailyCompletedItemCount: this.options.progress
-        ? await this.options.progress.getDailyCompletedItemCount()
-        : 0,
+      dailyCompletedItemCount: statistics.todayCompletedItemCount,
+      statistics,
       session: structuredClone(this.#session)
     };
   }
@@ -313,7 +330,8 @@ export class SentencePracticeController {
         this.#session.phase = "needs-revision";
         this.#session.issues = result.issues;
       } else {
-        if (!this.#completedSessionIds.has(sessionId)) {
+        if (result.feedback.changes.length === 0 &&
+          !this.#completedSessionIds.has(sessionId)) {
           await this.options.progress?.recordCompletedSession(
             sessionId,
             active.itemCount

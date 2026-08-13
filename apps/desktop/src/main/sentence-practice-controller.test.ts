@@ -50,14 +50,25 @@ ${JSON.stringify({
 \`\`\``;
 }
 
-function completedResult(sessionId: string) {
+function completedResult(
+  sessionId: string,
+  options: { withChange?: boolean; withSuggestion?: boolean } = {}
+) {
   return `\`\`\`sentence-practice-result
 ${JSON.stringify({
   sessionId,
   status: "completed",
   revisedText: "We created a raft when the town was on the verge of flooding.",
-  changes: [],
-  conversationalSuggestions: [],
+  changes: options.withChange ? [{
+    original: "create a raft",
+    revised: "created a raft",
+    explanation: "Use the past tense for the completed event."
+  }] : [],
+  conversationalSuggestions: options.withSuggestion ? [{
+    original: "when the town was on the verge of flooding",
+    suggested: "as the town was about to flood",
+    explanation: "This is an optional conversational alternative."
+  }] : [],
   usages: sourceItems.map((item) => ({
     itemId: item.id,
     title: item.title,
@@ -67,7 +78,104 @@ ${JSON.stringify({
 \`\`\``;
 }
 
+function statistics(completedItemCount: number) {
+  return {
+    todayCompletedItemCount: completedItemCount,
+    totalCompletedItemCount: completedItemCount,
+    completedItemCount30Days: completedItemCount,
+    dailyActivity: [{
+      date: "2026-08-14",
+      completedItemCount
+    }]
+  };
+}
+
 describe("SentencePracticeController", () => {
+  it("does not count completed feedback that still requires changes", async () => {
+    const progress = {
+      getDailyCompletedItemCount: vi.fn(async () => 0),
+      getStatistics: vi.fn(async () => statistics(0)),
+      recordCompletedSession: vi.fn(async () => 2)
+    };
+    const controller = new SentencePracticeController({
+      library: {
+        getSentencePracticeEligibleCount: vi.fn(async () => 2),
+        selectSentencePracticeItems: vi.fn(async () => sourceItems)
+      },
+      progress,
+      runTurn: async (prompt) => completedResult(
+        /"sessionId":"([^"]+)"/.exec(prompt)?.[1] ?? "",
+        { withChange: true }
+      )
+    });
+    const started = await controller.startSession({ itemCount: 2 });
+
+    const corrected = await controller.submit({
+      sessionId: started.session!.sessionId,
+      draft: "We create a raft when the town was on the verge of flooding.",
+      explanationLanguage: "en"
+    });
+
+    expect(corrected).toMatchObject({
+      dailyCompletedItemCount: 0,
+      session: {
+        phase: "completed",
+        feedback: { changes: [expect.any(Object)] }
+      }
+    });
+    expect(progress.recordCompletedSession).not.toHaveBeenCalled();
+  });
+
+  it("counts change-free feedback with optional conversational suggestions", async () => {
+    let completedItemCount = 0;
+    const progress = {
+      getDailyCompletedItemCount: vi.fn(async () => completedItemCount),
+      getStatistics: vi.fn(async () => statistics(completedItemCount)),
+      recordCompletedSession: vi.fn(async () => {
+        completedItemCount += 2;
+        return completedItemCount;
+      })
+    };
+    const controller = new SentencePracticeController({
+      library: {
+        getSentencePracticeEligibleCount: vi.fn(async () => 2),
+        selectSentencePracticeItems: vi.fn(async () => sourceItems)
+      },
+      progress,
+      runTurn: async (prompt) => completedResult(
+        /"sessionId":"([^"]+)"/.exec(prompt)?.[1] ?? "",
+        { withSuggestion: true }
+      )
+    });
+    const started = await controller.startSession({ itemCount: 2 });
+
+    const completed = await controller.submit({
+      sessionId: started.session!.sessionId,
+      draft: "We created a raft when the town was on the verge of flooding.",
+      explanationLanguage: "en"
+    });
+
+    expect(completed).toMatchObject({
+      dailyCompletedItemCount: 2,
+      statistics: {
+        todayCompletedItemCount: 2,
+        totalCompletedItemCount: 2,
+        completedItemCount30Days: 2
+      },
+      session: {
+        phase: "completed",
+        feedback: {
+          changes: [],
+          conversationalSuggestions: [expect.any(Object)]
+        }
+      }
+    });
+    expect(progress.recordCompletedSession).toHaveBeenCalledWith(
+      started.session!.sessionId,
+      2
+    );
+  });
+
   it("records each completed round once and exposes today's completed item count", async () => {
     const runTurn = vi.fn()
       .mockResolvedValueOnce(`
@@ -81,6 +189,7 @@ describe("SentencePracticeController", () => {
     let completedItemCount = 0;
     const progress = {
       getDailyCompletedItemCount: vi.fn(async () => completedItemCount),
+      getStatistics: vi.fn(async () => statistics(completedItemCount)),
       recordCompletedSession: vi.fn(async (_sessionId: string, itemCount: number) => {
         completedItemCount += itemCount;
         return completedItemCount;
@@ -118,6 +227,11 @@ describe("SentencePracticeController", () => {
     });
     expect(completed).toMatchObject({
       dailyCompletedItemCount: 2,
+      statistics: {
+        todayCompletedItemCount: 2,
+        totalCompletedItemCount: 2,
+        completedItemCount30Days: 2
+      },
       session: { phase: "completed" }
     });
     expect(progress.recordCompletedSession).toHaveBeenCalledWith(sessionId, 2);

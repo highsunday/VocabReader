@@ -8962,6 +8962,32 @@ h1 {
   height: 16px;
 }
 
+.sentence-practice-compact-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #d5d8cf;
+  border-radius: 999px;
+  color: #57625a;
+  background: rgb(255 254 250 / 86%);
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.sentence-practice-compact-progress[data-complete="true"] {
+  color: #356044;
+  border-color: #b9ccb9;
+  background: #edf5eb;
+}
+
+.sentence-practice-compact-progress svg {
+  width: 15px;
+  height: 15px;
+}
+
 .sentence-practice-examples-trigger {
   color: #365e47;
   border-color: #afc0b1;
@@ -8969,6 +8995,7 @@ h1 {
 }
 
 .sentence-practice-loading,
+.sentence-practice-today-card,
 .sentence-practice-setup,
 .sentence-practice-targets,
 .sentence-practice-editor,
@@ -8985,6 +9012,54 @@ h1 {
   color: #6c776e;
 }
 
+.sentence-practice-today-card {
+  display: grid;
+  grid-template-columns: minmax(190px, auto) minmax(220px, 1fr);
+  align-items: center;
+  gap: 34px;
+  margin-bottom: 14px;
+  padding: 20px 24px;
+}
+
+.sentence-practice-today-card .eyebrow {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.sentence-practice-today-card strong {
+  display: block;
+  color: #31483a;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 27px;
+  line-height: 1.2;
+}
+
+.sentence-practice-today-card p {
+  margin: 5px 0 0;
+  color: #73766f;
+  font-size: 12px;
+}
+
+.sentence-practice-daily-progress {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e6e6df;
+}
+
+.sentence-practice-daily-progress > span {
+  display: block;
+  min-width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #66846c;
+  transition: width 180ms ease;
+}
+
+.sentence-practice-daily-progress[data-complete="true"] > span {
+  background: #477052;
+}
+
 .sentence-practice-setup {
   min-height: 210px;
   padding: 30px;
@@ -8992,6 +9067,112 @@ h1 {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 36px;
   align-items: center;
+}
+
+.sentence-practice-statistics {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.34fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.sentence-practice-lifetime-card,
+.sentence-practice-activity-card {
+  border: 1px solid #ddd8ca;
+  border-radius: 18px;
+  background: rgb(255 254 250 / 92%);
+  box-shadow: 0 12px 30px rgb(63 58 45 / 6%);
+}
+
+.sentence-practice-lifetime-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 172px;
+  padding: 24px;
+}
+
+.sentence-practice-lifetime-card strong {
+  margin-top: 7px;
+  color: #31483a;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 44px;
+  line-height: 1;
+}
+
+.sentence-practice-lifetime-card p {
+  margin: 8px 0 0;
+  color: #74776f;
+  font-size: 12px;
+}
+
+.sentence-practice-activity-card {
+  min-width: 0;
+  padding: 22px 24px;
+}
+
+.sentence-practice-activity-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 17px;
+}
+
+.sentence-practice-activity-card h2 {
+  margin: 4px 0 0;
+  color: #465048;
+  font-family: Georgia, serif;
+  font-size: 17px;
+}
+
+.sentence-practice-activity-card header > strong {
+  color: #687068;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.sentence-practice-activity-days {
+  display: grid;
+  grid-template-columns: repeat(15, minmax(18px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sentence-practice-activity-days li {
+  display: grid;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 5px;
+  color: #999b95;
+  background: #efeee9;
+}
+
+.sentence-practice-activity-days li span {
+  font-size: clamp(7px, 1vw, 9px);
+  font-weight: 700;
+}
+
+.sentence-practice-activity-days li[data-level="1"] {
+  color: #667369;
+  background: #dfe9dd;
+}
+
+.sentence-practice-activity-days li[data-level="2"] {
+  color: #4d6253;
+  background: #bdd3ba;
+}
+
+.sentence-practice-activity-days li[data-level="3"] {
+  color: #f9fbf8;
+  background: #7fa883;
+}
+
+.sentence-practice-activity-days li[data-level="4"] {
+  color: #fff;
+  background: #4d7857;
 }
 
 .sentence-practice-setup strong {
@@ -9630,8 +9811,23 @@ h1 {
     flex-wrap: wrap;
   }
 
-  .sentence-practice-setup {
+  .sentence-practice-today-card,
+  .sentence-practice-setup,
+  .sentence-practice-statistics {
     grid-template-columns: 1fr;
+  }
+
+  .sentence-practice-today-card {
+    gap: 16px;
+  }
+
+  .sentence-practice-activity-card > header {
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .sentence-practice-activity-days {
+    grid-template-columns: repeat(10, minmax(18px, 1fr));
   }
 
   .sentence-practice-count-control,

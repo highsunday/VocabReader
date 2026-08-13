@@ -2467,6 +2467,7 @@ export function App() {
               learningApi={desktopLearning()!}
               reviewApi={desktopReview()}
               explanationLanguage={settings.explanationLanguage}
+              dailyGoal={settings.dailySentencePracticeGoal}
               onDailyCompletedItemCountChange={
                 setDailySentencePracticeCompletedCount
               }
@@ -3598,8 +3599,9 @@ export function App() {
                   <h3>Data backup</h3>
                   <p>
                     Export or fully restore books, reading progress, annotations,
-                    learning items, and review history. AI conversations, settings,
-                    and Codex sign-in are not included.
+                    learning items, and review history, plus sentence-practice
+                    activity. AI conversations, settings, and Codex sign-in are
+                    not included.
                   </p>
                   <div className="data-backup-actions">
                     <button
@@ -4079,7 +4081,8 @@ export function App() {
             <p id="data-restore-dialog-description">
               This backup will completely replace this device&apos;s books, reading
               progress, annotations, learning items, Trash, and review history.
-              The two datasets will not be merged.
+              Sentence-practice activity is also replaced. The two datasets will
+              not be merged.
             </p>
             <dl className="data-restore-summary">
               <div>

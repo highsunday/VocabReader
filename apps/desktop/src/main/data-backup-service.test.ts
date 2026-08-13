@@ -9,6 +9,7 @@ import type { LibraryBook } from "../shared/library-contracts";
 import { DataBackupService } from "./data-backup-service";
 import { LocalBookLibrary } from "./library-service";
 import { LocalLearningLibrary } from "./learning-library-service";
+import { LocalSentencePracticeProgressStore } from "./sentence-practice-progress-store";
 
 const temporaryDirectories: string[] = [];
 
@@ -117,6 +118,16 @@ describe("DataBackupService", () => {
       sort: "recent"
     });
     await learningLibrary.trashItem(activeItems[0].id);
+    const sentencePracticeProgressPath = join(
+      root,
+      "settings",
+      "sentence-practice-progress.json"
+    );
+    const sentencePracticeProgress = new LocalSentencePracticeProgressStore(
+      join(root, "settings"),
+      { now: () => new Date(2026, 6, 28, 11, 0, 0) }
+    );
+    await sentencePracticeProgress.recordCompletedSession("round-1", 5);
     const destinationPath = join(root, "VocabReader-backup.zip");
     const service = new DataBackupService({
       libraryPath,
@@ -130,6 +141,9 @@ describe("DataBackupService", () => {
         await mkdir(join(path, ".."), { recursive: true });
         await copyFile(learningDatabasePath, path);
       },
+      sentencePracticeProgressPath,
+      snapshotSentencePracticeProgress: () =>
+        sentencePracticeProgress.snapshotBytes(),
       closeLearningDatabase: () => undefined,
       relaunch: () => undefined
     });
@@ -145,12 +159,13 @@ describe("DataBackupService", () => {
       `library/books/${book.id}/book.epub`,
       "library/index.json",
       "learning-library/learning-items.sqlite",
+      "sentence-practice/activity.json",
       "manifest.json"
     ].sort());
     const manifest = JSON.parse(await zip.file("manifest.json")!.async("text"));
     expect(manifest).toMatchObject({
       format: "lingoshelf-data-backup",
-      version: 1,
+      version: 2,
       createdAt: "2026-07-28T03:04:05.000Z",
       appVersion: "0.1.0",
       counts: {
@@ -171,8 +186,18 @@ describe("DataBackupService", () => {
       expect.objectContaining({
         path: "learning-library/learning-items.sqlite",
         sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+      }),
+      expect.objectContaining({
+        path: "sentence-practice/activity.json",
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
       })
     ]));
+    expect(JSON.parse(
+      await zip.file("sentence-practice/activity.json")!.async("text")
+    )).toEqual({
+      version: 2,
+      daily: [{ date: "2026-07-28", completedItemCount: 5 }]
+    });
     expect(Object.keys(zip.files).some((path) =>
       path.startsWith("settings/") ||
       path.startsWith("chat/") ||
@@ -265,6 +290,20 @@ describe("DataBackupService", () => {
     await sourceLearning.setRepresentativeImage(multilingualItem.id, activeImage);
     await sourceLearning.setRepresentativeImage(sourceItems[0].id, trashedImage);
     await sourceLearning.trashItem(sourceItems[0].id);
+    const sourceProgressPath = join(
+      root,
+      "source",
+      "settings",
+      "sentence-practice-progress.json"
+    );
+    let sourceNow = new Date(2026, 6, 27, 12, 0, 0);
+    const sourceProgress = new LocalSentencePracticeProgressStore(
+      join(root, "source", "settings"),
+      { now: () => sourceNow }
+    );
+    await sourceProgress.recordCompletedSession("source-round-1", 5);
+    sourceNow = new Date(2026, 6, 28, 12, 0, 0);
+    await sourceProgress.recordCompletedSession("source-round-2", 2);
     await mkdir(join(root, "source", "listen-and-repeat"), { recursive: true });
     await writeFile(
       join(root, "source", "listen-and-repeat", "current.json"),
@@ -282,6 +321,8 @@ describe("DataBackupService", () => {
         await mkdir(join(path, ".."), { recursive: true });
         await copyFile(sourceLearningPath, path);
       },
+      sentencePracticeProgressPath: sourceProgressPath,
+      snapshotSentencePracticeProgress: () => sourceProgress.snapshotBytes(),
       closeLearningDatabase: () => undefined,
       relaunch: () => undefined
     });
@@ -302,6 +343,17 @@ describe("DataBackupService", () => {
     await writeFile(join(targetLibraryPath, "index.json"), "[]\n");
     const targetLearning = new LocalLearningLibrary(targetLearningPath);
     await targetLearning.listItems({ status: "active", sort: "recent" });
+    const targetProgressPath = join(
+      root,
+      "target",
+      "settings",
+      "sentence-practice-progress.json"
+    );
+    const targetProgress = new LocalSentencePracticeProgressStore(
+      join(root, "target", "settings"),
+      { now: () => new Date(2026, 6, 28, 12, 0, 0) }
+    );
+    await targetProgress.recordCompletedSession("target-round", 4);
     await mkdir(join(root, "target", "settings"), { recursive: true });
     await mkdir(join(root, "target", "chat"), { recursive: true });
     await mkdir(join(root, "target", "listen-and-repeat"), { recursive: true });
@@ -322,6 +374,8 @@ describe("DataBackupService", () => {
         await mkdir(join(path, ".."), { recursive: true });
         await copyFile(targetLearningPath, path);
       },
+      sentencePracticeProgressPath: targetProgressPath,
+      snapshotSentencePracticeProgress: () => targetProgress.snapshotBytes(),
       closeLearningDatabase: () => (
         targetLearning as unknown as { close(): void }
       ).close(),
@@ -394,7 +448,96 @@ describe("DataBackupService", () => {
       join(root, "target", "listen-and-repeat", "current.json"),
       "utf8"
     )).toBe("target local practice");
+    await expect(targetProgress.getStatistics()).resolves.toMatchObject({
+      todayCompletedItemCount: 2,
+      totalCompletedItemCount: 7,
+      completedItemCount30Days: 7
+    });
     expect(relaunchCount).toBe(1);
+  });
+
+  it("accepts a version-one backup and replaces current activity with an empty history", async () => {
+    const root = await temporaryDirectory();
+    const sourceLibraryPath = join(root, "source", "library");
+    const sourceLearningPath = join(
+      root,
+      "source",
+      "learning-library",
+      "learning-items.sqlite"
+    );
+    await createStoredBook(sourceLibraryPath);
+    const sourceLearning = new LocalLearningLibrary(sourceLearningPath);
+    await sourceLearning.listItems({ status: "active", sort: "recent" });
+    const versionTwoPath = join(root, "version-two.zip");
+    await new DataBackupService({
+      libraryPath: sourceLibraryPath,
+      learningDatabasePath: sourceLearningPath,
+      temporaryRoot: join(root, "source-temporary"),
+      appVersion: "0.1.0",
+      waitForBookWrites: async () => undefined,
+      snapshotLearningDatabase: (path) => sourceLearning.backupTo(path),
+      closeLearningDatabase: () => sourceLearning.close(),
+      relaunch: () => undefined
+    }).exportToPath(versionTwoPath);
+    const legacy = await JSZip.loadAsync(await readFile(versionTwoPath));
+    legacy.remove("sentence-practice/activity.json");
+    const legacyManifest = JSON.parse(
+      await legacy.file("manifest.json")!.async("text")
+    );
+    legacyManifest.version = 1;
+    legacyManifest.files = legacyManifest.files.filter(
+      (file: { path: string }) =>
+        file.path !== "sentence-practice/activity.json"
+    );
+    legacy.file("manifest.json", JSON.stringify(legacyManifest));
+    const legacyPath = join(root, "version-one.zip");
+    await writeFile(
+      legacyPath,
+      await legacy.generateAsync({ type: "nodebuffer" })
+    );
+
+    const targetLibraryPath = join(root, "target", "library");
+    await mkdir(targetLibraryPath, { recursive: true });
+    await writeFile(join(targetLibraryPath, "index.json"), "[]\n");
+    const targetLearningPath = join(
+      root,
+      "target",
+      "learning-library",
+      "learning-items.sqlite"
+    );
+    const targetLearning = new LocalLearningLibrary(targetLearningPath);
+    await targetLearning.listItems({ status: "active", sort: "recent" });
+    const targetProgress = new LocalSentencePracticeProgressStore(
+      join(root, "target", "settings"),
+      { now: () => new Date(2026, 6, 28, 12, 0, 0) }
+    );
+    await targetProgress.recordCompletedSession("target-round", 4);
+    const targetService = new DataBackupService({
+      libraryPath: targetLibraryPath,
+      learningDatabasePath: targetLearningPath,
+      temporaryRoot: join(root, "target-temporary"),
+      appVersion: "0.1.0",
+      waitForBookWrites: async () => undefined,
+      snapshotLearningDatabase: (path) => targetLearning.backupTo(path),
+      sentencePracticeProgressPath: join(
+        root,
+        "target",
+        "settings",
+        "sentence-practice-progress.json"
+      ),
+      snapshotSentencePracticeProgress: () => targetProgress.snapshotBytes(),
+      closeLearningDatabase: () => targetLearning.close(),
+      relaunch: () => undefined
+    });
+
+    const preview = await targetService.selectBackupFromPath(legacyPath);
+    await targetService.restoreBackup(preview.token);
+
+    await expect(targetProgress.getStatistics()).resolves.toMatchObject({
+      todayCompletedItemCount: 0,
+      totalCompletedItemCount: 0,
+      completedItemCount30Days: 0
+    });
   });
 
   it("rejects invalid, tampered, newer and unsafe ZIP files before mutation", async () => {
@@ -436,7 +579,7 @@ describe("DataBackupService", () => {
     const newerManifest = JSON.parse(
       await newer.file("manifest.json")!.async("text")
     );
-    newerManifest.version = 2;
+    newerManifest.version = 3;
     newer.file("manifest.json", JSON.stringify(newerManifest));
     const newerPath = join(root, "newer.zip");
     await writeFile(newerPath, await newer.generateAsync({ type: "nodebuffer" }));
@@ -452,6 +595,38 @@ describe("DataBackupService", () => {
     );
     await expect(service.selectBackupFromPath(tamperedPath))
       .rejects.toThrow(/完整性|checksum/i);
+
+    const invalidActivity = await JSZip.loadAsync(await readFile(validPath));
+    const invalidActivityBytes = Buffer.from(JSON.stringify({
+      version: 2,
+      daily: [{ date: "2026-02-30", completedItemCount: -1 }]
+    }));
+    const invalidActivityManifest = JSON.parse(
+      await invalidActivity.file("manifest.json")!.async("text")
+    );
+    const activityFile = invalidActivityManifest.files.find(
+      (file: { path: string }) =>
+        file.path === "sentence-practice/activity.json"
+    );
+    activityFile.bytes = invalidActivityBytes.byteLength;
+    activityFile.sha256 = createHash("sha256")
+      .update(invalidActivityBytes)
+      .digest("hex");
+    invalidActivity.file(
+      "sentence-practice/activity.json",
+      invalidActivityBytes
+    );
+    invalidActivity.file(
+      "manifest.json",
+      JSON.stringify(invalidActivityManifest)
+    );
+    const invalidActivityPath = join(root, "invalid-activity.zip");
+    await writeFile(
+      invalidActivityPath,
+      await invalidActivity.generateAsync({ type: "nodebuffer" })
+    );
+    await expect(service.selectBackupFromPath(invalidActivityPath))
+      .rejects.toThrow(/sentence-practice activity/i);
 
     const unsafe = await JSZip.loadAsync(await readFile(validPath));
     unsafe.file("../outside.txt", "unsafe");
@@ -587,7 +762,7 @@ describe("DataBackupService", () => {
       .rejects.toThrow("The backup uses a newer Learning Library version");
   });
 
-  it("rolls both data domains back when replacement fails", async () => {
+  it("rolls all three data domains back when activity replacement fails", async () => {
     const root = await temporaryDirectory();
     const sourceLibraryPath = join(root, "source", "library");
     const sourceLearningPath = join(
@@ -626,6 +801,11 @@ describe("DataBackupService", () => {
     await writeFile(join(targetLibraryPath, "index.json"), "[]\n");
     const targetLearning = new LocalLearningLibrary(targetLearningPath);
     await targetLearning.listItems({ status: "active", sort: "recent" });
+    const targetProgress = new LocalSentencePracticeProgressStore(
+      join(root, "target", "settings"),
+      { now: () => new Date(2026, 6, 28, 12, 0, 0) }
+    );
+    await targetProgress.recordCompletedSession("target-round", 4);
     let relaunchCount = 0;
     const targetService = new DataBackupService({
       libraryPath: targetLibraryPath,
@@ -634,12 +814,19 @@ describe("DataBackupService", () => {
       appVersion: "0.1.0",
       waitForBookWrites: async () => undefined,
       snapshotLearningDatabase: (path) => targetLearning.backupTo(path),
+      sentencePracticeProgressPath: join(
+        root,
+        "target",
+        "settings",
+        "sentence-practice-progress.json"
+      ),
+      snapshotSentencePracticeProgress: () => targetProgress.snapshotBytes(),
       closeLearningDatabase: () => targetLearning.close(),
       relaunch: () => {
         relaunchCount += 1;
       },
       onRestoreStep: (step) => {
-        if (step === "learning-library-replaced") {
+        if (step === "sentence-practice-replaced") {
           throw new Error("injected replacement failure");
         }
       }
@@ -658,6 +845,10 @@ describe("DataBackupService", () => {
     await expect(
       reopenedLearning.listItems({ status: "trashed", sort: "recent" })
     ).resolves.toHaveLength(0);
+    await expect(targetProgress.getStatistics()).resolves.toMatchObject({
+      todayCompletedItemCount: 4,
+      totalCompletedItemCount: 4
+    });
     expect(relaunchCount).toBe(0);
   });
 });

@@ -70,6 +70,7 @@ export function SentencePracticeWorkspace({
   learningApi,
   reviewApi,
   explanationLanguage,
+  dailyGoal = 10,
   onDailyCompletedItemCountChange,
   active = true
 }: {
@@ -77,6 +78,7 @@ export function SentencePracticeWorkspace({
   learningApi: LearningDesktopApi;
   reviewApi?: ReviewDesktopApi;
   explanationLanguage: ExplanationLanguage;
+  dailyGoal?: number;
   onDailyCompletedItemCountChange?(count: number): void;
   active?: boolean;
 }) {
@@ -122,9 +124,16 @@ export function SentencePracticeWorkspace({
 
   useEffect(() => {
     if (snapshot) {
-      onDailyCompletedItemCountChange?.(snapshot.dailyCompletedItemCount);
+      onDailyCompletedItemCountChange?.(
+        snapshot.statistics?.todayCompletedItemCount ??
+          snapshot.dailyCompletedItemCount
+      );
     }
-  }, [onDailyCompletedItemCountChange, snapshot?.dailyCompletedItemCount]);
+  }, [
+    onDailyCompletedItemCountChange,
+    snapshot?.dailyCompletedItemCount,
+    snapshot?.statistics?.todayCompletedItemCount
+  ]);
 
   useEffect(() => {
     let mounted = true;
@@ -160,6 +169,22 @@ export function SentencePracticeWorkspace({
   );
   const canStart = eligibleCount >= SENTENCE_PRACTICE_ITEM_COUNT.minimum;
   const session = snapshot?.session;
+  const todayCompletedItemCount = snapshot?.statistics
+    ?.todayCompletedItemCount ?? snapshot?.dailyCompletedItemCount ?? 0;
+  const totalCompletedItemCount = snapshot?.statistics
+    ?.totalCompletedItemCount ?? todayCompletedItemCount;
+  const completedItemCount30Days = snapshot?.statistics
+    ?.completedItemCount30Days ?? todayCompletedItemCount;
+  const dailyActivity = snapshot?.statistics?.dailyActivity ?? [];
+  const isDailyGoalComplete = dailyGoal > 0 &&
+    todayCompletedItemCount >= dailyGoal;
+  const dailyProgressValue = dailyGoal > 0
+    ? Math.min(todayCompletedItemCount, dailyGoal)
+    : 0;
+  const maximumDailyActivity = Math.max(
+    1,
+    ...dailyActivity.map(({ completedItemCount }) => completedItemCount)
+  );
 
   async function startSession() {
     if (isBusy || !canStart) return;
@@ -262,6 +287,14 @@ export function SentencePracticeWorkspace({
         </div>
         {session && !showHome ? (
           <div className="sentence-practice-heading-actions">
+            <span
+              className="sentence-practice-compact-progress"
+              data-complete={isDailyGoalComplete}
+            >
+              {isDailyGoalComplete ? <CircleCheck aria-hidden="true" /> : null}
+              Today {todayCompletedItemCount}
+              {dailyGoal > 0 ? ` / ${dailyGoal}` : ""}
+            </span>
             <button
               type="button"
               className="secondary-action"
@@ -290,77 +323,158 @@ export function SentencePracticeWorkspace({
           Loading reviewed English items…
         </p>
       ) : !session || showHome ? (
-        <section className="sentence-practice-setup" aria-label="Practice setup">
-          <div>
-            <strong>{eligibleCount} reviewed English items available</strong>
-            <p>
-              Only active English items with at least one confirmed review are
-              included. This practice does not change review scheduling.
-            </p>
-          </div>
-          {session ? (
-            <section
-              className="sentence-practice-current-round"
-              aria-label="Current practice"
-            >
-              <div>
-                <span className="eyebrow">Current round</span>
-                <strong>Practice in progress</strong>
-                <p>
-                  {session.items.length} required items. Your draft and feedback
-                  are kept while you visit this page.
-                </p>
+        <>
+          <section
+            className="sentence-practice-today-card"
+            aria-label="Today's sentence practice"
+          >
+            <div>
+              <span className="eyebrow">Today's practice</span>
+              {dailyGoal > 0 ? (
+                <strong>{todayCompletedItemCount} / {dailyGoal}</strong>
+              ) : (
+                <strong>{todayCompletedItemCount} successful uses today</strong>
+              )}
+              <p>
+                {dailyGoal > 0
+                  ? isDailyGoalComplete
+                    ? "Today's goal complete"
+                    : `${dailyGoal - todayCompletedItemCount} left today`
+                  : "Daily goal is off. Successful practice still counts."}
+              </p>
+            </div>
+            {dailyGoal > 0 ? (
+              <div
+                className="sentence-practice-daily-progress"
+                role="progressbar"
+                aria-label="Daily sentence practice goal"
+                aria-valuemin={0}
+                aria-valuemax={dailyGoal}
+                aria-valuenow={dailyProgressValue}
+                aria-valuetext={`${todayCompletedItemCount} of ${dailyGoal} successful uses`}
+                data-complete={isDailyGoalComplete}
+              >
+                <span style={{
+                  width: `${Math.min(
+                    100,
+                    dailyGoal ? todayCompletedItemCount / dailyGoal * 100 : 0
+                  )}%`
+                }} />
               </div>
-              <div className="sentence-practice-current-round-actions">
+            ) : null}
+          </section>
+
+          <section className="sentence-practice-setup" aria-label="Practice setup">
+            <div>
+              <strong>{eligibleCount} reviewed English items available</strong>
+              <p>
+                Only active English items with at least one confirmed review are
+                included. This practice does not change review scheduling.
+              </p>
+            </div>
+            {session ? (
+              <section
+                className="sentence-practice-current-round"
+                aria-label="Current practice"
+              >
+                <div>
+                  <span className="eyebrow">Current round</span>
+                  <strong>Practice in progress</strong>
+                  <p>
+                    {session.items.length} required items. Your draft and feedback
+                    are kept while you visit this page.
+                  </p>
+                </div>
+                <div className="sentence-practice-current-round-actions">
+                  <button
+                    type="button"
+                    className="primary-action"
+                    onClick={() => setShowHome(false)}
+                  >
+                    Continue practice
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={() => setIsNewRoundConfirmationOpen(true)}
+                    disabled={isBusy}
+                  >
+                    New round
+                  </button>
+                </div>
+              </section>
+            ) : canStart ? (
+              <div className="sentence-practice-count-control">
+                <label htmlFor="sentence-practice-count">
+                  Number of learning items
+                </label>
+                <input
+                  id="sentence-practice-count"
+                  type="number"
+                  min={SENTENCE_PRACTICE_ITEM_COUNT.minimum}
+                  max={maximumCount}
+                  value={itemCount}
+                  onChange={(event) => setItemCount(Math.max(
+                    SENTENCE_PRACTICE_ITEM_COUNT.minimum,
+                    Math.min(maximumCount, Number(event.target.value))
+                  ))}
+                />
                 <button
                   type="button"
                   className="primary-action"
-                  onClick={() => setShowHome(false)}
-                >
-                  Continue practice
-                </button>
-                <button
-                  type="button"
-                  className="secondary-action"
-                  onClick={() => setIsNewRoundConfirmationOpen(true)}
+                  onClick={() => void startSession()}
                   disabled={isBusy}
                 >
-                  New round
+                  {isBusy ? "Preparing…" : "Start practice"}
                 </button>
               </div>
+            ) : (
+              <p className="sentence-practice-empty" role="status">
+                Complete spaced review for at least two English learning items to
+                start a writing practice.
+              </p>
+            )}
+          </section>
+
+          <div className="sentence-practice-statistics">
+            <section
+              className="sentence-practice-lifetime-card"
+              aria-label="All-time sentence practice"
+            >
+              <span className="eyebrow">All-time practice</span>
+              <strong>{totalCompletedItemCount}</strong>
+              <p>successful learning-item uses</p>
             </section>
-          ) : canStart ? (
-            <div className="sentence-practice-count-control">
-              <label htmlFor="sentence-practice-count">
-                Number of learning items
-              </label>
-              <input
-                id="sentence-practice-count"
-                type="number"
-                min={SENTENCE_PRACTICE_ITEM_COUNT.minimum}
-                max={maximumCount}
-                value={itemCount}
-                onChange={(event) => setItemCount(Math.max(
-                  SENTENCE_PRACTICE_ITEM_COUNT.minimum,
-                  Math.min(maximumCount, Number(event.target.value))
+            <section
+              className="sentence-practice-activity-card"
+              aria-label="30-day writing activity"
+            >
+              <header>
+                <div>
+                  <span className="eyebrow">Recent activity</span>
+                  <h2>Last 30 days</h2>
+                </div>
+                <strong>{completedItemCount30Days} successful uses</strong>
+              </header>
+              <ol className="sentence-practice-activity-days">
+                {dailyActivity.map(({ date, completedItemCount }) => (
+                  <li
+                    key={date}
+                    aria-label={`${date}: ${completedItemCount} successful uses`}
+                    title={`${date}: ${completedItemCount} successful uses`}
+                    data-level={completedItemCount === 0
+                      ? 0
+                      : Math.max(1, Math.ceil(
+                          completedItemCount / maximumDailyActivity * 4
+                        ))}
+                  >
+                    <span aria-hidden="true">{Number(date.slice(-2))}</span>
+                  </li>
                 ))}
-              />
-              <button
-                type="button"
-                className="primary-action"
-                onClick={() => void startSession()}
-                disabled={isBusy}
-              >
-                {isBusy ? "Preparing…" : "Start practice"}
-              </button>
-            </div>
-          ) : (
-            <p className="sentence-practice-empty" role="status">
-              Complete spaced review for at least two English learning items to
-              start a writing practice.
-            </p>
-          )}
-        </section>
+              </ol>
+            </section>
+          </div>
+        </>
       ) : (
         <div className="sentence-practice-session">
           <section className="sentence-practice-targets" aria-label="Required items">

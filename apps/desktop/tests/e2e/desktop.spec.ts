@@ -198,6 +198,18 @@ test("launches the secure Electron reading shell", async () => {
       return Boolean(listen && sentence.compareDocumentPosition(listen) &
         Node.DOCUMENT_POSITION_FOLLOWING);
     })).toBe(true);
+    await sentencePracticeEntry.click();
+    await expect(page.getByRole("region", {
+      name: "Today's sentence practice"
+    })).toContainText("0 / 10");
+    await expect(page.getByRole("region", {
+      name: "All-time sentence practice"
+    })).toContainText("0");
+    const sentencePracticeActivity = page.getByRole("region", {
+      name: "30-day writing activity"
+    });
+    await expect(sentencePracticeActivity).toContainText("0 successful uses");
+    await expect(sentencePracticeActivity.locator("li")).toHaveCount(30);
     await listenRepeatEntry.click();
     await expect(page.getByRole("heading", {
       name: "Listen & Repeat Practice"

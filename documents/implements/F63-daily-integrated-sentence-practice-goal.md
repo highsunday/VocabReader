@@ -3,7 +3,7 @@ author: Codex
 date: 2026-08-14
 title: 設定每日整合造句目標並在側欄顯示剩餘數量
 uuid: e2ab3543-e84c-4d58-ac1a-e15def7c0ba5
-version: 1.1.0
+version: 1.2.0
 status: implemented
 ---
 
@@ -18,8 +18,9 @@ status: implemented
 
 每日進度按通過的每輪實際學習項目數累加，不限制回合組合。例如目標 10 可由兩輪各 5
 個或五輪各 2 個達成。只有使用者提交短文，且 AI 確認所有必要用詞均符合目標語義並
-產生正式**造句批改結果**後，該輪才恰好計入一次；未提交、需修稿、AI 失敗或重複提交
-同一輪都不增加進度。
+產生不含實質修改、畫面顯示 `Everything looks good` 的正式**造句批改結果**後，該輪才
+恰好計入一次；含修改、未提交、需修稿、AI 失敗或重複提交同一輪都不增加進度。可選
+自然口語建議不算實質修改。
 
 側欄 Sentence Practice 入口在目標大於零時顯示今日剩餘學習項目數；剩餘值以
 `max(goal - completed, 0)` 表示。達標後仍可繼續練習，最後一輪超額也不顯示負數。
@@ -44,9 +45,11 @@ status: implemented
 
 ### 3.2 完成與累計
 
-- 一輪只有在提交後收到通過的 AI artifact、進入 `completed` 並產生正式造句批改結果時，
-  才按該輪 `itemCount` 增加當日完成數。
-- `needs-revision`、AI／artifact error、尚未提交或只產生三篇用法範例都不計入。
+- 一輪只有在提交後收到通過的 AI artifact、進入 `completed`，且正式造句批改結果的
+  `changes` 為空、畫面顯示 `Everything looks good` 時，才按該輪 `itemCount` 增加當日
+  完成數；可選的 `conversationalSuggestions` 不阻止累計。
+- 含一項以上實質修改、`needs-revision`、AI／artifact error、尚未提交或只產生三篇用法
+  範例都不計入。
 - 同一 session 即使再次提交或重試成功回覆，也只能計入一次。
 - 每輪數量可自由組合；完成數保存實際總量而非只保存是否達標，因此超額完成後提高目標
   仍可正確顯示差額。
@@ -85,7 +88,8 @@ status: implemented
   - **Given** 使用者已開始一輪包含 5 個學習項目的整合造句練習
   - **When** 短文未提交、AI 要求修稿、AI 失敗或只產生用法範例
   - **Then** 今日完成數與側欄剩餘數均不變
-  - **When** 使用者修稿後提交並取得正式造句批改結果
+  - **When** 使用者修稿後提交並取得不含實質修改、顯示 `Everything looks good` 的正式
+    造句批改結果
   - **Then** 今日完成數增加 5 且同一輪只增加一次
 
 - **Scenario 4：目標是建議量而非上限**
@@ -116,7 +120,7 @@ status: implemented
 | TC2 | 設定邊界 | 完整 settings payload | save -1、1000 或小數 | IPC 拒絕且不寫入 | Critical |
 | TC3 | 兩輪各 5 | 目標 10 | 兩個 session 各通過 5 | completed=10、remaining=0 | Critical |
 | TC4 | 五輪各 2 | 目標 10 | 五個 session 各通過 2 | completed=10、remaining=0 | Critical |
-| TC5 | 不合格狀態 | 5-item session | 未提交／examples／revision／error | 完成數保持不變 | Critical |
+| TC5 | 不合格狀態 | 5-item session | 未提交／examples／revision／含修改 completed／error | 完成數保持不變 | Critical |
 | TC6 | 同輪去重 | 同一 completed session | 再次提交或重複完成 callback | 只增加一次 5 | Critical |
 | TC7 | 超額與續練 | completed=8、goal=10 | 通過 5-item session | completed=13、badge=0、可新開一輪 | Critical |
 | TC8 | 目標停用 | goal=0 | 完成練習並檢視側欄 | 無 badge、練習未停用、實際數仍保存 | High |
@@ -133,7 +137,8 @@ status: implemented
   新增預設 10、0–999 的全域設定及 legacy fallback。
 - `apps/desktop/src/shared/sentence-practice-contracts.ts`：snapshot 加入今日已完成項目數。
 - `apps/desktop/src/main/sentence-practice-progress-store.ts`：本地日進度、原子保存及 session 去重。
-- `apps/desktop/src/main/sentence-practice-controller.ts`：只在 parsed completed result 後記錄一次。
+- `apps/desktop/src/main/sentence-practice-controller.ts`：只在 parsed completed result 的
+  `changes` 為空後記錄一次。
 - `apps/desktop/src/main/main.ts`：注入 progress store。
 - `apps/desktop/src/renderer/SentencePracticeWorkspace.tsx`：把初始、跨日及完成後 snapshot 進度回報 App。
 - `apps/desktop/src/renderer/App.tsx`：Settings 分類、設定控制、剩餘值計算與側欄 badge。
@@ -163,8 +168,9 @@ Implemented（2026-08-14）。
   legacy settings 缺欄位或值非法時安全回復預設。
 - Main-owned `LocalSentencePracticeProgressStore` 以原子 JSON 保存本地日期、完成項目總數與
   session ids；同輪去重、跨 App restart 保留，跨本地日自動回到 0。
-- Controller 只在 AI artifact 已通過 parser 且 status 為 `completed` 後記錄本輪 itemCount；
-  revision、examples、malformed／runtime error 均不計入。
+- Controller 只在 AI artifact 已通過 parser、status 為 `completed` 且 `changes` 為空後記錄
+  本輪 itemCount；含修改、revision、examples、malformed／runtime error 均不計入；此規則由
+  B24 修正並與 Renderer 的 `Everything looks good` 判定一致。
 - Snapshot 公開 `dailyCompletedItemCount`。保持 mounted 的 Workspace 在初始載入、完成後及
   下一個本地午夜回報 App，側欄以 `max(goal - completed, 0)` 即時顯示剩餘數。
 - 目標為 0 時完全省略 badge，但 progress store 仍記錄實際通過量；達標或超額後入口與
@@ -175,8 +181,9 @@ Implemented（2026-08-14）。
 - `settings-store.test.ts`、`settings-ipc.test.ts`：TC1、TC2；default／legacy、0／999 與非法值。
 - `sentence-practice-progress-store.test.ts`：TC3、TC4、TC6、TC10、TC11；2×5、5×2、去重、
   restart、本地跨日與非法 completion record。
-- `sentence-practice-controller.test.ts`：TC5、TC6；revision 不記錄、completed 記錄一次、
-  snapshot 完成數及既有 error／examples regression。
+- `sentence-practice-controller.test.ts`：TC5、TC6；revision 與含修改的 completed 不記錄、
+  無修改 completed 記錄一次、可選自然口語建議不阻止累計、snapshot 完成數及既有
+  error／examples regression。
 - `SentencePracticeWorkspace.test.tsx`：TC11、TC12；初始／完成後 callback 與午夜自動刷新。
 - `App.test.tsx`：TC7、TC8、TC9、TC12、TC13；剩餘 badge、停用、調整、超額歸零、
   即時更新與 accessible name。
@@ -221,7 +228,7 @@ Implemented（2026-08-14）。
 |---|---|---|
 | 1. 設定每日目標與相容舊設定 | Pass | Settings store／IPC default、legacy、boundary tests |
 | 2. 不同回合組合累加達標 | Pass | Progress store 2×5／5×2 parameterized tests |
-| 3. 只有正式通過才計入 | Pass | Controller revision→completed→duplicate submission test |
+| 3. 只有正式通過才計入 | Pass | Controller revision／corrected completed／change-free completed／duplicate submission tests |
 | 4. 目標是建議量而非上限 | Pass | App overflow=0 且仍可開啟 practice test |
 | 5. 停用與重新啟用目標 | Pass | App goal 0→20 badge test；Controller/store 與 goal 解耦 |
 | 6. 跨重啟與跨日 | Pass | Progress store restart／local-day tests；Workspace midnight refresh test |
@@ -234,7 +241,7 @@ Implemented（2026-08-14）。
 | TC2 | Pass | Settings IPC -1／1000／fraction rejection |
 | TC3 | Pass | Progress store 2 rounds × 5 |
 | TC4 | Pass | Progress store 5 rounds × 2 |
-| TC5 | Pass | Controller revision、examples/error regressions |
+| TC5 | Pass | Controller revision、corrected completed、examples/error regressions |
 | TC6 | Pass | Controller session set + progress store persisted idempotency |
 | TC7 | Pass | App completed=13、goal=10 shows 0 and opens workspace |
 | TC8 | Pass | App goal=0 hides badge；completion persistence independent of setting |
