@@ -127,7 +127,7 @@ const COLLAPSED_PANEL_WIDTH = 48;
 const MIN_ASSISTANT_PANEL_WIDTH = 320;
 const MAX_ASSISTANT_PANEL_WIDTH = 640;
 const MIN_READING_AREA_WIDTH = 520;
-const EXPANDED_LEFT_SIDEBAR_WIDTH = 220;
+const EXPANDED_LEFT_SIDEBAR_WIDTH = 240;
 const SELECTION_SPEECH_WARNING_LENGTH = 1200;
 const selectionSpeechVoiceLabels: Record<SelectionSpeechVoice, string> = {
   cedar: "Cedar",

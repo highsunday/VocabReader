@@ -108,7 +108,7 @@ button {
 }
 
 .workspace {
-  --left-sidebar-width: 220px;
+  --left-sidebar-width: 240px;
   --panel-heading-height: 63px;
   --right-sidebar-width: 360px;
   min-height: 0;
