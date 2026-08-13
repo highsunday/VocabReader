@@ -69,6 +69,7 @@ import {
   AI_CONVERSATION_FONT_SIZE,
   DAILY_DUE_REVIEW_COMPLETION_LIMIT,
   DAILY_NEW_ITEM_COMPLETION_LIMIT,
+  DAILY_SENTENCE_PRACTICE_GOAL,
   EBOOK_CONTENT_FONT_SIZE,
   EBOOK_LINE_HEIGHT,
   READING_PAPER_WIDTH,
@@ -114,7 +115,12 @@ type WorkspaceMode =
   | "spaced-review"
   | "sentence-practice"
   | "listen-repeat";
-type SettingsSection = "general" | "review" | "voice" | "account";
+type SettingsSection =
+  | "general"
+  | "review"
+  | "sentence-practice"
+  | "voice"
+  | "account";
 
 const DEFAULT_ASSISTANT_PANEL_WIDTH = 360;
 const COLLAPSED_PANEL_WIDTH = 48;
@@ -370,6 +376,7 @@ export function App() {
     ebookLineHeight: EBOOK_LINE_HEIGHT.default,
     dailyNewItemCompletionLimit: DAILY_NEW_ITEM_COMPLETION_LIMIT.default,
     dailyDueReviewCompletionLimit: DAILY_DUE_REVIEW_COMPLETION_LIMIT.default,
+    dailySentencePracticeGoal: DAILY_SENTENCE_PRACTICE_GOAL.default,
     reviewPaperSize: REVIEW_PAPER_SIZE.default,
     selectionSpeechVoice: "cedar",
     selectionSpeechTone: "learning"
@@ -405,6 +412,10 @@ export function App() {
     useState<DataBackupPreview>();
   const [unlearnedNewCount, setUnlearnedNewCount] = useState(0);
   const [reviewAvailableCount, setReviewAvailableCount] = useState(0);
+  const [
+    dailySentencePracticeCompletedCount,
+    setDailySentencePracticeCompletedCount
+  ] = useState(0);
   const [reviewSettingsRevision, setReviewSettingsRevision] = useState(0);
   const [reviewWorkspaceStatus, setReviewWorkspaceStatus] =
     useState<ReviewWorkspaceStatus>("idle");
@@ -1396,6 +1407,7 @@ export function App() {
       | "ebookLineHeight"
       | "dailyNewItemCompletionLimit"
       | "dailyDueReviewCompletionLimit"
+      | "dailySentencePracticeGoal"
       | "reviewPaperSize",
     value: number
   ) {
@@ -2134,7 +2146,13 @@ export function App() {
                   </button>
                   <button
                     className={mode === "sentence-practice" ? "nav-item active" : "nav-item"}
-                    aria-label="Sentence Practice"
+                    aria-label={settings.dailySentencePracticeGoal > 0
+                      ? `Sentence Practice ${Math.max(
+                          settings.dailySentencePracticeGoal -
+                            dailySentencePracticeCompletedCount,
+                          0
+                        )}`
+                      : "Sentence Practice"}
                     onClick={() => {
                       saveCurrentReaderPosition();
                       setMode("sentence-practice");
@@ -2146,6 +2164,13 @@ export function App() {
                       strokeWidth={1.8}
                     />
                     <span className="nav-item-label">Sentence Practice</span>
+                    {settings.dailySentencePracticeGoal > 0 ? (
+                      <em>{Math.max(
+                        settings.dailySentencePracticeGoal -
+                          dailySentencePracticeCompletedCount,
+                        0
+                      )}</em>
+                    ) : null}
                   </button>
                   <button
                     className={mode === "listen-repeat" ? "nav-item active" : "nav-item"}
@@ -2442,6 +2467,9 @@ export function App() {
               learningApi={desktopLearning()!}
               reviewApi={desktopReview()}
               explanationLanguage={settings.explanationLanguage}
+              onDailyCompletedItemCountChange={
+                setDailySentencePracticeCompletedCount
+              }
               active={mode === "sentence-practice"}
             />
           ) : null}
@@ -3448,6 +3476,16 @@ export function App() {
               <button
                 type="button"
                 role="tab"
+                id="settings-tab-sentence-practice"
+                aria-selected={activeSettingsSection === "sentence-practice"}
+                aria-controls="settings-panel-sentence-practice"
+                onClick={() => setActiveSettingsSection("sentence-practice")}
+              >
+                Sentence Practice
+              </button>
+              <button
+                type="button"
+                role="tab"
                 id="settings-tab-voice"
                 aria-selected={activeSettingsSection === "voice"}
                 aria-controls="settings-panel-voice"
@@ -3665,6 +3703,48 @@ export function App() {
                       value={settings.reviewPaperSize}
                       onChange={(event) => previewSetting(
                         "reviewPaperSize",
+                        Number(event.target.value)
+                      )}
+                    />
+                  </div>
+                </fieldset>
+              </section>
+            ) : null}
+            {activeSettingsSection === "sentence-practice" ? (
+              <section
+                className="settings-panel"
+                role="tabpanel"
+                id="settings-panel-sentence-practice"
+                aria-labelledby="settings-tab-sentence-practice"
+              >
+                <div className="settings-section-intro">
+                  <h3>Sentence Practice</h3>
+                  <p>
+                    Set how many learning items you want to use in completed
+                    writing practices each day.
+                  </p>
+                </div>
+                <fieldset className="settings-number-list">
+                  <legend className="visually-hidden">Sentence Practice</legend>
+                  <div className="settings-number-control">
+                    <div>
+                      <label htmlFor="daily-sentence-practice-goal">
+                        Daily learning-item goal
+                      </label>
+                      <p>
+                        Only practices that pass the required-item check count;
+                        0 hides the goal without disabling practice.
+                      </p>
+                    </div>
+                    <input
+                      id="daily-sentence-practice-goal"
+                      type="number"
+                      min={DAILY_SENTENCE_PRACTICE_GOAL.min}
+                      max={DAILY_SENTENCE_PRACTICE_GOAL.max}
+                      step="1"
+                      value={settings.dailySentencePracticeGoal}
+                      onChange={(event) => previewSetting(
+                        "dailySentencePracticeGoal",
                         Number(event.target.value)
                       )}
                     />

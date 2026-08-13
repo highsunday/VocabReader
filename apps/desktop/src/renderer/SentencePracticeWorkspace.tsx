@@ -70,12 +70,14 @@ export function SentencePracticeWorkspace({
   learningApi,
   reviewApi,
   explanationLanguage,
+  onDailyCompletedItemCountChange,
   active = true
 }: {
   api: SentencePracticeDesktopApi;
   learningApi: LearningDesktopApi;
   reviewApi?: ReviewDesktopApi;
   explanationLanguage: ExplanationLanguage;
+  onDailyCompletedItemCountChange?(count: number): void;
   active?: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<SentencePracticeSnapshot>();
@@ -115,6 +117,39 @@ export function SentencePracticeWorkspace({
       });
     return () => {
       mounted = false;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    if (snapshot) {
+      onDailyCompletedItemCountChange?.(snapshot.dailyCompletedItemCount);
+    }
+  }, [onDailyCompletedItemCountChange, snapshot?.dailyCompletedItemCount]);
+
+  useEffect(() => {
+    let mounted = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleNextLocalDay = () => {
+      const now = new Date();
+      const nextDay = new Date(now);
+      nextDay.setHours(24, 0, 0, 0);
+      timer = setTimeout(() => {
+        void api.getSnapshot()
+          .then((next) => {
+            if (mounted) setSnapshot(next);
+          })
+          .catch(() => {
+            // Keep the last known count and retry at the next local day.
+          })
+          .finally(() => {
+            if (mounted) scheduleNextLocalDay();
+          });
+      }, Math.max(1, nextDay.getTime() - now.getTime() + 50));
+    };
+    scheduleNextLocalDay();
+    return () => {
+      mounted = false;
+      if (timer) clearTimeout(timer);
     };
   }, [api]);
 

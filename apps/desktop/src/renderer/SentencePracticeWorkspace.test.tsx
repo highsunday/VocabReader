@@ -54,12 +54,20 @@ function session(
 }
 
 function sentencePracticeApi(): SentencePracticeDesktopApi {
-  let snapshot: SentencePracticeSnapshot = { eligibleCount: 3, session: null };
+  let snapshot: SentencePracticeSnapshot = {
+    eligibleCount: 3,
+    dailyCompletedItemCount: 0,
+    session: null
+  };
   let submission = 0;
   return {
     getSnapshot: vi.fn(async () => snapshot),
     startSession: vi.fn(async () => {
-      snapshot = { eligibleCount: 3, session: session() };
+      snapshot = {
+        eligibleCount: 3,
+        dailyCompletedItemCount: 0,
+        session: session()
+      };
       return snapshot;
     }),
     submit: vi.fn(async (input) => {
@@ -67,6 +75,7 @@ function sentencePracticeApi(): SentencePracticeDesktopApi {
       snapshot = submission === 1
         ? {
             eligibleCount: 3,
+            dailyCompletedItemCount: 0,
             session: session({
               draft: input.draft,
               phase: "needs-revision",
@@ -80,6 +89,7 @@ function sentencePracticeApi(): SentencePracticeDesktopApi {
           }
         : {
             eligibleCount: 3,
+            dailyCompletedItemCount: 2,
             session: session({
               draft: input.draft,
               phase: "completed",
@@ -160,9 +170,106 @@ function reviewApi(): ReviewDesktopApi {
 }
 
 describe("SentencePracticeWorkspace", () => {
+  it("refreshes today's completed count at the next local calendar day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 14, 23, 59, 59, 900));
+    const onDailyCompletedItemCountChange = vi.fn();
+    const getSnapshot = vi.fn()
+      .mockResolvedValueOnce({
+        eligibleCount: 3,
+        dailyCompletedItemCount: 5,
+        session: null
+      })
+      .mockResolvedValue({
+        eligibleCount: 3,
+        dailyCompletedItemCount: 0,
+        session: null
+      });
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot,
+      startSession: vi.fn(),
+      submit: vi.fn(),
+      generateExamples: vi.fn()
+    };
+    const view = render(
+      <SentencePracticeWorkspace
+        api={api}
+        learningApi={learningApi()}
+        explanationLanguage="en"
+        active={false}
+        onDailyCompletedItemCountChange={onDailyCompletedItemCountChange}
+      />
+    );
+    try {
+      await act(async () => Promise.resolve());
+      expect(onDailyCompletedItemCountChange).toHaveBeenLastCalledWith(5);
+
+      await act(async () => vi.advanceTimersByTimeAsync(200));
+      expect(getSnapshot).toHaveBeenCalledTimes(2);
+      expect(onDailyCompletedItemCountChange).toHaveBeenLastCalledWith(0);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports today's completed item count initially and immediately after completion", async () => {
+    const onDailyCompletedItemCountChange = vi.fn();
+    const completedSession = session({
+      draft: "We created a raft when the town was on the verge of flooding.",
+      phase: "completed",
+      feedback: {
+        revisedText: "We created a raft when the town was on the verge of flooding.",
+        changes: [],
+        conversationalSuggestions: [],
+        usages: items.map((item) => ({
+          itemId: item.id,
+          title: item.title,
+          usage: item.title
+        }))
+      }
+    });
+    const api: SentencePracticeDesktopApi = {
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 3,
+        dailyCompletedItemCount: 4,
+        session: session()
+      })),
+      startSession: vi.fn(),
+      submit: vi.fn(async () => ({
+        eligibleCount: 3,
+        dailyCompletedItemCount: 6,
+        session: completedSession
+      })),
+      generateExamples: vi.fn()
+    };
+    render(
+      <SentencePracticeWorkspace
+        api={api}
+        learningApi={learningApi()}
+        explanationLanguage="en"
+        onDailyCompletedItemCountChange={onDailyCompletedItemCountChange}
+      />
+    );
+
+    const draft = await screen.findByRole("textbox", {
+      name: "Your story or passage"
+    });
+    await waitFor(() => expect(onDailyCompletedItemCountChange)
+      .toHaveBeenLastCalledWith(4));
+    fireEvent.change(draft, { target: { value: completedSession.draft } });
+    fireEvent.click(screen.getByRole("button", { name: "Check my writing" }));
+    await waitFor(() => expect(onDailyCompletedItemCountChange)
+      .toHaveBeenLastCalledWith(6));
+  });
+
   it("blocks setup below two eligible items", async () => {
     const api: SentencePracticeDesktopApi = {
-      getSnapshot: vi.fn(async () => ({ eligibleCount: 1, session: null })),
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 1,
+        dailyCompletedItemCount: 0,
+        session: null
+      })),
       startSession: vi.fn(),
       submit: vi.fn(),
       generateExamples: vi.fn()
@@ -280,6 +387,7 @@ describe("SentencePracticeWorkspace", () => {
     const api: SentencePracticeDesktopApi = {
       getSnapshot: vi.fn(async () => ({
         eligibleCount: 3,
+        dailyCompletedItemCount: 0,
         session: session()
       })),
       startSession: vi.fn(),
@@ -308,6 +416,7 @@ describe("SentencePracticeWorkspace", () => {
 
     await act(async () => resolveGeneration({
       eligibleCount: 3,
+      dailyCompletedItemCount: 0,
       session: session({
         exampleGeneration: {
           phase: "ready",
@@ -359,6 +468,7 @@ describe("SentencePracticeWorkspace", () => {
     const api: SentencePracticeDesktopApi = {
       getSnapshot: vi.fn(async () => ({
         eligibleCount: 3,
+        dailyCompletedItemCount: 0,
         session: session()
       })),
       startSession: vi.fn(),
@@ -407,6 +517,7 @@ describe("SentencePracticeWorkspace", () => {
     const api: SentencePracticeDesktopApi = {
       getSnapshot: vi.fn(async () => ({
         eligibleCount: 3,
+        dailyCompletedItemCount: 0,
         session: session({
           exampleGeneration: {
             phase: "error",
@@ -419,6 +530,7 @@ describe("SentencePracticeWorkspace", () => {
       submit: vi.fn(),
       generateExamples: vi.fn(async () => ({
         eligibleCount: 3,
+        dailyCompletedItemCount: 0,
         session: readySession
       }))
     };
@@ -458,6 +570,7 @@ describe("SentencePracticeWorkspace", () => {
     const api: SentencePracticeDesktopApi = {
       getSnapshot: vi.fn(async () => ({
         eligibleCount: 3,
+        dailyCompletedItemCount: 2,
         session: completedSession
       })),
       startSession: vi.fn(),

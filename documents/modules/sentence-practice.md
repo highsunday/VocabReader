@@ -2,10 +2,11 @@
 title: 整合造句練習模組
 module: sentence-practice
 status: active
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 related_implements:
   - F46-integrated-sentence-practice
   - F47-generate-sentence-practice-examples
+  - F63-daily-integrated-sentence-practice-goal
 ---
 
 # 整合造句練習模組
@@ -17,7 +18,8 @@ related_implements:
 項目；AI 先驗證每個項目與目標語義，再提供保留原意的**造句批改結果**。
 
 本模組不屬於單一章節，也不是間隔複習回合。它不產生評級、不更新 FSRS、不新增
-`learning_review_events`，且不保存永久寫作歷史。
+`learning_review_events`，且不保存永久寫作歷史；只另外保存當日本機已通過練習的
+學習項目總數與 session 去重資訊，用於每日目標。
 
 ## 2. Current Implementation Status
 
@@ -26,6 +28,10 @@ related_implements:
 目前支援：
 
 - 側欄獨立 Sentence Practice 入口與中央工作區。
+- Settings 的獨立 Sentence Practice 分類可設定 0–999 個**每日整合造句目標**，預設 10；
+  0 隱藏目標但不停止練習。
+- 側欄顯示今日剩餘學習項目數；只有 AI 驗證通過並產生正式批改結果的回合才按實際
+  項目數計入，達標後仍可繼續練習。
 - 顯示符合資格的 active、英文、`review_count > 0` 項目數。
 - 每輪可設定 2 至 10 個項目，預設 5 個；可用數不足時向下限制，少於 2 個時不啟動。
 - Main process 以 SQLite `RANDOM()` 從可信任資格集合抽取不重複項目。
@@ -66,6 +72,14 @@ Main-owned controller 負責可信任 scope 與暫態生命週期：
 - 以獨立 example-generation state 保存產生中、三篇範例與可重試錯誤；範例產生與草稿
   批改不得同時執行。
 - 不依賴 `confirmReviewSession()` 或任何排程 mutation。
+- Parsed result 為 `completed` 時才把本輪項目數交給本機 progress store；revision、examples
+  與 error 不計入，同一 session 只記錄一次。
+
+### LocalSentencePracticeProgressStore
+
+- 在 Settings 本機目錄以原子 JSON 保存目前本地日期、完成項目總數與已記錄 session ids。
+- 依裝置目前時區的本地日曆日讀取；跨日公開完成數為 0，下一次完成時取代舊日摘要。
+- 不保存草稿、必要用詞、AI examples 或 feedback，也不加入資料備份。
 
 ### AI artifact boundary
 
@@ -109,24 +123,27 @@ scope、SQL、language、review count 或 AI workflow 設定。
 - 新一輪具名 confirmation dialog，並允許在確認前改變新一輪項目數。
 - 重用 `LearningItemDialog` 的 read-only capability。
 - 由 `App` 保持 component mounted；非 active 時只停止渲染，不丟棄 local draft state。
+- 每次 snapshot 將今日完成數回報 `App`；完成後立即更新，並在下一個本地午夜自動重查。
+- `App` 以 `max(goal - completed, 0)` 計算 badge；目標為 0 時不渲染 badge。
 
 ## 4. State Flow
 
 ```text
 open page
-  → Main counts eligible reviewed English items
+  → Main counts eligible reviewed English items and loads today's completed count
   → user chooses 2–10 and starts
   → Main randomly selects trusted items
   → writing (local draft)
       ├─ request examples → generating → ready (3 examples) / retryable error
   → submit bounded payload to isolated AI
       ├─ missing / wrong sense / unnatural form → needs-revision → edit and retry
-      ├─ valid full result → completed feedback
+      ├─ valid full result → record item count once → completed feedback → refresh sidebar remainder
       └─ runtime / malformed artifact → retryable error with draft preserved
   → explicit confirmed new round replaces transient session
 ```
 
 Switching workspaces keeps the mounted controller and Renderer state. App termination clears both.
+Daily completed count remains in the local progress store and resets on the next local calendar day.
 
 ## 5. Shared Data
 
@@ -138,7 +155,7 @@ Switching workspaces keeps the mounted controller and Renderer state. App termin
 | `SentencePracticeExample` | 一篇完整英文範例與本輪全部必要用詞 usages |
 | `SentencePracticeExampleGeneration` | idle／generating／ready／error、三篇範例與錯誤 |
 | `SentencePracticeSession` | session id、項目、draft、phase、issues、feedback 與 error |
-| `SentencePracticeSnapshot` | eligible count 與 nullable transient session |
+| `SentencePracticeSnapshot` | eligible count、今日完成項目數與 nullable transient session |
 | `SentencePracticeDesktopApi` | snapshot、start、submit、generate examples 四個 Renderer 操作 |
 
 ## 6. Security and Privacy
@@ -157,6 +174,7 @@ Switching workspaces keeps the mounted controller and Renderer state. App termin
 | `apps/desktop/src/main/learning-library-service.ts` | 資格 count、隨機抽取與 Meaning 擷取 |
 | `apps/desktop/src/main/sentence-practice-artifacts.ts` | AI union artifact 驗證 |
 | `apps/desktop/src/main/sentence-practice-controller.ts` | 暫態 session、trusted scope 與 isolated Codex turn |
+| `apps/desktop/src/main/sentence-practice-progress-store.ts` | 本地每日完成數、跨重啟與 session 去重 |
 | `apps/desktop/src/main/sentence-practice-ipc.ts` | 四個 IPC 白名單與輸入驗證 |
 | `.agents/skills/practice-integrated-sentences/SKILL.md` | 三篇範例生成、必要用詞驗證與保留原意的批改規則 |
 | `apps/desktop/src/renderer/SentencePracticeWorkspace.tsx` | setup、writing、revision、feedback 與 detail UI |
@@ -172,17 +190,20 @@ Switching workspaces keeps the mounted controller and Renderer state. App termin
 | `sentence-practice-controller.test.ts` | 範例生命週期、AI 互斥、重送、malformed retry、隔離 Codex turn |
 | `sentence-practice-ipc.test.ts` | 四個白名單 operation 與惡意 payload 拒絕 |
 | `SentencePracticeWorkspace.test.tsx` | 三篇範例卡片、草稿隔離、重試、跨頁草稿、revision 與完整 feedback |
-| `App.test.tsx` | 側欄入口與獨立工作區切換 |
+| `sentence-practice-progress-store.test.ts` | 2×5／5×2 累加、去重、跨重啟、跨本地日與非法資料 |
+| `App.test.tsx` | 側欄入口、每日剩餘 badge、設定停用／調整、超額歸零與獨立工作區切換 |
 
-最近驗證（2026-08-01）：
+最近驗證（2026-08-14）：
 
-- Desktop Vitest：361/361 passed。
-- Desktop TypeScript typecheck：passed。
-- Desktop production build：passed。
+- Desktop Vitest：528/528 passed。
+- 全專案 TypeScript typecheck：passed。
+- 全專案 production build：passed。
+- Electron E2E：3/3 passed。
 
 ## 9. Known Limitations and Follow-up
 
-- 不保存歷史作文、AI 詳細回饋、完成次數或學習成就。
+- 不保存歷史作文、AI 詳細回饋、回合明細、連續天數或學習成就；只有目前本地日的完成
+  項目總數可供目標顯示。
 - 不提供主題、故事情境、手動 item selection、deck 或標籤篩選。
 - 必要用詞的自然詞形與目標語義由 AI 判斷，不提供本機英文形態分析器。
 - Meaning 提示沿用項目已保存的語言；變更全域講解語言不會即時翻譯既有內容。
@@ -191,5 +212,6 @@ Switching workspaces keeps the mounted controller and Renderer state. App termin
 
 - `CONTEXT.md`
 - `documents/implements/F46-integrated-sentence-practice.md`
+- `documents/implements/F63-daily-integrated-sentence-practice-goal.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/spaced-review.md`

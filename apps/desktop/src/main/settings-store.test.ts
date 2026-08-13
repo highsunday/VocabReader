@@ -32,6 +32,7 @@ describe("LocalSettingsStore", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -44,6 +45,7 @@ describe("LocalSettingsStore", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 25,
       dailyDueReviewCompletionLimit: 80,
+      dailySentencePracticeGoal: 12,
       reviewPaperSize: 6,
       selectionSpeechVoice: "marin",
       selectionSpeechTone: "calm"
@@ -55,6 +57,7 @@ describe("LocalSettingsStore", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 25,
       dailyDueReviewCompletionLimit: 80,
+      dailySentencePracticeGoal: 12,
       reviewPaperSize: 6,
       selectionSpeechVoice: "marin",
       selectionSpeechTone: "calm"
@@ -67,6 +70,7 @@ describe("LocalSettingsStore", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 25,
       dailyDueReviewCompletionLimit: 80,
+      dailySentencePracticeGoal: 12,
       reviewPaperSize: 6,
       selectionSpeechVoice: "marin",
       selectionSpeechTone: "calm"
@@ -86,6 +90,7 @@ describe("LocalSettingsStore", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -104,6 +109,7 @@ describe("LocalSettingsStore", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -130,6 +136,7 @@ describe("LocalSettingsStore", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "coral",
       selectionSpeechTone: "expressive"
@@ -145,6 +152,7 @@ describe("LocalSettingsStore", () => {
         ebookLineHeight: 2.25,
         dailyNewItemCompletionLimit: -1,
         dailyDueReviewCompletionLimit: 1000,
+        dailySentencePracticeGoal: 12.5,
         reviewPaperSize: 21,
         selectionSpeechVoice: "unknown",
         selectionSpeechTone: "dramatic"
@@ -159,6 +167,7 @@ describe("LocalSettingsStore", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"

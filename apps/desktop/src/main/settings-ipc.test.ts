@@ -18,6 +18,7 @@ describe("settings IPC", () => {
         ebookLineHeight: 1.9,
         dailyNewItemCompletionLimit: 10,
         dailyDueReviewCompletionLimit: 50,
+        dailySentencePracticeGoal: 10,
         reviewPaperSize: 10,
         selectionSpeechVoice: "cedar",
         selectionSpeechTone: "learning"
@@ -30,6 +31,7 @@ describe("settings IPC", () => {
         ebookLineHeight: 2.2,
         dailyNewItemCompletionLimit: 0,
         dailyDueReviewCompletionLimit: 999,
+        dailySentencePracticeGoal: 999,
         reviewPaperSize: 20,
         selectionSpeechVoice: "onyx",
         selectionSpeechTone: "natural"
@@ -46,6 +48,7 @@ describe("settings IPC", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -58,6 +61,7 @@ describe("settings IPC", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 999,
+      dailySentencePracticeGoal: 999,
       reviewPaperSize: 20,
       selectionSpeechVoice: "onyx",
       selectionSpeechTone: "natural"
@@ -69,6 +73,7 @@ describe("settings IPC", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 999,
+      dailySentencePracticeGoal: 999,
       reviewPaperSize: 20,
       selectionSpeechVoice: "onyx",
       selectionSpeechTone: "natural"
@@ -81,6 +86,7 @@ describe("settings IPC", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 999,
+      dailySentencePracticeGoal: 999,
       reviewPaperSize: 20,
       selectionSpeechVoice: "onyx",
       selectionSpeechTone: "natural"
@@ -201,6 +207,7 @@ describe("settings IPC", () => {
     expect(() => handlers.get("settings:save")?.({}, {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning",
@@ -216,6 +223,9 @@ describe("settings IPC", () => {
     ["dailyNewItemCompletionLimit", 1.5],
     ["dailyDueReviewCompletionLimit", -1],
     ["dailyDueReviewCompletionLimit", 1000],
+    ["dailySentencePracticeGoal", -1],
+    ["dailySentencePracticeGoal", 1000],
+    ["dailySentencePracticeGoal", 1.5],
     ["reviewPaperSize", 0],
     ["reviewPaperSize", 21],
     ["reviewPaperSize", 2.5]
@@ -237,6 +247,7 @@ describe("settings IPC", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning",

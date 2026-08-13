@@ -41,6 +41,7 @@ export function registerSettingsIpc(
       !isEbookLineHeight(settings.ebookLineHeight) ||
       !isDailyReviewCompletionLimit(settings.dailyNewItemCompletionLimit) ||
       !isDailyReviewCompletionLimit(settings.dailyDueReviewCompletionLimit) ||
+      !isDailyReviewCompletionLimit(settings.dailySentencePracticeGoal) ||
       !isReviewPaperSize(settings.reviewPaperSize) ||
       !isSelectionSpeechVoice(settings.selectionSpeechVoice) ||
       !isSelectionSpeechTone(settings.selectionSpeechTone)
@@ -55,6 +56,7 @@ export function registerSettingsIpc(
       ebookLineHeight: settings.ebookLineHeight,
       dailyNewItemCompletionLimit: settings.dailyNewItemCompletionLimit,
       dailyDueReviewCompletionLimit: settings.dailyDueReviewCompletionLimit,
+      dailySentencePracticeGoal: settings.dailySentencePracticeGoal,
       reviewPaperSize: settings.reviewPaperSize,
       selectionSpeechVoice: settings.selectionSpeechVoice,
       selectionSpeechTone: settings.selectionSpeechTone

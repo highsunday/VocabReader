@@ -45,6 +45,9 @@ import { classifyLearningItemDuplicatesWithCodex } from "./learning-item-duplica
 import { registerSettingsIpc } from "./settings-ipc";
 import { SentencePracticeController } from "./sentence-practice-controller";
 import { registerSentencePracticeIpc } from "./sentence-practice-ipc";
+import {
+  LocalSentencePracticeProgressStore
+} from "./sentence-practice-progress-store";
 import { LocalSettingsStore } from "./settings-store";
 import { registerSelectionSpeechIpc } from "./selection-speech-ipc";
 import {
@@ -113,6 +116,9 @@ app.whenReady().then(() => {
     ? join(app.getPath("temp"), `vocabreader-settings-test-${process.pid}`)
     : join(app.getPath("userData"), "settings");
   const settingsStore = new LocalSettingsStore(settingsPath);
+  const sentencePracticeProgressStore = new LocalSentencePracticeProgressStore(
+    settingsPath
+  );
   const selectionSpeechApiKeyStore = new EncryptedSelectionSpeechApiKeyStore(
     settingsPath,
     safeStorage
@@ -233,7 +239,8 @@ app.whenReady().then(() => {
     workingDirectory: runtimePath,
     skillPath: sentencePracticeSkill.path,
     skillInstructions: sentencePracticeSkillMarkdown,
-    library: learningLibrary
+    library: learningLibrary,
+    progress: sentencePracticeProgressStore
   }));
   const listenRepeatPath = process.env.NODE_ENV === "test"
     ? join(app.getPath("temp"), `vocabreader-listen-repeat-test-${process.pid}`)

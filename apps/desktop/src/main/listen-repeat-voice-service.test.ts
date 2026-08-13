@@ -16,6 +16,7 @@ AppSettings {
     ebookLineHeight: 1.9,
     dailyNewItemCompletionLimit: 10,
     dailyDueReviewCompletionLimit: 50,
+    dailySentencePracticeGoal: 10,
     reviewPaperSize: 10,
     selectionSpeechVoice: "cedar",
     selectionSpeechTone: tone

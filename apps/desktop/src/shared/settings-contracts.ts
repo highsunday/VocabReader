@@ -57,6 +57,11 @@ export const DAILY_DUE_REVIEW_COMPLETION_LIMIT = {
   default: 50
 } as const;
 
+export const DAILY_SENTENCE_PRACTICE_GOAL = {
+  ...DAILY_REVIEW_COMPLETION_LIMIT,
+  default: 10
+} as const;
+
 export const REVIEW_PAPER_SIZE = {
   min: 1,
   max: 20,
@@ -71,6 +76,7 @@ export interface AppSettings {
   ebookLineHeight: number;
   dailyNewItemCompletionLimit: number;
   dailyDueReviewCompletionLimit: number;
+  dailySentencePracticeGoal: number;
   reviewPaperSize: number;
   selectionSpeechVoice: SelectionSpeechVoice;
   selectionSpeechTone: SelectionSpeechTone;

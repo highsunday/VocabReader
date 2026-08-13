@@ -93,6 +93,7 @@ export interface SentencePracticeSession {
 
 export interface SentencePracticeSnapshot {
   eligibleCount: number;
+  dailyCompletedItemCount: number;
   session: SentencePracticeSession | null;
 }
 

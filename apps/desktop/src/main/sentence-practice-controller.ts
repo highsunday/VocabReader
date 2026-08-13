@@ -25,8 +25,14 @@ interface SentencePracticeLibrary {
   ): Promise<SentencePracticeSourceItem[]>;
 }
 
+interface SentencePracticeProgress {
+  getDailyCompletedItemCount(): Promise<number>;
+  recordCompletedSession(sessionId: string, itemCount: number): Promise<number>;
+}
+
 export interface SentencePracticeControllerOptions {
   library: SentencePracticeLibrary;
+  progress?: SentencePracticeProgress;
   runTurn?(prompt: string): Promise<string>;
   createClient?(): CodexAppServerClient;
   workingDirectory?: string;
@@ -215,6 +221,7 @@ async function runBoundedSentencePracticeTurn(
 export class SentencePracticeController {
   #session: SentencePracticeSession | null = null;
   #sourceItems: SentencePracticeSourceItem[] = [];
+  #completedSessionIds = new Set<string>();
 
   constructor(private readonly options: SentencePracticeControllerOptions) {}
 
@@ -222,6 +229,9 @@ export class SentencePracticeController {
     return {
       eligibleCount: await this.options.library
         .getSentencePracticeEligibleCount(),
+      dailyCompletedItemCount: this.options.progress
+        ? await this.options.progress.getDailyCompletedItemCount()
+        : 0,
       session: this.#session ? structuredClone(this.#session) : null
     };
   }
@@ -259,6 +269,9 @@ export class SentencePracticeController {
     };
     return {
       eligibleCount,
+      dailyCompletedItemCount: this.options.progress
+        ? await this.options.progress.getDailyCompletedItemCount()
+        : 0,
       session: structuredClone(this.#session)
     };
   }
@@ -300,6 +313,13 @@ export class SentencePracticeController {
         this.#session.phase = "needs-revision";
         this.#session.issues = result.issues;
       } else {
+        if (!this.#completedSessionIds.has(sessionId)) {
+          await this.options.progress?.recordCompletedSession(
+            sessionId,
+            active.itemCount
+          );
+          this.#completedSessionIds.add(sessionId);
+        }
         this.#session.phase = "completed";
         this.#session.feedback = result.feedback;
       }

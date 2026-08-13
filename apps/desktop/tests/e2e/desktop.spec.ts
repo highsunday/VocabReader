@@ -186,7 +186,7 @@ test("launches the secure Electron reading shell", async () => {
     await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
     await expect(page.getByLabel("Codex status")).toBeVisible();
     const sentencePracticeEntry = page.getByRole("button", {
-      name: "Sentence Practice"
+      name: "Sentence Practice 10"
     });
     const listenRepeatEntry = page.getByRole("button", {
       name: "Listen & Repeat"
@@ -816,6 +816,7 @@ test("launches the secure Electron reading shell", async () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -933,6 +934,7 @@ test("launches the secure Electron reading shell", async () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"

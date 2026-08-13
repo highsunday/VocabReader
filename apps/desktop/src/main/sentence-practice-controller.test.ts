@@ -68,6 +68,68 @@ ${JSON.stringify({
 }
 
 describe("SentencePracticeController", () => {
+  it("records each completed round once and exposes today's completed item count", async () => {
+    const runTurn = vi.fn()
+      .mockResolvedValueOnce(`
+\`\`\`sentence-practice-result
+{"sessionId":"SESSION_ID","status":"needs-revision","issues":[{"itemId":"item-2","title":"on the verge of","kind":"missing","message":"The phrase is missing."}]}
+\`\`\``)
+      .mockImplementation(async (prompt: string) => {
+        const sessionId = /"sessionId":"([^"]+)"/.exec(prompt)?.[1] ?? "";
+        return completedResult(sessionId);
+      });
+    let completedItemCount = 0;
+    const progress = {
+      getDailyCompletedItemCount: vi.fn(async () => completedItemCount),
+      recordCompletedSession: vi.fn(async (_sessionId: string, itemCount: number) => {
+        completedItemCount += itemCount;
+        return completedItemCount;
+      })
+    };
+    const controller = new SentencePracticeController({
+      library: {
+        getSentencePracticeEligibleCount: vi.fn(async () => 2),
+        selectSentencePracticeItems: vi.fn(async () => sourceItems)
+      },
+      progress,
+      runTurn: async (prompt) => String(await runTurn(prompt))
+        .replaceAll(
+          "SESSION_ID",
+          /"sessionId":"([^"]+)"/.exec(prompt)?.[1] ?? ""
+        )
+    });
+
+    const started = await controller.startSession({ itemCount: 2 });
+    expect(started.dailyCompletedItemCount).toBe(0);
+    const sessionId = started.session!.sessionId;
+
+    const revision = await controller.submit({
+      sessionId,
+      draft: "We created a raft before the flood.",
+      explanationLanguage: "en"
+    });
+    expect(revision.dailyCompletedItemCount).toBe(0);
+    expect(progress.recordCompletedSession).not.toHaveBeenCalled();
+
+    const completed = await controller.submit({
+      sessionId,
+      draft: "We created a raft when the town was on the verge of flooding.",
+      explanationLanguage: "en"
+    });
+    expect(completed).toMatchObject({
+      dailyCompletedItemCount: 2,
+      session: { phase: "completed" }
+    });
+    expect(progress.recordCompletedSession).toHaveBeenCalledWith(sessionId, 2);
+
+    await controller.submit({
+      sessionId,
+      draft: "We created a raft when the town was on the verge of flooding.",
+      explanationLanguage: "en"
+    });
+    expect(progress.recordCompletedSession).toHaveBeenCalledTimes(1);
+  });
+
   it("generates three bounded examples without changing the learner draft", async () => {
     const runTurn = vi.fn(async (prompt: string) => {
       const sessionId = /"sessionId":"([^"]+)"/.exec(prompt)?.[1] ?? "";

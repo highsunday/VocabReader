@@ -6,10 +6,26 @@ describe("sentence-practice IPC", () => {
   it("registers only bounded operations and rejects malformed payloads", async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
     const controller = {
-      getSnapshot: vi.fn(async () => ({ eligibleCount: 0, session: null })),
-      startSession: vi.fn(async () => ({ eligibleCount: 5, session: {} })),
-      submit: vi.fn(async () => ({ eligibleCount: 5, session: {} })),
-      generateExamples: vi.fn(async () => ({ eligibleCount: 5, session: {} }))
+      getSnapshot: vi.fn(async () => ({
+        eligibleCount: 0,
+        dailyCompletedItemCount: 0,
+        session: null
+      })),
+      startSession: vi.fn(async () => ({
+        eligibleCount: 5,
+        dailyCompletedItemCount: 0,
+        session: {}
+      })),
+      submit: vi.fn(async () => ({
+        eligibleCount: 5,
+        dailyCompletedItemCount: 5,
+        session: {}
+      })),
+      generateExamples: vi.fn(async () => ({
+        eligibleCount: 5,
+        dailyCompletedItemCount: 0,
+        session: {}
+      }))
     } as unknown as SentencePracticeController;
     registerSentencePracticeIpc({
       handle: (channel, handler) => handlers.set(channel, handler)

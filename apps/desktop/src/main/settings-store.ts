@@ -4,6 +4,7 @@ import {
   AI_CONVERSATION_FONT_SIZE,
   DAILY_DUE_REVIEW_COMPLETION_LIMIT,
   DAILY_NEW_ITEM_COMPLETION_LIMIT,
+  DAILY_SENTENCE_PRACTICE_GOAL,
   EBOOK_CONTENT_FONT_SIZE,
   EBOOK_LINE_HEIGHT,
   READING_PAPER_WIDTH,
@@ -28,6 +29,7 @@ const defaultSettings = (): AppSettings => ({
   ebookLineHeight: EBOOK_LINE_HEIGHT.default,
   dailyNewItemCompletionLimit: DAILY_NEW_ITEM_COMPLETION_LIMIT.default,
   dailyDueReviewCompletionLimit: DAILY_DUE_REVIEW_COMPLETION_LIMIT.default,
+  dailySentencePracticeGoal: DAILY_SENTENCE_PRACTICE_GOAL.default,
   reviewPaperSize: REVIEW_PAPER_SIZE.default,
   selectionSpeechVoice: "cedar",
   selectionSpeechTone: "learning"
@@ -76,6 +78,11 @@ export class LocalSettingsStore {
         )
           ? parsed.dailyDueReviewCompletionLimit
           : defaults.dailyDueReviewCompletionLimit,
+        dailySentencePracticeGoal: isDailyReviewCompletionLimit(
+          parsed?.dailySentencePracticeGoal
+        )
+          ? parsed.dailySentencePracticeGoal
+          : defaults.dailySentencePracticeGoal,
         reviewPaperSize: isReviewPaperSize(parsed?.reviewPaperSize)
           ? parsed.reviewPaperSize
           : defaults.reviewPaperSize,

@@ -114,6 +114,7 @@ function installLibraryApi(
     ebookLineHeight: 1.9,
     dailyNewItemCompletionLimit: 10,
     dailyDueReviewCompletionLimit: 50,
+    dailySentencePracticeGoal: 10,
     reviewPaperSize: 10,
     selectionSpeechVoice: "cedar",
     selectionSpeechTone: "learning"
@@ -224,7 +225,11 @@ function installLibraryApi(
     onGenerationProgress: vi.fn(() => () => undefined)
   } satisfies ReviewDesktopApi;
   const sentencePractice = {
-    getSnapshot: vi.fn(async () => ({ eligibleCount: 0, session: null })),
+    getSnapshot: vi.fn(async () => ({
+      eligibleCount: 0,
+      dailyCompletedItemCount: 0,
+      session: null
+    })),
     startSession: vi.fn(),
     submit: vi.fn(),
     generateExamples: vi.fn()
@@ -786,6 +791,7 @@ describe("App", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -827,6 +833,7 @@ describe("App", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 80,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 6,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -904,6 +911,7 @@ describe("App", () => {
       ebookLineHeight: 2.2,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -921,6 +929,7 @@ describe("App", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -1445,7 +1454,7 @@ describe("App", () => {
     render(<App />);
 
     const entry = await screen.findByRole("button", {
-      name: "Sentence Practice"
+      name: "Sentence Practice 10"
     });
     fireEvent.click(entry);
 
@@ -1458,11 +1467,67 @@ describe("App", () => {
       .toBeInTheDocument();
   });
 
+  it("configures the daily Sentence Practice goal and shows remaining items in the sidebar", async () => {
+    const { sentencePractice, saveSettings } = installLibraryApi();
+    sentencePractice.getSnapshot.mockResolvedValue({
+      eligibleCount: 0,
+      dailyCompletedItemCount: 4,
+      session: null
+    });
+    render(<App />);
+
+    const entry = await screen.findByRole("button", {
+      name: "Sentence Practice 6"
+    });
+    expect(entry).toHaveTextContent(/Sentence Practice\s*6/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Sentence Practice" }));
+    const goal = screen.getByRole("spinbutton", {
+      name: "Daily learning-item goal"
+    });
+    expect(goal).toHaveValue(10);
+
+    fireEvent.change(goal, { target: { value: "5" } });
+    expect(screen.getByRole("button", { name: "Sentence Practice 1" }))
+      .toHaveTextContent(/Sentence Practice\s*1/);
+
+    fireEvent.change(goal, { target: { value: "0" } });
+    expect(screen.getByRole("button", { name: "Sentence Practice" }))
+      .not.toHaveTextContent(/\b0\b/);
+
+    fireEvent.change(goal, { target: { value: "20" } });
+    expect(screen.getByRole("button", { name: "Sentence Practice 16" }))
+      .toHaveTextContent(/Sentence Practice\s*16/);
+    await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dailySentencePracticeGoal: 20 })
+    ));
+  });
+
+  it("clamps an exceeded Sentence Practice goal to zero without disabling practice", async () => {
+    const { sentencePractice } = installLibraryApi();
+    sentencePractice.getSnapshot.mockResolvedValue({
+      eligibleCount: 0,
+      dailyCompletedItemCount: 13,
+      session: null
+    });
+    render(<App />);
+
+    const entry = await screen.findByRole("button", {
+      name: "Sentence Practice 0"
+    });
+    fireEvent.click(entry);
+    expect(await screen.findByRole("heading", { name: "Sentence Practice" }))
+      .toBeInTheDocument();
+  });
+
   it("opens Listen & Repeat immediately after Sentence Practice", async () => {
     installLibraryApi();
     render(<App />);
 
-    const sentence = await screen.findByRole("button", { name: "Sentence Practice" });
+    const sentence = await screen.findByRole("button", {
+      name: "Sentence Practice 10"
+    });
     const listenRepeat = screen.getByRole("button", { name: "Listen & Repeat" });
     expect(sentence.compareDocumentPosition(listenRepeat) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
@@ -3851,6 +3916,7 @@ describe("App", () => {
       ebookLineHeight: 1.9,
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
+      dailySentencePracticeGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
