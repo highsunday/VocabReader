@@ -2,7 +2,7 @@
 title: 閱讀區段與 START／END 範圍標籤模組
 module: reading-range
 status: active
-last_updated: 2026-08-14
+last_updated: 2026-08-13
 related_implements:
   - F05-ai-reading-range-markers
   - F06-reading-range-boundary-lines
@@ -49,7 +49,7 @@ related_implements:
 - 浮動標記工具旁提供 START／END 快捷按鈕，可把對應範圍標籤置中捲入視野；快捷導覽不改動或保存範圍。
 - 每個書籤向內文延伸具名分隔線；位置過近時會上下錯開，避免重疊。
 - START 以起始 offset 處第一個字元的 glyph rectangle 定位在該視覺行之前，不採用可能落在上一行的 collapsed caret rectangle；END 以終止 offset 前一字元定位在該視覺行之後。
-- 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍；上一段句尾標點不會成為新 START，新區段會保留自己的開／閉引號與句尾標點，章末停止且不跨章。
+- 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍，章末停止且不跨章。
 - 已提供只擷取 START／END 之間原文的共用函式；AI 對話面板、標記講解與閱讀測驗都使用此邊界，禁止讀取範圍外內容。
 - 標記講解與互動式閱讀測驗已透過 AI 對話面板實作；結果顯示在產生它的 AI 對話中，不由本模組另存一份結構化解析紀錄。
 - AI 對話面板只在目前書籍、章節或 START／END 相對於最近成功提供的區段發生改變時，重新附帶一次閱讀區段原文。
@@ -114,7 +114,7 @@ related_implements:
 
 `markerTopForTextOffset()` 把穩定文字 offset 轉成目前版面的垂直座標：
 
-- START 使用 `before` 語意：選取起始 offset 處第一個實際字元的非空 DOM Range，取 glyph 矩形的 `top`，避免換行邊界的 collapsed caret 歸到上一行。
+- START 使用 `before` 語意：建立折疊 DOM Range，取起始文字行矩形的 `top`。
 - END 使用 `after` 語意：選取 END 附近、仍屬於閱讀區段末端的字元，取該文字行矩形的 `bottom`。
 - 座標以章節 `<article>` 頂端為基準，因此視窗尺寸或文字換行改變後可以重新計算。
 - 視窗 `resize` 時重新定位；資料本身仍保持原文字 offset，不保存像素值。
@@ -146,9 +146,8 @@ related_implements:
 
 1. 只有按下「完成這段，前往下一段」才會推進；AI 訊息、說明或出題不會改變範圍。
 2. `advanceReadingRange()` 先計算目前裁切文字的約略英文單字數。
-3. 新 START 略過緊鄰舊 END、屬於已完成內容的句尾標點與其後空白，移到下一個詞；若下一段在空白後以開引號等符號開始，START 保留該符號。
-4. 新 END 依相同約略字數向後計算，並吸收緊鄰最後一個計數單字的句尾標點與閉引號，不把這些符號孤立到下一段。
-5. 剩餘內容不足時 END 停在章末；到達章末後按鈕停用，不自動切換下一章。
+3. 新 START 從舊 END 後第一個非空白字元開始，新 END 依相同約略字數向後計算。
+4. 剩餘內容不足時 END 停在章末；到達章末後按鈕停用，不自動切換下一章。
 
 ### Quick navigation to a range marker
 
@@ -199,19 +198,19 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 
 | Test file | Coverage |
 |---|---|
-| `apps/desktop/src/renderer/reading-range.test.ts` | 新章節完整範圍初始化、空章節邊界、嚴格裁切、等長推進、句尾標點與開／閉引號邊界、章末停止、點位轉 offset、START 依第一個 glyph 所在視覺行定位、DOM text node 邊界與章末 fallback、END 在線後、標記資料不受推進影響 |
-| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線與快捷導覽、浮動工具位置、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、含句尾標點的明確推進與保存、AI 對話嚴格裁切、相同區段去重與邊界／來源變更重傳 |
+| `apps/desktop/src/renderer/reading-range.test.ts` | 新章節完整範圍初始化、空章節邊界、嚴格裁切、等長推進、章末停止、點位轉 offset、START 依第一個 glyph 所在視覺行定位、DOM text node 邊界與章末 fallback、END 在線後、標記資料不受推進影響 |
+| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線與快捷導覽、浮動工具位置、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、明確推進、AI 對話嚴格裁切、相同區段去重與邊界／來源變更重傳 |
 | `apps/desktop/src/main/library-service.test.ts` | 每章範圍保存、快速連續寫入、無效範圍與不存在章節拒絕 |
 | `apps/desktop/src/main/library-ipc.test.ts` | 保存 IPC 路由及輸入格式驗證 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron preload 確實暴露 `saveReadingRange()`，安全設定與應用程式啟動回歸 |
 
-最近相關驗證（2026-08-14）：
+最近相關驗證（2026-07-29）：
 
-- reading-range + App renderer：108/108 passed。
-- Desktop Vitest：541/541 passed；Server Vitest：3/3 passed。
+- App renderer：70/70 passed。
+- Desktop Vitest：302/302 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
-- `git diff --check`：passed。
+- 本次文件同步未重跑 Server Vitest 與 Electron Playwright；START／END 快捷導覽不改動 server、preload 或 Electron main process。
 
 ## 12. Important Constraints
 
@@ -251,6 +250,5 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 - `documents/implements/B14-jump-to-reading-range-markers.md`
 - `documents/implements/B22-default-reading-range-to-whole-chapter.md`
 - `documents/implements/B23-align-advanced-range-start-with-first-unread-line.md`
-- `documents/bugs/BUG-003-b23-start-still-anchors-to-previous-line.md`
 
 更新範圍資料格式、定位語意、拖曳生命週期、保存流程、自動推進或 AI 裁切邊界時，必須同步更新本文件及相關 FXX／BXX 實作紀錄。
