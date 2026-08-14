@@ -20,9 +20,14 @@ function clampOffset(text: string, value: number) {
 }
 
 function firstReadableOffset(text: string, offset: number) {
-  let current = clampOffset(text, offset);
-  while (current < text.length && /\s/u.test(text[current])) current += 1;
-  return current;
+  const current = clampOffset(text, offset);
+  const remaining = text.slice(current);
+  const nextWord = remaining.search(/[\p{L}\p{N}]/u);
+  if (nextWord < 0) return text.length;
+  for (let index = nextWord - 1; index >= 0; index -= 1) {
+    if (/\s/u.test(remaining[index])) return current + index + 1;
+  }
+  return current + nextWord;
 }
 
 function wordCount(text: string) {
@@ -36,7 +41,13 @@ function endAfterWords(text: string, start: number, desiredWords: number) {
   for (const match of content.matchAll(WORD_PATTERN)) {
     end = start + (match.index ?? 0) + match[0].length;
     found += 1;
-    if (found >= desiredWords) return end;
+    if (found >= desiredWords) {
+      while (
+        end < text.length &&
+        !/[\p{L}\p{N}\s]/u.test(text[end])
+      ) end += 1;
+      return end;
+    }
   }
   return text.length;
 }

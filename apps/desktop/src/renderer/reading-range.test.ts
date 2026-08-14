@@ -53,6 +53,26 @@ describe("reading range", () => {
     );
   });
 
+  it("keeps sentence-ending punctuation out of the next range START", () => {
+    const chapter = "One two three. Four five six. Seven eight nine.";
+    const current = { start: 0, end: "One two three".length };
+
+    const next = advanceReadingRange(chapter, current);
+
+    expect(next.start).toBe(chapter.indexOf("Four"));
+    expect(extractReadingSegment(chapter, next)).toBe("Four five six.");
+  });
+
+  it("keeps an opening quote with the next range after sentence punctuation", () => {
+    const chapter = "One two three. “Four five six.” Seven eight nine.";
+    const current = { start: 0, end: "One two three".length };
+
+    const next = advanceReadingRange(chapter, current);
+
+    expect(next.start).toBe(chapter.indexOf("“Four"));
+    expect(extractReadingSegment(chapter, next)).toBe("“Four five six.”");
+  });
+
   it("stops at the chapter end when the remaining range is shorter", () => {
     const chapter = words(14);
     const current = { start: 0, end: words(10).length };

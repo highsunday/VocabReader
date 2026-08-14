@@ -3024,8 +3024,10 @@ describe("App", () => {
   });
 
   it("advances only from the explicit completion action and stops inside the chapter", async () => {
-    const words = Array.from({ length: 900 }, (_, index) => `word${index + 1}`);
-    const firstRangeEnd = words.slice(0, 100).join(" ").length;
+    const words = Array.from({ length: 900 }, (_, index) =>
+      (index + 1) % 100 === 0 ? `word${index + 1}.` : `word${index + 1}`
+    );
+    const firstRangeEnd = words.slice(0, 100).join(" ").length - 1;
     const rangedBooks: LibraryBook[] = [{
       ...books[0],
       chapterRanges: { "one-1": { start: 0, end: firstRangeEnd } }
@@ -3057,6 +3059,7 @@ describe("App", () => {
       })
     ));
     const savedRange = saveReadingRange.mock.calls.at(-1)?.[0].range;
+    expect(savedRange.start).toBe(words.slice(0, 100).join(" ").length + 1);
     expect(savedRange.end).toBeLessThanOrEqual(
       document.querySelector(".chapter-content")?.textContent?.length ?? 0
     );
