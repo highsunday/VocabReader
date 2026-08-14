@@ -14,6 +14,7 @@ interface PcmWav {
 const SILENCE_SECONDS = 0.06;
 const FADE_SECONDS = 0.008;
 const STREAMING_WAV_LENGTH = 0xffff_ffff;
+const MINIMUM_FALLBACK_ANCHOR_LENGTH = 6;
 
 function ascii(view: DataView, offset: number, length: number): string {
   return Array.from({ length }, (_, index) =>
@@ -71,7 +72,55 @@ export function validateListenRepeatPcmWav(audio: Uint8Array): void {
 
 function normalizeSpeechText(value: string): string {
   return value.normalize("NFKD").toLocaleLowerCase()
-    .replace(/[\p{M}\p{P}\p{Z}\p{C}]/gu, "");
+    .replace(/[\p{M}\p{P}\p{S}\p{Z}\p{C}]/gu, "");
+}
+
+function commonPrefixLength(left: string, right: string): number {
+  const limit = Math.min(left.length, right.length);
+  let length = 0;
+  while (length < limit && left[length] === right[length]) length += 1;
+  return length;
+}
+
+function commonSuffixLength(left: string, right: string): number {
+  const limit = Math.min(left.length, right.length);
+  let length = 0;
+  while (length < limit &&
+    left[left.length - length - 1] === right[right.length - length - 1]) {
+    length += 1;
+  }
+  return length;
+}
+
+function findFallbackWordBoundary(input: {
+  parentNormalized: string;
+  transcriptNormalized: string;
+  childBoundary: number;
+  wordEnds: number[];
+}): number {
+  const originalLeft = input.parentNormalized.slice(0, input.childBoundary);
+  const originalRight = input.parentNormalized.slice(input.childBoundary);
+  const candidates = input.wordEnds.slice(0, -1).map((transcriptBoundary, wordIndex) => {
+    const transcriptLeft = input.transcriptNormalized.slice(0, transcriptBoundary);
+    const transcriptRight = input.transcriptNormalized.slice(transcriptBoundary);
+    const leftAnchor = commonSuffixLength(originalLeft, transcriptLeft);
+    const rightAnchor = commonPrefixLength(originalRight, transcriptRight);
+    return {
+      wordIndex,
+      strongestAnchor: Math.max(leftAnchor, rightAnchor),
+      score: leftAnchor + rightAnchor
+    };
+  }).filter(({ strongestAnchor }) =>
+    strongestAnchor >= MINIMUM_FALLBACK_ANCHOR_LENGTH
+  ).sort((left, right) => right.score - left.score ||
+    right.strongestAnchor - left.strongestAnchor
+  );
+  if (candidates.length === 0 || (candidates[1] &&
+    candidates[0].score === candidates[1].score &&
+    candidates[0].strongestAnchor === candidates[1].strongestAnchor)) {
+    throw new Error("Unsafe listen-and-repeat alignment");
+  }
+  return candidates[0].wordIndex;
 }
 
 function writePcmWav(input: PcmWav, sourceData: Uint8Array): Uint8Array {
@@ -160,10 +209,7 @@ export function deriveListenRepeatAudioSlices(input: {
     ...word,
     normalized: normalizeSpeechText(word.word)
   })).filter(({ normalized }) => normalized);
-  if (words.length === 0 || words.map(({ normalized }) => normalized).join("") !==
-    parentNormalized) {
-    throw new Error("Unsafe listen-and-repeat alignment");
-  }
+  if (words.length === 0) throw new Error("Unsafe listen-and-repeat alignment");
   let previousEnd = 0;
   for (const word of words) {
     if (!Number.isFinite(word.start) || !Number.isFinite(word.end) ||
@@ -180,11 +226,20 @@ export function deriveListenRepeatAudioSlices(input: {
     characters += word.normalized.length;
     wordEnds.push(characters);
   }
+  const transcriptNormalized = words.map(({ normalized }) => normalized).join("");
+  const exactTranscript = transcriptNormalized === parentNormalized;
   const boundaries: number[] = [0];
   let childCharacters = 0;
   for (let index = 0; index < childNormalized.length - 1; index += 1) {
     childCharacters += childNormalized[index].length;
-    const wordIndex = wordEnds.indexOf(childCharacters);
+    const wordIndex = exactTranscript
+      ? wordEnds.indexOf(childCharacters)
+      : findFallbackWordBoundary({
+          parentNormalized,
+          transcriptNormalized,
+          childBoundary: childCharacters,
+          wordEnds
+        });
     if (wordIndex < 0 || wordIndex + 1 >= words.length) {
       throw new Error("Unsafe listen-and-repeat alignment");
     }

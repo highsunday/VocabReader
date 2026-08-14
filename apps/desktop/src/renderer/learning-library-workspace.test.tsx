@@ -811,6 +811,118 @@ describe("LearningLibraryWorkspace", () => {
     }
   });
 
+  it("routes each learning item language without forcing non-English text through an English voice", () => {
+    const speak = vi.fn();
+    const cancel = vi.fn();
+    const englishVoice = {
+      default: true,
+      lang: "en-US",
+      localService: true,
+      name: "English",
+      voiceURI: "English"
+    } as SpeechSynthesisVoice;
+    const japaneseVoice = {
+      default: false,
+      lang: "ja-JP",
+      localService: true,
+      name: "Japanese",
+      voiceURI: "Japanese"
+    } as SpeechSynthesisVoice;
+    const simplifiedChineseVoice = {
+      default: false,
+      lang: "zh-CN",
+      localService: true,
+      name: "Simplified Chinese",
+      voiceURI: "Simplified Chinese"
+    } as SpeechSynthesisVoice;
+    const traditionalChineseVoice = {
+      default: false,
+      lang: "zh-Hant-HK",
+      localService: true,
+      name: "Traditional Chinese",
+      voiceURI: "Traditional Chinese"
+    } as SpeechSynthesisVoice;
+    class MockSpeechSynthesisUtterance {
+      text: string;
+      lang = "";
+      voice: SpeechSynthesisVoice | null = null;
+      rate = 1;
+      pitch = 1;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
+    vi.stubGlobal("speechSynthesis", {
+      cancel,
+      getVoices: () => [
+        englishVoice,
+        japaneseVoice,
+        simplifiedChineseVoice,
+        traditionalChineseVoice
+      ],
+      speak
+    });
+    vi.stubGlobal("SpeechSynthesisUtterance", MockSpeechSynthesisUtterance);
+
+    try {
+      const view = render(
+        <LearningItemDialog
+          item={{ ...activeItems[0], title: "ロシア", language: "ja" }}
+          api={api()}
+          onClose={vi.fn()}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", {
+        name: "Play pronunciation of ロシア"
+      }));
+
+      expect(speak).toHaveBeenCalledOnce();
+      expect(speak.mock.calls[0][0]).toMatchObject({
+        text: "ロシア",
+        lang: "ja-JP",
+        voice: japaneseVoice
+      });
+
+      view.rerender(
+        <LearningItemDialog
+          item={{ ...activeItems[0], title: "俄羅斯", language: "zh-TW" }}
+          api={api()}
+          onClose={vi.fn()}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", {
+        name: "Play pronunciation of 俄羅斯"
+      }));
+      expect(speak.mock.calls[1][0]).toMatchObject({
+        text: "俄羅斯",
+        lang: "zh-Hant-HK",
+        voice: traditionalChineseVoice
+      });
+
+      view.rerender(
+        <LearningItemDialog
+          item={{ ...activeItems[0], title: "Россия", language: "other" }}
+          api={api()}
+          onClose={vi.fn()}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", {
+        name: "Play pronunciation of Россия"
+      }));
+      expect(speak.mock.calls[2][0]).toMatchObject({
+        text: "Россия",
+        lang: "",
+        voice: null
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("edits structured fields and Markdown while cancel leaves data untouched", async () => {
     const learning = api();
     render(<LearningLibraryWorkspace api={learning} />);

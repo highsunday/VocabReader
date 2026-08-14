@@ -464,6 +464,41 @@ async function requiredTextFile(zip: JSZip, path: string, label: string) {
 }
 
 const epubParseVersion = 3;
+const fontObfuscationAlgorithms = new Set([
+  "http://www.idpf.org/2008/embedding",
+  "http://ns.adobe.com/pdf/enc#RC"
+]);
+const fontResourceExtensions = new Set([".otf", ".ttf", ".woff", ".woff2"]);
+
+async function assertNoUnsupportedEncryption(zip: JSZip) {
+  if (zip.file("META-INF/rights.xml")) {
+    throw new Error("DRM-protected EPUB files are not supported");
+  }
+
+  const encryptionFile = zip.file("META-INF/encryption.xml");
+  if (!encryptionFile) return;
+
+  const encryptionXml = await encryptionFile.async("text");
+  const encryption = asRecord(xmlParser.parse(encryptionXml)).encryption;
+  const encryptedResources = asArray(asRecord(encryption).EncryptedData)
+    .map(asRecord);
+  const onlyObfuscatedFonts = encryptedResources.length > 0 &&
+    encryptedResources.every((resource) => {
+      const method = asRecord(resource.EncryptionMethod);
+      const cipherData = asRecord(resource.CipherData);
+      const cipherReference = asRecord(cipherData.CipherReference);
+      const algorithm = attribute(method, "Algorithm");
+      const resourcePath = attribute(cipherReference, "URI");
+      if (!fontObfuscationAlgorithms.has(algorithm) || !resourcePath) return false;
+      const archivePath = resolveArchivePath("", resourcePath);
+      return fontResourceExtensions.has(posix.extname(archivePath).toLowerCase()) &&
+        Boolean(zip.file(archivePath));
+    });
+
+  if (!onlyObfuscatedFonts) {
+    throw new Error("DRM-protected EPUB files are not supported");
+  }
+}
 
 async function replaceFileWithRetry(source: string, destination: string) {
   const retryableCodes = new Set(["EACCES", "EBUSY", "EPERM"]);
@@ -485,9 +520,7 @@ async function parseEpub(contents: Buffer): Promise<ParsedEpub> {
   if (mimetype.trim() !== "application/epub+zip") {
     throw new Error("The file is not a standard EPUB");
   }
-  if (zip.file("META-INF/rights.xml") || zip.file("META-INF/encryption.xml")) {
-    throw new Error("DRM-protected EPUB files are not supported");
-  }
+  await assertNoUnsupportedEncryption(zip);
 
   const containerXml = await requiredTextFile(
     zip,

@@ -19,7 +19,7 @@ const OPENAI_TRANSCRIPTION_ENDPOINT =
 const OPENAI_SPEECH_MODEL = "gpt-4o-mini-tts";
 const OPENAI_ALIGNMENT_MODEL = "whisper-1";
 const INSTRUCTIONS_REVISION = "listen-repeat-v2-parent-take";
-const ALIGNMENT_REVISION = "listen-repeat-alignment-v1";
+const ALIGNMENT_REVISION = "listen-repeat-alignment-v2-anchored-numbers";
 
 const toneProfiles: Record<SelectionSpeechTone, {
   directions: string;

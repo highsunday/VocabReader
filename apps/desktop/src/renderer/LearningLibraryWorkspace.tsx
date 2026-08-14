@@ -49,6 +49,12 @@ const languageLabels: Record<LearningItemLanguage, string> = {
   "zh-TW": "Traditional Chinese",
   other: "Other language"
 };
+const speechLocales: Record<LearningItemLanguage, string | undefined> = {
+  en: "en-US",
+  ja: "ja-JP",
+  "zh-TW": "zh-TW",
+  other: undefined
+};
 const studyStatusLabels: Record<LearningItemStudyStatus, string> = {
   new: "New",
   learning: "Learning",
@@ -100,6 +106,33 @@ function cardStudyStatusLabel(item: LearningItemSummary) {
   return item.studyStatus === "scheduled"
     ? scheduledReviewLabel(item.nextDueAt)
     : studyStatusLabels[item.studyStatus];
+}
+
+function speechVoiceFor(
+  voices: SpeechSynthesisVoice[],
+  language: LearningItemLanguage
+) {
+  const locale = speechLocales[language];
+  if (!locale) return null;
+
+  const normalizedLocale = locale.toLowerCase();
+  const exactVoice = voices.find(
+    (voice) => voice.lang.toLowerCase() === normalizedLocale
+  );
+  if (exactVoice) return exactVoice;
+
+  if (language === "zh-TW") {
+    return voices.find((voice) =>
+      /^(zh-(hant|tw|hk|mo))(?:-|$)/i.test(voice.lang)
+    ) ?? null;
+  }
+
+  const baseLanguage = normalizedLocale.split("-")[0];
+  return voices.find((voice) => {
+    const voiceLanguage = voice.lang.toLowerCase();
+    return voiceLanguage === baseLanguage ||
+      voiceLanguage.startsWith(`${baseLanguage}-`);
+  }) ?? null;
 }
 
 function MarkdownContent({
@@ -264,11 +297,13 @@ export function LearningItemDialog({
     try {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(item.title);
-      const englishVoice = window.speechSynthesis.getVoices().find((voice) =>
-        voice.lang.toLowerCase().startsWith("en")
+      const locale = speechLocales[item.language];
+      const voice = speechVoiceFor(
+        window.speechSynthesis.getVoices(),
+        item.language
       );
-      utterance.lang = englishVoice?.lang ?? "en-US";
-      utterance.voice = englishVoice ?? null;
+      utterance.lang = voice?.lang ?? locale ?? "";
+      utterance.voice = voice;
       utterance.rate = 0.85;
       utterance.pitch = 1;
       utterance.onend = () => {
@@ -534,7 +569,7 @@ export function LearningItemDialog({
                 type="button"
                 className={`learning-pronunciation-button${isSpeaking ? " is-speaking" : ""}`}
                 aria-label={`Play pronunciation of ${item.title}`}
-                title={isSpeaking ? "Playing; click to replay" : "Play English pronunciation"}
+                title={isSpeaking ? "Playing; click to replay" : "Play pronunciation"}
                 onClick={pronounceTitle}
               >
                 <Volume2 aria-hidden="true" strokeWidth={1.9} />

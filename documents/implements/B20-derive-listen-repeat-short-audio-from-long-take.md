@@ -3,7 +3,7 @@ author: Codex
 date: 2026-08-11
 title: 讓跟讀短片段與長片段共用同一次朗讀語氣
 uuid: 6c5b9115a2ca431d9b29c4b022f0e861
-version: 1.2.0
+version: 1.3.0
 status: implemented
 ---
 
@@ -116,8 +116,11 @@ TTS 模型只看到當前片段，因此容易把中間短片段說成一個已�
 - OpenAI Speech 的 streaming WAV 可將 RIFF／data declared length 寫成 `0xFFFFFFFF`；parser
   會以實際收到的 data bytes 驗證與切片。Whisper 的單字時間戳允許 `start === end`，但仍要求
   全體時間有序、完整文字相等且所有 child boundaries 可證明落在 word boundary。
-- alignment normalization 可移除 Unicode punctuation／separator 並統一 case，但不得
-  用模糊對齊掩蓋文字不等；任一 short boundary 落在 transcript word 內部時整組拒絕。
+- alignment normalization 可移除 Unicode punctuation／symbol／separator 並統一 case；精確
+  transcript 仍逐字驗證。若 Speech／Whisper 將印刷數字或貨幣（例如 `41`、`$800,000`）
+  正規化成 spoken words，只有每個 short boundary 都能由至少六個相鄰正規化字元在唯一的
+  transcript word boundary 上定位時才允許切片；錨點不足、重複而有歧義，或 boundary 落在
+  transcript word 內部時整組拒絕。
 - 短片段 derived fingerprint 包含 parent TTS fingerprint、ordered short texts 與
   alignment／slicing revision。
 - 錯誤訊息不包含 provider response body、API key 或 transcript content。
@@ -173,6 +176,10 @@ Implemented on 2026-08-11.
 - 修正 live OpenAI 回應相容性：接受 Speech API streaming WAV 的未知長度 sentinel，並接受
   `whisper-1` 偶爾產生、但仍保持有序的 zero-duration word timestamp。錯誤提示改為 sticky，
   即使使用者已捲到句卡位置也不會像按鈕沒有反應。
+- 2026-08-12 follow-up 修正印刷數字／貨幣的轉錄正規化：`$` 等 Unicode symbol 不再造成
+  假 mismatch；`41`／`$800,000` 被轉成 `forty one`／`eight hundred thousand dollars`
+  時，改用 transcript word boundaries 上唯一且足夠長的相鄰文字錨點定位 short boundaries。
+  無錨點或重複錨點仍 fail closed，alignment revision 升級後可重用 parent WAV 並只重建 slices。
 - Progressive UI 現在把唯一可操作的 `Full sentence` parent 卡放在 children 上方，完整長句
   文字只顯示一次；group 準備期間在 parent 卡顯示單一 status 並停用同組播放動作。
 - 現有 children → parent Continuous sequence、錄音解鎖、Advanced long-only、IPC 與 preload
@@ -184,6 +191,9 @@ Implemented on 2026-08-11.
   child concurrent prepare 只產生一個 parent speech request、一個 transcription request，並
   接受 `0xFFFFFFFF` streaming WAV length 與 zero-duration boundary timestamp，將兩個 child
   保存為可解碼 RIFF WAV。
+- Printed-number regression：`derives Progressive slices when transcription spells out printed numbers`
+  使用實際失敗句型 `At the age of 41, I found myself $800,000 in debt,`，驗證 spoken-number
+  transcript 可在兩個唯一 anchored word boundaries 安全產生三個 short slices。
 - TC4：`reuses persisted parent and derived child audio without another alignment` 驗證 service
   restart 後不再 fetch。
 - TC5：unsafe transcript 與 non-PCM parent response 測試驗證安全拒絕，且壞的 parent 與 child
@@ -276,8 +286,8 @@ git diff --check
 - 2026-08-11 已以 live OpenAI Speech／Transcription 回應重現並驗證 streaming WAV 與
   zero-duration timestamps；為避免持續產生 API 費用，完整 live call 不放入自動測試，改以
   captured response characteristics 建立 deterministic regression fixture。
-- OpenAI transcription 若未能忠實回傳 canonical take 的文字／word boundaries，使用者需 Retry；
-  本次刻意不加入不可靠 fallback。
+- OpenAI transcription 若既未忠實回傳 canonical take 的文字，也無法在每個 short boundary
+  提供唯一且足夠長的相鄰文字錨點，使用者仍需 Retry；不使用字數比例或模糊時間猜測。
 
 ### Notes
 

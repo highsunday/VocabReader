@@ -83,6 +83,29 @@ async function createEpub3(
   await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
 }
 
+async function addEncryptionMetadata(
+  path: string,
+  algorithm: string,
+  resourcePath = "OEBPS/fonts/reader.otf"
+) {
+  const zip = await JSZip.loadAsync(await readFile(path));
+  zip.file(
+    "META-INF/encryption.xml",
+    `<?xml version="1.0"?>
+      <encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"
+        xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+        <enc:EncryptedData>
+          <enc:EncryptionMethod Algorithm="${algorithm}"/>
+          <enc:CipherData>
+            <enc:CipherReference URI="${resourcePath}"/>
+          </enc:CipherData>
+        </enc:EncryptedData>
+      </encryption>`
+  );
+  zip.file(resourcePath, Uint8Array.from([79, 84, 84, 79]));
+  await writeFile(path, await zip.generateAsync({ type: "nodebuffer" }));
+}
+
 async function createEpub2(path: string) {
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
@@ -488,6 +511,58 @@ describe("LocalBookLibrary", () => {
     );
     expect(await library.listBooks()).toEqual([]);
     await expect(readFile(join(libraryPath, "index.json"), "utf8")).resolves.toBe("[]\n");
+  });
+
+  it.each([
+    "http://www.idpf.org/2008/embedding",
+    "http://ns.adobe.com/pdf/enc#RC"
+  ])(
+    "imports an EPUB whose encryption metadata only obfuscates an embedded font with %s",
+    async (algorithm) => {
+      const root = await createTemporaryDirectory();
+      const epubPath = join(root, "font-obfuscated.epub");
+      await createEpub3(epubPath);
+      await addEncryptionMetadata(epubPath, algorithm);
+
+      const result = await new LocalBookLibrary(join(root, "library"))
+        .importFromPath(epubPath);
+
+      expect(result.status).toBe("imported");
+      if (result.status === "cancelled") throw new Error("unexpected cancellation");
+      expect(result.book.title).toBe("Practical English");
+    }
+  );
+
+  it("still rejects content encryption declared in encryption.xml", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "encrypted.epub");
+    await createEpub3(epubPath);
+    await addEncryptionMetadata(
+      epubPath,
+      "http://www.w3.org/2001/04/xmlenc#aes256-cbc"
+    );
+
+    const library = new LocalBookLibrary(join(root, "library"));
+
+    await expect(library.importFromPath(epubPath)).rejects.toThrow(
+      "DRM-protected EPUB files are not supported"
+    );
+    expect(await library.listBooks()).toEqual([]);
+  });
+
+  it("does not accept the font-obfuscation identifier for a non-font resource", async () => {
+    const root = await createTemporaryDirectory();
+    const epubPath = join(root, "mislabelled-encryption.epub");
+    await createEpub3(epubPath);
+    await addEncryptionMetadata(
+      epubPath,
+      "http://www.idpf.org/2008/embedding",
+      "OEBPS/chapter1.xhtml"
+    );
+
+    await expect(
+      new LocalBookLibrary(join(root, "library")).importFromPath(epubPath)
+    ).rejects.toThrow("DRM-protected EPUB files are not supported");
   });
 
   it("loads safe chapter content and embeds book-local images", async () => {

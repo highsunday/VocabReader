@@ -3,7 +3,7 @@ author: Codex
 date: 2026-08-14
 title: 在生詞庫緊湊顯示學習進度分類數量
 uuid: 9c3c8373-ef4e-43cf-a25f-50bb7b19c6ed
-version: 1.2.0
+version: 1.2.1
 status: implemented
 ---
 
@@ -108,6 +108,7 @@ Solid recall 共用完全相同的 Main-owned 判定與數量。項目卡仍保�
 - `apps/desktop/src/renderer/learning-library-workspace.test.tsx`：指標呈現與互動。
 - 使用 `LearningItemCounts` mock 的相關 Renderer／IPC 測試：contract 形狀同步。
 - `documents/modules/learning-library.md`：同步當前行為與測試覆蓋。
+- `documents/modules/spaced-review.md`：記錄 Strong 與 Solid recall 的共用判定及查詢成本。
 
 ## 7. Non-goals and Assumptions
 
@@ -199,13 +200,16 @@ passed。
 
 ### Deferred items
 
-無。
+- 若 active 複習事件量顯著成長，考慮將共用進度分類抽成可索引或可快取的 read model，
+  避免 Library counts／filter 與 Review summary 各自重建完整事件序列；任何優化仍須
+  保證 Library Strong 與 Review Solid recall 使用同一判定來源。
 
 ### Notes
 
 TDD red 階段確認舊 contract 仍回傳 `study` 且 Renderer 仍顯示舊 study group；green
 階段完成共用 progress 集合後，所有 targeted、full-suite、typecheck、build 與 Electron
-acceptance checks 通過。未發現需要新增 RXX 的架構問題。
+acceptance checks 通過。文件稽核確認精確共用判定目前以掃描 active 完整事件序列達成；
+這是已記錄但尚未需要立即建立 RXX 的擴充性技術債。
 
 ## Appendix: TDD Implementation Checklist
 
@@ -214,4 +218,5 @@ acceptance checks 通過。未發現需要新增 RXX 的架構問題。
 3. 將狀態篩選從 select 移到緊湊指標，加入可存取的 pressed state。
 4. 加入桌面與窄螢幕樣式，確認不增加大型頁首區塊。
 5. 執行相關 Vitest、typecheck、build 與視覺檢查。
-6. 同步本文件與 `documents/modules/learning-library.md`。
+6. 同步本文件、`documents/modules/learning-library.md` 與
+   `documents/modules/spaced-review.md`。

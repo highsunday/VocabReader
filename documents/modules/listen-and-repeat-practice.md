@@ -5,7 +5,9 @@ status: active
 last_updated: 2026-08-11
 related_implements:
   - F58-listen-and-repeat-practice
+  - F60-select-progressive-short-chunk-length
   - B20-derive-listen-repeat-short-audio-from-long-take
+  - B21-balance-multilingual-listen-repeat-short-chunks
 ---
 
 # 逐句跟讀練習模組
@@ -28,6 +30,8 @@ Spaced Review，也不提供 Play All 或跨片段音訊串接。
 - Sidebar 中位於 Sentence Practice 後方的 `Listen & Repeat` 獨立 workspace。
 - 任意語言／混合語言素材與 2,000 Unicode grapheme 上限；超限不截斷。
 - `Progressive` 的 long → short 階層與 `Advanced` 的 long-only 結構。
+- Progressive 可用三段吸附拉桿選擇短片段長度偏好：`Short` 沿用約 0.75–1.5 秒的既有
+  行為，`Medium` 約 1.5–2.5 秒，`Long` 約 2.5–4 秒；自然語意與韻律邊界仍優先。
 - 準備與練習採互斥兩階段：處理成功後只顯示 `02` 練習區；使用者按 `Back to material`
   才回到 `01`，並可用 `Return to practice` 返回既有結果。
 - 片段卡採緊湊資訊層級；Advanced 每個句子只顯示一個可操作卡，不重複外層句子文字或
@@ -74,6 +78,8 @@ low reasoning 的快速模型；catalog 無候選或失敗時才沿用 Codex def
 
 - `materialUnits` 以 `[id, exactText]` 顯式提供連續 1-based ID，不要求模型
   自行計數陣列位置。
+- Progressive request 另帶 allowlisted `shortChunkLength`；Advanced request 不把這項偏好
+  傳給 AI。偏好只調整 short boundary heuristic，不改變 output schema。
 - `advanced`：零個以上嚴格遞增的內部 `longBreakEnds`。
 - `progressive`：另有零個以上嚴格遞增的全域內部 `shortBreakEnds`。
 - version、practice ID 與 mode 必須符合 request；不得出現 source text 或其他欄位。
@@ -103,6 +109,8 @@ ai-audio/<chunk-id>-<fingerprint>.wav
 - learner recording 先寫新 revision，metadata 成功後才刪舊 revision。
 - IPC／store 驗證 practice ID、chunk ID、recording eligibility、MIME 與 24 MiB byte limit。
 - Progressive parent unlock 寫入 metadata；child re-record 不會重新鎖定。
+- 草稿與 ready practice 都保存短片段長度偏好；舊 metadata 沒有此欄位時，公開 snapshot
+  安全視為 `Short`，不改動原有素材、片段、錄音或音訊快取。
 - AI audio batch 先寫入所有切片，再以一次 metadata transaction 安裝整組 child cache；
   失敗時不留下部分可用的短片段。
 - `Clear` 等待 metadata write queue 後，只遞迴刪除專用 root。
@@ -137,6 +145,8 @@ ai-audio/<chunk-id>-<fingerprint>.wav
 focus view。`listen-repeat-flow.ts` 保存可獨立測試的 domain UI 邏輯：
 
 - 頁面以 prepare／practice 互斥 stage 呈現，避免有效結果出現後仍佔用高度顯示素材表單。
+- Progressive 素材表單在模式卡下方顯示 Short／Medium／Long 三段原生 range 拉桿；
+  Advanced 隱藏但保留本地選擇，處理期間與素材、模式一起鎖定。
 - Codex process 尚未回傳時，以 `role=status` 呈現經過秒數和分段式等待說明；這只表示請求
   仍在進行，不假造 server 端百分比或精確完成時間。
 - Advanced long chunk 直接使用唯一 sentence card；Progressive 的可操作 long parent 卡在上、
@@ -157,7 +167,7 @@ narrow IPC 傳給 Main；不把 learner audio 傳給 Codex、OpenAI TTS 或其�
 ## 4. State Flow
 
 ```text
-draft material + mode
+draft material + mode + Progressive short-chunk length preference
   → Main validates grapheme/mode
   → isolated single-result Codex segmentation
       full material units once → numeric boundaries only
@@ -189,7 +199,8 @@ Preload 暴露 frozen `listenRepeat` API：
 - `clear`
 
 IPC 不接受 Renderer 檔案路徑、model、endpoint、instructions、API key 或任意 filesystem
-operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證。
+operation。音訊 bytes、MIME、ID、material、mode 與 short-chunk length allowlist 都在 Main
+再次驗證。
 
 ## 6. Persistence and Backup Boundary
 
@@ -220,22 +231,22 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 
 | Test file | Coverage |
 |---|---|
-| `listen-repeat-contracts.test.ts` | Unicode grapheme 與 2,000/2,001 邊界 |
+| `listen-repeat-contracts.test.ts` | Unicode grapheme、2,000/2,001 邊界與短片段長度 allowlist |
 | `listen-repeat-artifacts.test.ts` | numbered units、Advanced/Progressive reconstruction 與無效邊界拒絕 |
-| `listen-repeat-controller.test.ts` | single result、fast model routing、atomic install/preserve、confirm、isolation |
-| `listen-repeat-store.test.ts` | restart、unlock、recording replace、ID/MIME、temporary cleanup、clear |
+| `listen-repeat-controller.test.ts` | single result、length payload、fast model routing、atomic install/preserve、confirm、isolation |
+| `listen-repeat-store.test.ts` | length／legacy restore、restart、unlock、recording replace、ID/MIME、temporary cleanup、clear |
 | `listen-repeat-voice-service.test.ts` | parent-only TTS、timestamps、derived slices、group dedupe、restart cache、fingerprint、cancel |
-| `listen-repeat-ipc.test.ts` | narrow operations 與 malformed payload |
-| `listen-repeat-skill.test.ts` | skill contract 與 runtime install |
+| `listen-repeat-ipc.test.ts` | narrow operations、length allowlist 與 malformed payload |
+| `listen-repeat-skill.test.ts` | 三檔 length heuristic、skill contract 與 runtime install |
 | `listen-repeat-flow.test.ts` | sequence、resume、overwrite scope 與 VAD guards |
-| `ListenRepeatWorkspace.test.tsx` | stage exclusivity、compact Advanced、processing feedback、material UI、limit、hierarchy、AI Voice、overwrite、clear |
+| `ListenRepeatWorkspace.test.tsx` | length slider、stage exclusivity、compact Advanced、processing feedback、material UI、limit、hierarchy、AI Voice、overwrite、clear |
 | `App.test.tsx` | Sidebar order 與 independent workspace |
 | `data-backup-service.test.ts` | export/restore 排除 current practice |
 | `desktop.spec.ts` | production bundle、skill install、preload 與真實頁面入口 |
 
 最近驗證（2026-08-11）：
 
-- Root Vitest：server 3/3、Desktop 497/497 passed。
+- Root Vitest：server 3/3、Desktop 506/506 passed。
 - Root TypeScript typecheck：server、Desktop passed。
 - Root production build：server、Desktop passed（只有既有 renderer chunk-size advisory）。
 - Electron Playwright E2E：3/3 passed；既有 center-scroll 案例曾偶發逾時，單獨與完整重跑皆通過。
@@ -243,7 +254,12 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 ## 9. Known Limitations
 
 - VAD threshold 與時間常數是跨裝置基準，極端噪音環境可能需要後續調校。
-- TTS 實際秒數受語言、voice、tone 與內容影響；Progressive short 通常 0.75–1.5 秒、為保留可獨立跟讀的緊密詞組時可到約 2 秒，long 為 5–10 秒，均屬 segmentation heuristic。
+- TTS 實際秒數受語言、voice、tone 與內容影響；Progressive short／medium／long 分別以
+  0.75–1.5、1.5–2.5、2.5–4 秒為相對目標，parent long 為 5–10 秒，均屬 segmentation
+  heuristic 而非精確音訊長度保證。Short 以正常朗讀的 spoken timing units 估算跨語言
+  負荷：空白分詞語言參考 lexical words／syllables，漢字語言參考 lexical units／spoken
+  syllables，mora-timed 語言參考韻律群／morae，其他或混合語言使用最近的韻律／音節
+  單位。可獨立模仿的 short group 不必是完整子句。
 - word timestamps 只對齊 OpenAI 產生的完整朗讀母帶；不轉錄 Learner Recording，
   不進行音素對齊或發音評分。
 - transcript 文字或 short boundary 無法安全對應時整組拒絕並要求重試，不使用字數比例猜測
@@ -256,7 +272,9 @@ operation。音訊 bytes、MIME、ID 與 material/mode 都在 Main 再次驗證�
 
 - `CONTEXT.md`
 - `documents/implements/F58-listen-and-repeat-practice.md`
+- `documents/implements/F60-select-progressive-short-chunk-length.md`
 - `documents/implements/B18-complete-listen-repeat-segmentation-in-one-result.md`
 - `documents/implements/B20-derive-listen-repeat-short-audio-from-long-take.md`
+- `documents/implements/B21-balance-multilingual-listen-repeat-short-chunks.md`
 - `documents/modules/ai-voice.md`
 - `documents/modules/data-backup.md`

@@ -121,6 +121,56 @@ describe("ListenRepeatVoiceService", () => {
       .every(({ aiAudio }) => aiAudio)).toBe(true);
   });
 
+  it("derives Progressive slices when transcription spells out printed numbers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "listen-repeat-spoken-numbers-"));
+    const store = new LocalListenRepeatStore(root);
+    const installed = await store.replacePractice({
+      practiceId: "practice-spoken-numbers",
+      material: "At the age of 41, I found myself $800,000 in debt,",
+      mode: "progressive",
+      longChunks: [{
+        text: "At the age of 41, I found myself $800,000 in debt,",
+        shortChunks: [
+          { text: "At the age of 41," },
+          { text: " I found myself" },
+          { text: " $800,000 in debt," }
+        ]
+      }]
+    });
+    const parent = installed.practice!.longChunks[0];
+    const fetch = vi.fn(async (url) => String(url).endsWith("/audio/speech")
+      ? new Response(pcmWav(3).buffer as ArrayBuffer)
+      : Response.json({ words: [
+        { word: "At", start: 0.05, end: 0.14 },
+        { word: "the", start: 0.15, end: 0.23 },
+        { word: "age", start: 0.24, end: 0.35 },
+        { word: "of", start: 0.36, end: 0.43 },
+        { word: "forty", start: 0.44, end: 0.58 },
+        { word: "one", start: 0.59, end: 0.7 },
+        { word: "I", start: 0.72, end: 0.78 },
+        { word: "found", start: 0.79, end: 0.94 },
+        { word: "myself", start: 0.95, end: 1.14 },
+        { word: "eight", start: 1.16, end: 1.3 },
+        { word: "hundred", start: 1.31, end: 1.5 },
+        { word: "thousand", start: 1.51, end: 1.72 },
+        { word: "dollars", start: 1.73, end: 1.91 },
+        { word: "in", start: 1.93, end: 2 },
+        { word: "debt", start: 2.01, end: 2.2 }
+      ] })) as typeof globalThis.fetch;
+    const service = new ListenRepeatVoiceService({
+      store,
+      settingsStore: { load: async () => settings() },
+      apiKeyStore: { load: async () => "sk-test" },
+      fetch
+    });
+
+    await service.prepare("practice-spoken-numbers", parent.shortChunks[0].id);
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect((await store.getSnapshot(true)).practice!.longChunks[0].shortChunks
+      .every(({ aiAudio }) => aiAudio)).toBe(true);
+  });
+
   it("reuses persisted parent and derived child audio without another alignment", async () => {
     const root = await mkdtemp(join(tmpdir(), "listen-repeat-derived-cache-"));
     const store = new LocalListenRepeatStore(root);

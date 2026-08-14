@@ -540,6 +540,166 @@ DDD standalone TDD regression-fix completion notification.
 **Follow-up**
 - No action required. B18 v3 is implemented and its completion summary was delivered.
 
+#### L027 — 2026-08-10 15:01 CST — F59 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F59 為學習項目上傳一張代表圖片`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L028 — 2026-08-10 22:16 CST — B19 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B19 讓學習項目例句使用項目語言`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L029 — 2026-08-11 03:30 CST — B20 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B20 讓跟讀短片段與長片段共用同一次朗讀語氣`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L030 — 2026-08-11 04:01 CST — F60 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F60 選擇漸進跟讀模式的短片段長度`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L031 — 2026-08-11 19:06 CST — F61 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F61 在已批改的間隔複習題顯示學習項目代表圖片`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L032 — 2026-08-13 16:42 CST — B22 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B22 將新章節的閱讀區段預設為完整章節`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L033 — 2026-08-13 16:48 CST — B23 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B23 修正閱讀區段推進後 START 顯示在上一行`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L034 — 2026-08-14 01:07 CST — F62 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F62 在生詞庫緊湊顯示學習進度分類數量`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
 #### L035 — 2026-08-14 01:53 CST — F63 — orchestrator -> user — notification
 
 **Message**
@@ -549,6 +709,46 @@ DDD standalone TDD completion notification.
 - From: `highsunday0630@gmail.com`
 - To: `highsunday.project@gmail.com`
 - Subject: `[DDD TDD Completed] F63 設定每日整合造句目標並在側欄顯示剩餘數量`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L036 — 2026-08-14 02:07 CST — B24 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B24 只有 Everything looks good 的整合造句練習才計入每日目標`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail (not invoked)
+- Reason: this request authorized the local implementation but did not explicitly authorize sending
+  its implementation and test summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize sending this completion
+  notification in a later request.
+
+#### L037 — 2026-08-14 02:31 CST — F64 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F64 在整合造句練習頁顯示今日、累計與三十天運用統計`
 
 **Artifacts**
 - Delivery status: failed

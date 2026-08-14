@@ -29,9 +29,24 @@ describe("prepare-listen-and-repeat-practice skill", () => {
     expect(normalizedSkill).toContain("prefer 1–4 lexical words");
     expect(normalizedSkill).toContain("Avoid five or more lexical words");
     expect(normalizedSkill).toContain(
+      "An independently repeatable group does not need to be a complete clause"
+    );
+    expect(normalizedSkill).toContain("For languages written mainly with Han characters");
+    expect(normalizedSkill).toContain("For mora-timed languages such as Japanese");
+    expect(normalizedSkill).toContain("For any other language or mixed-language span");
+    expect(normalizedSkill).toContain("syllables, morae, or the language's nearest spoken timing units");
+    expect(normalizedSkill).toContain(
+      "search backward for the nearest earlier defensible boundary"
+    );
+    expect(normalizedSkill).toContain(
+      "Do not merge up to a complete clause merely because it is grammatically complete"
+    );
+    expect(normalizedSkill).toContain(
       "prioritize a genuine prosodic, breath, or silence boundary"
     );
-    expect(normalizedSkill).not.toContain("A subject may stand alone");
+    expect(normalizedSkill).toContain(
+      "A subject, topic, or other constituent may stand as its own short chunk"
+    );
     expect(normalizedSkill).toContain("Never choose a short or long boundary that leaves punctuation");
     expect(normalizedSkill).toContain("Keep closing punctuation with the preceding spoken text");
     expect(skill).toContain("5–10 seconds");

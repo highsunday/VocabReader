@@ -2,7 +2,7 @@
 title: 書籍與本機書庫模組
 module: book-library
 status: active
-last_updated: 2026-07-29
+last_updated: 2026-08-11
 related_implements:
   - F01-epub-book-library
   - F02-chapter-reading-resume
@@ -44,6 +44,8 @@ related_implements:
 
 - 透過 Electron 原生檔案選擇器導入 .epub。
 - 解析標準 EPUB 2 與 EPUB 3 的書名、作者、封面及章節順序。
+- 接受只使用 IDPF 或 Adobe 標準字型混淆的 EPUB；`rights.xml`、內容加密、未知演算法、
+  混合加密及把字型混淆識別套用於非字型資源的 EPUB 仍會拒絕導入。
 - 保留 EPUB 目錄的章節／子章節層級與 fragment；同一 XHTML 中的子章節不會被誤判為重複項目。
 - 將 EPUB 原始檔與書庫索引保存於 Electron user data 目錄。
 - 重新開啟應用程式後載入既有書庫。
@@ -233,7 +235,12 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - 如果沒有 navigation／NCX 連結，依 spine manifest 順序建立 fallback 章節。
 - EPUB 3 封面使用 manifest cover-image property；EPUB 2 使用 metadata cover id。
 - archive href 會移除 fragment、嘗試 percent decoding、正規化，並拒絕絕對路徑與 ../ traversal。
-- 發現 META-INF/rights.xml 或 META-INF/encryption.xml 時，目前一律視為不支援的 DRM EPUB。
+- 發現 `META-INF/rights.xml` 時視為不支援的 DRM EPUB。
+- `META-INF/encryption.xml` 只有在每個 `EncryptedData` 都使用 IDPF
+  `http://www.idpf.org/2008/embedding` 或 Adobe
+  `http://ns.adobe.com/pdf/enc#RC` 字型混淆演算法、指向容器內存在的
+  `.otf`／`.ttf`／`.woff`／`.woff2` 資源時才接受；其他內容加密、未知、混合或錯誤標示
+  一律拒絕。閱讀器目前不載入 EPUB 自訂字型，因此不需解開混淆字型也能顯示正文。
 
 ## 8. Persistence
 
@@ -276,6 +283,8 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - 封面 Data URL 需要 renderer CSP 的 img-src data:，不可因此放寬 script CSP。
 - 書籍總覽過長時只能捲動中央 .content；左側書庫和右側 AI 面板維持在 viewport 內。
 - 導入失敗不得在索引留下半完成書籍。
+- `encryption.xml` 的存在本身不代表 DRM；DRM 判定必須區分標準字型混淆與內容加密，
+  且不可因演算法名稱合法就接受非字型資源。
 - EPUB 原始 XHTML 不可直接注入 renderer；章節輸出必須維持 allowlist 與外部資源封鎖。
 - 子章節定位只允許在安全閱讀元素上保留經驗證及 escaping 的 `id`，不得因此放寬其他 EPUB 屬性。
 - 閱讀位置使用 0–1 相對值並限制於有效範圍；不存在的書籍或章節不得改寫狀態。
@@ -293,7 +302,7 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 
 | Test file | Coverage |
 |---|---|
-| apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、TOC 相對路徑、章節階層與 parse-version 舊索引遷移、fragment 定位、安全內容與圖片、閱讀狀態及每章範圍持久化、不存在書籍／章節與錯誤回滾 |
+| apps/desktop/src/main/library-service.test.ts | EPUB 導入與刪除、標準字型混淆接受與內容加密／錯誤標示拒絕、TOC 相對路徑、章節階層與 parse-version 舊索引遷移、fragment 定位、安全內容與圖片、閱讀狀態及每章範圍持久化、不存在書籍／章節與錯誤回滾 |
 | apps/desktop/src/main/library-ipc.test.ts | 書庫、導入、刪除、章節、閱讀狀態與閱讀區段 handler，以及輸入驗證 |
 | apps/desktop/src/main/settings-store.test.ts | 閱讀版面預設、完整保存、舊設定相容與無效欄位獨立降級 |
 | apps/desktop/src/main/settings-ipc.test.ts | 字級、紙張寬度、行距及完整設定 payload 的範圍／步進驗證 |
@@ -301,12 +310,13 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 | apps/desktop/src/renderer/reading-range.test.ts | 約 800 字初始化、短章、嚴格裁切、等長推進、章末停止、DOM 文字位置與標記資料獨立性 |
 | apps/desktop/tests/e2e/desktop.spec.ts | Electron 安全 bridge（含刪除與閱讀區段 API）、閱讀版面保存與 computed style、響應式紙張寬度、Data URL 圖片政策、中央獨立捲動與固定左右欄 |
 
-最近相關驗證（2026-07-29）：
+最近相關驗證（2026-08-11）：
 
-- Desktop Vitest：302/302 passed。
+- Desktop Vitest：510/510 passed（其中 `library-service.test.ts` 25/25 passed）。
 - Desktop TypeScript typecheck：passed。
-- Desktop production build：passed。
-- 本次未重跑 Server Vitest 與 Electron Playwright；F40／B14 不改動 server、preload 或 Electron main process。
+- Desktop main-process build：passed。
+- 本次未重跑 Server Vitest、完整 production build 與 Electron Playwright；修正只改動
+  main-process EPUB DRM 判定及其 service 測試。
 
 ## 12. Known Limitations and Technical Debt
 
@@ -317,7 +327,8 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - 書庫沒有跨 process 寫入鎖；目前假設只有單一 Electron main process 操作。
 - Base64 封面直接保存在 index.json 並經 IPC 傳遞；大量或高解析度封面可能使索引與 IPC payload 過大。
 - 封面解析只支援標準 cover-image／legacy cover metadata 指向的直接圖片，不支援以封面 XHTML 間接引用圖片的變體。
-- 目前只檢查 encryption／rights 文件是否存在，未區分完整 DRM 與可解密的字型混淆等情況。
+- 目前接受並略過標準混淆字型，因安全章節輸出不載入 EPUB 自訂 CSS／字型；若未來支援
+  書內字型呈現，需依 publication identifier 實作相應 deobfuscation。
 - E2E 測試驗證 bridge、圖片政策與版面，但未自動操作原生檔案選擇器完成真實 EPUB 導入。
 - renderer 的書庫、閱讀、複習與 AI 狀態目前集中在 App.tsx；功能成長後需要拆分狀態與畫面邊界。
 

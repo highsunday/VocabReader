@@ -2,11 +2,12 @@
 title: AI 輔助學習項目建立模組
 module: learning-item-creation
 status: active
-last_updated: 2026-08-08
+last_updated: 2026-08-10
 related_implements:
   - F21-ai-assisted-learning-item-creation
   - F22-read-only-learning-item-draft-preview
   - B06-use-explanation-language-for-learning-cards
+  - B19-use-learning-item-language-for-examples
   - B07-preserve-clarified-learning-item-targets
   - F27-trigger-learning-card-creation-from-natural-language
   - F28-ai-graded-spaced-review-paper
@@ -87,8 +88,10 @@ AI 逐筆依 canonical title 與目標語義判定**學習項目語言**；它�
   繁體中文使用繁體中文、日文使用日文。同一批草稿可以逐張使用不同語言，閱讀區段的
   語言不得覆蓋這項判斷。
 - 設定為 `zh-TW`、`en` 或 `ja` 時，批次內每張草稿分別固定使用繁體中文、英文或日文。
-- 所選語言套用到釋義、用法說明與例句翻譯；title、IPA、英文例句及其他需保留原貌的
-  內容不被強制翻譯。
+- 每句例句本體使用該筆學習項目語言；英文、日文與繁體中文項目分別使用自然的
+  英文、日文與繁體中文例句。
+- 所選講解語言套用到釋義、用法說明與例句翻譯。講解語言與學習項目語言不同時，
+  每句例句後提供講解語言翻譯；兩者相同時不重複翻譯。title 與 IPA 維持原貌。
 - 結構化 `sense` 維持簡短英文語義識別，確保既有候選查詢與語義去重契約不變。
 
 ## 5. Trust Boundaries

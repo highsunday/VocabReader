@@ -9,6 +9,10 @@ status: implemented
 
 # Bug Fix Specification - 新增學習卡片的原文語言判斷錯誤
 
+> 例句本體固定為英文的舊契約已由
+> `B19-use-learning-item-language-for-examples` 取代；B06 仍作為講解語言來源判定的
+> 歷史實作紀錄。
+
 ## 1. Bug Overview
 
 「新增學習卡片」已傳送全域**講解語言**設定，但 Main Process 目前把 `source`

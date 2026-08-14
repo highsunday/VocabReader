@@ -2,7 +2,7 @@
 title: AI 批改與 FSRS 間隔複習模組
 module: spaced-review
 status: active
-last_updated: 2026-08-09
+last_updated: 2026-08-14
 related_implements:
   - F28-ai-graded-spaced-review-paper
   - F29-stream-spaced-review-generation-and-scroll-paper
@@ -19,6 +19,9 @@ related_implements:
   - F48-diversify-spaced-review-sentences
   - F52-edit-learning-items-from-completed-review
   - F55-edit-learning-items-from-graded-review
+  - F59-add-learning-item-representative-image
+  - F61-show-learning-item-image-in-graded-review
+  - F62-show-learning-library-study-status-counts
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -76,6 +79,9 @@ related_implements:
   移入垃圾桶；排程確認後的完成頁逐筆顯示學習項目標題、最終評級與下次複習時間，
   且每列沿用可編修或移入垃圾桶的同一個詳情。後續 mutation 不重跑出題、批改或
   複習確認，關閉後仍保留結果與下一步操作。
+- 複習 queue、未作答題面與 AI 出題 scope 不包含代表圖片；批改完成後才以受信任 item
+  id 懶載入完整項目，在每題回饋右上方顯示可選縮圖。批改後或完成頁開啟完整詳情時，
+  另沿用 editable 入口的 Add／Replace／Remove 能力；圖片異動會立即同步目前回饋縮圖。
 - 使用 `ts-fsrs`、固定 90% 目標記憶率及預設參數計算精確到期時間。
 - 同一回合在單一 SQLite 交易寫入所有事件與排程；成功後可連續開始下一回合。
 - 生詞庫詳情懶載入目前狀態、最後評級、下次到期、次數，以及逐筆顯示原始複習
@@ -107,7 +113,8 @@ related_implements:
 4. 先選已再次到期的學習中項目，再依精確逾期時間選其他既有到期項目，最後以沒有
    schedule 的 active 新項目依 CEFR 與建立時間補足。
 5. `selectedItems` 最多為 `reviewPaperSize`；`totalAvailable` 是目前受額度限制後可排入
-   後續試卷的數量，`backlogTotal` 另保留完整待處理量。
+   後續試卷的數量，`backlogTotal` 另保留完整待處理量。queue item 明確移除代表圖片，
+   避免在作答前的 Renderer payload 或 AI scope 洩漏目標語義。
 6. 沒有目前可用項目時回傳最近一筆尚未到期的 `nextDueAt`；存在學習中項目時，
    Renderer 顯示最近到期時間，並以單次 timer 在抵達後重新查詢摘要與更新側欄
    可複習數。沒有等待中的學習路徑時，Renderer 才依 backlog 判斷今日額度已用完。
@@ -248,11 +255,14 @@ paused view 可開啟放棄確認 alert dialog；取消只關閉 dialog，確認
 階段持續顯示；已有試卷時不再顯示生成按鈕。試卷收合時，同頁下方顯示當前試卷卡；
 展開時，同一位置顯示完整試卷。
 
-只有整份試卷完成 AI 批改後，每題才顯示帶有卡片圖示的「打開學習卡」。入口以受信任
-`question.itemId` 呼叫既有 `learning:get`，並用生詞庫共用的詳情 modal 顯示安全
+只有整份試卷完成 AI 批改後，每題才顯示帶有卡片圖示的「打開學習卡」，同時以受信任
+`question.itemId` 個別懶載入完整項目；若項目有代表圖片，回饋區右上方顯示具名正方形
+縮圖，無圖不保留 placeholder，單筆載入失敗也不阻擋其他回饋或排程確認。詳情入口使用
+同一個 item id 呼叫既有 `learning:get`，並用生詞庫共用的詳情 modal 顯示安全
 Markdown、發音、複習排程與精簡歷史。reviewing 與 completed 都傳入 editable
 capability 及 mutation callback，沿用既有人工 Save 與 AI Apply；只有 completed 另外
-允許 Delete 與移入垃圾桶。刪除後重查生詞庫 counts，但完成事件列仍保留；所有詳情
+允許 Delete 與移入垃圾桶。兩者都會顯示完整項目中的代表圖片並允許獨立圖片 mutation；
+reviewing 的圖片 mutation 會同步該題回饋縮圖。刪除後重查生詞庫 counts，但完成事件列仍保留；所有詳情
 操作都不重跑生成、批改或確認。關閉按鈕、Escape 與 backdrop 會把焦點還給原觸發
 按鈕。
 精簡歷史逐筆顯示「Your answer」與原始換行文字；留白顯示 `Not answered`，schema 4
@@ -271,7 +281,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 |---|---|
 | `.agents/skills/practice-spaced-review/SKILL.md` | 例句生成、語義批改、表達建議、四級 rubric 與 artifact 契約 |
 | `apps/desktop/src/shared/review-contracts.ts` | Main／Preload／Renderer 共用 review 型別 |
-| `apps/desktop/src/main/learning-library-service.ts` | queue、SQLite migration、FSRS 與原子確認 |
+| `apps/desktop/src/main/learning-library-service.ts` | queue、共用學習進度／Solid recall 分類、SQLite migration、FSRS 與原子確認 |
 | `apps/desktop/src/main/spaced-review-artifacts.ts` | paper／grade artifact 嚴格驗證 |
 | `apps/desktop/src/main/spaced-review-controller.ts` | 暫態 scope、隔離 AI turn 與確認信任邊界 |
 | `apps/desktop/src/main/spaced-review-ipc.ts` | review IPC 白名單及 payload 驗證 |
@@ -284,12 +294,12 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 
 | Test file | Coverage |
 |---|---|
-| `learning-library-service.test.ts` | 學習路徑、完成判定、學習中項目不預占完成額度、跨日分類、穩定掌握／衰退、90 天成果、30 天活動與回想率、獨立額度、零值暫停、可設定題數、三層排序、精確到期、FSRS、覆寫歷史、試卷確認期間刪除、垃圾桶與重複確認 |
+| `learning-library-service.test.ts` | 學習路徑、完成判定、學習中項目不預占完成額度、跨日分類、Library Strong 與 Solid recall 一致性、四進度篩選、穩定掌握／衰退、90 天成果、30 天活動與回想率、獨立額度、零值暫停、可設定題數、三層排序、圖片不進 queue、精確到期、FSRS、覆寫歷史、試卷確認期間刪除、垃圾桶與重複確認 |
 | `spaced-review-skill.test.ts` | 新語境與 Examples 避重規則、自然度優先、評級獨立、表達建議三態、長度獨立、留白答案、語言分工及改寫契約 |
 | `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、表達建議正規化、缺題、未知／重複 id 與錯 scope 拒絕 |
 | `spaced-review-controller.test.ts` | 暫態 paper／expression feedback、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |
 | `spaced-review-ipc.test.ts` | 六個操作、安全 typed generation count payload 與惡意 payload 拒絕 |
-| `SpacedReviewWorkspace.test.tsx` | 穩定掌握成果卡、90 天可存取折線、30 天活動卡、零資料、完成後刷新、整合式狀態卡、等待到期文案與自動刷新、完成數與確定進度、意思／表達分區、四級結果色彩、批改後人工／AI 編修但禁止移入垃圾桶、完成頁編修與垃圾桶及 counts 刷新、焦點回復、短答案與不適用建議、先離開／繼續、放棄二次確認、取消／晚到結果、空白提醒、覆寫、確認與真正卸載清除 |
+| `SpacedReviewWorkspace.test.tsx` | 穩定掌握成果卡、90 天可存取折線、30 天活動卡、零資料、完成後刷新、整合式狀態卡、等待到期文案與自動刷新、完成數與確定進度、意思／表達分區、四級結果色彩、批改後代表圖片延遲載入／無圖／失敗隔離／mutation 同步、批改後人工／AI 編修但禁止移入垃圾桶、完成頁編修與垃圾桶及 counts 刷新、焦點回復、短答案與不適用建議、先離開／繼續、放棄二次確認、取消／晚到結果、空白提醒、覆寫、確認與真正卸載清除 |
 | `learning-library-workspace.test.tsx` | 詳情摘要、可展開精簡歷史、作答文字與新舊留白狀態 |
 | `App.test.tsx` | 側欄數量與狀態 icon、獨立工作區、進入時不呼叫生成，以及生成／作答／批改狀態跨工作區保留 |
 | `bundled-skill.test.ts` | 第四份內建 skill 安裝／更新 |
@@ -312,8 +322,9 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
   Codex 預設模型。
 - 完成數取決於 Codex delta 的分段粒度；單一 delta 同時包含多題時，數字會一次跳升，
   但不會以計時器製造假進度。
-- 摘要目前會依完整複習事件序列推導學習路徑；資料量大幅成長後可能需要持久化索引
-  或快取，以避免每次摘要都掃描全部 active 項目的事件。
+- Review summary、Library progress counts 與 progress filter 目前會依完整複習事件序列
+  推導學習路徑與 Solid recall；資料量大幅成長後可能需要持久化索引或快取，以避免
+  每次查詢都掃描全部 active 項目的事件，同時仍維持單一判定來源。
 
 ## 11. Related Documents
 
@@ -329,6 +340,9 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 - `documents/implements/F36-show-spaced-review-daily-status.md`
 - `documents/implements/F52-edit-learning-items-from-completed-review.md`
 - `documents/implements/F55-edit-learning-items-from-graded-review.md`
+- `documents/implements/F59-add-learning-item-representative-image.md`
+- `documents/implements/F61-show-learning-item-image-in-graded-review.md`
+- `documents/implements/F62-show-learning-library-study-status-counts.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/skill-management.md`
 - `documents/modules/ai-conversation.md`

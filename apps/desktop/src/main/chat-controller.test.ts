@@ -2141,6 +2141,18 @@ describe("create-learning-items skill", () => {
     expect(skill).toContain("`requestedTitles`");
   });
 
+  it("uses each learning item's language for examples instead of forcing English", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain(
+      "Write every example in the learning item's own language"
+    );
+    expect(skill).toContain(
+      "When the explanation language and learning-item language are the same, do not add a redundant translation"
+    );
+    expect(skill).not.toContain("complete English examples");
+  });
+
   it("returns structured targets whenever it asks a creation clarification", () => {
     const skill = learningItemCreationSkillInstructions;
 

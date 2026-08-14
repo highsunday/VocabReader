@@ -2,7 +2,7 @@
 title: 本機生詞庫模組
 module: learning-library
 status: active
-last_updated: 2026-08-09
+last_updated: 2026-08-14
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
@@ -18,6 +18,8 @@ related_implements:
   - F52-edit-learning-items-from-completed-review
   - F53-open-existing-learning-item-from-card-review
   - F55-edit-learning-items-from-graded-review
+  - F59-add-learning-item-representative-image
+  - F62-show-learning-library-study-status-counts
 ---
 
 # 本機生詞庫模組
@@ -50,6 +52,9 @@ related_implements:
 - 同標題不同語義以不同不可變 id 保存，不合併內容。
 - 每個項目提供可留空的學習注意事項；完整詳情以 `Note`、紅字與紅底線顯示，清單摘要
   與未作答複習題面不載入或顯示。
+- 每個正式項目可保存一張可留空的代表圖片；Main 將 JPEG／PNG／WebP 來源自動中心裁切、
+  白底合成並輸出為 256×256 JPEG 品質 85。圖片只在完整詳情顯示，清單、未作答複習題
+  與複習 AI scope 都不包含圖片。
 - 共用置中詳情 modal、安全 Markdown、發音、複習排程與歷史；從生詞庫、已批改的
   複習試卷或排程已確認的複習完成頁開啟時保留人工編輯與 AI 編修，只有生詞庫與
   完成頁提供刪除；從 AI 輔助建立的已存在結果或整合造句練習開啟時則為唯讀。
@@ -86,13 +91,16 @@ related_implements:
   `newCount`，Studying 對齊兩類 learning count，Strong 復用 Solid recall 判定，
   Familiar 是已開始且不屬於 Studying／Strong 的其餘 active 項目。
 - 更新學習內容與時間戳。
+- 以 active guard 原子保存或移除處理後的代表圖片 BLOB；Trash／restore 保留圖片，永久
+  清空項目 row 時才一併刪除。
 - 以 `applyAiEdit()` 只更新 Markdown、注意事項與時間戳，並以 active 狀態與原始
   `updatedAt` 拒絕過期或垃圾桶工作階段覆寫。
 - 執行 `active → trashed → active` 狀態轉移。
 - 以交易永久清空全部垃圾桶項目。
 - 以 `findDuplicateCandidates()` 提供 deterministic exact-title 候選，不做語義判斷。
 - 以 `createItemsAtomically()` 提供草稿批次的全有或全無新增。
-- 依 Main 裝置時間選出最多十個複習項目，已到期優先，新項目依 CEFR 補入。
+- 依 Main 裝置時間與可設定的 1–20 題試卷大小選出複習項目，已到期優先，新項目依
+  CEFR 補入，並遵守新項目與到期複習的每日完成上限。
 - 以獨立 read-only query 計算並隨機抽取 active、英文且 `review_count > 0` 的整合造句
   必要用詞，不沿用 due、daily limit 或 review paper size。
 - 驗證四級評級與複習作答、讀寫 FSRS card 狀態，並在單一交易追加事件與更新排程。
@@ -106,7 +114,7 @@ Renderer 不知道資料庫路徑、schema 或 SQL。
 
 ### Electron IPC and Preload
 
-Renderer 只能使用以下七個一般型別化操作：
+Renderer 只能使用十個一般型別化操作；本機圖片選取仍由 Main 的原生 dialog 擁有：
 
 - `learning:list`
 - `learning:counts`
@@ -115,6 +123,9 @@ Renderer 只能使用以下七個一般型別化操作：
 - `learning:trash`
 - `learning:restore`
 - `learning:empty-trash`
+- `learning:select-representative-image`
+- `learning:set-representative-image-from-url`
+- `learning:remove-representative-image`
 
 IPC 在呼叫 repository 前再次驗證跨程序資料。Preload 不暴露 create、任意 SQL、
 Node API 或通用 IPC。
@@ -145,6 +156,8 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 - 詳情 modal、焦點回復、Escape／遮罩關閉。
 - Markdown 查看、編輯、預覽與錯誤狀態。
 - 學習注意事項的人工編輯、即時預覽與醒目完整詳情呈現。
+- 代表圖片的完整詳情顯示，以及 editable 入口中的立即 Add／Replace 與確認後 Remove；
+  read-only 入口只顯示、不渲染 mutation。
 - 以現有詳情作為唯一草稿預覽的 AI composer、多輪狀態、停止、明確 Apply 與未套用
   變更離開確認。
 - 對共用詳情分別提供 editable／read-only 與是否可移入垃圾桶的 capability；生詞庫、
@@ -163,13 +176,13 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 | `LearningItemLanguage` | `en | ja | zh-TW | other` |
 | `CefrLevel` | `A1 | A2 | B1 | B2 | C1 | C2` |
 | `LearningItemStatus` | `active | trashed` |
-| `LearningItemSort` | `recent | alphabetical` |
-| `LearningItem` | id、標題、類型、語言、CEFR、語義、Markdown、注意事項、狀態與時間戳 |
-| `LearningItemSummary` | 清單所需結構化欄位、study status 與 due；不含 Markdown |
-| `LearningItemListInput` | 狀態、可選搜尋／語言／類型／CEFR／study status、排序與 opaque cursor |
+| `LearningItemSort` | `recent | alphabetical | study-status | next-due` |
+| `LearningItem` | id、標題、類型、語言、CEFR、語義、Markdown、注意事項、nullable 代表圖片、狀態與時間戳 |
+| `LearningItemSummary` | 清單所需結構化欄位、study status 與 due；不含 Markdown、注意事項或代表圖片 |
+| `LearningItemListInput` | 狀態、可選搜尋／語言／類型／CEFR／progress status／study status、排序與 opaque cursor |
 | `LearningItemPage` | 最多 50 筆摘要及 nullable `nextCursor` |
-| `LearningItemCounts` | active／trash 完整數量 |
-| `UpdateLearningItemInput` | item id 與可編輯的全部結構化／Markdown／注意事項欄位 |
+| `LearningItemCounts` | active／trash 與 New／Studying／Familiar／Strong 完整數量 |
+| `UpdateLearningItemInput` | item id 與可編輯的結構化／Markdown／注意事項欄位；不攜帶代表圖片 |
 | `LearningItemEditSnapshot` | 單項暫態 AI 編修的最新草稿、phase、變更與簡短狀態 |
 | `LearningItemDraft` | 尚未提交的 word／phrase 結構、Markdown 與 included／excluded |
 | `LearningItemDraftBatch` | drafts、active／trash matches 與提交結果 |
@@ -188,7 +201,7 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 - `learning_metadata`：一次性 seed 等 repository metadata。
 - `learning_items`：學習項目內容、語言、注意事項、狀態與時間戳；schema 5 把既有 row
   backfill 為英文並保存四類語言，schema 6 新增 non-null `caution_note` 並以空字串
-  backfill 舊項目。
+  backfill 舊項目，schema 7 新增 nullable `representative_image` JPEG BLOB。
 - `learning_review_schedules`：每個項目的目前 FSRS card、due、次數與最後評級。
 - `learning_review_events`：複習作答、AI／最終評級、FSRS 前後狀態、間隔及 due 的
   精簡事件；schema 4 的 nullable `answer` 讓舊事件可無損保留。
@@ -198,8 +211,8 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 
 完整資料備份保存整份 SQLite，因此同時包含 active、trashed、FSRS schedules、精簡
 events 與已確認的複習作答；未確認試卷及其作答、詳細 AI 回饋與設定不在資料庫內，
-也不會進入備份。已 Apply 的注意事項屬於正式 SQLite 內容，會隨完整備份往返；AI
-編修 session、需求與未套用草稿不會進入備份。
+也不會進入備份。已 Apply 的注意事項與 active／trashed 項目的處理後代表圖片都屬於正式
+SQLite 內容，會隨完整備份往返；AI 編修 session、需求與未套用草稿不會進入備份。
 
 ## 6. Query and Mutation Flow
 
@@ -235,6 +248,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
   垃圾桶與造句 read-only 詳情不渲染入口。AI 草稿有變更時，Close、Escape 與遮罩
   離開共用放棄確認。
 - 非空注意事項顯示在 Markdown 前，以文字標示、紅色與底線共同傳達重點；空值不留區塊。
+- 代表圖片顯示在標題／sense 下方與注意事項／Markdown 上方，使用描述目前標題與 sense
+  的替代文字；Remove 使用具名 `alertdialog`，取消或 Escape 保留圖片。
 - 詳情中的「刪除」先開啟具名 `alertdialog`；取消或 Escape 只關閉最上層確認視窗，
   明確確認後才呼叫 `learning:trash`，並說明項目仍可還原。
 - Markdown 使用 `react-markdown`、GFM 與 `skipHtml`；連結不允許執行 JavaScript URL。
@@ -245,13 +260,14 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 |---|---|
 | `apps/desktop/src/shared/learning-contracts.ts` | Main／Preload／Renderer 共用型別 |
 | `apps/desktop/src/shared/review-contracts.ts` | 複習摘要、試卷、評級及歷史型別 |
-| `apps/desktop/src/main/learning-library-service.ts` | SQLite、migration、seed、查詢與狀態轉移 |
+| `apps/desktop/src/main/learning-library-service.ts` | SQLite、migration、seed、進度分類、Review summary、查詢與狀態轉移 |
+| `apps/desktop/src/main/learning-item-representative-image.ts` | Main-owned dialog、10 MiB 驗證、中心裁切、固定 JPEG 轉檔與 repository 協調 |
 | `apps/desktop/src/main/learning-item-edit-controller.ts` | 單項暫態 AI thread、草稿、停止、套用與清理 |
 | `apps/desktop/src/main/learning-item-edit-ipc.ts` | 五個 AI edit IPC 白名單 |
 | `apps/desktop/src/main/data-backup-service.ts` | 一致 SQLite snapshot、驗證與跨資料域完整還原 |
 | `apps/desktop/src/main/spaced-review-controller.ts` | 暫態 AI 試卷與受信任確認 scope |
 | `apps/desktop/src/main/learning-item-duplicate-classifier.ts` | 只對 exact-title 候選做 AI 語義重查 |
-| `apps/desktop/src/main/learning-library-ipc.ts` | 七個 IPC 白名單、cursor 與 payload 驗證 |
+| `apps/desktop/src/main/learning-library-ipc.ts` | 十個 IPC 白名單、progress／study filter、cursor、圖片 item id 與 payload 驗證 |
 | `apps/desktop/src/preload/preload.ts` | `window.readerDesktop.learning` typed bridge |
 | `apps/desktop/src/renderer/LearningLibraryWorkspace.tsx` | 生詞庫及共用 editable／read-only 詳情、編輯與垃圾桶 UI |
 | `apps/desktop/src/renderer/App.tsx` | 工作區入口、側欄數量與 AI 面板共存 |
@@ -261,15 +277,16 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 
 | Test file | Coverage |
 |---|---|
-| `learning-library-service.test.ts` | schema 6 migration／語言與注意事項 backfill、seed、搜尋／語言篩選、page、cursor、count、候選、atomic create、guarded AI apply、垃圾桶、sentence-practice eligibility、backup／close |
-| `data-backup-service.test.ts` | active／trash／語言／排程／歷史 snapshot、完整取代與 rollback |
+| `learning-library-service.test.ts` | schema 7 migration／語言、注意事項與圖片 backfill、seed、搜尋／語言／進度篩選、page、cursor、四進度 count／Strong 與 Solid recall 一致性、候選、atomic create、guarded AI apply、圖片 lifecycle／scope、垃圾桶、sentence-practice eligibility、backup／close |
+| `learning-item-representative-image.test.ts` | JPEG／PNG／WebP、10 MiB、拒絕格式、中心裁切、透明白底、256px JPEG 與 Main-owned dialog |
+| `data-backup-service.test.ts` | active／trash／語言／代表圖片／排程／歷史 snapshot、完整取代與 rollback |
 | `spaced-review-artifacts.test.ts`、`spaced-review-controller.test.ts` | 有限 AI scope、artifact 與暫態生命週期 |
 | `learning-library-ipc.test.ts`、`learning-item-edit-ipc.test.ts` | 一般與 AI edit IPC 白名單、惡意／錯誤 payload 拒絕 |
 | `learning-item-artifacts.test.ts`、`learning-item-edit-controller.test.ts` | 嚴格 edit artifact、最小 scope、暫態草稿、Apply 與停止競態 |
 | `learning-library-workspace.test.tsx` | 查詢、四進度指標與切換篩選、卡片時間狀態、分批、Trash、retry、視窗化、共用 modal、安全 Markdown、注意事項、AI 草稿／停止／放棄／Apply 與唯讀邊界 |
 | `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
 | `learning-item-draft-dialog.test.tsx` | 已存在項目唯讀詳情、雙層 Escape 與載入失敗重試 |
-| `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情，以及捲到底後工具區位置不變 |
+| `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情、窄版四進度無水平 overflow，以及捲到底後工具區位置不變 |
 
 最近驗證（2026-08-14）：
 
@@ -277,7 +294,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - Desktop Vitest：515/515 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
-- Electron Playwright E2E：2/2 passed，包含 runtime edit skill 與 `learning.aiEdit` 白名單。
+- Electron Playwright E2E：3/3 passed，包含 Library 窄版四進度完整可見且無水平
+  overflow、runtime edit skill、代表圖片 bridge 與 `learning.aiEdit` 白名單。
 
 ## 10. Known Limitations and Follow-up
 
@@ -285,7 +303,11 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - AI 可編修既有 active 項目的 Markdown 與注意事項；仍不支援批次編修、其他結構欄位、
   保存編修歷史或 AI 刪除。
 - 從標記解析可建立項目，但刻意不保存書籍、章節、標記、原句或來源追溯資料。
-- 已實作 AI 語意試卷與四級 FSRS 複習；尚無 deck、每日上限、optimizer 或完整試卷歷史。
+- 已實作 AI 語意試卷、每日新項目／到期複習上限、可設定題數與四級 FSRS 複習；
+  尚無 deck、手動選題、optimizer 或完整試卷歷史。
+- Review summary、Library progress counts 與 progress filter 目前都會依 active 項目的
+  完整複習事件重建學習路徑與 Solid recall；資料量大幅成長後可能需要持久化索引或
+  快取，同時維持 Library Strong 與 Review Solid recall 的單一判定來源。
 - 已提供整份書庫＋生詞庫的 ZIP 備份與完整還原；不提供合併、個別項目匯入／匯出、
   自動同步、封存、單筆永久刪除或復原已清空垃圾桶。
 
@@ -310,4 +332,6 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - `documents/implements/F52-edit-learning-items-from-completed-review.md`
 - `documents/implements/F53-open-existing-learning-item-from-card-review.md`
 - `documents/implements/F55-edit-learning-items-from-graded-review.md`
+- `documents/implements/F59-add-learning-item-representative-image.md`
+- `documents/implements/F62-show-learning-library-study-status-counts.md`
 - `documents/modules/learning-item-editing.md`

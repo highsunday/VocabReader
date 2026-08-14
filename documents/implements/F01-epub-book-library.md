@@ -188,6 +188,18 @@ Final results: server 3/3 tests passed; desktop 10/10 tests passed; Electron E2E
 - 新增 `jszip` 與 `fast-xml-parser` 作為 EPUB ZIP/XML 解析依賴。
 - 相關模組文件：`documents/modules/book-library.md`。
 
+### 2026-08-11 Maintenance Update — 字型混淆誤判為 DRM
+
+- 原判定只要 EPUB 含 `META-INF/encryption.xml` 就拒絕匯入，但 EPUB 規格也要求
+  用這個檔案記錄內嵌字型混淆，因此會誤擋無 DRM 書籍。
+- `library-service.ts` 改為只接受 IDPF 與 Adobe 字型混淆演算法，並驗證每個受影響
+  資源是容器內存在的字型檔；`rights.xml`、AES 等內容加密、未知／混合演算法或
+  錯誤標示的非字型資源仍拒絕匯入。
+- `library-service.test.ts` 新增 IDPF、Adobe 字型混淆成功匯入，以及內容加密與
+  非字型錯誤標示拒絕的回歸測試。
+- 驗證：Desktop Vitest 510/510 passed（其中 `library-service.test.ts` 25/25 passed）；
+  Desktop TypeScript typecheck 與 main-process build passed。
+
 ## Appendix: TDD Implementation Checklist
 
 1. 依 TC1–TC8 先建立失敗測試。

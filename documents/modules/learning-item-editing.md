@@ -2,11 +2,12 @@
 title: AI 輔助學習項目編修模組
 module: learning-item-editing
 status: active
-last_updated: 2026-08-09
+last_updated: 2026-08-10
 related_implements:
   - F51-ai-assisted-learning-item-editing
   - F52-edit-learning-items-from-completed-review
   - F55-edit-learning-items-from-graded-review
+  - F59-add-learning-item-representative-image
 ---
 
 # AI 輔助學習項目編修模組
@@ -34,7 +35,7 @@ related_implements:
   Cancel 與 Apply edit，不建立第二個預覽或可見聊天紀錄。
 - 同一暫態 Codex thread 可多輪編修，每輪都以最新有效草稿為基礎。
 - AI 只能回傳完整 `markdownContent` 與 `cautionNote`；標題、類型、語言、CEFR、
-  sense、狀態與複習資料不在 artifact schema 中。
+  sense、代表圖片、狀態與複習資料不在 artifact schema 中。
 - 新說明預設沿用目前 Markdown 的主要解釋語言；只有使用者明確要求才切換語言。
 - 易混淆、誤解或辨別需求會更新注意事項；一般補例句／潤飾與不確定情況保留原值。
 - 注意事項為可留空純文字，在完整詳情中以 `Note`、紅字與紅色底線顯示；清單摘要
@@ -89,6 +90,8 @@ WHERE id = itemId
 ```
 
 它不接收或寫入其他學習項目欄位，也不新增 review event 或修改 FSRS schedule。
+代表圖片由獨立立即 mutation 管理；人工 Save 與 AI Apply 都保留既有 BLOB。AI 編修中
+不顯示圖片 Add／Replace／Remove，以避免 `updatedAt` guard 與並行 mutation 衝突。
 
 ### Electron IPC and Preload
 
@@ -126,13 +129,16 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 | `learning-item-edit-result` | AI 可回傳的唯一完整編修 artifact |
 
 `LearningItemSummary` 刻意不含 `markdownContent` 或 `cautionNote`，避免清單批次預載完整
-內容及醒目提醒。
+內容及醒目提醒；它也不含代表圖片。
 
 ## 5. Persistence and Lifecycle
 
 - SQLite schema 6 在 `learning_items` 新增
   `caution_note TEXT NOT NULL DEFAULT ''`；既有項目 migration 後為空字串。
 - 人工編輯與 AI Apply 都能保存注意事項；新建立項目仍以空字串起始。
+- schema 7 的 nullable 代表圖片 BLOB 不在 edit artifact 或 `UpdateLearningItemInput` 中；
+  人工 Save／AI Apply 不覆寫它，獨立圖片 mutation 更新 `updatedAt` 後會讓過期 AI Apply
+  依既有 optimistic guard 安全失敗。
 - AI session、需求、Codex thread id、未套用草稿與編修歷史不寫入資料庫或 JSON store。
 - Apply、Discard、詳情無變更關閉、啟動另一項編修或 App quit 都會關閉目前 edit client。
 - 完整資料備份保存 SQLite 內已套用的注意事項；暫態編修資料不進入備份。
@@ -166,7 +172,7 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 | `apps/desktop/src/main/learning-item-artifacts.ts` | 嚴格 artifact parser |
 | `apps/desktop/src/main/learning-item-edit-controller.ts` | 暫態 thread／turn、草稿、停止、套用與清理 |
 | `apps/desktop/src/main/learning-item-edit-ipc.ts` | 五個 IPC 白名單與輸入驗證 |
-| `apps/desktop/src/main/learning-library-service.ts` | schema 6 與 guarded AI apply |
+| `apps/desktop/src/main/learning-library-service.ts` | schema 7、圖片獨立 mutation 與 guarded AI apply |
 | `apps/desktop/src/main/bundled-skill.ts` | runtime skill 安裝 |
 | `apps/desktop/src/preload/preload.ts` | `learning.aiEdit` bridge |
 | `apps/desktop/src/renderer/LearningLibraryWorkspace.tsx` | 精簡 AI composer、草稿預覽、停止與放棄確認 |
@@ -180,19 +186,19 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 | `learning-item-artifacts.test.ts` | 成功解析、錯誤 id 與額外欄位拒絕 |
 | `learning-item-edit-controller.test.ts` | 最小 AI scope、暫態草稿、明確 Apply 與停止競態 |
 | `learning-item-edit-ipc.test.ts` | id／需求白名單及 forged payload 拒絕 |
-| `learning-library-service.test.ts` | schema 6 migration、注意事項保存、guarded Apply／stale／trash 拒絕 |
+| `learning-library-service.test.ts` | schema 7 migration、圖片保存、注意事項保存、guarded Apply／stale／trash 拒絕 |
 | `learning-library-workspace.test.tsx` | 顯示、人工編輯、精簡 AI 草稿、明確 Apply、停止、放棄確認與唯讀邊界 |
 | `SpacedReviewWorkspace.test.tsx` | 已批改試卷與完成頁的 AI 編修、狀態保留及垃圾桶能力邊界 |
-| `data-backup-service.test.ts` | schema 6 backup 相容與未來版本拒絕 |
+| `data-backup-service.test.ts` | schema 7 圖片 backup 相容與未來版本拒絕 |
 | `desktop.spec.ts` | production skill 安裝與 preload 子 API 白名單 |
 
-最近驗證（2026-08-09）：
+最近驗證（2026-08-10）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：401/401 passed。
+- Desktop Vitest：489/489 passed。
 - TypeScript typecheck：passed。
 - Production build：passed。
-- Electron Playwright E2E：2/2 passed。
+- Electron Playwright E2E：3/3 passed。
 
 ## 10. Known Limitations and Follow-up
 
@@ -206,6 +212,7 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 
 - `CONTEXT.md`
 - `documents/implements/F51-ai-assisted-learning-item-editing.md`
+- `documents/implements/F59-add-learning-item-representative-image.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/ai-conversation.md`
 - `documents/modules/skill-management.md`
