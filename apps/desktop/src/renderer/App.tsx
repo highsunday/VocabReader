@@ -3099,15 +3099,31 @@ export function App() {
               ) : (
                 <>
                   <div
-                    className="messages"
+                    className={chatSnapshot.messages.length === 0
+                      ? "messages empty-messages"
+                      : "messages"}
                     aria-live="polite"
                     ref={chatMessagesRef}
                   >
                     {chatSnapshot.messages.length === 0 ? (
-                      <div className="chat-empty-state">
-                        <strong>Ask about your current reading</strong>
-                        <p>Codex only receives the reading segment you explicitly selected.</p>
-                      </div>
+                      <>
+                        <section className="chat-context-card" aria-label="AI context">
+                          <span>AI context</span>
+                          <strong>START → END only</strong>
+                          <p>Each question includes only the current marked segment.</p>
+                        </section>
+                        <div className="chat-learning-prompt">
+                          <span className="chat-learning-prompt-icon" aria-hidden="true">
+                            ✦
+                          </span>
+                          <strong>Ask to learn</strong>
+                          <p>
+                            Try “What does this phrase mean in context?” or
+                            <br />
+                            “How would a native speaker use it?”
+                          </p>
+                        </div>
+                      </>
                     ) : null}
                     {chatSnapshot.messages.map((message) => {
                       const messagePractice = readingPracticeArtifacts([message]);
@@ -3313,7 +3329,9 @@ export function App() {
                           event.currentTarget.form?.requestSubmit();
                         }
                       }}
-                      placeholder="Enter your question"
+                      placeholder={mode === "reader"
+                        ? "Ask about the marked passage…"
+                        : "Ask a language-learning question…"}
                       rows={3}
                       disabled={chatSnapshot.connection !== "ready" ||
                         Boolean(chatSnapshot.activeTurnId) ||

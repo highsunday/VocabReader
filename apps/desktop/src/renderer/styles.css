@@ -7038,6 +7038,74 @@ h1 {
   overscroll-behavior: contain;
 }
 
+.messages.empty-messages {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-context-card {
+  padding: 16px;
+  border: 1px dashed #d2ccbf;
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+  color: #303a3e;
+  background: #fff;
+}
+
+.chat-context-card > span {
+  color: #688073;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.chat-context-card > strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.chat-context-card > p {
+  margin: 0;
+  color: #707970;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chat-learning-prompt {
+  min-height: 240px;
+  padding: 28px 12px;
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #34463d;
+  text-align: center;
+}
+
+.chat-learning-prompt-icon {
+  margin-bottom: 6px;
+  color: #c87942;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.chat-learning-prompt > strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.chat-learning-prompt > p {
+  margin: 10px 0 0;
+  color: #7d837d;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 .conversation-history {
   min-height: 0;
   flex: 1 1 auto;

@@ -725,7 +725,7 @@ describe("App", () => {
     await waitFor(() => expect(selectModel).toHaveBeenCalledWith("gpt-reader"));
 
     const input = screen.getByLabelText("Ask about current content");
-    expect(input).toHaveAttribute("placeholder", "Enter your question");
+    expect(input).toHaveAttribute("placeholder", "Ask a language-learning question…");
     expect(screen.getByText("Ask about current content")).toHaveClass("visually-hidden");
     expect(screen.getByLabelText("AI model")).toHaveProperty(
       "parentElement",
