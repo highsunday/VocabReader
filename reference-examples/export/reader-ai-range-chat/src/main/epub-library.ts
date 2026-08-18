@@ -18,6 +18,7 @@ type OrderedXmlNode = Record<string, unknown>;
 interface ManifestItem {
   id: string;
   href: string;
+  mediaType: string;
   properties: string;
 }
 
@@ -247,10 +248,34 @@ async function parseBook(bytes: Buffer): Promise<LibraryBook> {
     .map<ManifestItem>((item) => ({
       id: attribute(item, "id"),
       href: attribute(item, "href"),
+      mediaType: attribute(item, "media-type"),
       properties: attribute(item, "properties")
     }))
     .filter((item) => item.id && item.href);
   const manifestById = new Map(manifest.map((item) => [item.id, item]));
+  const legacyCoverId = attribute(
+    array(metadata.meta).map(record).find((item) => attribute(item, "name") === "cover") ?? {},
+    "content"
+  );
+  const coverItem = manifest.find((item) =>
+    item.properties.split(/\s+/).includes("cover-image")
+  ) ?? manifestById.get(legacyCoverId);
+  let coverDataUrl: string | undefined;
+  if (coverItem) {
+    try {
+      const coverPath = archivePath(packageDirectory, coverItem.href);
+      const coverFile = zip.file(coverPath);
+      const mime = coverItem.mediaType.startsWith("image/")
+        ? coverItem.mediaType
+        : imageMime(coverPath);
+      if (coverFile && mime) {
+        const data = Buffer.from(await coverFile.async("uint8array")).toString("base64");
+        coverDataUrl = `data:${mime};base64,${data}`;
+      }
+    } catch {
+      // A missing or unsafe cover must not prevent importing readable chapters.
+    }
+  }
   const spineItems = array(record(packageDocument.spine).itemref)
     .map(record)
     .map((item) => manifestById.get(attribute(item, "idref")))
@@ -284,6 +309,7 @@ async function parseBook(bytes: Buffer): Promise<LibraryBook> {
     id: createHash("sha256").update(bytes).digest("hex"),
     title,
     author,
+    ...(coverDataUrl ? { coverDataUrl } : {}),
     chapters,
     chapterRanges: {}
   };

@@ -4,6 +4,29 @@ function clamp(text: string, offset: number): number {
   return Math.min(text.length, Math.max(0, Math.trunc(offset)));
 }
 
+const WORD_PATTERN = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
+
+function firstReadableOffset(text: string, offset: number): number {
+  let current = clamp(text, offset);
+  while (current < text.length && /\s/u.test(text[current])) current += 1;
+  return current;
+}
+
+function wordCount(text: string): number {
+  return Array.from(text.matchAll(WORD_PATTERN)).length;
+}
+
+function endAfterWords(text: string, start: number, desiredWords: number): number {
+  let end = start;
+  let found = 0;
+  for (const match of text.slice(start).matchAll(WORD_PATTERN)) {
+    end = start + (match.index ?? 0) + match[0].length;
+    found += 1;
+    if (found >= desiredWords) return end;
+  }
+  return text.length;
+}
+
 export function initialReadingRange(text: string): ReadingRange {
   return { start: 0, end: text.length };
 }
@@ -15,6 +38,15 @@ export function extractReadingSegment(
   const start = clamp(text, range.start);
   const end = Math.max(start, clamp(text, range.end));
   return text.slice(start, end).trim();
+}
+
+export function advanceReadingRange(
+  text: string,
+  current: ReadingRange
+): ReadingRange {
+  const desiredWords = Math.max(1, wordCount(extractReadingSegment(text, current)));
+  const start = firstReadableOffset(text, current.end);
+  return { start, end: endAfterWords(text, start, desiredWords) };
 }
 
 function textNodes(root: Node): Text[] {

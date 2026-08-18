@@ -1,5 +1,7 @@
 import { EventEmitter } from "node:events";
 import type {
+  AiUsageAllowance,
+  AiUsageAllowanceWindow,
   ChatMessage,
   ChatSnapshot,
   ConnectionPhase,
@@ -40,6 +42,68 @@ function turnIdFrom(value: unknown): string | undefined {
     : undefined;
 }
 
+function unavailableAllowance(detail: string): AiUsageAllowance {
+  return { phase: "unavailable", fiveHour: null, weekly: null, detail };
+}
+
+function allowanceWindow(
+  value: unknown
+): (AiUsageAllowanceWindow & { windowDurationMins: number }) | null {
+  if (!object(value) || typeof value.usedPercent !== "number" ||
+    !Number.isFinite(value.usedPercent) ||
+    typeof value.windowDurationMins !== "number" ||
+    !Number.isFinite(value.windowDurationMins) ||
+    typeof value.resetsAt !== "number" || !Number.isFinite(value.resetsAt)) {
+    return null;
+  }
+  return {
+    remainingPercent: Math.round(Math.max(0, Math.min(100, 100 - value.usedPercent))),
+    windowDurationMins: value.windowDurationMins,
+    resetsAt: Math.trunc(value.resetsAt)
+  };
+}
+
+function allowanceFromSnapshot(value: unknown): AiUsageAllowance {
+  if (!object(value)) throw new Error("Codex returned unrecognized allowance data.");
+  const windows = [allowanceWindow(value.primary), allowanceWindow(value.secondary)];
+  const fiveHour = windows.find((window) => window?.windowDurationMins === 300) ?? null;
+  const weekly = windows.find((window) => window?.windowDurationMins === 10_080) ?? null;
+  return {
+    phase: fiveHour || weekly ? "available" : "unavailable",
+    fiveHour: fiveHour
+      ? { remainingPercent: fiveHour.remainingPercent, resetsAt: fiveHour.resetsAt }
+      : null,
+    weekly: weekly
+      ? { remainingPercent: weekly.remainingPercent, resetsAt: weekly.resetsAt }
+      : null,
+    detail: fiveHour && weekly
+      ? "Shared account allowance loaded."
+      : "Some usage allowance data is unavailable."
+  };
+}
+
+function allowanceFromResult(value: unknown): AiUsageAllowance {
+  if (!object(value)) throw new Error("Codex returned unrecognized allowance data.");
+  const byLimitId = object(value.rateLimitsByLimitId) ? value.rateLimitsByLimitId : null;
+  return allowanceFromSnapshot(
+    byLimitId && object(byLimitId.codex) ? byLimitId.codex : value.rateLimits
+  );
+}
+
+function mergeAllowance(
+  current: AiUsageAllowance,
+  update: AiUsageAllowance
+): AiUsageAllowance {
+  const fiveHour = update.fiveHour ?? current.fiveHour;
+  const weekly = update.weekly ?? current.weekly;
+  return {
+    phase: fiveHour || weekly ? "available" : update.phase,
+    fiveHour,
+    weekly,
+    detail: fiveHour && weekly ? "Shared account allowance loaded." : update.detail
+  };
+}
+
 export function composeCodexInput(input: SendChatMessageInput): string {
   const question = input.text.trim();
   const context = input.context;
@@ -70,6 +134,7 @@ export class ChatController {
   #connection: ConnectionPhase = "disconnected";
   #connectionDetail = "Codex is not connected.";
   #account: ChatSnapshot["account"] = null;
+  #allowance = unavailableAllowance("AI usage allowance is not available yet.");
   #threadId: string | null = null;
   #activeTurnId: string | null = null;
   #connectPromise: Promise<ChatSnapshot> | undefined;
@@ -83,6 +148,7 @@ export class ChatController {
       connection: this.#connection,
       connectionDetail: this.#connectionDetail,
       account: this.#account ? { ...this.#account } : null,
+      allowance: structuredClone(this.#allowance),
       threadId: this.#threadId,
       activeTurnId: this.#activeTurnId,
       messages: structuredClone(this.#messages)
@@ -98,6 +164,8 @@ export class ChatController {
     if (this.#connection === "ready") return Promise.resolve(this.getSnapshot());
     if (this.#connectPromise) return this.#connectPromise;
     this.#disposeClient();
+    this.#account = null;
+    this.#allowance = unavailableAllowance("AI usage allowance is not available yet.");
     this.#setConnection("connecting", "Starting Codex app-server…");
     const client = this.#options.createClient();
     this.#client = client;
@@ -129,10 +197,17 @@ export class ChatController {
           return this.getSnapshot();
         }
         this.#account = { ...account.account };
+        this.#allowance = {
+          phase: "loading",
+          fiveHour: null,
+          weekly: null,
+          detail: "Loading shared account allowance…"
+        };
         this.#setConnection(
           "ready",
           `Connected as ${account.account.email ?? account.account.type}`
         );
+        await this.#loadAllowance(client);
         return this.getSnapshot();
       } catch (error) {
         if (this.#client === client) {
@@ -213,11 +288,25 @@ export class ChatController {
     this.#disposeClient();
     this.#connection = "disconnected";
     this.#account = null;
+    this.#allowance = unavailableAllowance("AI usage allowance is not available yet.");
     this.#activeTurnId = null;
   }
 
   #handleNotification(notification: CodexNotification): void {
     const params = notification.params;
+    if (notification.method === "account/rateLimits/updated" &&
+      object(params) && "rateLimits" in params) {
+      try {
+        this.#allowance = mergeAllowance(
+          this.#allowance,
+          allowanceFromSnapshot(params.rateLimits)
+        );
+        this.#emit();
+      } catch {
+        // Preserve the last validated values when Codex sends a malformed update.
+      }
+      return;
+    }
     if (!object(params) || params.threadId !== this.#threadId) return;
     if (notification.method === "turn/started" && object(params.turn) &&
       typeof params.turn.id === "string") {
@@ -290,6 +379,22 @@ export class ChatController {
 
   #emit(): void {
     this.#events.emit("state", this.getSnapshot());
+  }
+
+  async #loadAllowance(client: CodexAppServerClient): Promise<void> {
+    try {
+      const allowance = allowanceFromResult(
+        await client.request("account/rateLimits/read")
+      );
+      if (this.#client !== client) return;
+      this.#allowance = allowance;
+    } catch (error) {
+      if (this.#client !== client) return;
+      this.#allowance = unavailableAllowance(
+        error instanceof Error ? error.message : "AI usage allowance is unavailable."
+      );
+    }
+    this.#emit();
   }
 
   #disposeClient(): void {

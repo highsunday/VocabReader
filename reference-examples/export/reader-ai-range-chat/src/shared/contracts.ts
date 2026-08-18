@@ -14,6 +14,7 @@ export interface LibraryBook {
   id: string;
   title: string;
   author: string;
+  coverDataUrl?: string;
   chapters: BookChapter[];
   chapterRanges: Record<string, ReadingRange>;
 }
@@ -66,10 +67,23 @@ export interface CodexAccount {
   email?: string;
 }
 
+export interface AiUsageAllowanceWindow {
+  remainingPercent: number;
+  resetsAt: number;
+}
+
+export interface AiUsageAllowance {
+  phase: "loading" | "available" | "unavailable";
+  fiveHour: AiUsageAllowanceWindow | null;
+  weekly: AiUsageAllowanceWindow | null;
+  detail: string;
+}
+
 export interface ChatSnapshot {
   connection: ConnectionPhase;
   connectionDetail: string;
   account: CodexAccount | null;
+  allowance: AiUsageAllowance;
   threadId: string | null;
   activeTurnId: string | null;
   messages: ChatMessage[];

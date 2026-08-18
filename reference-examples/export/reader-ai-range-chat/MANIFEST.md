@@ -1,11 +1,10 @@
 # MANIFEST — EPUB 閱讀、START／END 與 Codex 對話範例
 
-> 本檔由 ddd-export-example 產生，是這份最小可跑範例的說明書。
-> 匯入端（ddd-import-example）應先讀這份檔案，再讀程式碼。
+> 這是獨立可執行範例的實作說明；目前版本不使用 DDD 流程。
 
 ## 1. 功能摘要
 
-這是一個最小 Electron／React 閱讀器，示範使用者匯入 EPUB、閱讀章節、以可拖曳的 START／END 標記界定 AI 可讀原文，並在右側透過本機真實 `codex app-server` 進行多輪串流對話。每個問題只附帶目前標記範圍，不把同章範圍外內容交給 AI。介面不包含語言學習、複習、造句或跟讀入口；Settings 只保留目前 Codex Account 狀態與重新連線操作。
+這是一個最小 Electron／React 閱讀器，示範使用者匯入 EPUB、從左側可滾動書架選書、在書籍主頁瀏覽封面與章節，再以可拖曳的 START／END 標記界定 AI 可讀原文，並在右側透過本機真實 `codex app-server` 進行多輪串流對話。每個問題只附帶目前標記範圍，不把同章範圍外內容交給 AI。閱讀頁有章節標題、上一章／下一章、START／END 快速定位、下一區段、文字設定及選取文字標註；文字大小、行距與紙張寬度會保存在本機。介面不包含語言學習、複習、造句或跟讀入口；Settings 只保留目前 Codex Account 狀態與重新連線操作。左側保留原產品的 Codex 連線與 5 小時／每週額度卡，整體使用淺米白與深藍主題。
 
 - 來源專案：VocabReader（AI 輔助語言學習電子書閱讀器）
 - 原始技術棧：TypeScript、React、Electron、Vite、JSZip、fast-xml-parser、Codex app-server stdio JSONL／JSON-RPC
@@ -25,20 +24,22 @@
 | 檔案 | 職責 |
 |------|------|
 | `src/shared/contracts.ts` | Main、Preload、Renderer 共用的最小書籍、範圍與聊天契約 |
-| `src/main/epub-library.ts` | 記憶體書庫、EPUB 3 navigation／spine fallback 解析及安全章節 HTML 輸出 |
+| `src/main/epub-library.ts` | 記憶體書庫、EPUB 封面、EPUB 3 navigation／spine fallback 解析及安全章節 HTML 輸出 |
 | `src/main/app-ipc.ts` | 可獨立測試的 EPUB picker、章節、範圍與 Codex allow-listed IPC |
 | `src/main/codex-app-server-client.ts` | 跨 macOS／Linux／Windows 啟動 Codex app-server，處理 initialize、JSONL request、notification、timeout 與關閉 |
-| `src/main/chat-controller.ts` | 帳戶連線、context prompt、thread／turn、串流訊息及同 thread 多輪對話 |
+| `src/main/chat-controller.ts` | 帳戶連線、5 小時／每週額度、context prompt、thread／turn、串流訊息及同 thread 多輪對話 |
 | `src/main/main.ts` | Electron 視窗、原生 EPUB 選擇器、allow-listed IPC 與生命週期 |
 | `src/preload/preload.ts` | 只暴露固定 library／chat 方法與完整聊天 snapshot |
-| `src/renderer/App.tsx` | 左側書庫、中間閱讀器、可拖曳 START／END 與右側 AI 對話面板 |
-| `src/renderer/reading-range.ts` | 文字 offset 裁切、DOM point → offset 與 offset → marker 畫面位置 |
-| `src/renderer/styles.css` | 最小三欄閱讀版面、章節紙張、範圍標線及聊天樣式 |
+| `src/renderer/App.tsx` | 左側可滾動書架、書籍主頁、章節工具列、文字設定、可拖曳 START／END、標註與右側 AI 對話面板 |
+| `src/renderer/reading-range.ts` | 文字 offset 裁切、下一區段推進、DOM point → offset 與 offset → marker 畫面位置 |
+| `src/renderer/styles.css` | 淺米白／深藍三欄版面、雙層閱讀工具列、Codex 狀態卡、章節紙張、範圍標線及聊天樣式 |
 | `src/renderer/index.html` | Renderer 入口與 Content Security Policy |
 | `tests/fake-codex-app-server.ts` | 測試專用 child process，實作與正式 Codex 相同的 JSONL transport boundary |
 | `tests/smoke.test.ts` | EPUB → chapter → range → Codex prompt → streaming answer 的關鍵 happy path |
 | `tests/app-ipc.test.ts` | 驗證 EPUB-only 原生選擇器、選取路徑傳遞與取消語意 |
 | `tests/codex-launch.test.ts` | 驗證 Electron GUI PATH 缺少 Homebrew 時仍能解析 Codex executable |
+| `tests/dev-launch.test.ts` | 驗證 dev server、ready check 與 Electron 共用專屬 strict port，避免誤載另一個 Vite 專案 |
+| `tests/reading-range.test.ts` | 驗證下一區段保留目前字數向後推進，並在章末正確截斷 |
 | `tests/real-codex-connect.test.ts` | 選用的真實本機 Codex 帳戶連線測試，由 `npm run test:codex` 執行 |
 | `tests/ui.test.tsx` | 驗證沒有語言學習入口，且 Settings 只呈現 Account |
 | `package.json` | 安裝、開發、啟動、測試、型別檢查與建置命令 |
@@ -65,6 +66,8 @@
 - Smoke test 只把 app-server child process 換成 `tests/fake-codex-app-server.ts`；產品 controller 與 JSONL transport 仍是正式程式碼，因此測試不需要網路、帳戶或消耗 AI 額度。
 - Electron 原生檔案選擇器在正式執行中保留；測試直接傳入記憶體 EPUB buffer。
 - 原生檔案選擇器附著於主視窗；匯入／解析錯誤顯示在 Import EPUB 按鈕旁，不再落到右側 AI 對話底部。
+- 開發模式固定使用專屬的 `127.0.0.1:45173` 並啟用 Vite strict-port；若該 port 已被佔用會明確失敗，不會自動換 port 後讓 Electron 誤載其他專案。
+- Renderer CSP 允許 inline styles，供 Vite 開發模式注入 CSS，也讓 React 的 START／END 動態 marker 位置能以 style attribute 正常更新；script、圖片與連線來源仍維持 allow-list。
 - 原專案的永久書庫改成記憶體書庫；關閉 example 後匯入書籍和 START／END 不會保留。
 
 目前 EPUB 邊界刻意精簡：支援標準 EPUB 3 navigation 與 spine fallback、安全文字結構及常見點陣圖片；未包含原專案完整的 EPUB 2 NCX、字型混淆、DRM 判斷、巢狀 TOC、跨多個 spine 文件組章，以及永久遷移邏輯。
@@ -78,12 +81,13 @@
 1. 受信任的桌面後端開啟使用者選取的 EPUB，驗證容器格式，解析 metadata、manifest、spine 與 navigation，輸出安全章節 HTML。
 2. 閱讀畫面以「章節純文字中的整數 offset」保存 START／END，而不是頁碼、像素或捲動比例，因此換字體或視窗寬度後仍指向相同文字。
 3. UI 把 pointer 的畫面位置轉為 DOM 文字 offset；START 不可超過 END，END 不可早於 START。標線位置則由 offset 反向換算為目前排版中的 glyph 座標。
-4. 使用者提問時，產品層從章節純文字裁出 `[start, end)`，再以結構化 context 傳入聊天 controller。空範圍不回退成整章。
-5. 受信任後端啟動 Codex app-server，完成 initialize request 後送 initialized notification，再讀取帳戶；Renderer 不接觸 process 或 raw protocol。
-6. 第一個問題建立 Codex thread；每個問題建立新 turn，但同一對話的追問沿用 thread id。
-7. Codex prompt 明確分隔書名、章名、目前 START／END 原文和使用者問題，並聲明不可假設範圍外內容。
-8. Assistant delta 依 item id 累加；item completed 以 canonical 最終文字校正；turn completed 解除 busy 狀態。
-9. 關閉應用程式時解除 notification／exit listeners、拒絕 pending request 並終止本次啟動的 Codex process。
+4. 「下一區段」以目前 START／END 內的字數為目標，從 END 後第一個非空白字元起建立下一段；章末不足時自動截斷。
+5. 使用者提問時，產品層從章節純文字裁出 `[start, end)`，再以結構化 context 傳入聊天 controller。空範圍不回退成整章。
+6. 受信任後端啟動 Codex app-server，完成 initialize request 後送 initialized notification，再讀取帳戶；Renderer 不接觸 process 或 raw protocol。
+7. 第一個問題建立 Codex thread；每個問題建立新 turn，但同一對話的追問沿用 thread id。
+8. Codex prompt 明確分隔書名、章名、目前 START／END 原文和使用者問題，並聲明不可假設範圍外內容。
+9. Assistant delta 依 item id 累加；item completed 以 canonical 最終文字校正；turn completed 解除 busy 狀態。
+10. 關閉應用程式時解除 notification／exit listeners、拒絕 pending request 並終止本次啟動的 Codex process。
 
 關鍵決策與容易踩雷的點：
 

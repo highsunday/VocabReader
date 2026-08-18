@@ -15,6 +15,12 @@ const chatSnapshot: ChatSnapshot = {
   connection: "ready",
   connectionDetail: "Connected",
   account: { type: "chatgpt", email: "reader@example.com" },
+  allowance: {
+    phase: "available",
+    fiveHour: { remainingPercent: 75, resetsAt: 1_800_000_000 },
+    weekly: { remainingPercent: 62, resetsAt: 1_800_500_000 },
+    detail: "Shared account allowance loaded."
+  },
   threadId: null,
   activeTurnId: null,
   messages: []

@@ -22,6 +22,7 @@ async function minimalEpub(): Promise<Buffer> {
       </metadata>
       <manifest>
         <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+        <item id="cover" href="cover.png" media-type="image/png" properties="cover-image"/>
         <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
       </manifest>
       <spine><itemref idref="chapter"/></spine>
@@ -36,6 +37,7 @@ async function minimalEpub(): Promise<Buffer> {
       <p>Before secret. Inside concept. After hidden.</p>
       <script>never execute</script>
     </body></html>`);
+  zip.file("EPUB/cover.png", Buffer.from([137, 80, 78, 71]));
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
@@ -53,6 +55,7 @@ test("imports an EPUB and sends only the START/END segment through a real Codex 
   assert.notEqual(imported.status, "cancelled");
   if (imported.status === "cancelled") return;
   assert.equal(imported.book.title, "Thinking in Systems");
+  assert.match(imported.book.coverDataUrl ?? "", /^data:image\/png;base64,/);
   assert.equal(imported.book.chapters[0]?.title, "Feedback Loops");
 
   const chapter = await library.getChapterContent(
@@ -76,7 +79,10 @@ test("imports an EPUB and sends only the START/END segment through a real Codex 
     }),
     workingDirectory: "/tmp/reader-ai-range-chat-smoke"
   });
-  assert.equal((await controller.connect()).connection, "ready");
+  const connected = await controller.connect();
+  assert.equal(connected.connection, "ready");
+  assert.equal(connected.allowance.fiveHour?.remainingPercent, 75);
+  assert.equal(connected.allowance.weekly?.remainingPercent, 62);
   await controller.sendMessage({
     text: "What is the key idea?",
     context: {

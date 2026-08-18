@@ -11,6 +11,7 @@ test("connects to the locally installed and authenticated Codex app-server", asy
   try {
     const snapshot = await controller.connect();
     assert.equal(snapshot.connection, "ready", snapshot.connectionDetail);
+    assert.notEqual(snapshot.allowance.phase, "loading");
   } finally {
     controller.close();
   }

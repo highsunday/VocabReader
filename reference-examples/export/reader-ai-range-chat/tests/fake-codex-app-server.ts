@@ -40,6 +40,19 @@ export function createFakeCodexAppServer(): {
             requiresOpenaiAuth: true
           }
         })}\n`);
+      } else if (message.method === "account/rateLimits/read") {
+        stdout.write(`${JSON.stringify({
+          id: message.id,
+          result: {
+            rateLimits: null,
+            rateLimitsByLimitId: {
+              codex: {
+                primary: { usedPercent: 25, windowDurationMins: 300, resetsAt: 1_800_000_000 },
+                secondary: { usedPercent: 38, windowDurationMins: 10_080, resetsAt: 1_800_500_000 }
+              }
+            }
+          }
+        })}\n`);
       } else if (message.method === "thread/start") {
         stdout.write(`${JSON.stringify({
           id: message.id,
