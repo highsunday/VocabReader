@@ -2545,13 +2545,17 @@ export function App() {
                         style={{ "--chapter-depth": Math.min(depth, 4) } as CSSProperties}
                       >
                         <button type="button" onClick={() => openChapter(chapter.id)}>
-                          <span>
-                            {depth > 0
-                              ? "↳ Subchapter"
-                              : String(chapter.order + 1).padStart(2, "0")}
+                          <span className="chapter-marker">
+                            {depth > 0 ? null : String(chapter.order + 1).padStart(2, "0")}
                           </span>
-                          <strong>{chapter.title}</strong>
-                          <em>{depth > 0 ? "Read this section →" : "Start reading →"}</em>
+                          <span className="chapter-title">
+                            {depth > 0 ? <small>Section</small> : null}
+                            <strong>{chapter.title}</strong>
+                          </span>
+                          <em>
+                            <span>{depth > 0 ? "Read section" : "Open chapter"}</span>
+                            <b aria-hidden="true">→</b>
+                          </em>
                         </button>
                       </li>
                       );

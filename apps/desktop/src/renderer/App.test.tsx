@@ -2398,8 +2398,8 @@ describe("App", () => {
     const subchapterRow = subchapterTitle.closest("li");
     expect(subchapterRow).toHaveClass("subchapter");
     expect(subchapterRow).toHaveAttribute("data-depth", "1");
-    expect(subchapterRow).toHaveTextContent("Subchapter");
-    expect(subchapterRow).toHaveTextContent("Read this section →");
+    expect(subchapterRow).toHaveTextContent("Section");
+    expect(subchapterRow).toHaveTextContent("Read section→");
     expect(screen.getByText("Chapter 1 The American Sound").closest("li"))
       .not.toHaveClass("subchapter");
   });
