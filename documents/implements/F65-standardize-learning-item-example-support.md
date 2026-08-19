@@ -3,7 +3,7 @@ author: Codex
 date: 2026-08-19
 title: 統一學習項目例句輔助說明格式
 uuid: 61db83d7-7901-4b94-92b9-43133f5f9220
-version: 1.1.0
+version: 1.2.0
 status: implemented
 ---
 
@@ -18,7 +18,8 @@ Markdown 外形。因此部分項目有 `In other words` 類的解釋，部分�
 
 本功能新增統一的**例句輔助說明**：每一句例句之後固定只有一行輔助內容。當講解語言
 與學習項目語言相同時，該行使用更簡單的同語言換句話說；當兩者不同時，該行使用講解
-語言翻譯例句。兩種模式共用相同的編號、縮排與粗體標籤位置，避免同時顯示翻譯與改寫。
+語言翻譯例句。兩種模式共用相同的編號、縮排與箭頭位置，不顯示 `In other words:`、
+`翻譯：` 或其他文字標籤，避免例句區產生多餘的視覺層級。
 
 新格式套用於新建立的學習項目，以及日後經 **AI 輔助編修**產生的完整草稿。既有生詞庫
 資料不批次改寫；人工 Markdown 編修仍保留自由度。
@@ -35,9 +36,10 @@ Markdown 外形。因此部分項目有 `In other words` 類的解釋，部分�
 
 - `markdownContent` 的 `## Examples` 小節仍包含三至五句自然、完整且符合目標語義的
   例句，例句本體使用學習項目語言。
-- 每句使用有序清單，目標詞或片語以粗體標示，下一行使用縮排子項目提供一行
+- 每句使用有序清單，目標詞或片語以粗體標示，下一行使用縮排內容提供一行
   **例句輔助說明**。
-- 輔助說明使用粗體標籤；標籤使用講解語言，但位置、層級與每句一行的結構固定。
+- 輔助說明固定以單一 `→` 開頭，不加粗、不使用語言化文字標籤；位置、層級與每句
+  一行的結構固定。
 - 不在同一句下同時產生換句話說與翻譯，也不把文法分析、搭配講解或第二份字典定義
   塞入該行。
 
@@ -47,14 +49,14 @@ Markdown 外形。因此部分項目有 `In other words` 類的解釋，部分�
 - 輔助說明以同一語言重新表達完整例句，並把目標詞在該語境中的意思換成較簡單、直接
   的說法。
 - 改寫必須保留原句語義，不得只是重複原句、重複目標詞或貼上孤立的字典定義。
-- 例如英文標籤使用 `In other words:`；其他原文語言使用相應的自然標籤。
+- 輔助說明只用 `→` 表示換句話說，不顯示 `In other words:` 或其他文字標籤。
 
 ### 3.3 講解語言為固定其他語言
 
 - 例句本體仍使用學習項目語言，不因設定為使用者母語而改變。
 - 每句輔助說明改為講解語言的自然翻譯，並清楚反映目標詞在該句中的語義。
 - 翻譯行就是該句唯一的例句輔助說明，不再另外附同語言改寫。
-- 標籤使用講解語言，例如繁體中文使用 `翻譯：`。
+- 輔助說明只用 `→` 表示翻譯，不顯示 `翻譯：` 或其他文字標籤。
 
 ### 3.4 AI 編修與相容性
 
@@ -70,21 +72,21 @@ Markdown 外形。因此部分項目有 `In other words` 類的解釋，部分�
 - **Scenario 1：原文講解產生簡單改寫**
   - **Given** 英文學習項目使用原文英文講解
   - **When** AI 建立三至五句英文例句
-  - **Then** 每句下一行都有英文 `In other words:` 輔助說明
+  - **Then** 每句下一行都有以 `→` 開頭的英文輔助說明
   - **And** 輔助說明以更簡單英文保留整句語義並解開目標詞意思
   - **And** 不產生重複翻譯
 
 - **Scenario 2：母語講解產生翻譯**
   - **Given** 英文學習項目使用繁體中文講解
   - **When** AI 建立三至五句英文例句
-  - **Then** 每句下一行都有繁體中文 `翻譯：` 輔助說明
-  - **And** 不另外產生 `In other words` 改寫
+  - **Then** 每句下一行都有以 `→` 開頭的繁體中文輔助說明
+  - **And** 不顯示 `翻譯：` 或 `In other words:` 文字標籤
 
 - **Scenario 3：格式與語言逐筆一致**
   - **Given** 同一批次包含不同學習項目語言
   - **When** 使用 source 或固定講解語言建立草稿
   - **Then** 每筆依自己的項目語言決定例句本體
-  - **And** 每句都使用有序清單、粗體目標詞、縮排子項目及一行粗體標籤
+  - **And** 每句都使用有序清單、粗體目標詞、縮排內容及單一箭頭前綴
 
 - **Scenario 4：AI 編修正規化完整 Examples**
   - **Given** 一個既有項目的例句缺少輔助說明或格式不同
@@ -102,9 +104,9 @@ Markdown 外形。因此部分項目有 `In other words` 類的解釋，部分�
 
 | ID | Scenario | Given | When | Then | Priority |
 |---|---|---|---|---|---|
-| TC1 | 原文英文輔助 | 英文項目、source 講解 | 檢查建立 skill | 要求每句簡單同語言改寫與 `In other words:` | Critical |
-| TC2 | 固定繁中輔助 | 英文項目、zh-TW 講解 | 檢查建立 skill | 要求每句唯一的繁中翻譯與本地化標籤 | Critical |
-| TC3 | 固定 Markdown 外形 | 任一語言與三至五句例句 | 檢查建立 skill | 有序清單、粗體目標、縮排子項目、粗體標籤 | Critical |
+| TC1 | 原文英文輔助 | 英文項目、source 講解 | 檢查建立 skill | 要求每句以 `→` 開頭的簡單同語言改寫 | Critical |
+| TC2 | 固定繁中輔助 | 英文項目、zh-TW 講解 | 檢查建立 skill | 要求每句以 `→` 開頭的唯一繁中翻譯 | Critical |
+| TC3 | 固定 Markdown 外形 | 任一語言與三至五句例句 | 檢查建立 skill | 有序清單、粗體目標、縮排內容、箭頭前綴 | Critical |
 | TC4 | 不重複兩種說明 | 任一建立草稿 | 檢查建立 skill | 每句只有改寫或翻譯其中之一 | High |
 | TC5 | AI 編修正規化 | 既有舊格式 Markdown | 檢查編修 skill | 任一成功編修均正規化完整 Examples | Critical |
 | TC6 | 編修語言分支 | 項目語言與主要講解語言相同／不同 | 檢查編修 skill | 分別產生簡單改寫／翻譯 | Critical |
@@ -126,8 +128,7 @@ Markdown 外形。因此部分項目有 `In other words` 類的解釋，部分�
 ### Assumptions
 
 - 「母語」由現有固定講解語言設定代表；本功能不新增獨立母語設定。
-- AI 依講解語言產生自然本地化標籤，英文與繁體中文分別固定使用
-  `In other words:` 與 `翻譯：`。
+- 所有講解語言共用 `→` 作為唯一例句輔助說明前綴，不產生本地化文字標籤。
 
 ### Non-goals
 
@@ -145,8 +146,8 @@ Implemented on 2026-08-19.
 ### Implementation Summary
 
 - `create-learning-items` 現在以固定 `Meaning`、詞性／IPA、`Common collocations`、
-  `Examples` Markdown 層級建立內容；每句例句都是有序清單、粗體目標詞與唯一縮排的
-  例句輔助說明。
+  `Examples` Markdown 層級建立內容；每句例句都是有序清單、粗體目標詞與唯一縮排、
+  以 `→` 開頭的例句輔助說明。
 - 講解語言與項目語言相同時產生較簡單的同語言改寫；不同時產生講解語言翻譯，且
   明確禁止同一句同時產生兩者。
 - `edit-learning-item` 對每次有效完整草稿套用相同 Examples 正規化契約。
@@ -159,9 +160,9 @@ Implemented on 2026-08-19.
 
 - TC1–TC4：`chat-controller.test.ts` 的
   `standardizes one explanation-language-aware support line under every example` 驗證建立
-  skill 的固定外形、英文同語言改寫、繁中翻譯與互斥規則。
+  skill 的固定外形、單一箭頭前綴、英文同語言改寫、繁中翻譯與互斥規則。
 - TC5–TC6：`learning-item-edit-skill.test.ts` 驗證每次編修正規化完整 Examples、可信項目
-  語言、固定子項目格式與語言分支；`learning-item-edit-controller.test.ts` 驗證 payload
+  語言、固定箭頭行格式與語言分支；`learning-item-edit-controller.test.ts` 驗證 payload
   實際包含正式項目的 `learningItemLanguage`。
 - TC7：完整測試、型別檢查與 build 通過，且變更未加入 migration、repository mutation
   或 schema 修改。
@@ -201,9 +202,9 @@ Implemented on 2026-08-19.
 
 | Test scenario ID | Status | Automated test basis |
 |---|---|---|
-| TC1 | Pass | creation skill 同語言改寫與 `In other words` assertions |
-| TC2 | Pass | creation skill 跨語言翻譯與 `翻譯` assertions |
-| TC3 | Pass | creation skill 有序清單、粗體目標與縮排子項目 assertions |
+| TC1 | Pass | creation skill 同語言改寫與箭頭前綴 assertions |
+| TC2 | Pass | creation skill 跨語言翻譯、箭頭前綴與無文字標籤 assertions |
+| TC3 | Pass | creation skill 有序清單、粗體目標與縮排內容 assertions |
 | TC4 | Pass | creation skill paraphrase／translation 互斥 assertion |
 | TC5 | Pass | edit skill 完整 Examples 正規化 assertion |
 | TC6 | Pass | edit skill 語言分支與 Controller trusted payload assertions |
@@ -224,7 +225,10 @@ git diff --check
 - 使用 prompt contract 統一 AI 產生內容，但保留 Markdown 的向後相容與人工編輯自由度。
 - 首次聚焦紅燈為 3 個預期的缺少契約／payload 失敗；實作後的中間失敗只是文字契約測試
   對 Markdown 換行與已被新需求取代的舊句子過度敏感，調整為驗證相同語義後轉綠。
-- 結構標題固定使用英文以維持 Markdown 外形；輔助說明標籤與內容依講解語言本地化。
+- 結構標題固定使用英文以維持 Markdown 外形；輔助說明內容依講解語言產生。
+- 1.2 依使用者回饋移除本地化文字標籤，所有語言統一只顯示 `→`，降低畫面複雜度。
+- 1.2 紅燈為建立與編修 skill 各一個預期契約失敗；改為箭頭行後聚焦測試 64/64，
+  完整測試 543/543、typecheck 與 build 均通過。
 
 ### Deferred Items
 

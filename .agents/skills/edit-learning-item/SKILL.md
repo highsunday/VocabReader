@@ -39,23 +39,24 @@ fixed shape:
 ## Examples
 
 1. <complete example with the **target word or phrase** bolded>
-   - **In other words:** <simpler same-language paraphrase>
+
+   → <simpler same-language paraphrase or explanation-language translation>
 ```
 
 For every example:
 
 - keep the example itself in the App-supplied `learningItemLanguage`;
-- use an ordered-list item, bold the target word or phrase, and immediately add exactly one indented child bullet;
-- start the child bullet with a bold label written in `primaryExplanationLanguage`;
+- use an ordered-list item, bold the target word or phrase, and immediately add exactly one indented arrow line inside the same list item;
+- begin that line with `→` followed by one space;
 - when `primaryExplanationLanguage` represents the same language as `learningItemLanguage`, write a simpler same-language paraphrase of the complete sentence that makes the target's contextual meaning explicit;
 - when the two languages are different, write a natural translation in `primaryExplanationLanguage` that makes the target's contextual meaning clear; and
 - never merely repeat the sentence, target term, or isolated dictionary meaning.
 
-Use `**In other words:**` for English same-language support and `**翻譯：**`
-for a Traditional Chinese translation. Use equally natural localized labels for
-other explanation languages. Never provide both a paraphrase and a translation
-for the same example. Do not add grammar analysis or a second dictionary
-definition to the child bullet.
+Do not add a textual label before the support: no `In other words:`,
+`Translation:`, `翻譯：`, or localized equivalent. Do not make the arrow or
+support text bold, and do not turn the arrow line into a nested list. Never
+provide both a paraphrase and a translation for the same example. Do not add
+grammar analysis or a second dictionary definition to the arrow line.
 
 ## Result
 

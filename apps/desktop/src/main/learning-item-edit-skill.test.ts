@@ -22,11 +22,13 @@ describe("edit-learning-item skill", () => {
     expect(skill).toContain("## Example Support Contract");
     expect(skill).toContain("normalize the complete `## Examples` section");
     expect(skill).toContain("App-supplied `learningItemLanguage`");
-    expect(skill).toContain("one indented child bullet");
-    expect(skill).toContain("**In other words:**");
-    expect(skill).toContain("**翻譯：**");
+    expect(skill).toContain("one indented arrow line");
+    expect(skill).toContain("begin that line with `→`");
+    expect(skill).not.toContain("**In other words:**");
+    expect(skill).not.toContain("**翻譯：**");
+    expect(skill).toContain("Do not add a textual label before the support");
     expect(skill).toMatch(
-      /Never provide both a paraphrase and a translation\s+for the same example/
+      /Never\s+provide both a paraphrase and a translation for the same example/
     );
     expect(skill).toContain("learning-item-edit-result");
     expect(skill).toContain("must explicitly apply it");

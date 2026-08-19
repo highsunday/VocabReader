@@ -2158,9 +2158,11 @@ describe("create-learning-items skill", () => {
 
     expect(skill).toContain("## Example Support Contract");
     expect(skill).toContain("bold the target word or phrase");
-    expect(skill).toContain("one indented child bullet");
-    expect(skill).toContain("**In other words:**");
-    expect(skill).toContain("**翻譯：**");
+    expect(skill).toContain("one indented arrow line");
+    expect(skill).toContain("begin that line with `→`");
+    expect(skill).not.toContain("**In other words:**");
+    expect(skill).not.toContain("**翻譯：**");
+    expect(skill).toContain("Do not add a textual label before the support");
     expect(skill).toMatch(
       /same,\s+write a simpler same-language paraphrase/
     );
@@ -2168,7 +2170,7 @@ describe("create-learning-items skill", () => {
       /different,\s+write a natural translation in the explanation language/
     );
     expect(skill).toMatch(
-      /Never provide both a paraphrase and a translation\s+for the same example/
+      /Never\s+provide both a paraphrase and a translation for the same example/
     );
   });
 
