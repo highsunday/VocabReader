@@ -387,6 +387,59 @@ test("launches the secure Electron reading shell", async () => {
     await expect.poll(async () => (await assistantPanel.boundingBox())?.width)
       .toBeGreaterThan(initialAssistantBox.width + 80);
 
+    const widenedHandleBox = await resizeHandle.boundingBox();
+    if (!widenedHandleBox) throw new Error("AI resize handle bounds are unavailable");
+    await page.mouse.move(
+      widenedHandleBox.x + widenedHandleBox.width / 2,
+      widenedHandleBox.y + 80
+    );
+    await page.mouse.down();
+    await page.mouse.move(0, widenedHandleBox.y + 80);
+    await page.mouse.up();
+    await expect.poll(async () => (await assistantPanel.boundingBox())?.width)
+      .toBeCloseTo(640, 0);
+
+    const overviewLayout = await page.evaluate(() => {
+      const content = document.querySelector<HTMLElement>(".content");
+      if (!content) throw new Error("center content is unavailable");
+      const overview = document.createElement("section");
+      overview.className = "book-overview";
+      overview.innerHTML = `
+        <div class="overview-hero">
+          <div class="overview-cover"><span>Aa</span></div>
+          <div class="overview-details">
+            <span class="eyebrow">Book overview</span>
+            <h1>Nonviolent Communication: A Language of Life, 3rd Edition</h1>
+            <p class="book-author">Marshall B. Rosenberg</p>
+            <div class="book-facts"><span>117 chapters</span><span>19% read</span></div>
+            <div class="progress-track"><span style="width: 19%"></span></div>
+            <div class="overview-actions">
+              <button class="primary-action">Continue reading</button>
+              <button class="delete-book-button">Delete book</button>
+            </div>
+          </div>
+        </div>`;
+      content.append(overview);
+      const hero = overview.querySelector<HTMLElement>(".overview-hero");
+      const heading = overview.querySelector<HTMLElement>("h1");
+      if (!hero || !heading) throw new Error("overview probe is unavailable");
+      const heroRect = hero.getBoundingClientRect();
+      const headingRect = heading.getBoundingClientRect();
+      const result = {
+        heroClientWidth: hero.clientWidth,
+        heroScrollWidth: hero.scrollWidth,
+        headingInsideCard: headingRect.right <= heroRect.right + 1,
+        gridColumns: getComputedStyle(hero).gridTemplateColumns
+      };
+      overview.remove();
+      return result;
+    });
+    expect(overviewLayout.heroScrollWidth).toBeLessThanOrEqual(
+      overviewLayout.heroClientWidth
+    );
+    expect(overviewLayout.headingInsideCard).toBe(true);
+    expect(overviewLayout.gridColumns.trim().split(/\s+/)).toHaveLength(1);
+
     const resizedAssistantWidth = await page.locator(".workspace").evaluate(
       (element) => Number.parseFloat(
         getComputedStyle(element).getPropertyValue("--right-sidebar-width")

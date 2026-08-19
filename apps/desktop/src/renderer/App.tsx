@@ -2508,22 +2508,24 @@ export function App() {
                     <div className="progress-track" aria-label={`Reading progress ${selectedBook.progressPercent}%`}>
                       <span style={{ width: `${selectedBook.progressPercent}%` }} />
                     </div>
-                    <button
-                      className="primary-action"
-                      type="button"
-                      onClick={startOrContinueReading}
-                      disabled={!selectedBook.chapters.length}
-                    >
-                      {selectedBook.progressPercent > 0 ? "Continue reading" : "Start reading"}
-                    </button>
-                    <button
-                      className="delete-book-button"
-                      type="button"
-                      onClick={() => setBookPendingDeletion(selectedBook)}
-                      disabled={isImporting || isDeleting}
-                    >
-                      Delete book
-                    </button>
+                    <div className="overview-actions">
+                      <button
+                        className="primary-action"
+                        type="button"
+                        onClick={startOrContinueReading}
+                        disabled={!selectedBook.chapters.length}
+                      >
+                        {selectedBook.progressPercent > 0 ? "Continue reading" : "Start reading"}
+                      </button>
+                      <button
+                        className="delete-book-button"
+                        type="button"
+                        onClick={() => setBookPendingDeletion(selectedBook)}
+                        disabled={isImporting || isDeleting}
+                      >
+                        Delete book
+                      </button>
+                    </div>
                   </div>
                 </div>
 
