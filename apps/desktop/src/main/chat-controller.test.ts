@@ -2148,9 +2148,28 @@ describe("create-learning-items skill", () => {
       "Write every example in the learning item's own language"
     );
     expect(skill).toContain(
-      "When the explanation language and learning-item language are the same, do not add a redundant translation"
+      "When the explanation language and learning-item language are the same, follow every example with a simpler same-language paraphrase"
     );
     expect(skill).not.toContain("complete English examples");
+  });
+
+  it("standardizes one explanation-language-aware support line under every example", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain("## Example Support Contract");
+    expect(skill).toContain("bold the target word or phrase");
+    expect(skill).toContain("one indented child bullet");
+    expect(skill).toContain("**In other words:**");
+    expect(skill).toContain("**翻譯：**");
+    expect(skill).toMatch(
+      /same,\s+write a simpler same-language paraphrase/
+    );
+    expect(skill).toMatch(
+      /different,\s+write a natural translation in the explanation language/
+    );
+    expect(skill).toMatch(
+      /Never provide both a paraphrase and a translation\s+for the same example/
+    );
   });
 
   it("returns structured targets whenever it asks a creation clarification", () => {

@@ -2,12 +2,13 @@
 title: AI 輔助學習項目編修模組
 module: learning-item-editing
 status: active
-last_updated: 2026-08-10
+last_updated: 2026-08-19
 related_implements:
   - F51-ai-assisted-learning-item-editing
   - F52-edit-learning-items-from-completed-review
   - F55-edit-learning-items-from-graded-review
   - F59-add-learning-item-representative-image
+  - F65-standardize-learning-item-example-support
 ---
 
 # AI 輔助學習項目編修模組
@@ -37,6 +38,9 @@ related_implements:
 - AI 只能回傳完整 `markdownContent` 與 `cautionNote`；標題、類型、語言、CEFR、
   sense、代表圖片、狀態與複習資料不在 artifact schema 中。
 - 新說明預設沿用目前 Markdown 的主要解釋語言；只有使用者明確要求才切換語言。
+- 每次有效 AI 編修都會把完整 `Examples` 小節正規化：例句使用學習項目語言、粗體
+  目標詞，並在每句後固定加入一行例句輔助說明；主要解釋語言與項目語言相同時使用
+  簡單同語言改寫，不同時使用主要解釋語言翻譯。
 - 易混淆、誤解或辨別需求會更新注意事項；一般補例句／潤飾與不確定情況保留原值。
 - 注意事項為可留空純文字，在完整詳情中以 `Note`、紅字與紅色底線顯示；清單摘要
   與未作答題面不載入或顯示。
@@ -55,7 +59,8 @@ related_implements:
 - 由 repository 依 item id 讀取目前 active 項目；Renderer 不提供正式內容。
 - 建立獨立 `SpawnedCodexAppServerClient`、唯讀 thread 與固定 skill instructions。
 - 只保留 session id、原始 item／`updatedAt`、最新有效草稿、thread／turn id 與狀態。
-- 每輪把目前標題、sense、最新 Markdown、注意事項及本次需求組成 bounded payload。
+- 每輪把目前標題、sense、受信任的學習項目語言、最新 Markdown、注意事項及本次需求
+  組成 bounded payload。
 - 聚合完成訊息後，使用固定 parser 驗證完整 artifact，通過後才原子取代畫面草稿。
 - 協調停止競態、120 秒逾時、Codex exit、套用與放棄清理。
 
@@ -152,6 +157,8 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 - AI 不執行工具、不讀寫檔案、不存取網路或 SQLite。
 - Main 依最新 Markdown 判定 English／Traditional Chinese／Japanese，並以
   `primaryExplanationLanguage` 明確交給 AI；需求本身使用的語言不構成切換指令。
+- Main 另以 `learningItemLanguage` 傳入正式項目的語言 enum，讓 skill 可靠決定例句本體
+  與例句輔助說明應走同語言改寫或跨語言翻譯分支。
 - 原文詞彙、IPA、例句等需要保留的片段不因主要解釋語言而被強制翻譯。
 
 ## 7. UI and Accessibility

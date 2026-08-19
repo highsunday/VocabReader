@@ -198,6 +198,7 @@ export class LearningItemEditController {
         itemId: active.item.id,
         title: active.item.title,
         sense: active.item.sense,
+        learningItemLanguage: active.item.language,
         primaryExplanationLanguage: inferLearningContentLanguage(
           active.draft.markdownContent,
           active.draft.cautionNote

@@ -2,7 +2,7 @@
 title: AI 輔助學習項目建立模組
 module: learning-item-creation
 status: active
-last_updated: 2026-08-10
+last_updated: 2026-08-19
 related_implements:
   - F21-ai-assisted-learning-item-creation
   - F22-read-only-learning-item-draft-preview
@@ -14,6 +14,7 @@ related_implements:
   - F34-route-multilingual-learning-item-intent-with-ai
   - F45-classify-and-filter-learning-items-by-language
   - F53-open-existing-learning-item-from-card-review
+  - F65-standardize-learning-item-example-support
 ---
 
 # AI 輔助學習項目建立模組
@@ -90,8 +91,12 @@ AI 逐筆依 canonical title 與目標語義判定**學習項目語言**；它�
 - 設定為 `zh-TW`、`en` 或 `ja` 時，批次內每張草稿分別固定使用繁體中文、英文或日文。
 - 每句例句本體使用該筆學習項目語言；英文、日文與繁體中文項目分別使用自然的
   英文、日文與繁體中文例句。
-- 所選講解語言套用到釋義、用法說明與例句翻譯。講解語言與學習項目語言不同時，
-  每句例句後提供講解語言翻譯；兩者相同時不重複翻譯。title 與 IPA 維持原貌。
+- 每句例句以有序清單呈現、粗體標出目標詞，並固定緊接一個縮排子項目作為
+  **例句輔助說明**。講解語言與學習項目語言相同時，該行以較簡單的同語言換句話說
+  解開目標詞在句中的意思；兩者不同時，該行使用講解語言自然翻譯。每句只使用其中
+  一種，不同時顯示改寫與翻譯。
+- `Meaning`、詞性／IPA、`Common collocations`、`Examples` 使用固定 Markdown 層級；
+  輔助說明標籤使用講解語言。title 與 IPA 維持原貌。
 - 結構化 `sense` 維持簡短英文語義識別，確保既有候選查詢與語義去重契約不變。
 
 ## 5. Trust Boundaries
@@ -156,7 +161,7 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
 - `learning-item-duplicate-classifier.test.ts`：單次有限候選 AI recheck。
 - `chat-controller.test.ts`：skill routing、候選範圍、持久澄清、草稿生命週期、重查、
   還原、不可重複提交、多語 AI route、自動 continuation、原 target 重試、放棄，
-  以及 source／固定講解語言映射。
+  source／固定講解語言映射，以及每句例句輔助說明的固定格式與語言分支。
 - `chat-conversation-store.test.ts`：version 1→2、批次與 interrupted preparation 持久化。
 - `chat-ipc.test.ts`：intent、targets、retry、abandon 與 mutation 邊界。
 - `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI、快捷／邀請入口、已存在項目

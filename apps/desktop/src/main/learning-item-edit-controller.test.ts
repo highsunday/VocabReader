@@ -130,6 +130,7 @@ describe("LearningItemEditController", () => {
       itemId: item.id,
       title: item.title,
       sense: item.sense,
+      learningItemLanguage: item.language,
       primaryExplanationLanguage: "Traditional Chinese",
       markdownContent: item.markdownContent,
       cautionNote: "",

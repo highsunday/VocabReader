@@ -20,9 +20,9 @@ Create structured drafts for words and phrases. Never write to the learning libr
 - When the App requests the source language, infer the explanation language separately from each requested target title. English targets use English, Traditional Chinese targets use Traditional Chinese, and Japanese targets use Japanese.
 - A source-language batch may contain drafts in different explanation languages. Do not use the reading-segment language to override a target title's own language.
 - When the App requests a fixed language, use that language for every draft in the batch, regardless of the target or reading-segment language.
-- Apply the selected language to meanings, learner-facing notes, and translations of examples. Preserve target titles, IPA, target-language example sentences, and other content that must remain in its original form.
+- Apply the selected language to meanings, learner-facing notes, example-support labels, and example support. Preserve target titles, IPA, target-language example sentences, and other content that must remain in its original form.
 - Write every example in the learning item's own language, independently of the requested explanation language. English items use English examples, Japanese items use Japanese examples, Traditional Chinese items use Traditional Chinese examples, and `other` items use the specific language inferred from their title and sense.
-- When the explanation language differs from the learning-item language, follow every example with a translation in the explanation language. When the explanation language and learning-item language are the same, do not add a redundant translation.
+- When the explanation language and learning-item language are the same, follow every example with a simpler same-language paraphrase. When they differ, follow every example with a natural translation in the explanation language. The support line is required in both cases.
 - Keep `sense` as a short English semantic identifier for stable duplicate comparison.
 
 ## Clarify Before Drafting
@@ -133,9 +133,45 @@ The Markdown content must contain:
 - part of speech or phrase category;
 - IPA pronunciation when meaningful;
 - useful common collocations; and
-- three to five distinct, natural, complete examples in the learning item's own language. Each example must demonstrate the target in its intended sense rather than merely define, spell, translate, or discuss the title. Follow each example with a translation in the requested explanation language only when that language differs from the learning-item language.
+- three to five distinct, natural, complete examples in the learning item's own language. Each example must demonstrate the target in its intended sense rather than merely define, spell, translate, or discuss the title, and must follow the Example Support Contract below.
 
 Do not include source-book, chapter, annotation, reading-segment, or source-sentence metadata.
+
+## Example Support Contract
+
+Use this exact Markdown structure for new learning content. Keep the structural
+headings in English so every draft has the same shape; write their content and
+the example-support labels in the requested explanation language.
+
+```markdown
+## Meaning
+<concise meaning>
+
+- **Part of speech:** <part of speech or phrase category>
+- **IPA:** <pronunciation when meaningful>
+
+## Common collocations
+<useful collocations>
+
+## Examples
+
+1. <complete example with the **target word or phrase** bolded>
+   - **In other words:** <simpler same-language paraphrase>
+```
+
+For every one of the three to five examples:
+
+- use an ordered-list item and bold the target word or phrase in the example;
+- immediately follow it with exactly one indented child bullet;
+- begin that child bullet with a bold, explanation-language label;
+- when the explanation language and learning-item language are the same, write a simpler same-language paraphrase of the complete sentence that makes the target's contextual meaning explicit;
+- when the explanation language and learning-item language are different, write a natural translation in the explanation language that makes the target's contextual meaning clear; and
+- never merely repeat the example, target term, or isolated dictionary meaning.
+
+Use `**In other words:**` for English same-language support and `**翻譯：**`
+for a Traditional Chinese translation. Use equally natural localized labels for
+other explanation languages. Never provide both a paraphrase and a translation
+for the same example.
 
 ## Structured Result
 
