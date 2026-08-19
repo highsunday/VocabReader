@@ -437,6 +437,8 @@ export function App() {
   const readingLayoutRef = useRef<HTMLDivElement>(null);
   const dataRestoreCancelRef = useRef<HTMLButtonElement>(null);
   const initializedRangeRef = useRef<string | undefined>(undefined);
+  const pendingRangeNavigationRef =
+    useRef<"start" | "end" | undefined>(undefined);
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const annotationCounterRef = useRef(0);
   const selectionSpeechRequestRef = useRef(0);
@@ -701,12 +703,21 @@ export function App() {
       end: markerTopForTextOffset(article, readingRange.end, "after")
     });
     updateMarkerTops();
+    const pendingMarker = pendingRangeNavigationRef.current;
+    const navigationFrame = pendingMarker
+      ? requestAnimationFrame(() => {
+          if (pendingRangeNavigationRef.current !== pendingMarker) return;
+          pendingRangeNavigationRef.current = undefined;
+          scrollToReadingRangeMarker(pendingMarker);
+        })
+      : undefined;
     const resizeObserver = typeof ResizeObserver === "undefined"
       ? undefined
       : new ResizeObserver(updateMarkerTops);
     resizeObserver?.observe(article);
     window.addEventListener("resize", updateMarkerTops);
     return () => {
+      if (navigationFrame !== undefined) cancelAnimationFrame(navigationFrame);
       resizeObserver?.disconnect();
       window.removeEventListener("resize", updateMarkerTops);
     };
@@ -1602,13 +1613,25 @@ export function App() {
     if (!article || !readingRange) return;
     const text = article.textContent ?? "";
     if (readingRange.end >= text.length) return;
+    pendingRangeNavigationRef.current = "start";
     persistReadingRange(advanceReadingRange(text, readingRange));
   }
 
   function scrollToReadingRangeMarker(marker: "start" | "end") {
-    contentRef.current
-      ?.querySelector<HTMLElement>(`[data-range-boundary="${marker}"]`)
-      ?.scrollIntoView({ block: "center" });
+    const scroller = contentRef.current;
+    const target = scroller
+      ?.querySelector<HTMLElement>(`[data-range-boundary="${marker}"]`);
+    if (!scroller || !target) return;
+    const scrollerRect = scroller.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const viewportFraction = marker === "start" ? 1 / 4 : 3 / 4;
+    const targetCenter = targetRect.top + targetRect.height / 2;
+    const desiredCenter = scrollerRect.top + scroller.clientHeight * viewportFraction;
+    const maximum = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    scroller.scrollTop = Math.min(
+      maximum,
+      Math.max(0, scroller.scrollTop + targetCenter - desiredCenter)
+    );
   }
 
   function saveCurrentReaderPosition() {

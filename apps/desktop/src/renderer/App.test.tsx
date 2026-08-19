@@ -2933,6 +2933,13 @@ describe("App", () => {
       chapterId: "one-1",
       range: { start: 0, end: chapterLength }
     }));
+    const nextSegment = screen.getByRole("button", {
+      name: "Go to next reading segment"
+    });
+    expect(nextSegment).toBeDisabled();
+    const saveCountAtChapterEnd = saveReadingRange.mock.calls.length;
+    fireEvent.click(nextSegment);
+    expect(saveReadingRange).toHaveBeenCalledTimes(saveCountAtChapterEnd);
   });
 
   it("restores saved offsets and keeps them through layout changes", async () => {
@@ -3042,6 +3049,39 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     await screen.findByRole("button", { name: "Reading segment start" });
+    const scroller = document.querySelector<HTMLElement>(".content.reader-content");
+    const startBoundary = document.querySelector<HTMLElement>(
+      '[data-range-boundary="start"]'
+    );
+    if (!scroller || !startBoundary) {
+      throw new Error("missing reader scroller or START boundary");
+    }
+    Object.defineProperties(scroller, {
+      clientHeight: { configurable: true, value: 900 },
+      scrollHeight: { configurable: true, value: 3_000 }
+    });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 50,
+      top: 50,
+      right: 1_000,
+      bottom: 950,
+      left: 0,
+      width: 1_000,
+      height: 900,
+      toJSON: () => ({})
+    });
+    vi.spyOn(startBoundary, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 635,
+      top: 635,
+      right: 760,
+      bottom: 665,
+      left: 0,
+      width: 760,
+      height: 30,
+      toJSON: () => ({})
+    });
     expect(saveReadingRange).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText("Ask about current content"), {
@@ -3060,6 +3100,7 @@ describe("App", () => {
     expect(savedRange.end).toBeLessThanOrEqual(
       document.querySelector(".chapter-content")?.textContent?.length ?? 0
     );
+    await waitFor(() => expect(scroller.scrollTop).toBe(375));
   });
 
   it("creates consecutive persistent annotations in annotation mode and silently ignores overlap", async () => {
@@ -3662,11 +3703,6 @@ describe("App", () => {
       fragment: null,
       contentHtml: "<p>Content for one-1</p>"
     });
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoView
-    });
     render(<App />);
     await screen.findByRole("heading", { name: "The First Book" });
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
@@ -3711,13 +3747,53 @@ describe("App", () => {
       throw new Error("missing reading range boundaries");
     }
 
-    fireEvent.click(moveToStart);
-    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "center" });
-    expect(scrollIntoView.mock.instances.at(-1)).toBe(startBoundary);
+    const scroller = document.querySelector<HTMLElement>(".content.reader-content");
+    if (!scroller) throw new Error("missing reader scroller");
+    Object.defineProperties(scroller, {
+      clientHeight: { configurable: true, value: 900 },
+      scrollHeight: { configurable: true, value: 3_000 }
+    });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 50,
+      top: 50,
+      right: 1_000,
+      bottom: 950,
+      left: 0,
+      width: 1_000,
+      height: 900,
+      toJSON: () => ({})
+    });
+    vi.spyOn(startBoundary, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 635,
+      top: 635,
+      right: 760,
+      bottom: 665,
+      left: 0,
+      width: 760,
+      height: 30,
+      toJSON: () => ({})
+    });
+    vi.spyOn(endBoundary, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 235,
+      top: 235,
+      right: 760,
+      bottom: 265,
+      left: 0,
+      width: 760,
+      height: 30,
+      toJSON: () => ({})
+    });
 
+    scroller.scrollTop = 100;
+    fireEvent.click(moveToStart);
+    expect(scroller.scrollTop).toBe(475);
+
+    scroller.scrollTop = 600;
     fireEvent.click(moveToEnd);
-    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "center" });
-    expect(scrollIntoView.mock.instances.at(-1)).toBe(endBoundary);
+    expect(scroller.scrollTop).toBe(125);
     expect(screen.getByRole("button", { name: "Reading segment start" }))
       .toHaveAttribute("data-text-offset", "4");
     expect(screen.getByRole("button", { name: "Reading segment end" }))

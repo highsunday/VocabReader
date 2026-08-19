@@ -799,3 +799,23 @@ DDD standalone TDD completion notification.
 **Follow-up**
 - Implementation remains complete. The user may explicitly authorize connecting Gmail and sending
   this completion notification in a later request.
+
+#### L040 — 2026-08-19 16:28 CST — B25 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B25 修正閱讀區段快捷導覽與下一段定位`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: unavailable (not invoked)
+- Reason: no email connector or verified local sender is available, and this request authorized
+  local implementation but did not explicitly authorize sending its summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize connecting Gmail and sending
+  this completion notification in a later request.

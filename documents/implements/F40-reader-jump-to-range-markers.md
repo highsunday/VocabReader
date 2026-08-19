@@ -3,9 +3,9 @@ author: Codex
 date: 2026-07-29
 title: 在閱讀介面快速移到 START／END 範圍標籤
 uuid: 4d1d73ca-205e-4a57-8c39-8d92a3b4894d
-version: 2.0.0
+version: 3.0.0
 status: implemented
-corrected-by: B14
+corrected-by: B14, B25
 ---
 
 # Feature Specification - START／END 範圍標籤快速移動
@@ -33,12 +33,12 @@ corrected-by: B14
 - **Scenario 2：移到 START 範圍標籤**
   - **Given** START 位於目前視野之外
   - **When** 使用者按下 `START`
-  - **Then** START boundary 被置中捲入閱讀區可見範圍
+  - **Then** START boundary 中心被捲到閱讀區可見高度的 1/4
 
 - **Scenario 3：移到 END 範圍標籤**
   - **Given** END 位於目前視野之外
   - **When** 使用者按下 `END`
-  - **Then** END boundary 被置中捲入閱讀區可見範圍
+  - **Then** END boundary 中心被捲到閱讀區可見高度的 3/4
 
 - **Scenario 4：只導覽、不改動範圍**
   - **Given** START／END 已有保存的章內文字 offset
@@ -50,15 +50,16 @@ corrected-by: B14
 | ID | Scenario | Given | When | Then | Priority |
 |---|---|---|---|---|---|
 | TC1 | 工具位置 | 範圍與標記工具已渲染 | 檢視工具 | START／END 與標記工具同屬浮動 dock，頂端工具列沒有舊操作 | High |
-| TC2 | 導覽至 START | START boundary 已渲染 | 點擊 START | START boundary 以 `block: center` 捲入視野 | High |
-| TC3 | 導覽至 END | END boundary 已渲染 | 點擊 END | END boundary 以 `block: center` 捲入視野 | High |
+| TC2 | 導覽至 START | START boundary 已渲染 | 點擊 START | START boundary 中心對齊可見高度 1/4 | High |
+| TC3 | 導覽至 END | END boundary 已渲染 | 點擊 END | END boundary 中心對齊可見高度 3/4 | High |
 | TC4 | 範圍資料不變 | offset 為 4／10 | 依序點擊 START／END | offset 仍為 4／10，未保存範圍 | High |
 
 ## 5. Implementation Notes
 
 - 快捷操作放在既有 `.annotation-tool-dock`，與標記模式工具並列。
 - 導覽目標是目前章節的 `[data-range-boundary="start"]` 或 `[data-range-boundary="end"]`。
-- 使用 `scrollIntoView({ block: "center" })`，避免標籤停在固定頂端工具列後方。
+- 依範圍標籤與閱讀捲動區的畫面座標計算 `scrollTop`：START 對齊可見高度 1/4，
+  END 對齊 3/4，並限制在合法捲動範圍內。
 - 不以章節捲動高度推算標籤位置，也不建立第二套定位資料。
 
 ## 6. Assumptions, Open Questions and Non-goals
@@ -91,14 +92,15 @@ corrected-by: B14
 
 ### Status
 
-Implemented via B14.
+Implemented via B14 and refined via B25.
 
 ### Implementation Summary
 
 - 在浮動標記工具左側加入具可見 `START`／`END` 文字的分段快捷控制。
-- 快捷按鈕各自查找目前章節對應 boundary，並以置中方式捲入視野。
+- 快捷按鈕各自查找目前章節對應 boundary，START 對齊可見高度 1/4，END 對齊 3/4。
 - 移除初版放在頂端章節工具列、導覽到章節頂端／底端的錯誤控制與高度計算。
 - 導覽不改變 START／END offset，也不呼叫 `saveReadingRange`。
+- B25 讓 `Next segment` 更新範圍後自動執行 START 導覽。
 
 ### Test Coverage
 
@@ -106,11 +108,12 @@ Implemented via B14.
 
 ### Verification
 
-詳細紅燈、綠燈、命令與驗收紀錄見 `B14-jump-to-reading-range-markers.md`。
+初始修正紀錄見 `B14-jump-to-reading-range-markers.md`；比例定位與下一段自動導覽見
+`B25-align-range-navigation-and-next-segment.md`。
 
 ## Appendix: TDD Implementation Checklist
 
 1. 以 B14 重現錯誤位置與導覽目標。
 2. 將 START／END 快捷操作移入浮動標記工具列。
-3. 驗證 boundary 置中捲動與範圍資料不變。
+3. 驗證 START／END 的 1/4／3/4 捲動與範圍資料不變。
 4. 同步 F40、B14 與相關模組文件。

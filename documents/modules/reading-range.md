@@ -2,7 +2,7 @@
 title: 閱讀區段與 START／END 範圍標籤模組
 module: reading-range
 status: active
-last_updated: 2026-08-13
+last_updated: 2026-08-19
 related_implements:
   - F05-ai-reading-range-markers
   - F06-reading-range-boundary-lines
@@ -18,6 +18,7 @@ related_implements:
   - B14-jump-to-reading-range-markers
   - B22-default-reading-range-to-whole-chapter
   - B23-align-advanced-range-start-with-first-unread-line
+  - B25-align-range-navigation-and-next-segment
 ---
 
 # 閱讀區段與 START／END 範圍標籤模組
@@ -46,10 +47,12 @@ related_implements:
 - 可拖曳左側書籤，拖曳途中即時預覽，放開時保存一次。
 - 可在內文目前行開啟右鍵功能選單，把 START 或 END 移到該行。
 - START 不得位於 END 之後；拖曳或右鍵更新若越界，另一個標籤會跟到正在移動的新位置，使兩者位於同一位置。
-- 浮動標記工具旁提供 START／END 快捷按鈕，可把對應範圍標籤置中捲入視野；快捷導覽不改動或保存範圍。
+- 浮動標記工具旁提供 START／END 快捷按鈕；START 中心對齊閱讀可見高度的 1/4，
+  END 中心對齊 3/4，快捷導覽不改動或保存範圍。
 - 每個書籤向內文延伸具名分隔線；位置過近時會上下錯開，避免重疊。
 - START 以起始 offset 處第一個字元的 glyph rectangle 定位在該視覺行之前，不採用可能落在上一行的 collapsed caret rectangle；END 以終止 offset 前一字元定位在該視覺行之後。
-- 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍，章末停止且不跨章。
+- 「完成這段，前往下一段」會依目前區段約略字數推進到下一個連續範圍，完成新範圍標籤
+  定位後自動把 START 導覽至可見高度的 1/4；章末停止且不跨章。
 - 已提供只擷取 START／END 之間原文的共用函式；AI 對話面板、標記講解與閱讀測驗都使用此邊界，禁止讀取範圍外內容。
 - 標記講解與互動式閱讀測驗已透過 AI 對話面板實作；結果顯示在產生它的 AI 對話中，不由本模組另存一份結構化解析紀錄。
 - AI 對話面板只在目前書籍、章節或 START／END 相對於最近成功提供的區段發生改變時，重新附帶一次閱讀區段原文。
@@ -62,7 +65,8 @@ related_implements:
 - 將 Pointer 或目前行座標轉換成章內文字 offset。
 - 驗證 START／END 順序，處理拖曳預覽、放開、取消與右鍵移動。
 - 將文字 offset 轉為 START／END 的畫面座標，處理分隔線與重疊避讓。
-- 從浮動標記工具旁把既有 START／END boundary 置中捲入視野，不改動範圍資料。
+- 從浮動標記工具旁把 START／END boundary 分別導覽到閱讀可見高度 1/4／3/4，
+  不改動範圍資料。
 - 計算下一個閱讀區段，並提供嚴格的原文裁切函式。
 - 透過 preload bridge 要求保存範圍；renderer 不直接操作檔案系統。
 
@@ -148,11 +152,13 @@ related_implements:
 2. `advanceReadingRange()` 先計算目前裁切文字的約略英文單字數。
 3. 新 START 從舊 END 後第一個非空白字元開始，新 END 依相同約略字數向後計算。
 4. 剩餘內容不足時 END 停在章末；到達章末後按鈕停用，不自動切換下一章。
+5. 保存下一個範圍並完成新 boundary 的渲染與量測後，自動執行 START 的 1/4 導覽。
 
 ### Quick navigation to a range marker
 
 1. `START`／`END` 快捷按鈕與浮動標記工具同屬 `.annotation-tool-dock`，不放在頂端章節工具列。
-2. 點擊後查找目前章節對應的 boundary DOM，並以 `scrollIntoView({ block: "center" })` 捲入視野。
+2. 點擊後查找目前章節對應的 boundary DOM，依 boundary 中心與閱讀捲動區的畫面座標
+   調整 `scrollTop`；START 對齊可見高度 1/4，END 對齊 3/4，並限制在合法捲動範圍內。
 3. 快捷導覽只改變閱讀容器的可見位置；不修改文字 offset、不呼叫範圍保存，也不切換章節。
 
 ## 8. Persistence Flow
@@ -199,18 +205,19 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/renderer/reading-range.test.ts` | 新章節完整範圍初始化、空章節邊界、嚴格裁切、等長推進、章末停止、點位轉 offset、START 依第一個 glyph 所在視覺行定位、DOM text node 邊界與章末 fallback、END 在線後、標記資料不受推進影響 |
-| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線與快捷導覽、浮動工具位置、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、明確推進、AI 對話嚴格裁切、相同區段去重與邊界／來源變更重傳 |
+| `apps/desktop/src/renderer/App.test.tsx` | 一對範圍標籤、START／END 分隔線與 1/4／3/4 快捷導覽、浮動工具位置、重疊避讓、Pointer 放開即保存、取消恢復、右鍵移動、雙向越界聯動、外部點擊關閉選單、版面變動、下一段自動 START 導覽、章末停用、AI 對話嚴格裁切、相同區段去重與邊界／來源變更重傳 |
 | `apps/desktop/src/main/library-service.test.ts` | 每章範圍保存、快速連續寫入、無效範圍與不存在章節拒絕 |
 | `apps/desktop/src/main/library-ipc.test.ts` | 保存 IPC 路由及輸入格式驗證 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron preload 確實暴露 `saveReadingRange()`，安全設定與應用程式啟動回歸 |
 
-最近相關驗證（2026-07-29）：
+最近相關驗證（2026-08-19，B25）：
 
-- App renderer：70/70 passed。
-- Desktop Vitest：302/302 passed。
-- Desktop TypeScript typecheck：passed。
+- App renderer 與 reading-range：106/106 passed。
+- 完整 Vitest：Server 3/3、Desktop 540/540 passed。
+- Server／Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
-- 本次文件同步未重跑 Server Vitest 與 Electron Playwright；START／END 快捷導覽不改動 server、preload 或 Electron main process。
+- Electron Playwright 未執行；本次不改動 server、preload 或 Electron main process，互動回歸由
+  renderer 的固定幾何座標測試覆蓋。
 
 ## 12. Important Constraints
 
