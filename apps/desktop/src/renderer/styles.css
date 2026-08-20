@@ -222,11 +222,10 @@ button {
 }
 
 .book-library-panel {
-  --book-panel-max-height: min(390px, 46vh);
   min-height: 0;
-  max-height: var(--book-panel-max-height);
   display: flex;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
+  margin-bottom: 10px;
   padding: 7px 4px 7px 7px;
   border: 1px solid #cdd2ca;
   border-radius: 14px;
