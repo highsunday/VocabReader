@@ -99,6 +99,42 @@ test("presents a ready Listen & Repeat practice as a focused learning path", asy
   }
 });
 
+test("keeps the full Practice settings panel inside the scrollable dialog", async () => {
+  const electronApp = await electron.launch({
+    args: [desktopApp],
+    env: {
+      ...process.env,
+      NODE_ENV: "test"
+    }
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await page.setViewportSize({ width: 1180, height: 820 });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("tab", { name: "Practice" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Settings" });
+    const panel = page.getByRole("tabpanel", { name: "Practice" });
+    const bounds = await panel.evaluate((element) => {
+      const panelRect = element.getBoundingClientRect();
+      const dialogRect = element.closest(".settings-dialog")?.getBoundingClientRect();
+      return {
+        dialogBottom: dialogRect?.bottom ?? 0,
+        panelBottom: panelRect.bottom
+      };
+    });
+    expect(bounds.panelBottom).toBeLessThanOrEqual(bounds.dialogBottom + 1);
+
+    await panel.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect(page.getByLabel("Daily full-sentence goal")).toBeVisible();
+  } finally {
+    await electronApp.close();
+  }
+});
+
 test("launches the secure Electron reading shell", async () => {
   const electronApp = await electron.launch({
     args: [desktopApp],
