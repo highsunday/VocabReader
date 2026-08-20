@@ -62,6 +62,13 @@ AI 逐筆依 canonical title 與目標語義判定**學習項目語言**；它�
 介面或講解語言。同批草稿可具有不同語言，無法可靠歸入英文、日文或繁體中文時使用
 其他語言。提交 recheck 只判斷語義重複，並保留草稿原語言。
 
+AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使用頻率
+難度級別**。基準為該語言一般成年使用者的現代日常口語與一般書面內容；A1
+表示核心高頻用詞，依常見度降低排至 C2 的極罕見、古舊、高度專業或限定語域用法。
+同標題不同語義獨立評估；請求、講解、介面或閱讀區段語言不得覆蓋該基準。
+詞形複雜度、長度或抽象程度本身不能單獨提高級別。這是產品共用的跨語言頻率標籤，
+不宣稱為各語言官方 CEFR 詞表。
+
 ## 3. Clarification and Annotation Integration
 
 - AI 路由確認建立意圖但沒有可靠 target 時，只詢問要加入什麼；建立狀態保存在 user
@@ -162,6 +169,7 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
 - `chat-controller.test.ts`：skill routing、候選範圍、持久澄清、草稿生命週期、重查、
   還原、不可重複提交、多語 AI route、自動 continuation、原 target 重試、放棄，
   source／固定講解語言映射，以及每句例句輔助說明的固定格式與語言分支。
+  同時固定跨語言、特定語義的 A1–C2 使用頻率 rubric。
 - `chat-conversation-store.test.ts`：version 1→2、批次與 interrupted preparation 持久化。
 - `chat-ipc.test.ts`：intent、targets、retry、abandon 與 mutation 邊界。
 - `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI、快捷／邀請入口、已存在項目

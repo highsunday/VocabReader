@@ -127,6 +127,42 @@ first three categories. Base this on the canonical title and relevant sense
 context, not on the request, reading-segment, interface, or explanation
 language. A single batch may contain multiple language values.
 
+## Frequency-based CEFR Contract
+
+Treat `cefr` as a cross-language usage-frequency difficulty band. It does not
+claim that every supported language has an official CEFR vocabulary list.
+Estimate it from `language + canonical title + intended sense`, not from the
+surface title alone.
+
+Use as the reference population general adult users of the target language and
+as the reference register modern everyday speech and general written content.
+Apply this rubric in the learning item's own target language, independently of
+the request language, explanation language, interface language, or the overall
+difficulty of a supplied reading segment.
+
+- A1: Core survival and basic functional language that is extremely common in
+  ordinary daily interaction.
+- A2: Common everyday language or a common sense that general users encounter
+  frequently.
+- B1: Regularly encountered in general conversation, news, work, or mainstream
+  writing, but outside the smallest core vocabulary.
+- B2: Recognizable to an educated adult, but uncommon in daily interaction or
+  noticeably formal or written in register.
+- C1: Low-frequency, precise, literary, academic, or domain-associated language
+  found mainly in advanced content.
+- C2: Extremely rare, archaic, highly specialized, regionally or historically
+  restricted language that even educated general users seldom encounter.
+
+Judge the exact intended sense or usage. Do not assign the same level to different senses merely because they share a title. A common title can receive
+a high level when its intended sense is rare. Conversely, spelling length,
+morphological complexity, abstractness, or a rare-looking form must not by
+itself raise the level when the intended usage is common.
+
+A term that is routine inside one specialist field but rare in general language
+still belongs at C1 or C2. For a borderline case, explicitly compare the two
+adjacent bands and select the closer one. Do not default uncertain items to B2,
+and do not compress most drafts into B2 or C1.
+
 The Markdown content must contain:
 
 - a concise meaning in the requested explanation language;

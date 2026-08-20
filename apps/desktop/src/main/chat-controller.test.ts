@@ -2117,6 +2117,31 @@ describe("composeCodexInput", () => {
 });
 
 describe("create-learning-items skill", () => {
+  it("calibrates CEFR as sense-specific cross-language usage frequency", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain("## Frequency-based CEFR Contract");
+    expect(skill).toContain("language + canonical title + intended sense");
+    expect(skill).toContain(
+      "modern everyday speech and general written content"
+    );
+    expect(skill).toContain("A1: Core survival and basic functional language");
+    expect(skill).toContain("A2: Common everyday language");
+    expect(skill).toContain("B1: Regularly encountered");
+    expect(skill).toContain("B2: Recognizable to an educated adult");
+    expect(skill).toContain("C1: Low-frequency, precise, literary, academic");
+    expect(skill).toContain("C2: Extremely rare, archaic, highly specialized");
+    expect(skill).toContain(
+      "Do not assign the same level to different senses merely because they share a title"
+    );
+    expect(skill).toContain(
+      "Apply this rubric in the learning item's own target language"
+    );
+    expect(skill).toContain(
+      "Do not default uncertain items to B2"
+    );
+  });
+
   it("defines per-target source language and fixed-language batch behavior", () => {
     const skill = learningItemCreationSkillInstructions;
 
