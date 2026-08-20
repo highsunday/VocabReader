@@ -2,12 +2,15 @@
 title: 逐句跟讀練習模組
 module: listen-and-repeat-practice
 status: active
-last_updated: 2026-08-11
+last_updated: 2026-08-20
 related_implements:
   - F58-listen-and-repeat-practice
   - F60-select-progressive-short-chunk-length
   - B20-derive-listen-repeat-short-audio-from-long-take
   - B21-balance-multilingual-listen-repeat-short-chunks
+  - F66-daily-listen-repeat-goal-and-activity
+  - B28-show-listen-repeat-remaining-count-in-sidebar
+  - B29-align-listen-repeat-progress-dashboard
 ---
 
 # 逐句跟讀練習模組
@@ -27,7 +30,14 @@ Spaced Review，也不提供 Play All 或跨片段音訊串接。
 
 目前支援：
 
-- Sidebar 中位於 Sentence Practice 後方的 `Listen & Repeat` 獨立 workspace。
+- Sidebar 中位於 Sentence Practice 後方的 `Listen & Repeat` 獨立 workspace；每日目標啟用
+  時顯示 `max(目標 - 今日完成活動量, 0)` 的剩餘數量，首次完成長片段後即時遞減。
+- Settings 可設定 0–999、預設 10 的**每日逐句跟讀目標**；0 只隱藏目標，不停止練習
+  或活動記錄。
+- 頁面顯示今日目標進度、所有日期累計與最近 30 個本地日期的活動方格；只計算每份目前
+  跟讀練習中首次保存錄音的長片段，短片段與同一長片段重錄不計。
+- 三項進度組成單一具名摘要 dashboard；寬版以今日／累計左側堆疊、30 天活動右側跨列，
+  窄版依序單欄排列，最小尺寸的活動日曆採 10 欄 × 3 列且不水平溢出。
 - 任意語言／混合語言素材與 2,000 Unicode grapheme 上限；超限不截斷。
 - `Progressive` 的 long → short 階層與 `Advanced` 的 long-only 結構。
 - Progressive 可用三段吸附拉桿選擇短片段長度偏好：`Short` 沿用約 0.75–1.5 秒的既有
@@ -65,6 +75,8 @@ Main-owned controller 負責：
 - 建立新的 practice ID，執行一次隔離 Codex turn，解析 artifact 後才提交 store transaction。
 - 重新處理前檢查是否有 learner recordings，要求 `replaceConfirmed`。
 - 協調 current snapshot、recording、AI audio 與 clear；Renderer 不直接取得檔案路徑。
+- 在保存錄音前讀取可信任 chunk 狀態；只有原本沒有錄音的 long chunk 交由活動 store
+  增加一次，Renderer 不可聲稱首次完成或上傳統計值。
 - malformed、rewritten、timeout 或 runtime failure 時不呼叫 `replacePractice()`，舊練習保持可用。
 
 ### AI artifact boundary
@@ -115,6 +127,14 @@ ai-audio/<chunk-id>-<fingerprint>.wav
   失敗時不留下部分可用的短片段。
 - `Clear` 等待 metadata write queue 後，只遞迴刪除專用 root。
 
+### LocalListenRepeatProgressStore
+
+- 在 Settings 本機目錄以 version 1 原子 JSON 保存 `local date → completed long-chunk count`，與目前素材及音訊分離。
+- 依裝置目前時區產生今日、所有日期累計，以及包含今天與前 29 天的固定 30 筆補零活動。
+- 清除、重新處理或更換目前跟讀練習不清除統計；上線前既有錄音不回溯補算。
+- 統計檔案只保存日期與數量，不保存素材、文字、chunk id、錄音或 AI 音訊。
+- 活動統計納入 Data Backup version 3 並採完整取代式還原；每日目標仍是 Settings，不進備份。
+
 ### ListenRepeatVoiceService
 
 本服務和 Selection Speech 共用同一個 encrypted API key store 與 Settings voice／tone，但有
@@ -144,6 +164,10 @@ ai-audio/<chunk-id>-<fingerprint>.wav
 `ListenRepeatWorkspace` 負責素材、mode、progress、chunk cards、dialogs、audio playback、mic 與
 focus view。`listen-repeat-flow.ts` 保存可獨立測試的 domain UI 邏輯：
 
+- 每次 snapshot 更新都把可信任的今日長片段完成活動量回報 `App`；`App` 在啟動時也先讀取
+  snapshot，讓尚未開啟 workspace 時的 Sidebar 就能顯示每日剩餘數量。
+- 今日、累計與最近活動使用 Listen & Repeat 專屬 grid areas 與 `listen-repeat` container
+  query；不依賴只對 Sentence Practice 生效的響應式規則。
 - 頁面以 prepare／practice 互斥 stage 呈現，避免有效結果出現後仍佔用高度顯示素材表單。
 - Progressive 素材表單在模式卡下方顯示 Short／Medium／Long 三段原生 range 拉桿；
   Advanced 隱藏但保留本地選擇，處理期間與素材、模式一起鎖定。
@@ -219,13 +243,14 @@ operation。音訊 bytes、MIME、ID、material、mode 與 short-chunk length al
 | `apps/desktop/src/main/listen-repeat-artifacts.ts` | exact units、numeric boundary parser 與 reconstruction |
 | `apps/desktop/src/main/listen-repeat-controller.ts` | 隔離 Codex turn 與 orchestration |
 | `apps/desktop/src/main/listen-repeat-store.ts` | current metadata、recording、AI cache 與 cleanup |
+| `apps/desktop/src/main/listen-repeat-progress-store.ts` | 每日聚合、累計／30 天活動、驗證與原子保存 |
 | `apps/desktop/src/main/listen-repeat-voice-service.ts` | parent TTS、word timestamps、group fingerprint、dedupe 與 cancellation |
 | `apps/desktop/src/main/listen-repeat-audio-alignment.ts` | exact transcript 對齊、PCM WAV 驗證、sample slicing 與 edge treatment |
 | `apps/desktop/src/main/listen-repeat-ipc.ts` | 8 個 narrow IPC operations |
 | `.agents/skills/prepare-listen-and-repeat-practice/SKILL.md` | 只斷句、不改文與 artifact schema |
 | `apps/desktop/src/renderer/listen-repeat-flow.ts` | sequence、resume、overwrite scope 與 VAD |
-| `apps/desktop/src/renderer/ListenRepeatWorkspace.tsx` | 完整頁面、錄音與 Continuous mode |
-| `apps/desktop/src/renderer/App.tsx` | Sidebar、workspace lifecycle 與 AI Voice settings 跳轉 |
+| `apps/desktop/src/renderer/ListenRepeatWorkspace.tsx` | 完整頁面、錄音、Continuous mode 與今日完成量回報 |
+| `apps/desktop/src/renderer/App.tsx` | Sidebar 每日剩餘量、workspace lifecycle 與 AI Voice settings 跳轉 |
 
 ## 8. Testing Notes
 
@@ -235,18 +260,19 @@ operation。音訊 bytes、MIME、ID、material、mode 與 short-chunk length al
 | `listen-repeat-artifacts.test.ts` | numbered units、Advanced/Progressive reconstruction 與無效邊界拒絕 |
 | `listen-repeat-controller.test.ts` | single result、length payload、fast model routing、atomic install/preserve、confirm、isolation |
 | `listen-repeat-store.test.ts` | length／legacy restore、restart、unlock、recording replace、ID/MIME、temporary cleanup、clear |
+| `listen-repeat-progress-store.test.ts` | 每日累加、跨日、30 天補零、累計與損毀資料拒絕 |
 | `listen-repeat-voice-service.test.ts` | parent-only TTS、timestamps、derived slices、group dedupe、restart cache、fingerprint、cancel |
 | `listen-repeat-ipc.test.ts` | narrow operations、length allowlist 與 malformed payload |
 | `listen-repeat-skill.test.ts` | 三檔 length heuristic、skill contract 與 runtime install |
 | `listen-repeat-flow.test.ts` | sequence、resume、overwrite scope 與 VAD guards |
-| `ListenRepeatWorkspace.test.tsx` | length slider、stage exclusivity、compact Advanced、processing feedback、material UI、limit、hierarchy、AI Voice、overwrite、clear |
-| `App.test.tsx` | Sidebar order 與 independent workspace |
+| `ListenRepeatWorkspace.test.tsx` | 進度摘要語意分組、今日完成量回報、length slider、stage exclusivity、compact Advanced、processing feedback、material UI、limit、hierarchy、AI Voice、overwrite、clear |
+| `App.test.tsx` | Sidebar order、每日剩餘量、零目標／超額邊界與 independent workspace |
 | `data-backup-service.test.ts` | export/restore 排除 current practice |
 | `desktop.spec.ts` | production bundle、skill install、preload 與真實頁面入口 |
 
-最近驗證（2026-08-11）：
+最近驗證（2026-08-20）：
 
-- Root Vitest：server 3/3、Desktop 506/506 passed。
+- Root Vitest：server 3/3、Desktop 548/548 passed。
 - Root TypeScript typecheck：server、Desktop passed。
 - Root production build：server、Desktop passed（只有既有 renderer chunk-size advisory）。
 - Electron Playwright E2E：3/3 passed；既有 center-scroll 案例曾偶發逾時，單獨與完整重跑皆通過。
@@ -273,6 +299,7 @@ operation。音訊 bytes、MIME、ID、material、mode 與 short-chunk length al
 - `CONTEXT.md`
 - `documents/implements/F58-listen-and-repeat-practice.md`
 - `documents/implements/F60-select-progressive-short-chunk-length.md`
+- `documents/implements/F66-daily-listen-repeat-goal-and-activity.md`
 - `documents/implements/B18-complete-listen-repeat-segmentation-in-one-result.md`
 - `documents/implements/B20-derive-listen-repeat-short-audio-from-long-take.md`
 - `documents/implements/B21-balance-multilingual-listen-repeat-short-chunks.md`

@@ -19,6 +19,7 @@ describe("settings IPC", () => {
         dailyNewItemCompletionLimit: 10,
         dailyDueReviewCompletionLimit: 50,
         dailySentencePracticeGoal: 10,
+        dailyListenRepeatGoal: 10,
         reviewPaperSize: 10,
         selectionSpeechVoice: "cedar",
         selectionSpeechTone: "learning"
@@ -32,6 +33,7 @@ describe("settings IPC", () => {
         dailyNewItemCompletionLimit: 0,
         dailyDueReviewCompletionLimit: 999,
         dailySentencePracticeGoal: 999,
+        dailyListenRepeatGoal: 25,
         reviewPaperSize: 20,
         selectionSpeechVoice: "onyx",
         selectionSpeechTone: "natural"
@@ -49,6 +51,7 @@ describe("settings IPC", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -62,6 +65,7 @@ describe("settings IPC", () => {
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 999,
       dailySentencePracticeGoal: 999,
+      dailyListenRepeatGoal: 25,
       reviewPaperSize: 20,
       selectionSpeechVoice: "onyx",
       selectionSpeechTone: "natural"
@@ -74,6 +78,7 @@ describe("settings IPC", () => {
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 999,
       dailySentencePracticeGoal: 999,
+      dailyListenRepeatGoal: 25,
       reviewPaperSize: 20,
       selectionSpeechVoice: "onyx",
       selectionSpeechTone: "natural"
@@ -87,6 +92,7 @@ describe("settings IPC", () => {
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 999,
       dailySentencePracticeGoal: 999,
+      dailyListenRepeatGoal: 25,
       reviewPaperSize: 20,
       selectionSpeechVoice: "onyx",
       selectionSpeechTone: "natural"
@@ -208,6 +214,7 @@ describe("settings IPC", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning",

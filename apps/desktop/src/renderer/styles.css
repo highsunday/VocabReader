@@ -1055,6 +1055,16 @@ button {
   font-size: 13px;
 }
 
+.settings-practice-section + .settings-practice-section {
+  margin-top: 28px;
+  padding-top: 26px;
+  border-top: 1px solid #ded9cf;
+}
+
+.settings-practice-section .settings-section-intro {
+  margin-bottom: 14px;
+}
+
 .settings-control + .settings-control {
   margin-top: 22px;
   padding-top: 20px;
@@ -6855,28 +6865,72 @@ button {
 .reading-range-menu {
   position: fixed;
   z-index: 20;
-  min-width: 190px;
-  padding: 6px;
-  border: 1px solid #cfc8ba;
-  border-radius: 10px;
+  min-width: 196px;
+  padding: 10px 12px;
+  border: 1px solid #c9c8c0;
+  border-radius: 12px;
   display: grid;
-  gap: 3px;
-  background: #fffdf8;
-  box-shadow: 0 12px 30px rgb(54 48 38 / 18%);
+  gap: 0;
+  background: rgb(255 254 250 / 98%);
+  box-shadow:
+    0 18px 44px rgb(54 48 38 / 20%),
+    0 3px 10px rgb(54 48 38 / 8%),
+    inset 0 1px 0 rgb(255 255 255 / 86%);
+  backdrop-filter: blur(12px);
 }
 
 .reading-range-menu button {
-  padding: 9px 11px;
+  min-height: 42px;
+  padding: 9px 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
   text-align: left;
   color: #303a31;
   background: transparent;
   cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 680;
+  line-height: 1.25;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.reading-range-menu button svg {
+  width: 20px;
+  height: 20px;
+  color: #6f7771;
+  stroke-width: 1.7;
 }
 
 .reading-range-menu button:hover:not(:disabled) {
-  background: #eef3ea;
+  color: #263b2d;
+  background: #eef2e9;
+}
+
+.reading-range-menu button:focus-visible {
+  outline: 2px solid #66806d;
+  outline-offset: -1px;
+}
+
+.reading-range-menu .range-menu-danger {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #ddd7cd;
+  border-radius: 0 0 8px 8px;
+  color: #955044;
+}
+
+.reading-range-menu .range-menu-danger svg {
+  color: #ad746a;
+}
+
+.reading-range-menu .range-menu-danger:hover:not(:disabled) {
+  color: #873f35;
+  background: #f8ebe7;
 }
 
 .reading-range-menu button:disabled {
@@ -10596,6 +10650,64 @@ h1 {
   color: #4d765e;
 }
 
+.listen-repeat-progress-summary {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.34fr) minmax(0, 1fr);
+  grid-template-areas:
+    "today activity"
+    "lifetime activity";
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.listen-repeat-progress-summary > section {
+  min-width: 0;
+  border-radius: 16px;
+  box-shadow: 0 10px 26px rgb(63 58 45 / 5%);
+}
+
+.listen-repeat-today-card {
+  grid-area: today;
+  min-height: 0;
+  margin: 0;
+  padding: 18px 20px;
+  grid-template-columns: 1fr;
+  align-content: center;
+  gap: 14px;
+}
+
+.listen-repeat-lifetime-card {
+  grid-area: lifetime;
+  min-height: 0;
+  padding: 18px 20px;
+}
+
+.listen-repeat-lifetime-card strong {
+  font-size: 38px;
+}
+
+.listen-repeat-activity-card {
+  grid-area: activity;
+  min-height: 0;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.listen-repeat-activity-card > header {
+  align-items: center;
+}
+
+.listen-repeat-activity-card .sentence-practice-activity-days {
+  width: 100%;
+}
+
+.listen-repeat-progress-summary + .listen-repeat-material,
+.listen-repeat-progress-summary + .listen-repeat-session {
+  margin-top: 18px;
+}
+
 .listen-repeat-clear-action {
   padding: 9px 12px;
   border: 1px solid transparent !important;
@@ -12009,6 +12121,22 @@ h1 {
 }
 
 @container listen-repeat (max-width: 860px) {
+  .listen-repeat-progress-summary {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "today"
+      "lifetime"
+      "activity";
+  }
+
+  .listen-repeat-today-card {
+    grid-template-columns: minmax(180px, auto) minmax(220px, 1fr);
+  }
+
+  .listen-repeat-lifetime-card {
+    min-height: 132px;
+  }
+
   .listen-repeat-session-heading,
   .listen-repeat-material-footer {
     align-items: stretch;
@@ -12040,6 +12168,24 @@ h1 {
   .listen-repeat-trust-notes {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .listen-repeat-progress-summary {
+    margin-top: 14px;
+  }
+
+  .listen-repeat-today-card {
+    grid-template-columns: 1fr;
+  }
+
+  .listen-repeat-activity-card > header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .listen-repeat-activity-card .sentence-practice-activity-days {
+    grid-template-columns: repeat(10, minmax(18px, 1fr));
   }
 
   .listen-repeat-clear-action {

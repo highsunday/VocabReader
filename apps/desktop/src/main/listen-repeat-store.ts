@@ -69,6 +69,8 @@ interface StoreOptions {
   now?: () => Date;
 }
 
+type ListenRepeatStoreSnapshot = Omit<ListenRepeatSnapshot, "statistics">;
+
 const allowedMimeTypes: Record<string, string> = {
   "audio/webm": "webm",
   "audio/webm;codecs=opus": "webm",
@@ -244,7 +246,7 @@ export class LocalListenRepeatStore {
     await write;
   }
 
-  async getSnapshot(hasAiVoice: boolean): Promise<ListenRepeatSnapshot> {
+  async getSnapshot(hasAiVoice: boolean): Promise<ListenRepeatStoreSnapshot> {
     const practice = await this.#load();
     return {
       practice: practice ? publicPractice(practice) : null,
@@ -253,7 +255,7 @@ export class LocalListenRepeatStore {
     };
   }
 
-  async replacePractice(input: ReplacePracticeInput): Promise<ListenRepeatSnapshot> {
+  async replacePractice(input: ReplacePracticeInput): Promise<ListenRepeatStoreSnapshot> {
     const timestamp = this.#now();
     const practice: StoredPractice = {
       id: input.practiceId,
@@ -301,7 +303,7 @@ export class LocalListenRepeatStore {
     material: string;
     mode: ListenRepeatMode;
     shortChunkLength?: ListenRepeatShortChunkLength;
-  }): Promise<ListenRepeatSnapshot> {
+  }): Promise<ListenRepeatStoreSnapshot> {
     const current = await this.#load();
     if (current && current.phase !== "draft") return this.getSnapshot(false);
     const timestamp = this.#now();
@@ -329,7 +331,7 @@ export class LocalListenRepeatStore {
 
   async saveRecording(
     input: SaveListenRepeatRecordingInput
-  ): Promise<ListenRepeatSnapshot> {
+  ): Promise<ListenRepeatStoreSnapshot> {
     const practice = await this.#load();
     if (!practice || practice.id !== input.practiceId) {
       throw new Error("Invalid listen-and-repeat practice");
@@ -548,7 +550,7 @@ export class LocalListenRepeatStore {
     ));
   }
 
-  async clear(hasAiVoice: boolean): Promise<ListenRepeatSnapshot> {
+  async clear(hasAiVoice: boolean): Promise<ListenRepeatStoreSnapshot> {
     await this.#writeQueue;
     await rm(this.root, { recursive: true, force: true });
     this.#practice = null;

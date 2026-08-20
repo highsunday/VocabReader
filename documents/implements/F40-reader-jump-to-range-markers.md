@@ -5,7 +5,7 @@ title: 在閱讀介面快速移到 START／END 範圍標籤
 uuid: 4d1d73ca-205e-4a57-8c39-8d92a3b4894d
 version: 3.0.0
 status: implemented
-corrected-by: B14, B25
+corrected-by: B14, B25, B26, B27
 ---
 
 # Feature Specification - START／END 範圍標籤快速移動
@@ -101,6 +101,8 @@ Implemented via B14 and refined via B25.
 - 移除初版放在頂端章節工具列、導覽到章節頂端／底端的錯誤控制與高度計算。
 - 導覽不改變 START／END offset，也不呼叫 `saveReadingRange`。
 - B25 讓 `Next segment` 更新範圍後自動執行 START 導覽。
+- B26 讓自動導覽等待新 START offset 的 marker top 已實際套用，再共用手動 Start 導覽函式。
+- B27 依使用者試用決策撤回上述 Next segment 自動導覽；手動 START／END 快捷功能不變。
 
 ### Test Coverage
 

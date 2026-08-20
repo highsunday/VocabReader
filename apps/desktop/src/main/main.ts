@@ -40,6 +40,7 @@ import { LocalLearningLibrary } from "./learning-library-service";
 import { ListenRepeatController } from "./listen-repeat-controller";
 import { registerListenRepeatIpc } from "./listen-repeat-ipc";
 import { LocalListenRepeatStore } from "./listen-repeat-store";
+import { LocalListenRepeatProgressStore } from "./listen-repeat-progress-store";
 import { ListenRepeatVoiceService } from "./listen-repeat-voice-service";
 import { classifyLearningItemDuplicatesWithCodex } from "./learning-item-duplicate-classifier";
 import { registerSettingsIpc } from "./settings-ipc";
@@ -119,6 +120,7 @@ app.whenReady().then(() => {
   const sentencePracticeProgressStore = new LocalSentencePracticeProgressStore(
     settingsPath
   );
+  const listenRepeatProgressStore = new LocalListenRepeatProgressStore(settingsPath);
   const selectionSpeechApiKeyStore = new EncryptedSelectionSpeechApiKeyStore(
     settingsPath,
     safeStorage
@@ -165,6 +167,8 @@ app.whenReady().then(() => {
     ),
     snapshotSentencePracticeProgress: () =>
       sentencePracticeProgressStore.snapshotBytes(),
+    listenRepeatProgressPath: join(settingsPath, "listen-repeat-progress.json"),
+    snapshotListenRepeatProgress: () => listenRepeatProgressStore.snapshotBytes(),
     closeLearningDatabase: () => learningLibrary.close(),
     relaunch: () => {
       restartAfterDataRestore({
@@ -264,6 +268,7 @@ app.whenReady().then(() => {
     skillPath: listenRepeatSkill.path,
     skillInstructions: listenRepeatSkillMarkdown,
     store: listenRepeatStore,
+    progress: listenRepeatProgressStore,
     voice: listenRepeatVoice
   }));
   chatController = new ChatController({

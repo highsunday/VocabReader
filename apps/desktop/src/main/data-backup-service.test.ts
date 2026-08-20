@@ -10,6 +10,7 @@ import { DataBackupService } from "./data-backup-service";
 import { LocalBookLibrary } from "./library-service";
 import { LocalLearningLibrary } from "./learning-library-service";
 import { LocalSentencePracticeProgressStore } from "./sentence-practice-progress-store";
+import { LocalListenRepeatProgressStore } from "./listen-repeat-progress-store";
 
 const temporaryDirectories: string[] = [];
 
@@ -159,13 +160,14 @@ describe("DataBackupService", () => {
       `library/books/${book.id}/book.epub`,
       "library/index.json",
       "learning-library/learning-items.sqlite",
+      "listen-and-repeat/activity.json",
       "sentence-practice/activity.json",
       "manifest.json"
     ].sort());
     const manifest = JSON.parse(await zip.file("manifest.json")!.async("text"));
     expect(manifest).toMatchObject({
       format: "lingoshelf-data-backup",
-      version: 2,
+      version: 3,
       createdAt: "2026-07-28T03:04:05.000Z",
       appVersion: "0.1.0",
       counts: {
@@ -190,6 +192,10 @@ describe("DataBackupService", () => {
       expect.objectContaining({
         path: "sentence-practice/activity.json",
         sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+      }),
+      expect.objectContaining({
+        path: "listen-and-repeat/activity.json",
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
       })
     ]));
     expect(JSON.parse(
@@ -198,6 +204,9 @@ describe("DataBackupService", () => {
       version: 2,
       daily: [{ date: "2026-07-28", completedItemCount: 5 }]
     });
+    expect(JSON.parse(
+      await zip.file("listen-and-repeat/activity.json")!.async("text")
+    )).toEqual({ version: 1, daily: [] });
     expect(Object.keys(zip.files).some((path) =>
       path.startsWith("settings/") ||
       path.startsWith("chat/") ||
@@ -304,6 +313,12 @@ describe("DataBackupService", () => {
     await sourceProgress.recordCompletedSession("source-round-1", 5);
     sourceNow = new Date(2026, 6, 28, 12, 0, 0);
     await sourceProgress.recordCompletedSession("source-round-2", 2);
+    const sourceListenProgress = new LocalListenRepeatProgressStore(
+      join(root, "source", "settings"),
+      { now: () => sourceNow }
+    );
+    await sourceListenProgress.recordLongChunkCompletion();
+    await sourceListenProgress.recordLongChunkCompletion();
     await mkdir(join(root, "source", "listen-and-repeat"), { recursive: true });
     await writeFile(
       join(root, "source", "listen-and-repeat", "current.json"),
@@ -323,14 +338,17 @@ describe("DataBackupService", () => {
       },
       sentencePracticeProgressPath: sourceProgressPath,
       snapshotSentencePracticeProgress: () => sourceProgress.snapshotBytes(),
+      listenRepeatProgressPath: join(
+        root, "source", "settings", "listen-repeat-progress.json"
+      ),
+      snapshotListenRepeatProgress: () => sourceListenProgress.snapshotBytes(),
       closeLearningDatabase: () => undefined,
       relaunch: () => undefined
     });
     await sourceService.exportToPath(archivePath);
     const portableArchive = await JSZip.loadAsync(await readFile(archivePath));
-    expect(Object.keys(portableArchive.files).some((path) =>
-      path.includes("listen-and-repeat")
-    )).toBe(false);
+    expect(portableArchive.file("listen-and-repeat/activity.json")).not.toBeNull();
+    expect(portableArchive.file("listen-and-repeat/current.json")).toBeNull();
 
     const targetLibraryPath = join(root, "target", "library");
     const targetLearningPath = join(
@@ -354,6 +372,11 @@ describe("DataBackupService", () => {
       { now: () => new Date(2026, 6, 28, 12, 0, 0) }
     );
     await targetProgress.recordCompletedSession("target-round", 4);
+    const targetListenProgress = new LocalListenRepeatProgressStore(
+      join(root, "target", "settings"),
+      { now: () => new Date(2026, 6, 28, 12, 0, 0) }
+    );
+    await targetListenProgress.recordLongChunkCompletion();
     await mkdir(join(root, "target", "settings"), { recursive: true });
     await mkdir(join(root, "target", "chat"), { recursive: true });
     await mkdir(join(root, "target", "listen-and-repeat"), { recursive: true });
@@ -376,6 +399,10 @@ describe("DataBackupService", () => {
       },
       sentencePracticeProgressPath: targetProgressPath,
       snapshotSentencePracticeProgress: () => targetProgress.snapshotBytes(),
+      listenRepeatProgressPath: join(
+        root, "target", "settings", "listen-repeat-progress.json"
+      ),
+      snapshotListenRepeatProgress: () => targetListenProgress.snapshotBytes(),
       closeLearningDatabase: () => (
         targetLearning as unknown as { close(): void }
       ).close(),
@@ -453,6 +480,11 @@ describe("DataBackupService", () => {
       totalCompletedItemCount: 7,
       completedItemCount30Days: 7
     });
+    await expect(targetListenProgress.getStatistics()).resolves.toMatchObject({
+      todayCompletedLongChunkCount: 2,
+      totalCompletedLongChunkCount: 2,
+      completedLongChunkCount30Days: 2
+    });
     expect(relaunchCount).toBe(1);
   });
 
@@ -481,13 +513,15 @@ describe("DataBackupService", () => {
     }).exportToPath(versionTwoPath);
     const legacy = await JSZip.loadAsync(await readFile(versionTwoPath));
     legacy.remove("sentence-practice/activity.json");
+    legacy.remove("listen-and-repeat/activity.json");
     const legacyManifest = JSON.parse(
       await legacy.file("manifest.json")!.async("text")
     );
     legacyManifest.version = 1;
     legacyManifest.files = legacyManifest.files.filter(
       (file: { path: string }) =>
-        file.path !== "sentence-practice/activity.json"
+        file.path !== "sentence-practice/activity.json" &&
+        file.path !== "listen-and-repeat/activity.json"
     );
     legacy.file("manifest.json", JSON.stringify(legacyManifest));
     const legacyPath = join(root, "version-one.zip");
@@ -579,7 +613,7 @@ describe("DataBackupService", () => {
     const newerManifest = JSON.parse(
       await newer.file("manifest.json")!.async("text")
     );
-    newerManifest.version = 3;
+    newerManifest.version = 4;
     newer.file("manifest.json", JSON.stringify(newerManifest));
     const newerPath = join(root, "newer.zip");
     await writeFile(newerPath, await newer.generateAsync({ type: "nodebuffer" }));

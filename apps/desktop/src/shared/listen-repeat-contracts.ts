@@ -48,9 +48,22 @@ export interface ListenRepeatProgress {
   complete: boolean;
 }
 
+export interface ListenRepeatActivityDay {
+  date: string;
+  completedLongChunkCount: number;
+}
+
+export interface ListenRepeatStatistics {
+  todayCompletedLongChunkCount: number;
+  totalCompletedLongChunkCount: number;
+  completedLongChunkCount30Days: number;
+  dailyActivity: ListenRepeatActivityDay[];
+}
+
 export interface ListenRepeatSnapshot {
   practice: ListenRepeatPractice | null;
   progress: ListenRepeatProgress;
+  statistics: ListenRepeatStatistics;
   hasAiVoice: boolean;
 }
 

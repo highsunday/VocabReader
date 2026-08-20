@@ -29,15 +29,20 @@ import {
   emptySentencePracticeProgressBytes,
   parseSentencePracticeProgressBytes
 } from "./sentence-practice-progress-store";
+import {
+  emptyListenRepeatProgressBytes,
+  parseListenRepeatProgressBytes
+} from "./listen-repeat-progress-store";
 
 const backupFormat = "lingoshelf-data-backup";
-const backupFormatVersion = 2;
+const backupFormatVersion = 3;
 const minimumBackupFormatVersion = 1;
 const sentencePracticeActivityPath = "sentence-practice/activity.json";
+const listenRepeatActivityPath = "listen-and-repeat/activity.json";
 const maximumArchiveBytes = 512 * 1024 * 1024;
 const maximumEntryBytes = 256 * 1024 * 1024;
 const maximumExtractedBytes = 1024 * 1024 * 1024;
-const maximumEntryCount = 1004;
+const maximumEntryCount = 1005;
 
 export function defaultDataBackupFileName(now = new Date()): string {
   const part = (value: number) => String(value).padStart(2, "0");
@@ -91,11 +96,13 @@ export interface DataBackupServiceOptions {
   snapshotLearningDatabase: (destinationPath: string) => Promise<void>;
   sentencePracticeProgressPath?: string;
   snapshotSentencePracticeProgress?: () => Promise<Uint8Array>;
+  listenRepeatProgressPath?: string;
+  snapshotListenRepeatProgress?: () => Promise<Uint8Array>;
   closeLearningDatabase: () => void;
   relaunch: () => void;
   onRestoreStep?: (
     step: "library-replaced" | "learning-library-replaced" |
-      "sentence-practice-replaced"
+      "sentence-practice-replaced" | "listen-repeat-replaced"
   ) => void;
 }
 
@@ -413,6 +420,7 @@ function allowedPayloadPath(path: string): boolean {
     path === "library/index.json" ||
     path === "learning-library/learning-items.sqlite" ||
     path === sentencePracticeActivityPath ||
+    path === listenRepeatActivityPath ||
     /^library\/books\/[a-f0-9]{64}\/book\.epub$/.test(path)
   );
 }
@@ -423,6 +431,7 @@ function allowedDirectoryPath(path: string): boolean {
     path === "library/books" ||
     path === "learning-library" ||
     path === "sentence-practice" ||
+    path === "listen-and-repeat" ||
     /^library\/books\/[a-f0-9]{64}$/.test(path)
   );
 }
@@ -491,6 +500,30 @@ export class DataBackupService {
     return bytes;
   }
 
+  #listenRepeatProgressPath(): string {
+    return this.options.listenRepeatProgressPath ?? join(
+      dirname(dirname(this.options.learningDatabasePath)),
+      "settings",
+      "listen-repeat-progress.json"
+    );
+  }
+
+  async #snapshotListenRepeatProgress(): Promise<Buffer> {
+    let bytes: Buffer;
+    if (this.options.snapshotListenRepeatProgress) {
+      bytes = Buffer.from(await this.options.snapshotListenRepeatProgress());
+    } else {
+      try {
+        bytes = await readFile(this.#listenRepeatProgressPath());
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        bytes = emptyListenRepeatProgressBytes();
+      }
+    }
+    parseListenRepeatProgressBytes(bytes);
+    return bytes;
+  }
+
   async exportToPath(destinationPath: string): Promise<ExportDataBackupResult> {
     if (this.#busy) throw new Error("Another data-backup operation is in progress");
     this.#busy = true;
@@ -530,6 +563,7 @@ export class DataBackupService {
       const learningBytes = await readFile(learningSnapshotPath);
       const sentencePracticeBytes =
         await this.#snapshotSentencePracticeProgress();
+      const listenRepeatBytes = await this.#snapshotListenRepeatProgress();
       const counts = databaseCounts(learningSnapshotPath);
       const payloads: Array<{ path: string; bytes: Buffer }> = [{
         path: "library/index.json",
@@ -554,6 +588,10 @@ export class DataBackupService {
       payloads.push({
         path: sentencePracticeActivityPath,
         bytes: sentencePracticeBytes
+      });
+      payloads.push({
+        path: listenRepeatActivityPath,
+        bytes: listenRepeatBytes
       });
       const manifest: DataBackupManifest = {
         format: backupFormat,
@@ -699,15 +737,25 @@ export class DataBackupService {
       }
       const books = parseBookIndex(indexBytes);
       const sentencePracticeBytes = payloads.get(sentencePracticeActivityPath);
-      if (manifest.version === 2 && !sentencePracticeBytes) {
+      const listenRepeatBytes = payloads.get(listenRepeatActivityPath);
+      if (manifest.version >= 2 && !sentencePracticeBytes) {
         throw new Error("The backup is missing Sentence Practice activity data");
       }
       if (manifest.version === 1 && sentencePracticeBytes) {
         throw new Error("The legacy backup contains unsupported Sentence Practice data");
       }
+      if (manifest.version === 3 && !listenRepeatBytes) {
+        throw new Error("The backup is missing Listen & Repeat activity data");
+      }
+      if (manifest.version < 3 && listenRepeatBytes) {
+        throw new Error("The legacy backup contains unsupported Listen & Repeat data");
+      }
       const normalizedSentencePracticeBytes = sentencePracticeBytes ??
         emptySentencePracticeProgressBytes();
       parseSentencePracticeProgressBytes(normalizedSentencePracticeBytes);
+      const normalizedListenRepeatBytes = listenRepeatBytes ??
+        emptyListenRepeatProgressBytes();
+      parseListenRepeatProgressBytes(normalizedListenRepeatBytes);
       if (books.length !== manifest.counts.books) {
         throw new Error("The backup book count does not match the manifest");
       }
@@ -740,6 +788,11 @@ export class DataBackupService {
         );
         await mkdir(dirname(destination), { recursive: true });
         await writeFile(destination, normalizedSentencePracticeBytes);
+      }
+      if (!listenRepeatBytes) {
+        const destination = join(preparedDirectory, listenRepeatActivityPath);
+        await mkdir(dirname(destination), { recursive: true });
+        await writeFile(destination, normalizedListenRepeatBytes);
       }
       const actualCounts = databaseCounts(join(
         preparedDirectory,
@@ -806,6 +859,11 @@ export class DataBackupService {
       prepared.directory,
       sentencePracticeActivityPath
     );
+    const currentListenRepeatPath = this.#listenRepeatProgressPath();
+    const preparedListenRepeatPath = join(
+      prepared.directory,
+      listenRepeatActivityPath
+    );
     const rollbackPath = join(
       dirname(currentLibraryPath),
       `.data-backup-rollback-${randomUUID()}`
@@ -817,12 +875,19 @@ export class DataBackupService {
       "sentence-practice",
       "sentence-practice-progress.json"
     );
+    const rollbackListenRepeatPath = join(
+      rollbackPath,
+      "listen-and-repeat",
+      "listen-repeat-progress.json"
+    );
     let originalLibraryMoved = false;
     let originalLearningMoved = false;
     let originalSentencePracticeMoved = false;
+    let originalListenRepeatMoved = false;
     let newLibraryInstalled = false;
     let newLearningInstalled = false;
     let newSentencePracticeInstalled = false;
+    let newListenRepeatInstalled = false;
     let restoreCommitted = false;
     try {
       await this.options.waitForBookWrites();
@@ -852,15 +917,31 @@ export class DataBackupService {
       renameSync(preparedSentencePracticePath, currentSentencePracticePath);
       newSentencePracticeInstalled = true;
       this.options.onRestoreStep?.("sentence-practice-replaced");
+      originalListenRepeatMoved = moveIfPresent(
+        currentListenRepeatPath,
+        rollbackListenRepeatPath
+      );
+      mkdirSync(dirname(currentListenRepeatPath), { recursive: true });
+      renameSync(preparedListenRepeatPath, currentListenRepeatPath);
+      newListenRepeatInstalled = true;
+      this.options.onRestoreStep?.("listen-repeat-replaced");
       parseBookIndex(readFileSync(join(currentLibraryPath, "index.json")));
       databaseCounts(this.options.learningDatabasePath);
       parseSentencePracticeProgressBytes(
         readFileSync(currentSentencePracticePath)
       );
+      parseListenRepeatProgressBytes(readFileSync(currentListenRepeatPath));
       this.options.relaunch();
       restoreCommitted = true;
     } catch (error) {
       try {
+        if (newListenRepeatInstalled) {
+          rmSync(currentListenRepeatPath, { force: true });
+        }
+        if (originalListenRepeatMoved) {
+          mkdirSync(dirname(currentListenRepeatPath), { recursive: true });
+          renameSync(rollbackListenRepeatPath, currentListenRepeatPath);
+        }
         if (newSentencePracticeInstalled) {
           rmSync(currentSentencePracticePath, { force: true });
         }

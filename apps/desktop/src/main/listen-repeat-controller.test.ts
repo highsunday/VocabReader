@@ -8,6 +8,7 @@ import type {
 } from "./codex-app-server-client";
 import { ListenRepeatController } from "./listen-repeat-controller";
 import { LocalListenRepeatStore } from "./listen-repeat-store";
+import { LocalListenRepeatProgressStore } from "./listen-repeat-progress-store";
 
 function response(input: {
   practiceId: string;
@@ -65,6 +66,105 @@ function modelRoutingClient(modelList: unknown | Error) {
 }
 
 describe("ListenRepeatController", () => {
+  it("counts only the first saved recording for each long chunk", async () => {
+    const root = await mkdtemp(join(tmpdir(), "listen-repeat-count-"));
+    const progressRoot = await mkdtemp(join(tmpdir(), "listen-repeat-activity-"));
+    const store = new LocalListenRepeatStore(root);
+    const installed = await store.replacePractice({
+      practiceId: "practice-count",
+      material: "A full sentence.",
+      mode: "progressive",
+      longChunks: [{ text: "A full sentence.", shortChunks: [
+        { text: "A full " },
+        { text: "sentence." }
+      ] }]
+    });
+    const controller = new ListenRepeatController({
+      store,
+      progress: new LocalListenRepeatProgressStore(progressRoot, {
+        now: () => new Date(2026, 7, 20, 12)
+      }),
+      hasAiVoice: async () => false
+    });
+    const long = installed.practice!.longChunks[0];
+
+    for (const short of long.shortChunks) {
+      await controller.saveRecording({
+        practiceId: "practice-count",
+        chunkId: short.id,
+        mimeType: "audio/webm",
+        audio: new Uint8Array([1])
+      });
+    }
+    expect((await controller.getSnapshot()).statistics
+      .todayCompletedLongChunkCount).toBe(0);
+
+    const first = await controller.saveRecording({
+      practiceId: "practice-count",
+      chunkId: long.id,
+      mimeType: "audio/webm",
+      audio: new Uint8Array([2])
+    });
+    expect(first.statistics.todayCompletedLongChunkCount).toBe(1);
+
+    const rerecorded = await controller.saveRecording({
+      practiceId: "practice-count",
+      chunkId: long.id,
+      mimeType: "audio/webm",
+      audio: new Uint8Array([3])
+    });
+    expect(rerecorded.statistics.todayCompletedLongChunkCount).toBe(1);
+    await controller.clear();
+    expect((await controller.getSnapshot()).statistics
+      .todayCompletedLongChunkCount).toBe(1);
+  });
+
+  it("retries a pending activity increment after progress persistence fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "listen-repeat-count-retry-"));
+    const store = new LocalListenRepeatStore(root);
+    const installed = await store.replacePractice({
+      practiceId: "practice-retry",
+      material: "Retry this sentence.",
+      mode: "advanced",
+      longChunks: [{ text: "Retry this sentence.", shortChunks: [] }]
+    });
+    let completed = 0;
+    let fail = true;
+    const progress = {
+      getStatistics: vi.fn(async () => ({
+        todayCompletedLongChunkCount: completed,
+        totalCompletedLongChunkCount: completed,
+        completedLongChunkCount30Days: completed,
+        dailyActivity: []
+      })),
+      recordLongChunkCompletion: vi.fn(async () => {
+        if (fail) {
+          fail = false;
+          throw new Error("activity disk unavailable");
+        }
+        completed += 1;
+        return completed;
+      })
+    };
+    const controller = new ListenRepeatController({
+      store,
+      progress,
+      hasAiVoice: async () => false
+    });
+    const input = {
+      practiceId: "practice-retry",
+      chunkId: installed.practice!.longChunks[0].id,
+      mimeType: "audio/webm",
+      audio: new Uint8Array([1])
+    };
+
+    await expect(controller.saveRecording(input)).rejects.toThrow(/disk/);
+    await expect(controller.saveRecording(input)).resolves.toMatchObject({
+      statistics: { todayCompletedLongChunkCount: 1 }
+    });
+    expect(progress.recordLongChunkCompletion).toHaveBeenCalledTimes(2);
+  });
+
   it("runs a bounded segmentation turn and atomically installs a valid result", async () => {
     const root = await mkdtemp(join(tmpdir(), "listen-repeat-controller-"));
     const material = "Do not rewrite this.\n保持原文。";

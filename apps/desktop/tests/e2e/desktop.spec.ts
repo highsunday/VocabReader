@@ -882,6 +882,7 @@ test("launches the secure Electron reading shell", async () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"

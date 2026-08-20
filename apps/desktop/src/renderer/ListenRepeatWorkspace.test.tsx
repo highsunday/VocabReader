@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type {
   ListenRepeatAudioResult,
@@ -16,6 +16,12 @@ const empty: ListenRepeatSnapshot = {
     longTotal: 0,
     complete: false
   },
+  statistics: {
+    todayCompletedLongChunkCount: 0,
+    totalCompletedLongChunkCount: 0,
+    completedLongChunkCount30Days: 0,
+    dailyActivity: []
+  },
   hasAiVoice: false
 };
 
@@ -29,6 +35,7 @@ function ready(): ListenRepeatSnapshot {
       longTotal: 1,
       complete: false
     },
+    statistics: empty.statistics,
     practice: {
       id: "practice",
       material: "One, two.",
@@ -128,6 +135,96 @@ function api(snapshot = empty): ListenRepeatDesktopApi {
 }
 
 describe("ListenRepeatWorkspace", () => {
+  it("reports today's completed long chunks whenever the snapshot changes", async () => {
+    const snapshot = ready();
+    snapshot.statistics = {
+      ...empty.statistics,
+      todayCompletedLongChunkCount: 4
+    };
+    const onTodayCompletedLongChunkCountChange = vi.fn();
+
+    render(
+      <ListenRepeatWorkspace
+        api={api(snapshot)}
+        active
+        onOpenAiVoice={vi.fn()}
+        onTodayCompletedLongChunkCountChange={
+          onTodayCompletedLongChunkCountChange
+        }
+      />
+    );
+
+    await waitFor(() => expect(onTodayCompletedLongChunkCountChange)
+      .toHaveBeenLastCalledWith(4));
+  });
+
+  it("shows the daily goal, all-time total, and accessible 30-day activity", async () => {
+    const snapshot = ready();
+    snapshot.statistics = {
+      todayCompletedLongChunkCount: 7,
+      totalCompletedLongChunkCount: 42,
+      completedLongChunkCount30Days: 12,
+      dailyActivity: [{ date: "2026-08-19", completedLongChunkCount: 5 }, {
+        date: "2026-08-20",
+        completedLongChunkCount: 7
+      }]
+    };
+
+    render(
+      <ListenRepeatWorkspace
+        api={api(snapshot)}
+        active
+        dailyGoal={10}
+        onOpenAiVoice={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("7 / 10")).toBeInTheDocument();
+    const summary = screen.getByRole("region", {
+      name: "Listen and repeat progress summary"
+    });
+    expect(within(summary).getByLabelText("Today's listen and repeat practice"))
+      .toBeInTheDocument();
+    expect(within(summary).getByLabelText("All-time listen and repeat practice"))
+      .toBeInTheDocument();
+    expect(within(summary).getByLabelText("30-day speaking activity"))
+      .toBeInTheDocument();
+    expect(screen.getByText("3 left today")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", {
+      name: "Daily listen and repeat goal"
+    })).toHaveAttribute("aria-valuenow", "7");
+    expect(screen.getByLabelText("All-time listen and repeat practice"))
+      .toHaveTextContent("42");
+    expect(screen.getByLabelText("30-day speaking activity"))
+      .toHaveTextContent("12 long chunks");
+    expect(screen.getByLabelText("2026-08-20: 7 long chunks completed"))
+      .toBeInTheDocument();
+  });
+
+  it("continues showing activity without goal UI when the goal is zero", async () => {
+    const snapshot = ready();
+    snapshot.statistics = {
+      ...empty.statistics,
+      todayCompletedLongChunkCount: 3,
+      totalCompletedLongChunkCount: 3,
+      completedLongChunkCount30Days: 3
+    };
+    render(
+      <ListenRepeatWorkspace
+        api={api(snapshot)}
+        active
+        dailyGoal={0}
+        onOpenAiVoice={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("3 long chunks completed today"))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", {
+      name: "Daily listen and repeat goal"
+    })).not.toBeInTheDocument();
+  });
+
   it("shows the recommended Short phrase-length slider for Progressive material", async () => {
     render(<ListenRepeatWorkspace api={api()} active onOpenAiVoice={vi.fn()} />);
 

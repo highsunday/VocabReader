@@ -42,6 +42,7 @@ export function registerSettingsIpc(
       !isDailyReviewCompletionLimit(settings.dailyNewItemCompletionLimit) ||
       !isDailyReviewCompletionLimit(settings.dailyDueReviewCompletionLimit) ||
       !isDailyReviewCompletionLimit(settings.dailySentencePracticeGoal) ||
+      !isDailyReviewCompletionLimit(settings.dailyListenRepeatGoal) ||
       !isReviewPaperSize(settings.reviewPaperSize) ||
       !isSelectionSpeechVoice(settings.selectionSpeechVoice) ||
       !isSelectionSpeechTone(settings.selectionSpeechTone)
@@ -57,6 +58,7 @@ export function registerSettingsIpc(
       dailyNewItemCompletionLimit: settings.dailyNewItemCompletionLimit,
       dailyDueReviewCompletionLimit: settings.dailyDueReviewCompletionLimit,
       dailySentencePracticeGoal: settings.dailySentencePracticeGoal,
+      dailyListenRepeatGoal: settings.dailyListenRepeatGoal,
       reviewPaperSize: settings.reviewPaperSize,
       selectionSpeechVoice: settings.selectionSpeechVoice,
       selectionSpeechTone: settings.selectionSpeechTone

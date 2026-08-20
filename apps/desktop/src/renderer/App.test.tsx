@@ -115,6 +115,7 @@ function installLibraryApi(
     dailyNewItemCompletionLimit: 10,
     dailyDueReviewCompletionLimit: 50,
     dailySentencePracticeGoal: 10,
+    dailyListenRepeatGoal: 10,
     reviewPaperSize: 10,
     selectionSpeechVoice: "cedar",
     selectionSpeechTone: "learning"
@@ -243,6 +244,12 @@ function installLibraryApi(
         longCompleted: 0,
         longTotal: 0,
         complete: false
+      },
+      statistics: {
+        todayCompletedLongChunkCount: 0,
+        totalCompletedLongChunkCount: 0,
+        completedLongChunkCount30Days: 0,
+        dailyActivity: []
       },
       hasAiVoice: false
     })),
@@ -792,6 +799,7 @@ describe("App", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -803,9 +811,22 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Spaced Review" }));
-    expect(screen.getByRole("tab", { name: "Spaced Review" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Practice" }));
+    expect(screen.getByRole("tab", { name: "Practice" }))
       .toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: "Spaced Review" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Sentence Practice" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Listen & Repeat" }))
+      .not.toBeInTheDocument();
+    const practiceHeadings = screen.getAllByRole("heading", { level: 3 })
+      .map((heading) => heading.textContent);
+    expect(practiceHeadings).toEqual([
+      "Spaced Review",
+      "Sentence Practice",
+      "Listen & Repeat"
+    ]);
     const newLimit = screen.getByRole("spinbutton", {
       name: "Daily new-item completion limit"
     });
@@ -834,6 +855,7 @@ describe("App", () => {
       dailyNewItemCompletionLimit: 0,
       dailyDueReviewCompletionLimit: 80,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 6,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -912,6 +934,7 @@ describe("App", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -930,6 +953,7 @@ describe("App", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -1482,7 +1506,7 @@ describe("App", () => {
     expect(entry).toHaveTextContent(/Sentence Practice\s*6/);
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Sentence Practice" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Practice" }));
     const goal = screen.getByRole("spinbutton", {
       name: "Daily learning-item goal"
     });
@@ -1528,7 +1552,7 @@ describe("App", () => {
     const sentence = await screen.findByRole("button", {
       name: "Sentence Practice 10"
     });
-    const listenRepeat = screen.getByRole("button", { name: "Listen & Repeat" });
+    const listenRepeat = screen.getByRole("button", { name: /^Listen & Repeat/ });
     expect(sentence.compareDocumentPosition(listenRepeat) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
 
@@ -1538,6 +1562,78 @@ describe("App", () => {
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Expand right sidebar" }))
       .toBeInTheDocument();
+  });
+
+  it("configures the daily Listen & Repeat goal and refreshes its progress", async () => {
+    const { listenRepeat, saveSettings } = installLibraryApi();
+    listenRepeat.getSnapshot.mockResolvedValue({
+      practice: null,
+      progress: {
+        shortCompleted: 0,
+        shortTotal: 0,
+        longCompleted: 0,
+        longTotal: 0,
+        complete: false
+      },
+      statistics: {
+        todayCompletedLongChunkCount: 4,
+        totalCompletedLongChunkCount: 12,
+        completedLongChunkCount30Days: 12,
+        dailyActivity: []
+      },
+      hasAiVoice: false
+    });
+    render(<App />);
+
+    const entry = await screen.findByRole("button", { name: "Listen & Repeat 6" });
+    expect(entry).toHaveTextContent(/Listen & Repeat\s*6/);
+    fireEvent.click(entry);
+    expect(await screen.findByText("4 / 10")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Practice" }));
+    const goal = screen.getByRole("spinbutton", {
+      name: "Daily full-sentence goal"
+    });
+    expect(goal).toHaveValue(10);
+    fireEvent.change(goal, { target: { value: "5" } });
+    expect(screen.getByRole("button", { name: "Listen & Repeat 1" }))
+      .toHaveTextContent(/Listen & Repeat\s*1/);
+    fireEvent.change(goal, { target: { value: "0" } });
+    expect(screen.getByRole("button", { name: "Listen & Repeat" }))
+      .not.toHaveTextContent(/\b0\b/);
+    fireEvent.change(goal, { target: { value: "20" } });
+    expect(screen.getByRole("button", { name: "Listen & Repeat 16" }))
+      .toHaveTextContent(/Listen & Repeat\s*16/);
+    expect(screen.getByText("4 / 20")).toBeInTheDocument();
+    await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dailyListenRepeatGoal: 20 })
+    ));
+  });
+
+  it("clamps an exceeded Listen & Repeat goal to zero", async () => {
+    const { listenRepeat } = installLibraryApi();
+    listenRepeat.getSnapshot.mockResolvedValue({
+      practice: null,
+      progress: {
+        shortCompleted: 0,
+        shortTotal: 0,
+        longCompleted: 0,
+        longTotal: 0,
+        complete: false
+      },
+      statistics: {
+        todayCompletedLongChunkCount: 13,
+        totalCompletedLongChunkCount: 13,
+        completedLongChunkCount30Days: 13,
+        dailyActivity: []
+      },
+      hasAiVoice: false
+    });
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Listen & Repeat 0" }))
+      .toHaveTextContent(/Listen & Repeat\s*0/);
   });
 
   it("opens the persistent learning library while keeping the AI assistant", async () => {
@@ -2692,6 +2788,9 @@ describe("App", () => {
     const second = await screen.findByText("Second readable line.");
     await waitFor(() => expect(saveReadingRange).toHaveBeenCalled());
     saveReadingRange.mockClear();
+    const scroller = document.querySelector<HTMLElement>(".content.reader-content");
+    if (!scroller) throw new Error("missing reader scroller");
+    scroller.scrollTop = 123;
 
     fireEvent.contextMenu(second, { clientX: 120, clientY: 180 });
     const moveStart = screen.getByRole("menuitem", { name: "Move start here" });
@@ -2706,6 +2805,7 @@ describe("App", () => {
         range: expect.objectContaining({ start: expect.any(Number) })
       })
     ));
+    expect(scroller.scrollTop).toBe(123);
   });
 
   it("closes the current line range menu when pressing outside it", async () => {
@@ -3030,7 +3130,7 @@ describe("App", () => {
     }
   });
 
-  it("advances only from the explicit completion action and stops inside the chapter", async () => {
+  it("advances only from the explicit completion action and preserves the scroll position", async () => {
     const words = Array.from({ length: 900 }, (_, index) => `word${index + 1}`);
     const firstRangeEnd = words.slice(0, 100).join(" ").length;
     const rangedBooks: LibraryBook[] = [{
@@ -3050,38 +3150,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     await screen.findByRole("button", { name: "Reading segment start" });
     const scroller = document.querySelector<HTMLElement>(".content.reader-content");
-    const startBoundary = document.querySelector<HTMLElement>(
-      '[data-range-boundary="start"]'
-    );
-    if (!scroller || !startBoundary) {
-      throw new Error("missing reader scroller or START boundary");
-    }
-    Object.defineProperties(scroller, {
-      clientHeight: { configurable: true, value: 900 },
-      scrollHeight: { configurable: true, value: 3_000 }
-    });
-    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({
-      x: 0,
-      y: 50,
-      top: 50,
-      right: 1_000,
-      bottom: 950,
-      left: 0,
-      width: 1_000,
-      height: 900,
-      toJSON: () => ({})
-    });
-    vi.spyOn(startBoundary, "getBoundingClientRect").mockReturnValue({
-      x: 0,
-      y: 635,
-      top: 635,
-      right: 760,
-      bottom: 665,
-      left: 0,
-      width: 760,
-      height: 30,
-      toJSON: () => ({})
-    });
+    if (!scroller) throw new Error("missing reader scroller");
+    scroller.scrollTop = 375;
     expect(saveReadingRange).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText("Ask about current content"), {
@@ -3993,6 +4063,7 @@ describe("App", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"

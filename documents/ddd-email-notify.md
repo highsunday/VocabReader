@@ -819,3 +819,123 @@ DDD standalone TDD completion notification.
 **Follow-up**
 - Implementation remains complete. The user may explicitly authorize connecting Gmail and sending
   this completion notification in a later request.
+
+#### L041 — 2026-08-19 16:39 CST — B26 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B26 讓下一閱讀區段可靠執行 START 導覽`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: unavailable (not invoked)
+- Reason: no email connector or verified local sender is available, and this request authorized
+  local implementation but did not explicitly authorize sending its summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize connecting Gmail and sending
+  this completion notification in a later request.
+
+#### L042 — 2026-08-19 17:31 CST — B27 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B27 前往下一閱讀區段時保持目前捲動位置`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: unavailable (not invoked)
+- Reason: no email connector or verified local sender is available, and this request authorized
+  local implementation but did not explicitly authorize sending its summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize connecting Gmail and sending
+  this completion notification in a later request.
+
+#### L043 — 2026-08-20 20:12 CST — F66 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F66 為逐句跟讀練習加入每日目標與最近三十天活動`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: unavailable (not invoked)
+- Reason: no email connector or verified local sender is available, and this request authorized
+  local implementation but did not explicitly authorize sending its summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize connecting Gmail and sending
+  this completion notification in a later request.
+
+#### L044 — 2026-08-20 20:15 CST — F67 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F67 將三種練習設定整合至單一頁面`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: unavailable (not invoked)
+- Reason: no email connector or verified local sender is available, and this request authorized
+  local implementation but did not explicitly authorize sending its summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize connecting Gmail and sending
+  this completion notification in a later request.
+
+#### L045 — 2026-08-20 20:20 CST — B28 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B28 左側欄顯示逐句跟讀每日剩餘數量`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: unavailable (not invoked)
+- Reason: no email connector or verified local sender is available, and this request authorized
+  local implementation but did not explicitly authorize sending its summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize connecting Gmail and sending
+  this completion notification in a later request.
+
+#### L046 — 2026-08-20 20:26 CST — B29 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B29 對齊逐句跟讀進度摘要版面`
+
+**Artifacts**
+- Delivery status: failed
+- Tool: Gmail available (not invoked)
+- Reason: the authenticated Gmail sender was not verified against `notify_email_from`, and this
+  request did not explicitly authorize sending its implementation summary to an external inbox.
+
+**Follow-up**
+- Implementation remains complete. The user may explicitly authorize verifying the Gmail sender
+  and sending this completion notification in a later request.

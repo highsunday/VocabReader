@@ -62,6 +62,11 @@ export const DAILY_SENTENCE_PRACTICE_GOAL = {
   default: 10
 } as const;
 
+export const DAILY_LISTEN_REPEAT_GOAL = {
+  ...DAILY_REVIEW_COMPLETION_LIMIT,
+  default: 10
+} as const;
+
 export const REVIEW_PAPER_SIZE = {
   min: 1,
   max: 20,
@@ -77,6 +82,7 @@ export interface AppSettings {
   dailyNewItemCompletionLimit: number;
   dailyDueReviewCompletionLimit: number;
   dailySentencePracticeGoal: number;
+  dailyListenRepeatGoal: number;
   reviewPaperSize: number;
   selectionSpeechVoice: SelectionSpeechVoice;
   selectionSpeechTone: SelectionSpeechTone;

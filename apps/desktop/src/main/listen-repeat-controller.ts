@@ -20,6 +20,11 @@ import {
 } from "./listen-repeat-artifacts";
 import type { LocalListenRepeatStore } from "./listen-repeat-store";
 
+interface ListenRepeatProgressStore {
+  getStatistics(): Promise<ListenRepeatSnapshot["statistics"]>;
+  recordLongChunkCompletion(): Promise<number>;
+}
+
 interface ListenRepeatVoiceController {
   hasApiKey(): Promise<boolean>;
   prepare(practiceId: string, chunkId: string): Promise<{
@@ -39,6 +44,7 @@ export interface ListenRepeatControllerOptions {
   skillInstructions?: string;
   hasAiVoice?: () => Promise<boolean>;
   voice?: ListenRepeatVoiceController;
+  progress?: ListenRepeatProgressStore;
 }
 
 const isolationConfig = Object.freeze({
@@ -269,6 +275,8 @@ function hasRecordings(snapshot: ListenRepeatSnapshot): boolean {
 }
 
 export class ListenRepeatController {
+  readonly #pendingActivityChunks = new Set<string>();
+
   constructor(private readonly options: ListenRepeatControllerOptions) {}
 
   async #hasAiVoice() {
@@ -277,7 +285,16 @@ export class ListenRepeatController {
   }
 
   async getSnapshot(): Promise<ListenRepeatSnapshot> {
-    return this.options.store.getSnapshot(await this.#hasAiVoice());
+    const [snapshot, statistics] = await Promise.all([
+      this.options.store.getSnapshot(await this.#hasAiVoice()),
+      this.options.progress?.getStatistics() ?? Promise.resolve({
+        todayCompletedLongChunkCount: 0,
+        totalCompletedLongChunkCount: 0,
+        completedLongChunkCount30Days: 0,
+        dailyActivity: []
+      })
+    ]);
+    return { ...snapshot, statistics };
   }
 
   async process(input: ProcessListenRepeatInput): Promise<ListenRepeatSnapshot> {
@@ -337,7 +354,19 @@ export class ListenRepeatController {
   }
 
   async saveRecording(input: SaveListenRepeatRecordingInput) {
+    const before = await this.options.store.getSnapshot(false);
+    const long = before.practice?.longChunks.find(({ id }) => id === input.chunkId);
+    const firstLongCompletion = Boolean(long && !long.recording);
     await this.options.store.saveRecording(input);
+    if (firstLongCompletion || this.#pendingActivityChunks.has(input.chunkId)) {
+      try {
+        await this.options.progress?.recordLongChunkCompletion();
+        this.#pendingActivityChunks.delete(input.chunkId);
+      } catch (error) {
+        this.#pendingActivityChunks.add(input.chunkId);
+        throw error;
+      }
+    }
     return this.getSnapshot();
   }
 
@@ -356,6 +385,7 @@ export class ListenRepeatController {
 
   async clear() {
     this.options.voice?.cancel("*");
-    return this.options.store.clear(await this.#hasAiVoice());
+    await this.options.store.clear(await this.#hasAiVoice());
+    return this.getSnapshot();
   }
 }

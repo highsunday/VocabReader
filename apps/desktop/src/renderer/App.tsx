@@ -9,6 +9,8 @@ import {
 } from "react";
 import type { CSSProperties } from "react";
 import {
+  ArrowDownToLine,
+  ArrowUpToLine,
   Brain,
   Check,
   CircleCheck,
@@ -30,6 +32,7 @@ import {
   Square,
   SunMedium,
   TriangleAlert,
+  Trash2,
   Waves,
   Volume2
 } from "lucide-react";
@@ -68,6 +71,7 @@ import type {
 import {
   AI_CONVERSATION_FONT_SIZE,
   DAILY_DUE_REVIEW_COMPLETION_LIMIT,
+  DAILY_LISTEN_REPEAT_GOAL,
   DAILY_NEW_ITEM_COMPLETION_LIMIT,
   DAILY_SENTENCE_PRACTICE_GOAL,
   EBOOK_CONTENT_FONT_SIZE,
@@ -117,8 +121,7 @@ type WorkspaceMode =
   | "listen-repeat";
 type SettingsSection =
   | "general"
-  | "review"
-  | "sentence-practice"
+  | "practice"
   | "voice"
   | "account";
 
@@ -377,6 +380,7 @@ export function App() {
     dailyNewItemCompletionLimit: DAILY_NEW_ITEM_COMPLETION_LIMIT.default,
     dailyDueReviewCompletionLimit: DAILY_DUE_REVIEW_COMPLETION_LIMIT.default,
     dailySentencePracticeGoal: DAILY_SENTENCE_PRACTICE_GOAL.default,
+    dailyListenRepeatGoal: DAILY_LISTEN_REPEAT_GOAL.default,
     reviewPaperSize: REVIEW_PAPER_SIZE.default,
     selectionSpeechVoice: "cedar",
     selectionSpeechTone: "learning"
@@ -416,6 +420,8 @@ export function App() {
     dailySentencePracticeCompletedCount,
     setDailySentencePracticeCompletedCount
   ] = useState(0);
+  const [dailyListenRepeatCompletedCount, setDailyListenRepeatCompletedCount] =
+    useState(0);
   const [reviewSettingsRevision, setReviewSettingsRevision] = useState(0);
   const [reviewWorkspaceStatus, setReviewWorkspaceStatus] =
     useState<ReviewWorkspaceStatus>("idle");
@@ -437,8 +443,6 @@ export function App() {
   const readingLayoutRef = useRef<HTMLDivElement>(null);
   const dataRestoreCancelRef = useRef<HTMLButtonElement>(null);
   const initializedRangeRef = useRef<string | undefined>(undefined);
-  const pendingRangeNavigationRef =
-    useRef<"start" | "end" | undefined>(undefined);
   const lastProvidedReadingSegmentRef = useRef<string | undefined>(undefined);
   const annotationCounterRef = useRef(0);
   const selectionSpeechRequestRef = useRef(0);
@@ -552,6 +556,26 @@ export function App() {
       active = false;
     };
   }, [learningLibraryRevision]);
+
+  useEffect(() => {
+    const listenRepeat = desktopListenRepeat();
+    if (!listenRepeat) return;
+    let active = true;
+    void listenRepeat.getSnapshot()
+      .then((snapshot) => {
+        if (active) {
+          setDailyListenRepeatCompletedCount(
+            snapshot.statistics.todayCompletedLongChunkCount
+          );
+        }
+      })
+      .catch(() => {
+        // The Listen & Repeat workspace provides a retryable error when opened.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const chat = desktopChat();
@@ -703,21 +727,12 @@ export function App() {
       end: markerTopForTextOffset(article, readingRange.end, "after")
     });
     updateMarkerTops();
-    const pendingMarker = pendingRangeNavigationRef.current;
-    const navigationFrame = pendingMarker
-      ? requestAnimationFrame(() => {
-          if (pendingRangeNavigationRef.current !== pendingMarker) return;
-          pendingRangeNavigationRef.current = undefined;
-          scrollToReadingRangeMarker(pendingMarker);
-        })
-      : undefined;
     const resizeObserver = typeof ResizeObserver === "undefined"
       ? undefined
       : new ResizeObserver(updateMarkerTops);
     resizeObserver?.observe(article);
     window.addEventListener("resize", updateMarkerTops);
     return () => {
-      if (navigationFrame !== undefined) cancelAnimationFrame(navigationFrame);
       resizeObserver?.disconnect();
       window.removeEventListener("resize", updateMarkerTops);
     };
@@ -1419,6 +1434,7 @@ export function App() {
       | "dailyNewItemCompletionLimit"
       | "dailyDueReviewCompletionLimit"
       | "dailySentencePracticeGoal"
+      | "dailyListenRepeatGoal"
       | "reviewPaperSize",
     value: number
   ) {
@@ -1613,7 +1629,6 @@ export function App() {
     if (!article || !readingRange) return;
     const text = article.textContent ?? "";
     if (readingRange.end >= text.length) return;
-    pendingRangeNavigationRef.current = "start";
     persistReadingRange(advanceReadingRange(text, readingRange));
   }
 
@@ -2197,7 +2212,13 @@ export function App() {
                   </button>
                   <button
                     className={mode === "listen-repeat" ? "nav-item active" : "nav-item"}
-                    aria-label="Listen & Repeat"
+                    aria-label={settings.dailyListenRepeatGoal > 0
+                      ? `Listen & Repeat ${Math.max(
+                          settings.dailyListenRepeatGoal -
+                            dailyListenRepeatCompletedCount,
+                          0
+                        )}`
+                      : "Listen & Repeat"}
                     onClick={() => {
                       saveCurrentReaderPosition();
                       setIsRightSidebarCollapsed(true);
@@ -2210,6 +2231,13 @@ export function App() {
                       strokeWidth={1.8}
                     />
                     <span className="nav-item-label">Listen & Repeat</span>
+                    {settings.dailyListenRepeatGoal > 0 ? (
+                      <em>{Math.max(
+                        settings.dailyListenRepeatGoal -
+                          dailyListenRepeatCompletedCount,
+                        0
+                      )}</em>
+                    ) : null}
                   </button>
                   <button
                     className={mode === "learning-library" ? "nav-item active" : "nav-item"}
@@ -2502,6 +2530,10 @@ export function App() {
             <ListenRepeatWorkspace
               api={desktopListenRepeat()!}
               active={mode === "listen-repeat"}
+              dailyGoal={settings.dailyListenRepeatGoal}
+              onTodayCompletedLongChunkCountChange={
+                setDailyListenRepeatCompletedCount
+              }
               onOpenAiVoice={() => {
                 setActiveSettingsSection("voice");
                 setIsSettingsOpen(true);
@@ -2894,14 +2926,16 @@ export function App() {
                         type="button"
                         onClick={() => moveRangeMarker("start", rangeMenu.offset)}
                       >
-                        Move start here
+                        <ArrowUpToLine aria-hidden="true" />
+                        <span>Move start here</span>
                       </button>
                       <button
                         role="menuitem"
                         type="button"
                         onClick={() => moveRangeMarker("end", rangeMenu.offset)}
                       >
-                        Move end here
+                        <ArrowDownToLine aria-hidden="true" />
+                        <span>Move end here</span>
                       </button>
                       {rangeMenu.selection ? (
                         <>
@@ -2913,24 +2947,28 @@ export function App() {
                               setRangeMenu(undefined);
                             }}
                           >
-                            Pronounce selection
+                            <Volume2 aria-hidden="true" />
+                            <span>Pronounce selection</span>
                           </button>
                           <button
                             role="menuitem"
                             type="button"
                             onClick={() => createAnnotation(rangeMenu.selection!)}
                           >
-                            Annotate selection
+                            <PenLine aria-hidden="true" />
+                            <span>Annotate selection</span>
                           </button>
                         </>
                       ) : null}
                       {rangeMenu.annotationId ? (
                         <button
+                          className="range-menu-danger"
                           role="menuitem"
                           type="button"
                           onClick={() => removeAnnotation(rangeMenu.annotationId!)}
                         >
-                          Remove annotation
+                          <Trash2 aria-hidden="true" />
+                          <span>Remove annotation</span>
                         </button>
                       ) : null}
                     </div>
@@ -3514,22 +3552,12 @@ export function App() {
               <button
                 type="button"
                 role="tab"
-                id="settings-tab-review"
-                aria-selected={activeSettingsSection === "review"}
-                aria-controls="settings-panel-review"
-                onClick={() => setActiveSettingsSection("review")}
+                id="settings-tab-practice"
+                aria-selected={activeSettingsSection === "practice"}
+                aria-controls="settings-panel-practice"
+                onClick={() => setActiveSettingsSection("practice")}
               >
-                Spaced Review
-              </button>
-              <button
-                type="button"
-                role="tab"
-                id="settings-tab-sentence-practice"
-                aria-selected={activeSettingsSection === "sentence-practice"}
-                aria-controls="settings-panel-sentence-practice"
-                onClick={() => setActiveSettingsSection("sentence-practice")}
-              >
-                Sentence Practice
+                Practice
               </button>
               <button
                 type="button"
@@ -3685,13 +3713,14 @@ export function App() {
                 </section>
               </section>
             ) : null}
-            {activeSettingsSection === "review" ? (
+            {activeSettingsSection === "practice" ? (
               <section
                 className="settings-panel"
                 role="tabpanel"
-                id="settings-panel-review"
-                aria-labelledby="settings-tab-review"
+                id="settings-panel-practice"
+                aria-labelledby="settings-tab-practice"
               >
+                <section className="settings-practice-section">
                 <div className="settings-section-intro">
                   <h3>Spaced Review</h3>
                   <p>Set your daily study volume and questions per paper.</p>
@@ -3757,15 +3786,8 @@ export function App() {
                     />
                   </div>
                 </fieldset>
-              </section>
-            ) : null}
-            {activeSettingsSection === "sentence-practice" ? (
-              <section
-                className="settings-panel"
-                role="tabpanel"
-                id="settings-panel-sentence-practice"
-                aria-labelledby="settings-tab-sentence-practice"
-              >
+                </section>
+                <section className="settings-practice-section">
                 <div className="settings-section-intro">
                   <h3>Sentence Practice</h3>
                   <p>
@@ -3799,6 +3821,42 @@ export function App() {
                     />
                   </div>
                 </fieldset>
+                </section>
+                <section className="settings-practice-section">
+                <div className="settings-section-intro">
+                  <h3>Listen &amp; Repeat</h3>
+                  <p>
+                    Set how many full sentences you want to record for the first
+                    time each day.
+                  </p>
+                </div>
+                <fieldset className="settings-number-list">
+                  <legend className="visually-hidden">Listen &amp; Repeat</legend>
+                  <div className="settings-number-control">
+                    <div>
+                      <label htmlFor="daily-listen-repeat-goal">
+                        Daily full-sentence goal
+                      </label>
+                      <p>
+                        Short phrases and re-recordings do not count; 0 hides the
+                        goal without disabling practice.
+                      </p>
+                    </div>
+                    <input
+                      id="daily-listen-repeat-goal"
+                      type="number"
+                      min={DAILY_LISTEN_REPEAT_GOAL.min}
+                      max={DAILY_LISTEN_REPEAT_GOAL.max}
+                      step="1"
+                      value={settings.dailyListenRepeatGoal}
+                      onChange={(event) => previewSetting(
+                        "dailyListenRepeatGoal",
+                        Number(event.target.value)
+                      )}
+                    />
+                  </div>
+                </fieldset>
+                </section>
               </section>
             ) : null}
             {activeSettingsSection === "voice" ? (

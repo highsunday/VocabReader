@@ -3,11 +3,16 @@ author: Codex
 date: 2026-08-19
 title: 修正閱讀區段快捷導覽與下一段定位
 uuid: 6a386156-6f88-4e57-bdaf-5ff0a5fd6b50
-version: 1.0.0
+version: 1.1.0
 status: implemented
+corrected-by: B26
+superseded-by: B27
 ---
 
 # Bug Fix: 修正閱讀區段快捷導覽與下一段定位
+
+> B27 已依使用者試用決策撤回本文件的 `Next segment` 自動 START 導覽；START／END
+> 手動 1/4／3/4 快捷導覽仍有效。本文件保留為歷史實作紀錄。
 
 ## 1. Bug Overview
 
@@ -201,6 +206,10 @@ None.
 - 未發現新的模組耦合、缺少測試切入點或責任邊界問題，不需要另開 RXX。
 - 未寄送 DDD 完成通知：本次請求只授權本機實作，未明確授權把實作與測試摘要傳送到
   外部收件匣；詳見 `documents/ddd-email-notify.md` 的 L040。
+- B26 後續發現動畫影格不能保證 marker top state 已提交；B25 的一次性 rAF 已由「pending
+  START offset 必須等於目前與已量測 START offset」的明確同步條件取代。
+- B27 後續依使用者試用決策完全撤回 Next segment 自動 START 導覽；推進後改為保持目前
+  捲動位置。
 
 ## Appendix: TDD Fix Workflow
 

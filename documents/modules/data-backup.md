@@ -2,20 +2,21 @@
 title: 資料備份與完整還原模組
 module: data-backup
 status: active
-last_updated: 2026-08-14
+last_updated: 2026-08-20
 related_implements:
   - F38-export-and-restore-data-backup
   - F59-add-learning-item-representative-image
   - F64-show-sentence-practice-activity-statistics
+  - F66-daily-listen-repeat-goal-and-activity
 ---
 
 # 資料備份與完整還原模組
 
 ## 1. Purpose
 
-本模組把一個時間點的完整**書庫**、完整**生詞庫**與每日**造句運用統計**封裝為單一
-VocabReader ZIP，供使用者自行移到另一台電腦，再以**資料還原**完整取代目的裝置的三個
-資料域。
+本模組把一個時間點的完整**書庫**、完整**生詞庫**、每日**造句運用統計**與**跟讀完成
+活動量**封裝為單一 VocabReader ZIP，供使用者自行移到另一台電腦，再以**資料還原**完整
+取代目的裝置的四個資料域。
 
 這是手動備份／還原，不是雙向同步或合併匯入。AI 對話、全域設定、Codex runtime
 及暫態複習試卷刻意不在備份範圍內。
@@ -32,15 +33,16 @@ VocabReader ZIP，供使用者自行移到另一台電腦，再以**資料還原
 - EPUB 重新解析後留下的失效閱讀章節引用會先由書庫正規化，不會阻擋整份備份。
 - 保存 active／trashed 學習項目、處理後的代表圖片、FSRS 排程與精簡複習事件。
 - 保存只含本地日期與每日完成數的造句運用統計，不包含作文、用詞或批改內容。
+- 保存只含本地日期與首次完成長片段數的跟讀活動，不包含素材、片段文字或音訊。
 - 有效備份先顯示時間與三種數量，使用者再次確認後才完整取代。
 - 嚴格驗證格式版本、allowlist、路徑、大小、checksum、SQLite 與書籍資料。
-- 書庫、生詞庫與造句統計跨資料域 rollback；成功後正式版自動重新啟動 App，開發版重新載入
+- 書庫、生詞庫、造句統計與跟讀活動跨資料域 rollback；成功後正式版自動重新啟動 App，開發版重新載入
   renderer，避免退出 Electron 連帶終止 Vite。
 - Renderer 只能使用具名 typed capabilities，不接觸任意本機路徑。
 
 ## 3. Archive Format
 
-為維持舊備份相容性，格式識別仍為 `lingoshelf-data-backup`，目前版本為整數 `2`。固定內容：
+為維持舊備份相容性，格式識別仍為 `lingoshelf-data-backup`，目前版本為整數 `3`。固定內容：
 
 ```text
 manifest.json
@@ -48,11 +50,12 @@ library/index.json
 library/books/<epub-sha256>/book.epub
 learning-library/learning-items.sqlite
 sentence-practice/activity.json
+listen-and-repeat/activity.json
 ```
 
-version 1 備份仍可匯入；因為舊格式沒有 activity payload，成功還原後造句統計為空白，
-不保留或合併目的裝置還原前的數量。version 2 必須包含通過 checksum 與 schema 驗證的
-activity payload。
+version 1 與 2 備份仍可匯入；缺少的 activity payload 在成功還原後視為空白，不保留或
+合併目的裝置還原前的數量。version 2 必須包含造句活動，version 3 必須同時包含造句與
+跟讀活動，且都需通過 checksum 與 schema 驗證。
 
 `manifest.json` 保存：
 
@@ -70,7 +73,7 @@ checksum，並與 manifest 交叉驗證。
   → Main 開啟原生 save dialog
   → 等待書庫寫入完成並取得正規化 index snapshot
   → SQLite backup API 建立一致 snapshot
-  → 等待造句統計寫入 queue 並取得 version 2 snapshot
+  → 等待兩種活動統計寫入 queue 並取得 snapshot
   → 驗證並組裝 manifest + payload
   → 寫入同目錄 partial ZIP
   → 完成後交換為目的 .zip
@@ -89,12 +92,12 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
   → 回傳 opaque token + 摘要
   → 使用者確認完整取代
   → 等待書庫寫入、關閉 SQLite
-  → 暫存目前三個資料域
-  → 交換書庫、生詞庫與造句統計
+  → 暫存目前四個資料域
+  → 交換書庫、生詞庫、造句統計與跟讀活動
   → 成功：清除 rollback
       → 正式版 relaunch
       → Vite 開發版保留 Electron／Vite，重新載入既有視窗
-  → 失敗：反向復原三個資料域，不 relaunch
+  → 失敗：反向復原四個資料域，不 relaunch
 ```
 
 取消摘要會使 token 失效並清除 staging。新選取、失敗或成功也會使舊 token 失效。
@@ -105,13 +108,15 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 - 壓縮 ZIP 上限 512 MiB。
 - 單一 entry 解壓上限 256 MiB。
 - 全部 entries 解壓總量上限 1 GiB。
-- entry 數量上限 1004。
+- entry 數量上限 1005。
 - 只接受固定 payload 與其安全父目錄。
 - 拒絕絕對路徑、`..`、反斜線路徑、symlink、重複／額外／未宣告 entry。
 - 拒絕未知或較新 format version、缺檔、大小或 checksum 不符。
 - SQLite 必須通過 `integrity_check`、foreign key check，且 schema 不高於目前版本。
 - 目前接受 Learning Library schema 7；較新 schema 仍在 mutation 前拒絕。
 - 造句統計必須是 version 2、合法且不重複的本地日期、非負安全整數，所有日期總和也
+  必須是安全整數；非法 activity 在任何正式資料 mutation 前拒絕。
+- 跟讀活動必須是 version 1、合法且不重複的本地日期、非負安全整數，所有日期總和也
   必須是安全整數；非法 activity 在任何正式資料 mutation 前拒絕。
 - 書籍索引必須符合型別、章節關聯、範圍與標記不變量；每本 EPUB 必須存在且 id
   checksum 相符。
@@ -138,11 +143,12 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
   schema 7 代表圖片是 `learning_items` row 內的 JPEG BLOB，因此不增加 ZIP entry 或 format
   version，active／trashed 圖片都會隨 snapshot 往返。
 - `userData/settings/sentence-practice-progress.json` 的每日造句運用統計；只保存日期與數量。
+- `userData/settings/listen-repeat-progress.json` 的每日跟讀完成活動；只保存日期與數量。
 
 備份不包含：
 
 - chat conversation store 與 AI 草稿。
-- settings store 的其餘設定；每日造句目標等偏好不隨 activity 備份。
+- settings store 的其餘設定；每日造句與每日跟讀目標等偏好不隨 activity 備份。
 - `userData/listen-and-repeat` 的目前素材、片段、學習者錄音與 AI 示範語音；restore 也不
   覆寫、搬移或清除這個專用路徑。
 - Codex 帳戶、登入、模型、skills 或 runtime。
@@ -165,7 +171,7 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 
 | Test file | Coverage |
 |---|---|
-| `data-backup-service.test.ts` | 完整／空備份、代表圖片、schema 7、activity v2 round trip、v1 清空、三資料域 rollback、驗證、預覽、取代與安全拒絕 |
+| `data-backup-service.test.ts` | 完整／空備份、代表圖片、schema 7、兩種 activity round trip、舊版清空、四資料域 rollback、驗證、預覽、取代與安全拒絕 |
 | `data-restore-restart.test.ts` | 開發版不退出程序、正式版 relaunch／exit |
 | `data-backup-ipc.test.ts` | Main-owned path、dialog、取消、附檔名與 token |
 | `library-service.test.ts` | 書庫 idle boundary |
@@ -173,9 +179,9 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 | `App.test.tsx` | 設定 UI、摘要、焦點、Escape、確認、busy 與錯誤 |
 | `desktop.spec.ts` | production preload 白名單與設定入口 |
 
-最近驗證（2026-08-10）：
+最近驗證（2026-08-20）：
 
-- Desktop Vitest：539/539 passed。
+- Desktop Vitest：548/548 passed。
 - Server Vitest：3/3 passed。
 - 全專案 TypeScript typecheck：passed。
 - 全專案 production build：passed。
@@ -186,7 +192,7 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 - 不合併來源與目的資料。
 - 不提供自動排程、背景、雲端或帳號式同步。
 - 不支援密碼、加密、備份歷史或個別書籍／學習項目匯出。
-- 目前接受格式 version 1 與 2；不把使用者手動修改的 ZIP 當一般匯入格式。
+- 目前接受格式 version 1、2 與 3；不把使用者手動修改的 ZIP 當一般匯入格式。
 
 ## 12. Related Documents
 
@@ -194,6 +200,7 @@ partial 檔，既有目的檔不會被部分 ZIP 覆蓋。
 - `documents/implements/F38-export-and-restore-data-backup.md`
 - `documents/implements/F59-add-learning-item-representative-image.md`
 - `documents/implements/F64-show-sentence-practice-activity-statistics.md`
+- `documents/implements/F66-daily-listen-repeat-goal-and-activity.md`
 - `documents/modules/book-library.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/annotation.md`

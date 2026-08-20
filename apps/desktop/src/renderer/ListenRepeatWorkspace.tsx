@@ -47,6 +47,8 @@ import {
 interface Props {
   api: ListenRepeatDesktopApi;
   active: boolean;
+  dailyGoal?: number;
+  onTodayCompletedLongChunkCountChange?(count: number): void;
   onOpenAiVoice(): void;
 }
 
@@ -80,6 +82,12 @@ function emptySnapshot(): ListenRepeatSnapshot {
       longCompleted: 0,
       longTotal: 0,
       complete: false
+    },
+    statistics: {
+      todayCompletedLongChunkCount: 0,
+      totalCompletedLongChunkCount: 0,
+      completedLongChunkCount30Days: 0,
+      dailyActivity: []
     },
     hasAiVoice: false
   };
@@ -183,7 +191,13 @@ const shortChunkLengthOptions: Array<{
   seconds: "2.5–4"
 }];
 
-export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
+export function ListenRepeatWorkspace({
+  api,
+  active,
+  dailyGoal = 10,
+  onTodayCompletedLongChunkCountChange,
+  onOpenAiVoice
+}: Props) {
   const [snapshot, setSnapshot] = useState<ListenRepeatSnapshot>(emptySnapshot);
   const [material, setMaterial] = useState("");
   const [mode, setMode] = useState<ListenRepeatMode>("progressive");
@@ -211,6 +225,18 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
   useEffect(() => {
     snapshotRef.current = snapshot;
   }, [snapshot]);
+
+  useEffect(() => {
+    if (!loading) {
+      onTodayCompletedLongChunkCountChange?.(
+        snapshot.statistics.todayCompletedLongChunkCount
+      );
+    }
+  }, [
+    loading,
+    onTodayCompletedLongChunkCountChange,
+    snapshot.statistics.todayCompletedLongChunkCount
+  ]);
 
   useEffect(() => {
     if (!active) return;
@@ -301,6 +327,14 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
     ({ value }) => value === shortChunkLength
   );
   const shortChunkLengthOption = shortChunkLengthOptions[shortChunkLengthIndex];
+  const todayCompleted = snapshot.statistics.todayCompletedLongChunkCount;
+  const goalComplete = dailyGoal > 0 && todayCompleted >= dailyGoal;
+  const maximumDailyActivity = Math.max(
+    1,
+    ...snapshot.statistics.dailyActivity.map(
+      ({ completedLongChunkCount }) => completedLongChunkCount
+    )
+  );
 
   async function processMaterial(replaceConfirmed = false) {
     if (!validation.valid) return;
@@ -738,6 +772,87 @@ export function ListenRepeatWorkspace({ api, active, onOpenAiVoice }: Props) {
           </button>
         ) : null}
       </header>
+
+      {!loading ? (
+        <section
+          className="listen-repeat-progress-summary"
+          aria-label="Listen and repeat progress summary"
+        >
+          <section
+            className="sentence-practice-today-card listen-repeat-today-card"
+            aria-label="Today's listen and repeat practice"
+          >
+            <div>
+              <span className="eyebrow">Today&apos;s practice</span>
+              {dailyGoal > 0 ? (
+                <strong>{todayCompleted} / {dailyGoal}</strong>
+              ) : (
+                <strong>{todayCompleted} long chunks completed today</strong>
+              )}
+              <p>{dailyGoal > 0
+                ? goalComplete
+                  ? "Today's goal complete"
+                  : `${dailyGoal - todayCompleted} left today`
+                : "Daily goal is off. First-time full-sentence recordings still count."}</p>
+            </div>
+            {dailyGoal > 0 ? (
+              <div
+                className="sentence-practice-daily-progress"
+                role="progressbar"
+                aria-label="Daily listen and repeat goal"
+                aria-valuemin={0}
+                aria-valuemax={dailyGoal}
+                aria-valuenow={Math.min(todayCompleted, dailyGoal)}
+                aria-valuetext={`${todayCompleted} of ${dailyGoal} long chunks completed`}
+                data-complete={goalComplete}
+              >
+                <span style={{
+                  width: `${Math.min(100, todayCompleted / dailyGoal * 100)}%`
+                }} />
+              </div>
+            ) : null}
+          </section>
+
+          <section
+            className="sentence-practice-lifetime-card listen-repeat-lifetime-card"
+            aria-label="All-time listen and repeat practice"
+          >
+            <span className="eyebrow">All-time practice</span>
+            <strong>{snapshot.statistics.totalCompletedLongChunkCount}</strong>
+            <p>first-time long-chunk recordings</p>
+          </section>
+          <section
+            className="sentence-practice-activity-card listen-repeat-activity-card"
+            aria-label="30-day speaking activity"
+          >
+            <header>
+              <div>
+                <span className="eyebrow">Recent activity</span>
+                <h2>Last 30 days</h2>
+              </div>
+              <strong>
+                {snapshot.statistics.completedLongChunkCount30Days} long chunks
+              </strong>
+            </header>
+            <ol className="sentence-practice-activity-days">
+              {snapshot.statistics.dailyActivity.map((day) => (
+                <li
+                  key={day.date}
+                  aria-label={`${day.date}: ${day.completedLongChunkCount} long chunks completed`}
+                  title={`${day.date}: ${day.completedLongChunkCount} long chunks completed`}
+                  data-level={day.completedLongChunkCount === 0
+                    ? 0
+                    : Math.max(1, Math.ceil(
+                        day.completedLongChunkCount / maximumDailyActivity * 4
+                      ))}
+                >
+                  <span aria-hidden="true">{Number(day.date.slice(-2))}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </section>
+      ) : null}
 
       {materialExpanded || practice?.phase !== "ready" ? (
         <section

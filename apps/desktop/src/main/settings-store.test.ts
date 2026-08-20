@@ -33,6 +33,7 @@ describe("LocalSettingsStore", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -46,6 +47,7 @@ describe("LocalSettingsStore", () => {
       dailyNewItemCompletionLimit: 25,
       dailyDueReviewCompletionLimit: 80,
       dailySentencePracticeGoal: 12,
+      dailyListenRepeatGoal: 20,
       reviewPaperSize: 6,
       selectionSpeechVoice: "marin",
       selectionSpeechTone: "calm"
@@ -58,6 +60,7 @@ describe("LocalSettingsStore", () => {
       dailyNewItemCompletionLimit: 25,
       dailyDueReviewCompletionLimit: 80,
       dailySentencePracticeGoal: 12,
+      dailyListenRepeatGoal: 20,
       reviewPaperSize: 6,
       selectionSpeechVoice: "marin",
       selectionSpeechTone: "calm"
@@ -71,6 +74,7 @@ describe("LocalSettingsStore", () => {
       dailyNewItemCompletionLimit: 25,
       dailyDueReviewCompletionLimit: 80,
       dailySentencePracticeGoal: 12,
+      dailyListenRepeatGoal: 20,
       reviewPaperSize: 6,
       selectionSpeechVoice: "marin",
       selectionSpeechTone: "calm"
@@ -91,6 +95,7 @@ describe("LocalSettingsStore", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -110,6 +115,7 @@ describe("LocalSettingsStore", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
@@ -137,6 +143,7 @@ describe("LocalSettingsStore", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "coral",
       selectionSpeechTone: "expressive"
@@ -153,6 +160,7 @@ describe("LocalSettingsStore", () => {
         dailyNewItemCompletionLimit: -1,
         dailyDueReviewCompletionLimit: 1000,
         dailySentencePracticeGoal: 12.5,
+        dailyListenRepeatGoal: -1,
         reviewPaperSize: 21,
         selectionSpeechVoice: "unknown",
         selectionSpeechTone: "dramatic"
@@ -168,6 +176,7 @@ describe("LocalSettingsStore", () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"
