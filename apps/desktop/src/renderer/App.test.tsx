@@ -321,6 +321,10 @@ describe("learning-language workspace settings", () => {
     expect(learningLanguage).toHaveValue("en");
 
     fireEvent.change(learningLanguage, { target: { value: "ja" } });
+    expect(screen.queryByRole("dialog", { name: "Settings" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Switching to Japanese");
+
     await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         learningLanguage: "ja",
@@ -332,7 +336,9 @@ describe("learning-language workspace settings", () => {
         }
       })
     ));
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
 
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.change(screen.getByLabelText("Explanation language"), {
       target: { value: "zh-TW" }
     });

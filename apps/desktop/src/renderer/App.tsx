@@ -133,6 +133,12 @@ const MAX_ASSISTANT_PANEL_WIDTH = 640;
 const MIN_READING_AREA_WIDTH = 520;
 const EXPANDED_LEFT_SIDEBAR_WIDTH = 240;
 const SELECTION_SPEECH_WARNING_LENGTH = 1200;
+const LEARNING_LANGUAGE_SWITCH_DELAY_MS = 550;
+const learningLanguageLabels: Record<LearningLanguage, string> = {
+  en: "English",
+  ja: "Japanese",
+  "zh-TW": "Traditional Chinese"
+};
 const selectionSpeechVoiceLabels: Record<SelectionSpeechVoice, string> = {
   cedar: "Cedar",
   marin: "Marin",
@@ -393,6 +399,8 @@ export function App() {
     selectionSpeechTone: "learning"
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [switchingLearningLanguage, setSwitchingLearningLanguage] =
+    useState<LearningLanguage>();
   const [activeSettingsSection, setActiveSettingsSection] =
     useState<SettingsSection>("general");
   const [isReadingLayoutOpen, setIsReadingLayoutOpen] = useState(false);
@@ -1455,7 +1463,10 @@ export function App() {
   }
 
   async function saveLearningLanguage(value: LearningLanguage) {
-    if (value === settings.learningLanguage || isSettingsSaving) return;
+    if (value === settings.learningLanguage || isSettingsSaving ||
+      switchingLearningLanguage) {
+      return;
+    }
     if (settingsSaveTimerRef.current) {
       clearTimeout(settingsSaveTimerRef.current);
       settingsSaveTimerRef.current = undefined;
@@ -1465,31 +1476,44 @@ export function App() {
       learningLanguage: value,
       explanationLanguage: settings.explanationLanguages[value]
     };
-    setSettings(next);
-    const saved = await persistSettings(next);
-    if (!saved) return;
+    setIsSettingsOpen(false);
+    setSwitchingLearningLanguage(value);
+    setSettingsError("");
 
-    setMode("overview");
-    setBooks([]);
-    setSelectedBookId(undefined);
-    setActiveChapterId(undefined);
-    setChapterContent(undefined);
-    setReadingRange(undefined);
-    setAnnotations([]);
-    setDraft("");
-    setChatView("conversation");
-    setExpandedReadingPracticeQuizId(undefined);
-    setExpandedRetellingPracticeId(undefined);
-    setOpenLearningItemBatchId(undefined);
-    setLearningLibraryRevision((current) => current + 1);
-    const library = desktopLibrary();
-    if (!library) return;
     try {
-      const storedBooks = await library.listBooks();
-      setBooks(storedBooks);
-      if (storedBooks[0]) restoreBook(storedBooks[0]);
-    } catch {
-      setLibraryError("Unable to load the selected learning-language workspace.");
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, LEARNING_LANGUAGE_SWITCH_DELAY_MS);
+      });
+      const saved = await persistSettings(next);
+      if (!saved) {
+        setIsSettingsOpen(true);
+        return;
+      }
+
+      setMode("overview");
+      setBooks([]);
+      setSelectedBookId(undefined);
+      setActiveChapterId(undefined);
+      setChapterContent(undefined);
+      setReadingRange(undefined);
+      setAnnotations([]);
+      setDraft("");
+      setChatView("conversation");
+      setExpandedReadingPracticeQuizId(undefined);
+      setExpandedRetellingPracticeId(undefined);
+      setOpenLearningItemBatchId(undefined);
+      setLearningLibraryRevision((current) => current + 1);
+      const library = desktopLibrary();
+      if (!library) return;
+      try {
+        const storedBooks = await library.listBooks();
+        setBooks(storedBooks);
+        if (storedBooks[0]) restoreBook(storedBooks[0]);
+      } catch {
+        setLibraryError("Unable to load the selected learning-language workspace.");
+      }
+    } finally {
+      setSwitchingLearningLanguage(undefined);
     }
   }
 
@@ -4321,6 +4345,23 @@ export function App() {
             ) : null}
             {settingsError ? <small role="alert">{settingsError}</small> : null}
           </section>
+        </div>
+      ) : null}
+
+      {switchingLearningLanguage ? (
+        <div className="workspace-language-switch-backdrop">
+          <div
+            className="workspace-language-switch-status"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <LoaderCircle aria-hidden="true" />
+            <strong>
+              Switching to {learningLanguageLabels[switchingLearningLanguage]}…
+            </strong>
+            <span>Preparing your learning workspace</span>
+          </div>
         </div>
       ) : null}
 

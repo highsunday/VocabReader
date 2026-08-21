@@ -881,6 +881,55 @@ button {
   backdrop-filter: blur(3px);
 }
 
+.workspace-language-switch-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(30 35 30 / 45%);
+  backdrop-filter: blur(4px);
+}
+
+.workspace-language-switch-status {
+  min-width: min(280px, 100%);
+  padding: 28px 32px 26px;
+  border: 1px solid #d2cbbd;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  color: #30372f;
+  background: #fffdf8;
+  box-shadow: 0 24px 70px rgb(31 28 24 / 28%);
+  text-align: center;
+}
+
+.workspace-language-switch-status svg {
+  width: 42px;
+  height: 42px;
+  margin-bottom: 16px;
+  color: #4d785b;
+  animation: workspace-language-spin 850ms linear infinite;
+}
+
+.workspace-language-switch-status strong {
+  font-size: 17px;
+}
+
+.workspace-language-switch-status span {
+  margin-top: 6px;
+  color: #737970;
+  font-size: 13px;
+}
+
+@keyframes workspace-language-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .delete-dialog {
   width: min(420px, 100%);
   padding: 28px;
@@ -2809,6 +2858,7 @@ button {
   }
 
   .selection-speech-spinner,
+  .workspace-language-switch-status svg,
   .selection-speech-equalizer span {
     animation: none;
   }
