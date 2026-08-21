@@ -11,7 +11,9 @@ describe("settings IPC", () => {
     };
     const store = {
       load: vi.fn().mockResolvedValue({
+        learningLanguage: "en",
         explanationLanguage: "source",
+        explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
         aiConversationFontSize: 13,
         ebookContentFontSize: 19,
         readingPaperWidth: 760,
@@ -25,7 +27,9 @@ describe("settings IPC", () => {
         selectionSpeechTone: "learning"
       }),
       save: vi.fn().mockResolvedValue({
+        learningLanguage: "ja",
         explanationLanguage: "zh-TW",
+        explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en" },
         aiConversationFontSize: 18,
         ebookContentFontSize: 24,
         readingPaperWidth: 900,
@@ -43,7 +47,9 @@ describe("settings IPC", () => {
     registerSettingsIpc(ipc, store);
 
     await expect(handlers.get("settings:get")?.()).resolves.toEqual({
+      learningLanguage: "en",
       explanationLanguage: "source",
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -57,7 +63,9 @@ describe("settings IPC", () => {
       selectionSpeechTone: "learning"
     });
     await expect(handlers.get("settings:save")?.({}, {
+      learningLanguage: "ja",
       explanationLanguage: "zh-TW",
+      explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -70,7 +78,9 @@ describe("settings IPC", () => {
       selectionSpeechVoice: "onyx",
       selectionSpeechTone: "natural"
     })).resolves.toEqual({
+      learningLanguage: "ja",
       explanationLanguage: "zh-TW",
+      explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -84,7 +94,9 @@ describe("settings IPC", () => {
       selectionSpeechTone: "natural"
     });
     expect(store.save).toHaveBeenCalledWith({
+      learningLanguage: "ja",
       explanationLanguage: "zh-TW",
+      explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -211,6 +223,8 @@ describe("settings IPC", () => {
     registerSettingsIpc(ipc, store);
 
     expect(() => handlers.get("settings:save")?.({}, {
+      learningLanguage: "en",
+      explanationLanguages: { en: "en", ja: "source", "zh-TW": "source" },
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
@@ -247,6 +261,8 @@ describe("settings IPC", () => {
     registerSettingsIpc(ipc, store);
 
     expect(() => handlers.get("settings:save")?.({}, {
+      learningLanguage: "en",
+      explanationLanguages: { en: "en", ja: "source", "zh-TW": "source" },
       explanationLanguage: "en",
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,

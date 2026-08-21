@@ -12,6 +12,10 @@ related_implements:
 
 # 資料備份與完整還原模組
 
+> F69 格式：最外層改為 `vocabreader-learning-language-backup`，包含 `en`、`ja`、`zh-TW`
+> 三份下述既有格式的完整工作區 ZIP、共享設定與可選待分類 SQLite。預覽分區顯示數量，
+> 還原完整取代三區與設定後重啟；AI 對話、Codex runtime、目前跟讀素材與音訊仍排除。
+
 ## 1. Purpose
 
 本模組把一個時間點的完整**書庫**、完整**生詞庫**、每日**造句運用統計**與**跟讀完成

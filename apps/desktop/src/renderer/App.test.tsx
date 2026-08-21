@@ -107,7 +107,13 @@ function installLibraryApi(
     })
   );
   const getSettings = vi.fn().mockResolvedValue({
+    learningLanguage: "en",
     explanationLanguage: "source",
+    explanationLanguages: {
+      en: "source",
+      ja: "source",
+      "zh-TW": "source"
+    },
     aiConversationFontSize: 13,
     ebookContentFontSize: 19,
     readingPaperWidth: 760,
@@ -302,6 +308,47 @@ function installLibraryApi(
     listenRepeat
   };
 }
+
+// F69 TC1/TC10: language workspaces switch from Settings and preserve their
+// own explanation language while active operations lock the selector.
+describe("learning-language workspace settings", () => {
+  it("switches workspace language and restores its explanation language", async () => {
+    const { saveSettings } = installLibraryApi();
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    const learningLanguage = screen.getByLabelText("Learning language");
+    expect(learningLanguage).toHaveValue("en");
+
+    fireEvent.change(learningLanguage, { target: { value: "ja" } });
+    await waitFor(() => expect(saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        learningLanguage: "ja",
+        explanationLanguage: "source",
+        explanationLanguages: {
+          en: "source",
+          ja: "source",
+          "zh-TW": "source"
+        }
+      })
+    ));
+
+    fireEvent.change(screen.getByLabelText("Explanation language"), {
+      target: { value: "zh-TW" }
+    });
+    await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        learningLanguage: "ja",
+        explanationLanguage: "zh-TW",
+        explanationLanguages: {
+          en: "source",
+          ja: "zh-TW",
+          "zh-TW": "source"
+        }
+      })
+    ));
+  });
+});
 
 function selectText(element: HTMLElement, selectedText: string) {
   const fullText = element.textContent ?? "";
@@ -791,7 +838,9 @@ describe("App", () => {
       "--ebook-line-height": "1.9"
     });
     await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
+      learningLanguage: "en",
       explanationLanguage: "source",
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -847,7 +896,9 @@ describe("App", () => {
     fireEvent.change(paperSize, { target: { value: "6" } });
 
     await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
+      learningLanguage: "en",
       explanationLanguage: "source",
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -926,7 +977,9 @@ describe("App", () => {
       "--ebook-line-height": "2.2"
     });
     await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
+      learningLanguage: "en",
       explanationLanguage: "source",
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -945,7 +998,9 @@ describe("App", () => {
     expect(paperWidth).toHaveValue("760");
     expect(lineHeight).toHaveValue("1.9");
     await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
+      learningLanguage: "en",
       explanationLanguage: "source",
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -4055,7 +4110,9 @@ describe("App", () => {
       target: { value: "ja" }
     });
     await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({
+      learningLanguage: "en",
       explanationLanguage: "ja",
+      explanationLanguages: { en: "ja", ja: "source", "zh-TW": "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,

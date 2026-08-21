@@ -80,6 +80,7 @@ import {
   REVIEW_PAPER_SIZE,
   type AppSettings,
   type ExplanationLanguage,
+  type LearningLanguage,
   type SelectionSpeechTone,
   type SelectionSpeechVoice,
   type SettingsDesktopApi
@@ -372,7 +373,13 @@ export function App() {
   const [isModelActionPending, setIsModelActionPending] = useState(false);
   const [isStopPending, setIsStopPending] = useState(false);
   const [settings, setSettings] = useState<AppSettings>({
+    learningLanguage: "en",
     explanationLanguage: "source",
+    explanationLanguages: {
+      en: "source",
+      ja: "source",
+      "zh-TW": "source"
+    },
     aiConversationFontSize: AI_CONVERSATION_FONT_SIZE.default,
     ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default,
     readingPaperWidth: READING_PAPER_WIDTH.default,
@@ -391,6 +398,12 @@ export function App() {
   const [isReadingLayoutOpen, setIsReadingLayoutOpen] = useState(false);
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [settingsError, setSettingsError] = useState("");
+  const [unclassifiedLearningItemCount, setUnclassifiedLearningItemCount] =
+    useState(0);
+  const [unclassifiedTargetLanguage, setUnclassifiedTargetLanguage] =
+    useState<LearningLanguage>("en");
+  const [isAssigningUnclassifiedItems, setIsAssigningUnclassifiedItems] =
+    useState(false);
   const [aiVoiceSettings, setAiVoiceSettings] =
     useState<SelectionSpeechSettingsSnapshot>({
       hasApiKey: false,
@@ -625,6 +638,13 @@ export function App() {
       })
       .catch(() => {
         if (active) setSettingsError("Unable to load settings. Source language is being used.");
+      });
+    void (api.getUnclassifiedLearningItemCount?.() ?? Promise.resolve(0))
+      .then((count) => {
+        if (active) setUnclassifiedLearningItemCount(count);
+      })
+      .catch(() => {
+        if (active) setSettingsError("Unable to inspect unclassified learning items.");
       });
     return () => {
       active = false;
@@ -1404,6 +1424,7 @@ export function App() {
         setSettings(saved);
         setReviewSettingsRevision((current) => current + 1);
       }
+      return saved;
     } catch {
       if (revision === settingsSaveRevisionRef.current) {
         setSettingsError("Unable to save settings. Please try again.");
@@ -1413,6 +1434,7 @@ export function App() {
         setIsSettingsSaving(false);
       }
     }
+    return undefined;
   }
 
   function saveExplanationLanguage(value: ExplanationLanguage) {
@@ -1420,9 +1442,87 @@ export function App() {
       clearTimeout(settingsSaveTimerRef.current);
       settingsSaveTimerRef.current = undefined;
     }
-    const next = { ...settings, explanationLanguage: value };
+    const next = {
+      ...settings,
+      explanationLanguage: value,
+      explanationLanguages: {
+        ...settings.explanationLanguages,
+        [settings.learningLanguage]: value
+      }
+    };
     setSettings(next);
     void persistSettings(next);
+  }
+
+  async function saveLearningLanguage(value: LearningLanguage) {
+    if (value === settings.learningLanguage || isSettingsSaving) return;
+    if (settingsSaveTimerRef.current) {
+      clearTimeout(settingsSaveTimerRef.current);
+      settingsSaveTimerRef.current = undefined;
+    }
+    const next = {
+      ...settings,
+      learningLanguage: value,
+      explanationLanguage: settings.explanationLanguages[value]
+    };
+    setSettings(next);
+    const saved = await persistSettings(next);
+    if (!saved) return;
+
+    setMode("overview");
+    setBooks([]);
+    setSelectedBookId(undefined);
+    setActiveChapterId(undefined);
+    setChapterContent(undefined);
+    setReadingRange(undefined);
+    setAnnotations([]);
+    setDraft("");
+    setChatView("conversation");
+    setExpandedReadingPracticeQuizId(undefined);
+    setExpandedRetellingPracticeId(undefined);
+    setOpenLearningItemBatchId(undefined);
+    setLearningLibraryRevision((current) => current + 1);
+    const library = desktopLibrary();
+    if (!library) return;
+    try {
+      const storedBooks = await library.listBooks();
+      setBooks(storedBooks);
+      if (storedBooks[0]) restoreBook(storedBooks[0]);
+    } catch {
+      setLibraryError("Unable to load the selected learning-language workspace.");
+    }
+  }
+
+  async function assignUnclassifiedItems() {
+    const api = desktopSettings();
+    if (!api?.assignUnclassifiedLearningItems || !unclassifiedLearningItemCount ||
+      isAssigningUnclassifiedItems) {
+      return;
+    }
+    setIsAssigningUnclassifiedItems(true);
+    setSettingsError("");
+    try {
+      const assigned = await api.assignUnclassifiedLearningItems(
+        unclassifiedTargetLanguage
+      );
+      setUnclassifiedLearningItemCount(0);
+      setLearningLibraryRevision((current) => current + 1);
+      setDataBackupMessage(
+        `Moved ${assigned} unclassified learning item${assigned === 1 ? "" : "s"} to ${
+          unclassifiedTargetLanguage === "en"
+            ? "English"
+            : unclassifiedTargetLanguage === "ja" ? "Japanese" : "Traditional Chinese"
+        }.`
+      );
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error
+          ? error.message
+          : "Unable to assign unclassified learning items."
+      );
+    } finally {
+      setIsAssigningUnclassifiedItems(false);
+    }
   }
 
   function previewSetting(
@@ -3623,7 +3723,28 @@ export function App() {
               >
                 <div className="settings-section-intro">
                   <h3>General</h3>
-                  <p>Adjust the language used by AI responses and your reading comfort.</p>
+                  <p>Choose an isolated learning workspace and its AI explanation language.</p>
+                </div>
+                <div className="settings-control">
+                  <label htmlFor="learning-language">Learning language</label>
+                  <select
+                    id="learning-language"
+                    aria-label="Learning language"
+                    value={settings.learningLanguage}
+                    disabled={isSettingsSaving || Boolean(dataBackupOperation) ||
+                      Boolean(chatSnapshot.activeTurnId) ||
+                      chatSnapshot.managementBusy ||
+                      isConversationActionPending ||
+                      reviewWorkspaceStatus !== "idle"}
+                    onChange={(event) => void saveLearningLanguage(
+                      event.target.value as LearningLanguage
+                    )}
+                  >
+                    <option value="en">English</option>
+                    <option value="ja">Japanese</option>
+                    <option value="zh-TW">Traditional Chinese</option>
+                  </select>
+                  <p>Switches books, learning items, practice progress, and AI conversations as one workspace.</p>
                 </div>
                 <div className="settings-control">
                   <label htmlFor="explanation-language">Explanation language</label>
@@ -3636,16 +3757,48 @@ export function App() {
                       event.target.value as ExplanationLanguage
                     )}
                   >
-                    <option value="source">Source language (default)</option>
+                    <option value="source">Same as learning language (default)</option>
                     <option value="zh-TW">Traditional Chinese</option>
                     <option value="en">English</option>
                     <option value="ja">Japanese</option>
                   </select>
                   <p>
-                    Applies to new AI conversations, annotation explanations, reading
-                    quizzes, and learning items. Existing responses are unchanged.
+                    Applies to AI responses, teaching and grading explanations, annotation
+                    explanations, and learning-item explanations. Quiz questions and answers
+                    stay in the learning language.
                   </p>
                 </div>
+                {unclassifiedLearningItemCount > 0 ? (
+                  <div className="settings-control">
+                    <label htmlFor="unclassified-learning-language">
+                      Unclassified legacy learning items
+                    </label>
+                    <p>
+                      {unclassifiedLearningItemCount} item{
+                        unclassifiedLearningItemCount === 1 ? "" : "s"
+                      } from the previous library need a learning workspace.
+                    </p>
+                    <select
+                      id="unclassified-learning-language"
+                      value={unclassifiedTargetLanguage}
+                      disabled={isAssigningUnclassifiedItems}
+                      onChange={(event) => setUnclassifiedTargetLanguage(
+                        event.target.value as LearningLanguage
+                      )}
+                    >
+                      <option value="en">English</option>
+                      <option value="ja">Japanese</option>
+                      <option value="zh-TW">Traditional Chinese</option>
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isAssigningUnclassifiedItems}
+                      onClick={() => void assignUnclassifiedItems()}
+                    >
+                      {isAssigningUnclassifiedItems ? "Moving…" : "Move all items"}
+                    </button>
+                  </div>
+                ) : null}
                 <div className="settings-control font-size-setting">
                   <div className="settings-control-heading">
                     <label htmlFor="ai-conversation-font-size">
@@ -3675,8 +3828,9 @@ export function App() {
                   <p>
                     Export or fully restore books, reading progress, annotations,
                     learning items, and review history, plus sentence-practice
-                    activity. AI conversations, settings, and Codex sign-in are
-                    not included.
+                    activity for all three learning-language workspaces. Shared
+                    settings and each workspace&apos;s explanation language are included.
+                    AI conversations and Codex sign-in are not included.
                   </p>
                   <div className="data-backup-actions">
                     <button
@@ -4186,10 +4340,25 @@ export function App() {
             <p id="data-restore-dialog-description">
               This backup will completely replace this device&apos;s books, reading
               progress, annotations, learning items, Trash, and review history.
-              Sentence-practice activity is also replaced. The two datasets will
-              not be merged.
+              All three workspaces, their practice activity, and shared settings
+              are replaced. The datasets will not be merged.
             </p>
             <dl className="data-restore-summary">
+              {dataRestorePreview.workspaceCounts
+                ? (["en", "ja", "zh-TW"] as const).map((language) => (
+                    <div key={language}>
+                      <dt>{language === "en" ? "English" : language === "ja"
+                        ? "Japanese" : "Traditional Chinese"}</dt>
+                      <dd>
+                        {dataRestorePreview.workspaceCounts?.[language].books} books · {" "}
+                        {dataRestorePreview.workspaceCounts?.[language]
+                          .activeLearningItems} active · {" "}
+                        {dataRestorePreview.workspaceCounts?.[language]
+                          .trashedLearningItems} trashed
+                      </dd>
+                    </div>
+                  ))
+                : null}
               <div>
                 <dt>Book Library</dt>
                 <dd>{dataRestorePreview.books} books</dd>
@@ -4208,10 +4377,16 @@ export function App() {
                 <dt>Backup time</dt>
                 <dd>{new Date(dataRestorePreview.createdAt).toLocaleString()}</dd>
               </div>
+              {dataRestorePreview.unclassifiedLearningItems ? (
+                <div>
+                  <dt>Unclassified</dt>
+                  <dd>{dataRestorePreview.unclassifiedLearningItems} learning items</dd>
+                </div>
+              ) : null}
             </dl>
             <p>
               VocabReader will restart automatically after a successful restore.
-              AI conversations, global settings, and Codex sign-in remain unchanged.
+              AI conversations and Codex sign-in remain unchanged.
             </p>
             <div className="delete-dialog-actions">
               <button

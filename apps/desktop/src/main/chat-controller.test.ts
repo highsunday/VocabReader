@@ -1981,10 +1981,11 @@ describe("composeCodexInput", () => {
     expect(result).not.toContain("區段解析規則");
   });
 
-  it("uses each learning-item target language when the card setting is source", () => {
+  it("uses the active learning language when the card explanation setting is source", () => {
     const result = composeCodexInput({
       text: "新增學習卡片",
       intent: "createLearningItems",
+      learningLanguage: "en",
       explanationLanguage: "source",
       learningItemTargets: [
         { title: "reluctant" },
@@ -1996,17 +1997,9 @@ describe("composeCodexInput", () => {
       }
     });
 
-    expect(result).toContain(
-      "For each learning item, use the language of that requested target title"
-    );
-    expect(result).toContain("English targets use English");
-    expect(result).toContain(
-      "Traditional Chinese targets use Traditional Chinese"
-    );
-    expect(result).toContain("Japanese targets use Japanese");
-    expect(result).toContain(
-      "A mixed-language batch may use a different explanation language for each card"
-    );
+    expect(result).toContain("Learning-language workspace: English");
+    expect(result).toContain("Explanation language for every learning item: English");
+    expect(result).toContain("Do not create drafts for targets outside English");
     expect(result).not.toContain(
       "Explanation language: Use the same language as the current reading segment"
     );
@@ -2023,6 +2016,7 @@ describe("composeCodexInput", () => {
     const result = composeCodexInput({
       text: "新增學習卡片",
       intent: "createLearningItems",
+      learningLanguage: "en",
       explanationLanguage,
       learningItemTargets: [
         { title: "reluctant" },
@@ -2038,28 +2032,21 @@ describe("composeCodexInput", () => {
     );
   });
 
-  it.each([
-    ["source", "Use the same language as the current reading segment"],
-    ["zh-TW", "Traditional Chinese"],
-    ["en", "English"],
-    ["ja", "Japanese"]
-  ] as const)("uses %s for both the reading quiz and open-ended answers", (
-    explanationLanguage,
-    expectedLanguage
-  ) => {
+  it("uses the learning language for quiz output and the explanation language for feedback", () => {
     const result = composeCodexInput({
       text: "Start reading測驗",
       intent: "practiceReading",
-      explanationLanguage,
+      learningLanguage: "en",
+      explanationLanguage: "zh-TW",
       context: {
-        readingSegment: "<reading-segment>這是一段中文文章。</reading-segment>"
+        readingSegment: "<reading-segment>An English passage.</reading-segment>"
       }
     });
 
-    expect(result).toContain(`Quiz language: ${expectedLanguage}`);
-    expect(result).toContain(
-      `Answer language for open-ended questions: ${expectedLanguage}`
-    );
+    expect(result).toContain("Quiz language: English");
+    expect(result).toContain("Answer language for open-ended questions: English");
+    expect(result).toContain("Corrected answer language: English");
+    expect(result).toContain("Teaching and grading explanation language: Traditional Chinese");
     expect(result).toContain("$practice-reading-comprehension");
     expect(result).toContain("Do not impose a sentence-count requirement");
   });
@@ -2089,7 +2076,7 @@ describe("composeCodexInput", () => {
     expect(result).toContain("$practice-reading-comprehension");
     expect(result).toContain("Quiz language:");
     expect(result).toContain(
-      "Answer language for open-ended questions: Use the same language as the current reading segment"
+      "Answer language for open-ended questions: English"
     );
     expect(result).toContain("Do not use or infer content outside");
     expect(result).not.toContain("exactly 4");
@@ -2142,18 +2129,19 @@ describe("create-learning-items skill", () => {
     );
   });
 
-  it("defines per-target source language and fixed-language batch behavior", () => {
+  it("defines workspace-bound source language and fixed explanation behavior", () => {
     const skill = learningItemCreationSkillInstructions;
 
     expect(skill).toContain(
-      "infer the explanation language separately from each requested target title"
+      "use the active learning-language workspace as the explanation language for every draft"
     );
     expect(skill).toContain(
-      "English targets use English, Traditional Chinese targets use Traditional Chinese, and Japanese targets use Japanese"
+      "Every requested target and every draft must belong to that language"
     );
     expect(skill).toContain(
       "When the App requests a fixed language, use that language for every draft in the batch"
     );
+    expect(skill).toContain("not contain multiple language values or `other`");
     expect(skill).toContain(
       "Keep `sense` as a short English semantic identifier"
     );

@@ -8,6 +8,8 @@ export interface DataBackupPreview extends DataBackupCounts {
   token: string;
   createdAt: string;
   appVersion: string;
+  workspaceCounts?: Record<"en" | "ja" | "zh-TW", DataBackupCounts>;
+  unclassifiedLearningItems?: number;
 }
 
 export type ExportDataBackupResult =

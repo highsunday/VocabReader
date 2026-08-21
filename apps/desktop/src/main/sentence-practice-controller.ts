@@ -40,6 +40,7 @@ export interface SentencePracticeControllerOptions {
   workingDirectory?: string;
   skillPath?: string;
   skillInstructions?: string;
+  learningLanguage?: "en" | "ja" | "zh-TW";
 }
 
 const explanationLanguages = new Set(["source", "zh-TW", "en", "ja"]);
@@ -112,7 +113,8 @@ function practicePrompt(
 function examplesPrompt(
   sessionId: string,
   sourceItems: SentencePracticeSourceItem[],
-  input: GenerateSentencePracticeExamplesInput
+  input: GenerateSentencePracticeExamplesInput,
+  learningLanguage: "en" | "ja" | "zh-TW"
 ): string {
   return [
     "$practice-integrated-sentences",
@@ -130,8 +132,14 @@ function examplesPrompt(
         markdownContent
       }))
     })}`,
-    "Generate exactly three distinct English examples that each use every required item in its target sense."
+    `Generate exactly three distinct ${learningLanguageName(learningLanguage)} examples that each use every required item in its target sense.`
   ].join("\n");
+}
+
+function learningLanguageName(language: "en" | "ja" | "zh-TW") {
+  return language === "en" ? "English" : language === "ja"
+    ? "Japanese"
+    : "Traditional Chinese";
 }
 
 async function runBoundedSentencePracticeTurn(
@@ -263,7 +271,11 @@ export class SentencePracticeController {
     const eligibleCount = await this.options.library
       .getSentencePracticeEligibleCount();
     if (count > eligibleCount) {
-      throw new Error("Not enough reviewed English learning items");
+      throw new Error(
+        `Not enough reviewed ${learningLanguageName(
+          this.options.learningLanguage ?? "en"
+        )} learning items`
+      );
     }
     const sources = await this.options.library.selectSentencePracticeItems(count);
     this.#sourceItems = structuredClone(sources);
@@ -369,7 +381,12 @@ export class SentencePracticeController {
     const sessionId = active.sessionId;
     const sourceItems = structuredClone(this.#sourceItems);
     try {
-      const prompt = examplesPrompt(sessionId, sourceItems, input);
+      const prompt = examplesPrompt(
+        sessionId,
+        sourceItems,
+        input,
+        this.options.learningLanguage ?? "en"
+      );
       const response = this.options.runTurn
         ? await this.options.runTurn(prompt)
         : await runBoundedSentencePracticeTurn(this.options, prompt);

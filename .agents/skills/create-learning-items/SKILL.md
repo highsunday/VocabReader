@@ -14,11 +14,11 @@ Create structured drafts for words and phrases. Never write to the learning libr
 - Candidate items were selected by the App using exact normalized title lookup. Do not request, infer, or search the rest of the learning library.
 - Do not run tools, read files, write files, access the network, or claim that a draft has already been saved.
 - Follow the requested explanation language. Preserve target-language terms, IPA, collocations, and example sentences as needed.
+- Follow the App-provided `Learning-language workspace`. Every requested target and every draft must belong to that language. If a target belongs to another supported language, do not emit a draft for it; tell the reader to switch to that learning-language workspace.
 
 ## Explanation Language
 
-- When the App requests the source language, infer the explanation language separately from each requested target title. English targets use English, Traditional Chinese targets use Traditional Chinese, and Japanese targets use Japanese.
-- A source-language batch may contain drafts in different explanation languages. Do not use the reading-segment language to override a target title's own language.
+- When the App requests the source language, use the active learning-language workspace as the explanation language for every draft.
 - When the App requests a fixed language, use that language for every draft in the batch, regardless of the target or reading-segment language.
 - Apply the selected language to meanings, learner-facing notes, and example support. Preserve target titles, IPA, target-language example sentences, and other content that must remain in its original form.
 - Write every example in the learning item's own language, independently of the requested explanation language. English items use English examples, Japanese items use Japanese examples, Traditional Chinese items use Traditional Chinese examples, and `other` items use the specific language inferred from their title and sense.
@@ -115,17 +115,16 @@ For every new word or phrase, provide:
 - `title`
 - `requestedTitles`: one or more exact requested titles resolved by this entry
 - `itemType`: `word` or `phrase`
-- `language`: `en`, `ja`, `zh-TW`, or `other`, inferred from the canonical title itself
+- `language`: the App-provided active workspace code (`en`, `ja`, or `zh-TW`)
 - `cefr`: `A1`, `A2`, `B1`, `B2`, `C1`, or `C2`
 - `sense`: a short English semantic identifier
 - `markdownContent`
 
-Classify `language` independently for every draft. Use `en` for English titles,
-`ja` for Japanese titles, `zh-TW` for Traditional Chinese titles, and `other`
-for every other language or a title that cannot be reliably assigned to the
-first three categories. Base this on the canonical title and relevant sense
-context, not on the request, reading-segment, interface, or explanation
-language. A single batch may contain multiple language values.
+Verify every canonical title against the App-provided learning-language
+workspace. Emit the active workspace code for every valid draft. A batch may
+not contain multiple language values or `other`. If any target clearly belongs
+to another supported language, omit it and instruct the reader to switch
+workspaces; ask one focused clarification when the title language is uncertain.
 
 ## Frequency-based CEFR Contract
 

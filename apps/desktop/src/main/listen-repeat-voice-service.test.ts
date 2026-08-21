@@ -9,7 +9,9 @@ import { ListenRepeatVoiceService } from "./listen-repeat-voice-service";
 function settings(tone: AppSettings["selectionSpeechTone"] = "learning"):
 AppSettings {
   return {
+    learningLanguage: "en",
     explanationLanguage: "source",
+    explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
     aiConversationFontSize: 13,
     ebookContentFontSize: 19,
     readingPaperWidth: 760,

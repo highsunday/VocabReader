@@ -5,7 +5,10 @@ import type {
   LearningItemType,
   UpdateLearningItemDraftInput
 } from "../shared/learning-contracts";
-import { isExplanationLanguage } from "../shared/settings-contracts";
+import {
+  isExplanationLanguage,
+  isLearningLanguage
+} from "../shared/settings-contracts";
 import type { ChatController } from "./chat-controller";
 
 interface IpcRegistrar {
@@ -52,6 +55,10 @@ function parseSendInput(value: unknown): SendChatMessageInput {
     !isExplanationLanguage(value.explanationLanguage)) {
     throw new Error("Invalid AI message.");
   }
+  if (value.learningLanguage !== undefined &&
+    !isLearningLanguage(value.learningLanguage)) {
+    throw new Error("Invalid AI message.");
+  }
   const intent = value.intent === "explainAnnotations"
     ? "explainAnnotations" as const
     : value.intent === "practiceReading"
@@ -88,6 +95,9 @@ function parseSendInput(value: unknown): SendChatMessageInput {
     ...(intent ? { intent } : {}),
     ...(isExplanationLanguage(value.explanationLanguage)
       ? { explanationLanguage: value.explanationLanguage }
+      : {}),
+    ...(isLearningLanguage(value.learningLanguage)
+      ? { learningLanguage: value.learningLanguage }
       : {}),
     ...(learningItemTargets ? { learningItemTargets } : {})
   };

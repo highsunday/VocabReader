@@ -133,6 +133,8 @@ interface ReviewPreferences {
 
 interface LocalLearningLibraryOptions {
   getReviewPreferences?(): Promise<ReviewPreferences>;
+  workspaceLanguage?: LearningItemLanguage;
+  seedMockItems?: boolean;
 }
 
 const itemTypes = new Set<LearningItemType>(["word", "phrase"]);
@@ -805,14 +807,15 @@ export class LocalLearningLibrary {
   }
 
   async getSentencePracticeEligibleCount(): Promise<number> {
+    const language = this.options.workspaceLanguage ?? "en";
     const row = this.#open().prepare(`
       SELECT COUNT(*) AS count
       FROM learning_items i
       JOIN learning_review_schedules s ON s.learning_item_id = i.id
       WHERE i.status = 'active'
-        AND i.language = 'en'
+        AND i.language = ?
         AND s.review_count > 0
-    `).get() as { count: number };
+    `).get(language) as { count: number };
     return row.count;
   }
 
@@ -826,18 +829,19 @@ export class LocalLearningLibrary {
     ) {
       throw new Error("Sentence-practice item count must be between 2 and 10");
     }
+    const language = this.options.workspaceLanguage ?? "en";
     const rows = this.#open().prepare(`
       SELECT i.*
       FROM learning_items i
       JOIN learning_review_schedules s ON s.learning_item_id = i.id
       WHERE i.status = 'active'
-        AND i.language = 'en'
+        AND i.language = ?
         AND s.review_count > 0
       ORDER BY RANDOM()
       LIMIT ?
-    `).all(count) as unknown as LearningItemRow[];
+    `).all(language, count) as unknown as LearningItemRow[];
     if (rows.length !== count) {
-      throw new Error("Not enough reviewed English learning items");
+      throw new Error("Not enough reviewed learning items in this workspace");
     }
     return rows.map((row) => ({
       id: row.id,
@@ -975,7 +979,7 @@ export class LocalLearningLibrary {
       const seeded = database.prepare(
         "SELECT value FROM learning_metadata WHERE key = 'mock_seed_v1'"
       ).get() as { value: string } | undefined;
-      if (!seeded) {
+      if (!seeded && this.options.seedMockItems !== false) {
         const insert = database.prepare(`
           INSERT INTO learning_items (
             id, title, item_type, language, cefr, sense, markdown_content, status,
@@ -1681,6 +1685,10 @@ export class LocalLearningLibrary {
 
   async createItem(input: CreateLearningItemInput): Promise<LearningItem> {
     const item = validateCreate(input);
+    if (this.options.workspaceLanguage &&
+      item.language !== this.options.workspaceLanguage) {
+      throw new Error("Switch to the matching learning-language workspace before creating this item");
+    }
     const id = randomUUID();
     const now = new Date().toISOString();
     this.#open().prepare(`
@@ -1709,6 +1717,11 @@ export class LocalLearningLibrary {
       throw new Error("Invalid learning-item batch");
     }
     const items = inputs.map(validateCreate);
+    if (this.options.workspaceLanguage && items.some((item) =>
+      item.language !== this.options.workspaceLanguage
+    )) {
+      throw new Error("Switch to the matching learning-language workspace before creating these items");
+    }
     const database = this.#open();
     const insert = database.prepare(`
       INSERT INTO learning_items (
@@ -1747,6 +1760,10 @@ export class LocalLearningLibrary {
     if (!input || typeof input !== "object") throw new Error("Invalid learning-item update");
     const id = requiredText(input.itemId, "learning item");
     const item = validateCreate(input);
+    if (this.options.workspaceLanguage &&
+      item.language !== this.options.workspaceLanguage) {
+      throw new Error("A learning item's language must match its workspace");
+    }
     const result = this.#open().prepare(`
       UPDATE learning_items SET
         title = ?, item_type = ?, language = ?, cefr = ?, sense = ?, markdown_content = ?,

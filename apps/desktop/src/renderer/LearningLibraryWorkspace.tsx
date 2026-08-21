@@ -1257,8 +1257,6 @@ export function LearningLibraryWorkspace({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [itemType, setItemType] = useState<LearningItemType | "all">("all");
-  const [language, setLanguage] =
-    useState<LearningItemLanguage | "all">("all");
   const [cefr, setCefr] = useState<CefrLevel | "all">("all");
   const [progressStatus, setProgressStatus] =
     useState<LearningItemProgressStatus | "all">("all");
@@ -1299,7 +1297,6 @@ export function LearningLibraryWorkspace({
           status: "active",
           search: debouncedSearch,
           ...(itemType === "all" ? {} : { itemType }),
-          ...(language === "all" ? {} : { language }),
           ...(cefr === "all" ? {} : { cefr }),
           ...(progressStatus === "all" ? {} : { progressStatus }),
           sort,
@@ -1309,7 +1306,7 @@ export function LearningLibraryWorkspace({
           status: "trashed",
           sort: "recent",
           ...(cursor ? { cursor } : {})
-        }, [cefr, debouncedSearch, itemType, language, progressStatus, sort, view]);
+        }, [cefr, debouncedSearch, itemType, progressStatus, sort, view]);
 
   useEffect(() => {
     const generation = ++queryGenerationRef.current;
@@ -1493,7 +1490,6 @@ export function LearningLibraryWorkspace({
   const filtersActive = Boolean(
     search ||
     itemType !== "all" ||
-    language !== "all" ||
     cefr !== "all" ||
     progressStatus !== "all" ||
     sort !== "recent"
@@ -1502,7 +1498,6 @@ export function LearningLibraryWorkspace({
   function clearFilters() {
     setSearch("");
     setItemType("all");
-    setLanguage("all");
     setCefr("all");
     setProgressStatus("all");
     setSort("recent");
@@ -1713,20 +1708,6 @@ export function LearningLibraryWorkspace({
                   <option value="all">All</option>
                   <option value="word">Words</option>
                   <option value="phrase">Phrases</option>
-                </select>
-              </label>
-              <label>
-                Language
-                <select
-                  value={language}
-                  onChange={(event) => setLanguage(
-                    event.target.value as LearningItemLanguage | "all"
-                  )}
-                >
-                  <option value="all">All languages</option>
-                  {Object.entries(languageLabels).map(([value, label]) => (
-                    <option value={value} key={value}>{label}</option>
-                  ))}
                 </select>
               </label>
               <label>

@@ -173,7 +173,13 @@ const desktopApi = Object.freeze({
   settings: Object.freeze({
     get: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
     save: (settings: AppSettings): Promise<AppSettings> =>
-      ipcRenderer.invoke("settings:save", settings)
+      ipcRenderer.invoke("settings:save", settings),
+    getUnclassifiedLearningItemCount: (): Promise<number> =>
+      ipcRenderer.invoke("settings:unclassified-count"),
+    assignUnclassifiedLearningItems: (
+      language: AppSettings["learningLanguage"]
+    ): Promise<number> =>
+      ipcRenderer.invoke("settings:assign-unclassified", language)
   } satisfies SettingsDesktopApi),
   selectionSpeech: Object.freeze({
     getSettings: (): Promise<SelectionSpeechSettingsSnapshot> =>

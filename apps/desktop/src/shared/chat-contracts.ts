@@ -74,6 +74,7 @@ export interface SendChatMessageInput {
   intent?: "explainAnnotations" | "practiceReading" | "practiceRetelling" |
     "createLearningItems";
   explanationLanguage?: "source" | "zh-TW" | "en" | "ja";
+  learningLanguage?: "en" | "ja" | "zh-TW";
   learningItemTargets?: LearningItemTarget[];
 }
 

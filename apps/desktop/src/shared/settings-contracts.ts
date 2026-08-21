@@ -1,4 +1,6 @@
 export type ExplanationLanguage = "source" | "zh-TW" | "en" | "ja";
+export type LearningLanguage = "en" | "ja" | "zh-TW";
+export type ExplanationLanguages = Record<LearningLanguage, ExplanationLanguage>;
 export type SelectionSpeechVoice = "cedar" | "marin" | "coral" | "onyx";
 export type SelectionSpeechTone = "learning" | "natural" | "calm" | "expressive";
 
@@ -74,7 +76,9 @@ export const REVIEW_PAPER_SIZE = {
 } as const;
 
 export interface AppSettings {
+  learningLanguage: LearningLanguage;
   explanationLanguage: ExplanationLanguage;
+  explanationLanguages: ExplanationLanguages;
   aiConversationFontSize: number;
   ebookContentFontSize: number;
   readingPaperWidth: number;
@@ -91,7 +95,10 @@ export interface AppSettings {
 export interface SettingsDesktopApi {
   get(): Promise<AppSettings>;
   save(settings: AppSettings): Promise<AppSettings>;
+  getUnclassifiedLearningItemCount(): Promise<number>;
+  assignUnclassifiedLearningItems(language: LearningLanguage): Promise<number>;
 }
+
 
 export const explanationLanguages: readonly ExplanationLanguage[] = [
   "source",
@@ -99,6 +106,26 @@ export const explanationLanguages: readonly ExplanationLanguage[] = [
   "en",
   "ja"
 ];
+
+export const learningLanguages: readonly LearningLanguage[] = [
+  "en",
+  "ja",
+  "zh-TW"
+];
+
+export function isLearningLanguage(value: unknown): value is LearningLanguage {
+  return learningLanguages.includes(value as LearningLanguage);
+}
+
+export function isExplanationLanguages(
+  value: unknown
+): value is ExplanationLanguages {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ExplanationLanguages>;
+  return learningLanguages.every((language) =>
+    isExplanationLanguage(candidate[language])
+  );
+}
 
 export function isExplanationLanguage(
   value: unknown

@@ -15,6 +15,8 @@ import {
   isEbookLineHeight,
   isDailyReviewCompletionLimit,
   isExplanationLanguage,
+  isExplanationLanguages,
+  isLearningLanguage,
   isReadingPaperWidth,
   isReviewPaperSize,
   isSelectionSpeechTone,
@@ -23,7 +25,13 @@ import {
 } from "../shared/settings-contracts";
 
 const defaultSettings = (): AppSettings => ({
+  learningLanguage: "en",
   explanationLanguage: "source",
+  explanationLanguages: {
+    en: "source",
+    ja: "source",
+    "zh-TW": "source"
+  },
   aiConversationFontSize: AI_CONVERSATION_FONT_SIZE.default,
   ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default,
   readingPaperWidth: READING_PAPER_WIDTH.default,
@@ -52,10 +60,22 @@ export class LocalSettingsStore {
         await readFile(this.#settingsPath, "utf8")
       ) as Record<string, unknown> | null;
       const defaults = defaultSettings();
+      const learningLanguage = isLearningLanguage(parsed?.learningLanguage)
+        ? parsed.learningLanguage
+        : defaults.learningLanguage;
+      const legacyExplanationLanguage = isExplanationLanguage(
+        parsed?.explanationLanguage
+      ) ? parsed.explanationLanguage : defaults.explanationLanguage;
+      const explanationLanguages = isExplanationLanguages(
+        parsed?.explanationLanguages
+      ) ? parsed.explanationLanguages : {
+          ...defaults.explanationLanguages,
+          en: legacyExplanationLanguage
+        };
       return {
-        explanationLanguage: isExplanationLanguage(parsed?.explanationLanguage)
-          ? parsed.explanationLanguage
-          : defaults.explanationLanguage,
+        learningLanguage,
+        explanationLanguage: explanationLanguages[learningLanguage],
+        explanationLanguages,
         aiConversationFontSize: isAiConversationFontSize(
           parsed?.aiConversationFontSize
         )

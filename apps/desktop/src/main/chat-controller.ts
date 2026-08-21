@@ -57,6 +57,7 @@ interface ChatControllerOptions {
   conversationStore?: ChatConversationStore;
   createConversationId?(): string;
   now?(): number;
+  learningLanguage?: "en" | "ja" | "zh-TW";
 }
 
 const isolationConfig = Object.freeze({
@@ -288,13 +289,20 @@ export function composeCodexInput(
     en: "English",
     ja: "Japanese"
   }[input.explanationLanguage ?? "source"];
+  const learningLanguage = {
+    en: "English",
+    ja: "Japanese",
+    "zh-TW": "Traditional Chinese"
+  }[input.learningLanguage ?? "en"];
   if (input.intent === "practiceReading") {
     return [
       "$practice-reading-comprehension",
       ...base,
       "",
-      `Quiz language: ${language}.`,
-      `Answer language for open-ended questions: ${language}.`,
+      `Quiz language: ${learningLanguage}.`,
+      `Answer language for open-ended questions: ${learningLanguage}.`,
+      `Corrected answer language: ${learningLanguage}.`,
+      `Teaching and grading explanation language: ${language}.`,
       "Do not impose a sentence-count requirement on open-ended answers.",
       "Do not use or infer content outside the current reading segment.",
       "Use the App-provided practice-reading-comprehension workflow for quiz creation and later grading."
@@ -317,11 +325,7 @@ export function composeCodexInput(
     const targets = input.learningItemTargets ?? [];
     const creationLanguage = input.explanationLanguage === "source" ||
       input.explanationLanguage === undefined
-      ? [
-          "For each learning item, use the language of that requested target title.",
-          "English targets use English; Traditional Chinese targets use Traditional Chinese; Japanese targets use Japanese.",
-          "A mixed-language batch may use a different explanation language for each card."
-        ].join(" ")
+      ? `Explanation language for every learning item: ${learningLanguage}.`
       : `Explanation language for every learning item: ${language}.`;
     const candidates = learningItemCandidates.map((candidate) => ({
       itemId: candidate.id,
@@ -334,10 +338,10 @@ export function composeCodexInput(
       "$create-learning-items",
       ...base,
       "",
-      ...(input.explanationLanguage === "source" ||
-        input.explanationLanguage === undefined
-        ? [`Explanation language: ${creationLanguage}`]
-        : [creationLanguage]),
+      `Learning-language workspace: ${learningLanguage}.`,
+      `Every draft language must be ${input.learningLanguage ?? "en"}.`,
+      `Do not create drafts for targets outside ${learningLanguage}; ask the user to switch to that target's learning-language workspace instead.`,
+      creationLanguage,
       `Requested learning-item targets: ${JSON.stringify(targets)}.`,
       "The App selected the following candidates using exact normalized title lookup:",
       `<learning-item-candidates>${JSON.stringify(candidates)}</learning-item-candidates>`,
@@ -425,7 +429,8 @@ function normalizedLearningItemTitle(value: string) {
 function validateLearningItemBatchScope(
   batch: LearningItemDraftBatch,
   targets: string[],
-  candidates: LearningItem[]
+  candidates: LearningItem[],
+  workspaceLanguage: "en" | "ja" | "zh-TW" = "en"
 ) {
   const requested = new Set(targets.map(normalizedLearningItemTitle));
   if (requested.size === 0) {
@@ -433,6 +438,11 @@ function validateLearningItemBatchScope(
   }
   const covered = new Set<string>();
   for (const draft of batch.drafts) {
+    if (draft.language !== workspaceLanguage) {
+      throw new Error(
+        `This learning item belongs to another language. Switch to its learning-language workspace before creating it.`
+      );
+    }
     const resolvedTargets = (draft.requestedTitles ?? [draft.title])
       .map(normalizedLearningItemTitle);
     if (resolvedTargets.some((target) => !requested.has(target))) {
@@ -997,6 +1007,10 @@ export class ChatController {
   }
 
   async sendMessage(input: SendChatMessageInput): Promise<ChatSnapshot> {
+    input = {
+      ...input,
+      learningLanguage: this.#options.learningLanguage ?? input.learningLanguage
+    };
     const text = input.text.trim();
     if (!text) throw new Error("Enter a message.");
     const requestInput = this.#continuedLearningItemInput({
@@ -1258,7 +1272,8 @@ export class ChatController {
           validateLearningItemBatchScope(
             artifacts.batch,
             scope.targets,
-            scope.candidates
+            scope.candidates,
+            this.#options.learningLanguage
           );
         } catch (error) {
           artifacts.batch = undefined;

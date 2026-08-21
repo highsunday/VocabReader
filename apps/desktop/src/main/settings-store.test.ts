@@ -25,7 +25,13 @@ describe("LocalSettingsStore", () => {
     const store = new LocalSettingsStore(directory);
 
     await expect(store.load()).resolves.toEqual({
+      learningLanguage: "en",
       explanationLanguage: "source",
+      explanationLanguages: {
+        en: "source",
+        ja: "source",
+        "zh-TW": "source"
+      },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -39,7 +45,13 @@ describe("LocalSettingsStore", () => {
       selectionSpeechTone: "learning"
     });
     await expect(store.save({
+      learningLanguage: "ja",
       explanationLanguage: "ja",
+      explanationLanguages: {
+        en: "zh-TW",
+        ja: "ja",
+        "zh-TW": "en"
+      },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -52,7 +64,13 @@ describe("LocalSettingsStore", () => {
       selectionSpeechVoice: "marin",
       selectionSpeechTone: "calm"
     })).resolves.toEqual({
+      learningLanguage: "ja",
       explanationLanguage: "ja",
+      explanationLanguages: {
+        en: "zh-TW",
+        ja: "ja",
+        "zh-TW": "en"
+      },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -66,7 +84,13 @@ describe("LocalSettingsStore", () => {
       selectionSpeechTone: "calm"
     });
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
+      learningLanguage: "ja",
       explanationLanguage: "ja",
+      explanationLanguages: {
+        en: "zh-TW",
+        ja: "ja",
+        "zh-TW": "en"
+      },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -87,7 +111,11 @@ describe("LocalSettingsStore", () => {
     const directory = await temporaryDirectory();
     await writeFile(join(directory, "settings.json"), "not-json", "utf8");
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
+      learningLanguage: "en",
       explanationLanguage: "source",
+      explanationLanguages: {
+        en: "source", ja: "source", "zh-TW": "source"
+      },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -107,7 +135,11 @@ describe("LocalSettingsStore", () => {
       "utf8"
     );
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
+      learningLanguage: "en",
       explanationLanguage: "ja",
+      explanationLanguages: {
+        en: "ja", ja: "source", "zh-TW": "source"
+      },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -135,7 +167,11 @@ describe("LocalSettingsStore", () => {
       "utf8"
     );
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
+      learningLanguage: "en",
       explanationLanguage: "en",
+      explanationLanguages: {
+        en: "en", ja: "source", "zh-TW": "source"
+      },
       aiConversationFontSize: 13,
       ebookContentFontSize: 28,
       readingPaperWidth: 900,
@@ -168,7 +204,11 @@ describe("LocalSettingsStore", () => {
       "utf8"
     );
     await expect(new LocalSettingsStore(directory).load()).resolves.toEqual({
+      learningLanguage: "en",
       explanationLanguage: "zh-TW",
+      explanationLanguages: {
+        en: "zh-TW", ja: "source", "zh-TW": "source"
+      },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 760,

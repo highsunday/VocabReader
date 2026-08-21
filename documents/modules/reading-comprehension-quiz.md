@@ -14,6 +14,10 @@ related_implements:
 
 # 閱讀測驗與區段練習模組
 
+> F69 語言契約（取代 B04／B05 舊行為）：測驗題名、題目、選項、問答作答與
+> `correctedAnswer` 使用目前學習語言；`feedback`、`assessment`、難點、總評、理由與策略
+> 使用目前工作區的講解語言；原文引文保持原文。
+
 ## 1. Purpose
 
 本模組實作兩種互補的區段理解活動：**區段練習（Segment Practice）**以閱讀測驗確認理解，**區段復述練習（Segment Retelling Practice）**則讓使用者以原文語言自由重新組織目前 START／END **閱讀區段**。兩者都在 **AI 對話面板**的產生訊息內展開並由同一 **AI 對話**批改。

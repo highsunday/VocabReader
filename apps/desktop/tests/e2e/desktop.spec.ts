@@ -230,7 +230,7 @@ test("launches the secure Electron reading shell", async () => {
     await expect(sentencePracticeEntry).toBeVisible();
     await expect(listenRepeatEntry).toBeVisible();
     expect(await sentencePracticeEntry.evaluate((sentence) => {
-      const listen = document.querySelector('[aria-label="Listen & Repeat"]');
+      const listen = document.querySelector('[aria-label^="Listen & Repeat"]');
       return Boolean(listen && sentence.compareDocumentPosition(listen) &
         Node.DOCUMENT_POSITION_FOLLOWING);
     })).toBe(true);
@@ -680,7 +680,12 @@ test("launches the secure Electron reading shell", async () => {
     ].sort());
     expect(security.hasSettingsGet).toBe("function");
     expect(security.hasSettingsSave).toBe("function");
-    expect(security.settingsKeys).toEqual(["get", "save"]);
+    expect(security.settingsKeys).toEqual([
+      "assignUnclassifiedLearningItems",
+      "get",
+      "getUnclassifiedLearningItemCount",
+      "save"
+    ]);
     expect(security.hasDataBackupExport).toBe("function");
     expect(security.hasDataBackupSelect).toBe("function");
     expect(security.hasDataBackupCancel).toBe("function");
@@ -887,7 +892,7 @@ test("launches the secure Electron reading shell", async () => {
     await page.getByRole("tab", { name: "General" }).click();
     const language = page.getByLabel("Explanation language");
     await expect(language.locator("option")).toHaveText([
-      "Source language (default)",
+      "Same as learning language (default)",
       "Traditional Chinese",
       "English",
       "Japanese"
@@ -910,7 +915,9 @@ test("launches the secure Electron reading shell", async () => {
     await page.getByRole("button", { name: "Close Settings" }).click();
 
     await page.evaluate(() => window.readerDesktop?.settings.save({
+      learningLanguage: "en",
       explanationLanguage: "ja",
+      explanationLanguages: { en: "ja", ja: "source", "zh-TW": "source" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -1029,7 +1036,13 @@ test("launches the secure Electron reading shell", async () => {
     await expect.poll(() => page.evaluate(() =>
       window.readerDesktop?.settings.get()
     )).toEqual({
+      learningLanguage: "en",
       explanationLanguage: "ja",
+      explanationLanguages: {
+        en: "ja",
+        ja: "source",
+        "zh-TW": "source"
+      },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -1037,6 +1050,7 @@ test("launches the secure Electron reading shell", async () => {
       dailyNewItemCompletionLimit: 10,
       dailyDueReviewCompletionLimit: 50,
       dailySentencePracticeGoal: 10,
+      dailyListenRepeatGoal: 10,
       reviewPaperSize: 10,
       selectionSpeechVoice: "cedar",
       selectionSpeechTone: "learning"

@@ -126,6 +126,17 @@ function api() {
 }
 
 describe("LearningLibraryWorkspace", () => {
+  it("does not expose a language filter inside an isolated workspace", async () => {
+    const learning = api();
+    render(<LearningLibraryWorkspace api={learning} />);
+
+    await screen.findByText("bank");
+    expect(screen.queryByLabelText("Language", { selector: "select" }))
+      .not.toBeInTheDocument();
+    expect(learning.listItems).toHaveBeenCalledWith(
+      expect.not.objectContaining({ language: expect.anything() })
+    );
+  });
   it("shows image management only in edit mode and accepts device or URL sources", async () => {
     const originalImage = "data:image/jpeg;base64,b2xk";
     const replacementImage = "data:image/jpeg;base64,bmV3";
@@ -357,25 +368,16 @@ describe("LearningLibraryWorkspace", () => {
       .toBeInTheDocument();
   });
 
-  it("filters active learning items by language and clears the language query", async () => {
+  it("never sends a language query from the workspace-local library", async () => {
     const learning = api();
     render(<LearningLibraryWorkspace api={learning} />);
     await screen.findByRole("button", { name: /bank/ });
 
-    fireEvent.change(screen.getByLabelText("Language"), {
-      target: { value: "ja" }
-    });
-    await waitFor(() => expect(learning.listItems).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "active", language: "ja" })
-    ));
-
-    fireEvent.change(screen.getByLabelText("Language"), {
-      target: { value: "all" }
-    });
-    await waitFor(() => {
-      const latest = learning.listItems.mock.calls.at(-1)?.[0];
-      expect(latest).not.toHaveProperty("language");
-    });
+    expect(screen.queryByLabelText("Language", { selector: "select" }))
+      .not.toBeInTheDocument();
+    expect(learning.listItems.mock.calls.every(([input]) =>
+      !("language" in input)
+    )).toBe(true);
   });
 
   it("automatically appends the next page near the bottom without result counts", async () => {
