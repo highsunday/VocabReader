@@ -1195,6 +1195,10 @@ export class ChatController {
       typeof params.delta === "string") {
       let message = this.#messages.find((item) => item.id === params.itemId);
       if (!message) {
+        this.#discardOtherAssistantMessagesForTurn(
+          params.turnId,
+          params.itemId
+        );
         message = {
           id: params.itemId,
           turnId: params.turnId,
@@ -1221,7 +1225,34 @@ export class ChatController {
         type: "agentMessage";
         id: string;
         text: string;
+        phase?: "commentary" | "final_answer" | null;
       };
+      this.#discardOtherAssistantMessagesForTurn(
+        params.turnId,
+        completedItem.id
+      );
+      if (completedItem.phase === "commentary") {
+        let message = this.#messages.find(
+          (item) => item.id === completedItem.id
+        );
+        if (!message) {
+          message = {
+            id: completedItem.id,
+            turnId: params.turnId,
+            role: "assistant",
+            text: completedItem.text,
+            status: "completed"
+          };
+          this.#messages.push(message);
+        } else {
+          message.text = completedItem.text;
+          message.status = "completed";
+        }
+        this.#touchActiveConversation();
+        this.#tryPersist();
+        this.#emit();
+        return;
+      }
       const artifacts = parseLearningItemArtifacts(completedItem.text);
       const turnInput = this.#turnInputs.get(params.turnId);
       if (artifacts.intent && turnInput &&
@@ -1373,6 +1404,18 @@ export class ChatController {
         this.#emit();
       }
     }
+  }
+
+  #discardOtherAssistantMessagesForTurn(
+    turnId: string,
+    retainedMessageId: string
+  ): void {
+    const retainedMessages = this.#messages.filter((message) =>
+      message.role !== "assistant" ||
+      message.turnId !== turnId ||
+      message.id === retainedMessageId
+    );
+    this.#messages.splice(0, this.#messages.length, ...retainedMessages);
   }
 
   async #startRoutedLearningItemTurn(routed: {

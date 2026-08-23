@@ -17,6 +17,11 @@ interface FakeCodexOptions {
   resumeError?: string;
   archiveError?: string;
   answer?: string | ((prompt: string) => string);
+  agentMessages?: Array<{
+    text: string;
+    phase?: "commentary" | "final_answer";
+  }>;
+  agentMessageDelayMs?: number;
 }
 
 export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
@@ -137,34 +142,59 @@ export function createFakeCodexAppServer(options: FakeCodexOptions = {}) {
         const answer = typeof options.answer === "function"
           ? options.answer(prompt)
           : options.answer ?? `Fake Codex answer to: ${prompt}`;
-        const itemId = `assistant-${turnCount}`;
+        const agentMessages = options.agentMessages ?? [{ text: answer }];
         respond(message.id, { turn: { id: turnId } });
         setTimeout(() => {
           notify("turn/started", {
             threadId,
             turn: { id: turnId }
           });
-          notify("item/agentMessage/delta", {
-            threadId,
-            turnId,
-            itemId,
-            delta: answer.slice(0, 12)
-          });
-          notify("item/agentMessage/delta", {
-            threadId,
-            turnId,
-            itemId,
-            delta: answer.slice(12)
-          });
-          notify("item/completed", {
-            threadId,
-            turnId,
-            item: { type: "agentMessage", id: itemId, text: answer }
-          });
-          notify("turn/completed", {
-            threadId,
-            turn: { id: turnId, status: "completed", error: null }
-          });
+          const emitAgentMessage = (index: number) => {
+            const agentMessage = agentMessages[index];
+            if (!agentMessage) {
+              notify("turn/completed", {
+                threadId,
+                turn: { id: turnId, status: "completed", error: null }
+              });
+              return;
+            }
+            const itemId = agentMessages.length === 1
+              ? `assistant-${turnCount}`
+              : `assistant-${turnCount}-${index + 1}`;
+            notify("item/agentMessage/delta", {
+              threadId,
+              turnId,
+              itemId,
+              delta: agentMessage.text.slice(0, 12)
+            });
+            notify("item/agentMessage/delta", {
+              threadId,
+              turnId,
+              itemId,
+              delta: agentMessage.text.slice(12)
+            });
+            notify("item/completed", {
+              threadId,
+              turnId,
+              item: {
+                type: "agentMessage",
+                id: itemId,
+                text: agentMessage.text,
+                ...(agentMessage.phase
+                  ? { phase: agentMessage.phase }
+                  : {})
+              }
+            });
+            if ((options.agentMessageDelayMs ?? 0) > 0) {
+              setTimeout(
+                () => emitAgentMessage(index + 1),
+                options.agentMessageDelayMs
+              );
+            } else {
+              emitAgentMessage(index + 1);
+            }
+          };
+          emitAgentMessage(0);
         }, options.turnDelayMs ?? 0);
       } else if (message.method === "turn/interrupt") {
         respond(message.id, {});

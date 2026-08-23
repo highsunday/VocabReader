@@ -331,6 +331,123 @@ describe("ChatController", () => {
     controller.close();
   });
 
+  it("keeps only the last final answer when one turn retries with new message items", async () => {
+    const store = new MemoryChatConversationStore();
+    const { controller } = managedFixture(store, {
+      agentMessages: [{
+        text: "First incomplete explanation",
+        phase: "final_answer"
+      }, {
+        text: "Second incomplete explanation",
+        phase: "final_answer"
+      }, {
+        text: "Complete final explanation",
+        phase: "final_answer"
+      }]
+    });
+    const assistantCounts: number[] = [];
+    const unsubscribe = controller.onStateChanged((snapshot) => {
+      assistantCounts.push(snapshot.messages.filter(
+        (message) => message.role === "assistant"
+      ).length);
+    });
+    await controller.connect();
+
+    await controller.sendMessage({ text: "Explain annotations" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    const assistantMessages = controller.getSnapshot().messages.filter(
+      (message) => message.role === "assistant"
+    );
+    expect(assistantMessages).toEqual([
+      expect.objectContaining({
+        text: "Complete final explanation",
+        status: "completed"
+      })
+    ]);
+    expect(store.state.conversations[0]?.messages.filter(
+      (message) => message.role === "assistant"
+    )).toEqual(assistantMessages);
+    expect(Math.max(...assistantCounts)).toBe(1);
+    unsubscribe();
+    controller.close();
+  });
+
+  it("does not parse learning artifacts from commentary before the final answer", async () => {
+    const commentary = [
+      "Preparing an interim explanation.",
+      "```learning-item-invitation",
+      JSON.stringify({ targets: [{ title: "interim" }] }),
+      "```"
+    ].join("\n");
+    const finalAnswer = [
+      "Final explanation.",
+      "```learning-item-invitation",
+      JSON.stringify({ targets: [{ title: "final" }] }),
+      "```"
+    ].join("\n");
+    const { controller } = managedFixture(
+      new MemoryChatConversationStore(),
+      {
+        agentMessages: [{
+          text: commentary,
+          phase: "commentary"
+        }, {
+          text: finalAnswer,
+          phase: "final_answer"
+        }],
+        agentMessageDelayMs: 30
+      }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({ text: "Explain annotations" });
+    await waitUntil(() => controller.getSnapshot().messages.some(
+      (message) => message.role === "assistant" &&
+        message.text === commentary
+    ));
+
+    const interim = controller.getSnapshot().messages.find(
+      (message) => message.role === "assistant"
+    );
+    expect(interim?.learningItemInvitation).toBeUndefined();
+
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+    expect(controller.getSnapshot().messages.filter(
+      (message) => message.role === "assistant"
+    )).toEqual([
+      expect.objectContaining({
+        text: "Final explanation.",
+        learningItemInvitation: {
+          targets: [{ title: "final" }]
+        }
+      })
+    ]);
+    controller.close();
+  });
+
+  it("keeps a completed agent response when the app server omits its phase", async () => {
+    const store = new MemoryChatConversationStore();
+    const { controller } = managedFixture(store, {
+      agentMessages: [{ text: "Legacy-compatible answer" }]
+    });
+    await controller.connect();
+
+    await controller.sendMessage({ text: "Explain this" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    expect(controller.getSnapshot().messages.filter(
+      (message) => message.role === "assistant"
+    )).toEqual([
+      expect.objectContaining({ text: "Legacy-compatible answer" })
+    ]);
+    expect(store.state.conversations[0]?.messages.some(
+      (message) => message.role === "assistant" &&
+        message.text === "Legacy-compatible answer"
+    )).toBe(true);
+    controller.close();
+  });
+
   it("injects only the matching App skill for each preset action", async () => {
     const { fake, controller } = fixture();
     await controller.connect();

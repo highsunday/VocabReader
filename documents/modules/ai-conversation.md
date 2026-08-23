@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-08-08
+last_updated: 2026-08-24
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -33,6 +33,7 @@ related_implements:
   - F49-segment-retelling-practice
   - F50-limit-ai-conversation-history
   - F51-ai-assisted-learning-item-editing
+  - B30-keep-one-final-ai-response-per-turn
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -84,7 +85,10 @@ related_implements:
 - 閱讀頁提供「復述練習」預設動作；Main process 明確呼叫 App 內建 `practice-segment-retelling` skill。有效 task artifact 在原 AI 訊息中顯示與閱讀測驗一致風格的可折疊紙張卡，要求使用者以 AI 判定的原文主要語言在單一文字框自由復述；matching grade artifact 依序呈現改善意見、基礎修正版、進階優化版及三項 0–5 分，並支援一次空白的再次復述與兩次比較。
 - 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；影響後續標記解析，以及閱讀測驗的題面、問答題回答要求與批改。
 - 設定入口可在 12–24px 間即時調整 AI 對話可閱讀內容；預設 13px，使用者訊息、AI 回覆、相對 Markdown 排版及區段練習試卷的題名、重點、題目、選項、問答輸入、批改與總結共用此設定。工具列、模型選擇、提問框，以及試卷進度、題號、CEFR 與操作控制不受影響。
-- assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy。
+- assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy；同一
+  turn 開始新的 agent message item 時會取代較早的 commentary、不完整輸出或重試回答，
+  因此即時 snapshot 與持久對話最多各保留一則該 turn 的 assistant 訊息。明確標示為
+  commentary 的 completed item 可以暫時顯示，但不解析或套用學習產物。
 - 同一 thread 不允許並行 turn，包含第一次 thread 尚在建立的時間窗。
 - 回覆中可使用 `turn/interrupt` 停止目前 turn；若 thread／turn 尚在建立，會先等待真實識別碼再中斷。
 - 對話清單與訊息以原子檔案替換方式保存在 Electron user data；損壞資料不會被空資料覆寫，殘留 streaming 訊息重啟後正規化為 failed。
@@ -270,7 +274,9 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
    動態參數提供，因此新 thread、恢復對話與 AI 路由後的內部 creation turn 行為一致。
 10. `turn/start` 使用目前選定模型及其預設推理強度；成功後 Renderer 才把本次區段識別
     記為已提供，bridge 拒絕時保留待提供狀態。
-11. 後續 delta／completed notification 更新同一 assistant 訊息並持久保存；使用者可用
+11. 後續 delta／completed notification 更新目前 assistant 訊息並持久保存；同一 turn
+    若出現新的 item id，Main process 立即以新訊息取代舊訊息。明確 commentary 只作暫時
+    文字，不解析 artifact；`final_answer` 或 phase 缺省訊息才進入正式產物流程。使用者可用
     停止按鈕中斷目前 turn，整個操作完成或失敗後才解除 busy。
 
 ## 7. Runtime and Safety Constraints
@@ -289,6 +295,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - account allowance 是帳戶共用狀態，不代表 token、金額、模型或單一 thread 額度。
 - notification 必須先驗證 thread id；其他 thread 的訊息不得進入目前對話。
 - item completed 是 canonical 最終文字，必須取代而非重複附加 delta。
+- 同一 turn 的多個 agent message items 代表輸出演進或 provider 重試；只保留最新 item，
+  不以自然語言相似度判斷。message phase 缺省時視為可見回答，以相容舊 provider。
 - VocabReader 對話索引只收錄本產品建立的 thread；不把使用者帳戶中的其他 Codex 對話混入清單。
 - 對話資料只存本機，不提供跨裝置同步；空白新對話在第一則訊息前不持久化，已建立的
   對話只保留最近更新 10 筆。
@@ -332,7 +340,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 |---|---|
 | `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、最近 10 筆上限、完整訊息保留、重啟 streaming 正規化與損壞資料隔離 |
 | `apps/desktop/src/main/codex-app-server-client.test.ts` | Windows Desktop native CLI discovery、npm shim fallback 與非 Windows 啟動 |
-| `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、最近 10 筆上限、每分鐘額度刷新與停止清理、四個對話 skills、creation 候選範圍、持久澄清與批次生命週期 |
+| `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、同 turn 多 final 收斂、commentary 產物隔離、phase 缺省相容、最近 10 筆上限、每分鐘額度刷新與停止清理、四個對話 skills、creation 候選範圍、持久澄清與批次生命週期 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill 的 CEFR、8–12／1–3 題、混合題型、批改、語言與 final review 契約 |
 | `apps/desktop/src/main/bundled-skill.test.ts` | App skills 的乾淨安裝、相同內容略過與舊版原子更新 |
 | `apps/desktop/src/main/learning-item-edit-controller.test.ts` | edit thread 最小 scope、暫態 Apply 與停止競態 |
