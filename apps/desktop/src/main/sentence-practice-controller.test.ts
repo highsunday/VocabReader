@@ -274,6 +274,9 @@ describe("SentencePracticeController", () => {
     expect(runTurn).toHaveBeenCalledTimes(1);
     expect(runTurn.mock.calls[0][0]).toContain('"task":"generate-examples"');
     expect(runTurn.mock.calls[0][0]).toContain("make something");
+    expect(runTurn.mock.calls[0][0]).toContain("simple, everyday language");
+    expect(runTurn.mock.calls[0][0]).toContain("easy for a learner to imitate");
+    expect(runTurn.mock.calls[0][0]).toContain("Prefer one short sentence");
     expect(runTurn.mock.calls[0][0]).not.toContain('"draft"');
 
     const nextRound = await controller.startSession({ itemCount: 2 });

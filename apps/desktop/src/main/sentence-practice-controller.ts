@@ -132,7 +132,9 @@ function examplesPrompt(
         markdownContent
       }))
     })}`,
-    `Generate exactly three distinct ${learningLanguageName(learningLanguage)} examples that each use every required item in its target sense.`
+    `Generate exactly three distinct ${learningLanguageName(learningLanguage)} examples that each use every required item in its target sense.`,
+    "Use simple, everyday language that is easy for a learner to imitate. Use the simplest common words outside the required items, even when a required item is advanced.",
+    "Prefer one short sentence for two or three items. Use familiar daily situations and avoid literary scene-setting, rare vocabulary, stacked subordinate clauses and unnecessary details."
   ].join("\n");
 }
 

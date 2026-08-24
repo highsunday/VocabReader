@@ -608,6 +608,9 @@ describe("SentencePracticeWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show 3 examples" }));
 
     const card = screen.getByRole("dialog", { name: "Writing examples" });
+    expect(within(card).getByText(
+      /simple, everyday language that is easy to imitate/i
+    )).toBeInTheDocument();
     expect(within(card).getByText("Generating 3 examples…"))
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check my writing" }))

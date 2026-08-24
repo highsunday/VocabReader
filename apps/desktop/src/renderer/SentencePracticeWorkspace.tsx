@@ -685,8 +685,9 @@ export function SentencePracticeWorkspace({
                 <span className="eyebrow">AI usage guide</span>
                 <h2 id="sentence-practice-examples-title">Writing examples</h2>
                 <p>
-                  Each example naturally uses all {session.items.length}{" "}
-                  required items. Use them for inspiration, not as a fixed answer.
+                  Each short example uses all {session.items.length} required
+                  items in simple, everyday language that is easy to imitate.
+                  Use it for inspiration, not as a fixed answer.
                 </p>
               </div>
               <button

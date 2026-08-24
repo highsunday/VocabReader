@@ -16,14 +16,22 @@ App-trusted `itemId`, exact `title`, `itemType`, `cefr`, target `sense` and `mar
 ## Example-generation task
 
 When `task` is `generate-examples`, do not validate or revise a learner draft. Generate exactly
-three distinct stories or short passages in the learning items' language that demonstrate how all supplied items can work
-together.
+three distinct, simple examples in the learning items' language that demonstrate how all supplied
+items can work together. The examples are imitation models for a learner, not creative-writing
+samples.
 
 - Every example must naturally use every supplied item in its target `sense`; natural inflections
   and harmless grammatical insertions are allowed.
 - Use a meaningfully different situation, sequence of events or expression pattern in each example.
   Do not produce three superficial rewrites of one passage.
-- Keep each example concise enough to study, but use as many sentences as needed for natural target-language writing.
+- Write in simple, everyday language that is easy for a learner to imitate.
+- For everything except the required items, choose the simplest common words that express the
+  meaning. A required item's high CEFR level does not make the surrounding language advanced.
+- Prefer one short sentence when there are two or three required items. Add a second short sentence
+  only when one sentence would sound unnatural. With more items, use the fewest short, direct
+  sentences needed.
+- Use familiar daily situations and direct sentence patterns. Avoid literary scene-setting, rare
+  vocabulary, figurative description, stacked subordinate clauses and unnecessary details.
 - Cover every required item exactly once in each example's `usages`. Each `usage` must quote only
   the exact target word or phrase form as it appears verbatim in that example, without surrounding
   context, so the App can highlight it reliably.
@@ -36,7 +44,7 @@ Return exactly one fenced JSON block and no other fenced block:
   "sessionId": "exact App-provided id",
   "examples": [
     {
-      "text": "A complete target-language story or short passage using every required item.",
+      "text": "A short, simple target-language example using every required item.",
       "usages": [
         {
           "itemId": "exact App-provided item id",
