@@ -4,7 +4,7 @@ date: 2026-08-25
 title: 以 MIT 授權公開 repository 並發布桌面安裝包
 uuid: 9f303321-5824-489f-8768-1fb0b5abdcad
 version: 1.0.0
-status: approved
+status: implemented
 ---
 
 # Feature Specification - 公開發布與桌面安裝包
@@ -158,4 +158,54 @@ architecture 的工程紀錄；它不改變 `CONTEXT.md` 定義的學習機制�
 
 ### Status
 
-Implementation in progress on 2026-08-25.
+Implemented and released on 2026-08-25.
+
+### Final Behavior
+
+- `highsunday/VocabReader` 已切換為 public，根目錄提供 2026 highsunday 的標準 MIT License。
+- README 提供產品介紹、六張產品截圖、MIT badge、Release 下載入口，以及未簽章
+  Gatekeeper／SmartScreen 提示。
+- `v0.1.0` tag 觸發原生 macOS Apple Silicon、macOS Intel 與 Windows x64 runner；三個
+  installer 都成功後才建立正式 GitHub Release。
+- 公開 Release：<https://github.com/highsunday/VocabReader/releases/tag/v0.1.0>
+- 成功 workflow run：<https://github.com/highsunday/VocabReader/actions/runs/32803798497>
+
+### Changed Files and Boundaries
+
+- `LICENSE`：MIT 授權正文。
+- `README.md`、`docs/images/*.png`：公開產品頁、截圖與下載說明。
+- `apps/desktop/package.json`、`package-lock.json`：electron-builder、三平台 installer scripts、
+  ASAR/native dependency、icon、DMG 與 NSIS 設定。
+- `.github/workflows/release.yml`：tag-triggered 三平台 build 與最小權限 publish job。
+- `docs/release-notes/*.md`：`v0.1.0` 與 unsigned preview 說明。
+- `apps/desktop/tests/release-config.test.mjs`：MIT、packager、runner、權限、artifact name 與
+  unsigned disclosure 契約測試。
+- 產品 runtime 與三套學習機制未改變；不需更新 `documents/modules/`。
+
+### Verification Evidence
+
+- `npm run test:release -w @reader/desktop`：4/4 passed。
+- `npm run typecheck`：desktop 與 server passed。
+- `npm test`：desktop 58 files／561 tests passed；server 3 tests passed。
+- `npm run test:e2e -w @reader/desktop`：4/4 passed。
+- `npm audit`：0 vulnerabilities。
+- `npm run dist:mac:arm64 -w @reader/desktop`：成功產生 DMG；掛載後確認 App bundle、
+  `LICENSE.txt`、main／preload／renderer、bundle id、版本與 arm64 executable。
+- GitHub Actions run `32803798497`：三個 build jobs 與 publish job 全部 success。
+- 未登入公開驗證：repository 與三個 installer URL 均回傳 HTTP 200；Release 為非 draft、
+  非 prerelease。
+
+### Diagnose Record
+
+首輪 run `32803489519` 的三平台 installer 都能建置，但 Apple Silicon 在 upload step 失敗。
+GitHub annotation 顯示 artifact 顯示名稱 `installer-dist:mac:arm64` 含不允許的冒號；同一步驟
+已找到一個 DMG，排除路徑錯誤，Action 也已正常載入，排除 action-version 問題。修正為獨立
+的 `macos-arm64`、`macos-x64`、`windows-x64` bundle names，並先加入會拒絕
+`matrix.script` artifact name 的回歸測試。修正版 run 全部通過。
+
+### Known Limitations and Follow-up
+
+- `v0.1.0` 為未簽章 Early Preview；Apple notarization 與 Windows code signing 仍是後續工作。
+- 本版不含 Linux、商店上架或自動更新。
+- 未發現產品架構耦合、缺少測試 seam 或責任邊界不清；問題限定在 release infrastructure
+  的跨檔案系統命名規則，已由契約測試封鎖回歸。
