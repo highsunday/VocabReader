@@ -1,9 +1,13 @@
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-TW.md">繁體中文</a>
+</p>
+
 <h1 align="center">VocabReader</h1>
 
 <p align="center">
-  <strong>結合 AI 的英文原文書閱讀與練習工具。</strong><br />
-  閱讀時可以直接詢問內容、解釋標記，並把需要練習的單字或片語保存成卡片。<br />
-  保存後的內容可以接著用於間隔複習、跟讀與造句練習。
+  <strong>Turn every moment of confusion into something you can remember and use.</strong><br />
+  VocabReader is a desktop app that brings EPUB reading, AI explanations, vocabulary management, and active practice together.<br />
+  Go from understanding a passage to spaced review, writing, and speaking without jumping between a reader, dictionary, chatbot, and flashcard app.
 </p>
 
 <p align="center">
@@ -15,145 +19,196 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/highsunday/VocabReader/releases"><strong>下載 macOS／Windows 版本</strong></a>
+  <a href="https://github.com/highsunday/VocabReader/releases"><strong>Download for macOS or Windows</strong></a>
   ·
-  <a href="#主要功能"><strong>查看主要功能</strong></a>
+  <a href="#key-features"><strong>Explore the features</strong></a>
   ·
-  <a href="https://github.com/highsunday/VocabReader/issues"><strong>提供意見</strong></a>
+  <a href="https://github.com/highsunday/VocabReader/issues"><strong>Share feedback</strong></a>
 </p>
 
-![VocabReader 書庫中已匯入 Harry Potter and the Sorcerer's Stone 與 Harry Potter and the Chamber of Secrets](docs/readme-assets/library-overview.png)
+![A VocabReader library containing Harry Potter and the Sorcerer's Stone and Harry Potter and the Chamber of Secrets](docs/readme-assets/library-overview.png)
 
-VocabReader 將 EPUB 閱讀、AI 對話、學習卡片和練習放在同一個桌面 App。上圖的書庫已匯入兩本 Harry Potter；選擇書籍後，可以從章節列表開始閱讀，原文和 AI Tutor 會保留在同一個畫面。
+## Make every reading session build real language ability
 
-## 主要功能
+The frustrating part of reading in another language is not encountering an unfamiliar word. It is looking that word up, understanding it for a moment, and then forgetting it. A reader can display the book, a dictionary can define a word, a chatbot can answer a question, and a flashcard app can schedule reviews—but turning all of those scattered results into a sustainable learning process takes work.
 
-### 1. 閱讀時直接詢問 AI
+VocabReader connects the entire flow:
 
-AI Tutor 會讀取目前的閱讀段落，再回答使用者提出的問題。詢問「這段英文的意思是什麼？」時，回答會說明該段內容；詢問「請解釋這句的文法。」時，回答會引用句中的結構，不是脫離文章的一般文法說明。
+**Import an EPUB → Read and mark questions → Get contextual explanations → Create learning items → Review with spaced repetition → Practise through writing and speaking**
 
-![依序詢問段落意思與句子文法，AI 根據目前文章上下文回答](docs/readme-assets/ask-ai-context.gif)
+VocabReader does not use AI to replace reading, and it is not an automatic whole-book translation tool. It preserves the process of reading and thinking for yourself, offers focused help when you ask for it, and carries the material worth learning into later practice.
 
-### 2. 標記不懂的內容並一次解釋
+### What makes it different
 
-同一個閱讀範圍可以標記多個單字、片語和句子，再交給 AI 統一整理。下方示範包含 `mysterious`、`nonsense`、`beefy`、`mustache` 四個單字，`perfectly normal`、`hardly any neck` 兩個片語，以及一個較長的完整句子。
+- **Explanations stay connected to the text:** AI interprets words, phrases, sentence patterns, and meaning using the current book, chapter, and reading segment—not an isolated dictionary entry.
+- **What you look up remains useful:** Valuable explanations can become learning items that preserve the intended sense and continue into review and production practice.
+- **Understanding, memory, and use form one workflow:** Reading exercises check immediate comprehension, spaced repetition strengthens long-term recall, and writing and speaking turn recognition into active use.
+- **Your learning data is local-first:** Books, progress, annotations, learning items, and review history are stored on your current device and can be exported as a portable backup.
 
-解釋結果會依項目區分意思、程度、用法和句子結構，原文仍留在閱讀畫面中，方便對照。
+## Key features
 
-![標記四個單字、兩個片語與一個長句，並查看 AI 分項解釋](docs/readme-assets/explain-reader-annotations.gif)
+### 1. Build your own EPUB learning library
 
-### 3. 從解釋或對話建立學習卡片
+After you import an EPUB, VocabReader organises its title, author, cover, chapters, and nested sections so novels, nonfiction, and specialist books can become long-term learning material. It remembers the current chapter, reading position, reading segment, and annotations for each book, allowing you to continue where you left off after switching books or reopening the app.
 
-標記內容解釋完成後，可以點擊 `Add to Learning Library`，把選定的單字和片語整理成卡片。操作完成後，Learning Library（卡片庫）會顯示剛新增的項目、詞義、類型、CEFR 程度和複習狀態。
+You can adjust the reading font size, content width, and line spacing. The original text and AI Tutor remain side by side, so asking a question, checking an explanation, and returning to the book all happen in one workspace—without copying entire pages into another service.
 
-![從標記解釋點擊 Add to Learning Library，再到 Card Library 查看新增結果](docs/readme-assets/add-cards-from-explanation.gif)
+> VocabReader supports common text, images, tables, and lists in standard EPUB 2 and EPUB 3 files. DRM-protected books and EPUBs that depend on complex interactivity, media, or custom presentation are not guaranteed to render correctly.
 
-也可以直接在對話輸入欄輸入 `add mysterious`。AI Tutor 會依照目前閱讀內容準備該項目的卡片資料；新增後可在 Learning Library 查看保存的解釋與主要欄位。
+### 2. Control exactly what the AI can read
 
-![在對話輸入 add mysterious，並在 Card Library 查看卡片](docs/readme-assets/add-card-with-command.gif)
+Each chapter has `START` and `END` range markers that define the current reading segment. AI conversations, annotation explanations, reading exercises, and retelling practice use only the text inside this range. This prevents unread parts of the chapter from leaking into an answer and avoids sending an unnecessarily long chapter all at once.
 
-### 4. 使用間隔複習回顧卡片
+Ask freely about the meaning of a passage, a word's sense in context, sentence structure, grammar, tone, or the author's choice of expression. AI Tutor answers from the current reading context and supports multi-turn conversations, so you can keep exploring after the first explanation.
 
-新增的卡片會進入間隔複習。Review 會依卡片的目前狀態安排題目，讓使用者在句子情境中回想指定意思；提交答案後，AI 會提供意義判斷和可參考的答案。
+![AI Tutor answering questions about meaning and grammar from the current reading segment](docs/readme-assets/ask-ai-context.gif)
 
-使用者最後可以把熟悉程度設為 `Forgotten`、`Hard`、`Good` 或 `Easy`，系統再更新下一次複習時間。這採用與 Anki 類似的間隔複習概念，但題目、AI 回饋和最後評分都是 VocabReader 自己的操作流程。
+### 3. Mark and explain the parts you actually find difficult
 
-![開始 Review、回答題目、查看 AI 回饋並選擇熟悉程度](docs/readme-assets/spaced-review-workflow.gif)
+Highlight unfamiliar words, phrases, or complete sentences as you read. Annotations keep their position in the source text, so you do not have to leave the book at every interruption or manually collect a list of disconnected questions.
 
-### 5. 跟讀與發音練習
+When you finish a reading segment, AI can organise all annotations in that segment by type and source order, explaining:
 
-在 Listen & Repeat 輸入一段練習文本後，可以選擇短片語或完整句子的練習方式。AI 示範語音和使用者錄音是兩份不同的音訊：先播放 `Play AI`，再用 `Record`／`Re-record` 錄下自己的跟讀，最後用 `Play mine` 回放並逐段比較。
+- A word's contextual meaning, part of speech, common collocations, pronunciation, or frequent mistakes.
+- Reusable phrases, fixed expressions, and grammar units.
+- The syntax, grammar relationships, tone, and an easier paraphrase of a complex sentence.
+- The estimated CEFR level and a concise review hint for each item in the current context.
 
-目前版本提供示範語音、錄音、並列回放與完成進度，不會產生自動發音準確度分數。AI 示範語音需要使用者自行設定 OpenAI API key；使用者錄音保存在目前裝置。
+Unmarked text is used only as context. AI does not indiscriminately explain or translate the entire segment, keeping the response focused while preserving a read-first, analyse-later rhythm.
 
-![輸入跟讀文本，進入練習後播放 AI 示範、錄音並回放自己的聲音](docs/readme-assets/listen-and-repeat.gif)
+![AI classifying and explaining annotations in their reading context](docs/readme-assets/explain-reader-annotations.gif)
 
-### 6. 使用收藏內容造句
+### 4. Keep what is worth remembering in the Learning Library
 
-Sentence Practice 會從已收藏並進入學習流程的單字和片語中選出練習項目。使用者需要在同一段文字中使用所有指定內容，再交給 AI 檢查文法、用字和每一項是否使用正確。
+After an annotation explanation, choose which words and reusable phrases should enter the Learning Library. AI prepares drafts for confirmation first, preventing sentence-level analysis, unrelated details, or duplicate items from being saved automatically. You can also ask to add an item in natural language during an AI conversation—no rigid command syntax is required.
 
-下方示範使用 `beefy`、`perfectly normal`、`mysterious`、`hardly any neck` 和 `nonsense`。提交後可以看到修訂結果、整體回饋，以及各單字或片語在文章中的實際用法。
+A learning item can contain much more than a surface translation:
 
-![使用五個已收藏的單字與片語完成短文，再查看 AI 檢查結果](docs/readme-assets/sentence-practice.gif)
+- The intended sense inferred from the reading context and the item type; different senses of the same term can be stored separately.
+- CEFR level, part of speech or phrase category, pronunciation, and common collocations.
+- Three to five natural examples, plus genuinely useful notes on nuance, usage, or common mistakes.
+- An optional caution note and representative image, along with its study state, review count, and next due time.
 
-## 在同一個 App 裡閱讀與學習
+Open any item for full details, revise it with AI assistance, or move it to the trash. The library distinguishes new, studying, familiar, and strong items, while also showing due and scheduled states, so a growing collection remains manageable.
 
-使用一般工具閱讀原文時，通常需要在閱讀器、字典、AI 聊天工具、筆記和卡片 App 之間切換。查詢過的內容也需要另外整理，才能用於後續複習。
+![Turning annotation explanations into reusable learning items](docs/readme-assets/add-cards-from-explanation.gif)
 
-VocabReader 把這些功能整合在同一個 App。除了上面的六項主要功能，閱讀畫面也提供以目前段落為範圍的閱讀理解測驗和復述練習。
+![Creating a learning item from an AI conversation using natural language](docs/readme-assets/add-card-with-command.gif)
 
-## 與一般 AI 聊天工具的差異
+### 5. Review with AI-generated papers and FSRS scheduling
 
-| 一般 AI 聊天工具 | VocabReader |
+Learning items enter an FSRS-based spaced-repetition schedule, so you do not have to decide manually what to study each day. VocabReader selects new and due items for a review paper, and AI writes a fresh contextual sentence for each target sense. This reduces dependence on memorising the fixed layout or wording of a card.
+
+For every question, recall what the highlighted term means in that sentence. After you submit the complete paper, AI evaluates meaning, explains expression issues, and provides a suggested answer. You then confirm how the item felt—`Forgotten`, `Hard`, `Good`, or `Easy`. Only after confirmation does VocabReader write the review history and calculate the next due time.
+
+Daily limits for new and due items, as well as the number of questions per paper, are configurable. VocabReader retains review progress, past answers, and solid-recall results. You can leave while a paper is being generated or before it is confirmed and return to the same work later in the app session.
+
+![Answering a scheduled review paper, reading AI feedback, and confirming recall ratings](docs/readme-assets/spaced-review-workflow.gif)
+
+### 6. Check whether you truly understood through quizzes and retelling
+
+After finishing a reading segment, generate multiple-choice and open-ended questions directly from it. These exercises test comprehension, inference, and detail within the segment rather than isolated vocabulary. Submit your answers to receive question-by-question grading and an overall review.
+
+Segment retelling asks you to restate the same content in the source language and in your own words. AI provides separate feedback on omissions, misunderstandings, organisation, and language, turning “I think I understood it” into active retrieval and expression. Segment exercises do not change the spaced-repetition schedule of any learning item.
+
+### 7. Use several learned items in one piece of writing
+
+Sentence Practice selects a group of learning items that have already entered review. Use every required item naturally in one story or short passage, moving vocabulary into a coherent context instead of writing several unrelated example sentences.
+
+AI checks whether every item is present, whether it carries the intended sense, whether its form is natural, and whether the passage's grammar and collocations work. If revision is needed, your original draft remains available for editing and resubmission. Once the requirements are met, you receive a complete revision, item-by-item explanations, and a record of how each required term functions in the passage. When you need inspiration, AI can also generate several reference passages using the same set of items.
+
+Sentence Practice has its own daily goal, all-time result, and recent 30-day activity view, but it never changes the FSRS schedule. Remembering an item and using it successfully in writing remain separate, visible forms of progress.
+
+![Using several learning items in one passage and receiving AI feedback](docs/readme-assets/sentence-practice.gif)
+
+### 8. Practise pronunciation, rhythm, and fluency with Listen & Repeat
+
+Paste any-language text into Listen & Repeat. AI finds natural semantic and rhythmic boundaries, after which you can play the AI model, record yourself, and compare the two recordings one segment at a time.
+
+Two practice modes are available:
+
+- **Progressive:** Build stability with shorter chunks before unlocking and recording the complete long chunk.
+- **Advanced:** Practise full sentences or natural long chunks directly when you already have a stronger speaking foundation.
+
+You can work manually or use Continuous mode to move through model playback, countdown, recording, saving, and the next segment automatically. The app tracks a daily goal, all-time completions, and recent activity. Your recordings and generated model audio remain on the current device.
+
+The current version is designed for listening, self-recording, and A/B playback. It does not transcribe your voice or generate an automatic pronunciation score. AI model speech requires your own OpenAI API key.
+
+![Splitting material into natural chunks, playing the AI model, and recording your own voice](docs/readme-assets/listen-and-repeat.gif)
+
+### 9. Keep each learning language in its own workspace
+
+VocabReader provides complete, separate workspaces for **English, Japanese, Traditional Chinese, and Korean**. Each workspace has its own book library, Learning Library, AI conversations, reading progress, review schedule, and practice state, so material from different languages is never mixed together.
+
+The explanation language is configured separately from the learning language. For example, you can read Japanese while receiving explanations in Traditional Chinese; reading exercises and retelling still use the language you are learning. EPUBs in other languages can also be imported, read, and discussed with AI, but item classification, speech, and the complete learning workflow have not been optimised for every language.
+
+![Annotating a different-language text, receiving contextual explanations, and creating learning items](docs/readme-assets/japanese-learning-workflow.gif)
+
+![Switching learning languages and loading separate libraries and learning data](docs/readme-assets/switch-learning-language.gif)
+
+## How VocabReader differs from a general AI chatbot
+
+| General AI chatbot | VocabReader |
 |---|---|
-| 需要手動提供原文和背景 | AI Tutor 會讀取指定的閱讀範圍 |
-| 查詢結果不會連結到學習資料 | 解釋可以接著加入卡片、複習與練習 |
-| 同一個字的不同意思需要自行區分 | 卡片會記錄該字在目前原文中的意思 |
-| 閱讀、卡片和練習分散在不同工具 | 閱讀、卡片和練習整合在同一個 App |
+| You paste the source text and background again for every new conversation | AI Tutor uses the reading segment you explicitly define |
+| Useful answers remain buried in chat history | Explanations can become learning items and continue into practice |
+| Common definitions may not match the passage | Each learning item preserves the intended contextual sense |
+| General chat does not manage memory scheduling | FSRS schedules the next review from confirmed recall results |
+| Reading, organising, reviewing, and producing happen in separate tools | One app connects comprehension, memory, writing, and speaking |
 
-## 文字 AI 不需要另外設定 API key
+## Text AI does not require a separate API key
 
-VocabReader 是免費開源軟體。如果你的 ChatGPT 帳號可以使用 Codex，VocabReader 會沿用本機的 Codex 登入狀態。標註與解釋、加入卡片、快閃卡片複習、閱讀測驗、復述和寫作回饋都不需要另外申請或輸入 OpenAI API key。
+VocabReader is free and open source. If your ChatGPT account has access to Codex, VocabReader reuses the local Codex sign-in. AI conversations, annotation explanations, learning-item creation and editing, spaced review, reading exercises, retelling, writing feedback, and Listen & Repeat text segmentation do not require you to create or enter a separate OpenAI API key.
 
 > [!NOTE]
-> 你需要已登入的 Codex Desktop 或 Codex CLI。只有可選的 AI 示範語音／選取朗讀功能需要自行提供 OpenAI API key；不使用這項語音功能，就不必設定 API key。
+> You need a signed-in installation of Codex Desktop or Codex CLI. Only the optional AI model speech and read-selection-aloud features require your own OpenAI API key. If you do not use AI speech, no API key is needed.
 
-## 支援的學習語言
+## Who VocabReader is for
 
-VocabReader 可以處理不同語言的 EPUB 內容。EPUB 文字可以正常讀取時，AI 會依照上下文提供解釋。
+VocabReader is a good fit if you:
 
-目前完整提供 **英文、日文和繁體中文** 三種獨立學習空間。每種語言都有個別的書庫、進度和卡片庫。其他語言的 EPUB 也可以匯入、閱讀和詢問 AI，但卡片分類、語音等功能尚未針對每一種語言調整。
+- Want to use novels, nonfiction, or specialist books as language-learning material.
+- Are frequently interrupted by unfamiliar words, phrases, complex sentences, or grammar while reading.
+- Want the app to schedule future practice from actual review results instead of merely collecting vocabulary.
+- Prefer building a personal learning library from real reading contexts over studying a generic word list.
+- Want to practise reading comprehension, retelling, integrated writing, pronunciation, and shadowing in one place.
+- Study more than one language and want each language's books, progress, and learning items kept separate.
+- Have a ChatGPT account with Codex access and want to reuse that sign-in without configuring a text-AI API key.
 
-下方示範在日文文章中標記內容、取得解釋，再把需要複習的項目加入日文卡片庫。
+### Current product boundaries
 
-![在日文文章中標記內容、查看解釋並建立日文學習卡片](docs/readme-assets/japanese-learning-workflow.gif)
+VocabReader is currently an Early Preview desktop app focused on active reading and practice. It does not provide automatic whole-book translation, a mobile app, live cloud sync, or fully offline AI. You can export a ZIP backup and restore it on another computer, but this is a full data-transfer mechanism—not two-way sync or a merge import.
 
-從 Settings 切換學習語言時，App 會進入該語言獨立的書庫與卡片庫，不會把不同語言的學習內容混在一起。
+## Install and get started
 
-![從設定切換學習語言，並查看該語言獨立的卡片庫](docs/readme-assets/switch-learning-language.gif)
-
-## 適用情境
-
-VocabReader 適合以下需求：
-
-- 想用小說、非虛構作品或專業書籍作為語言學習材料的人。
-- 閱讀原文時，需要查詢生字、片語或長句的人。
-- 想把閱讀中遇到的內容整理成卡片並定期複習的人。
-- 想使用閱讀材料進行理解、復述、跟讀或寫作練習的人。
-- 已有可使用 Codex 的 ChatGPT 帳號，希望沿用登入狀態而不另外設定文字 AI API key 的人。
-
-VocabReader 目前不提供整本自動翻譯、手機 App、雲端同步或完全離線的 AI 功能。
-
-## 安裝與使用
-
-1. 從 [GitHub Releases](https://github.com/highsunday/VocabReader/releases) 下載 macOS Apple Silicon、macOS Intel 或 Windows 64-bit 版本。
-2. 確認 Codex Desktop／CLI 已安裝，並登入能使用 Codex 的 ChatGPT 帳號。
-3. 開啟 VocabReader，選擇學習語言，匯入一本你有權使用的 EPUB。
+1. Download the macOS Apple Silicon, macOS Intel, or Windows 64-bit build from [GitHub Releases](https://github.com/highsunday/VocabReader/releases).
+2. Make sure Codex Desktop or Codex CLI is installed and signed in with a ChatGPT account that can use Codex.
+3. Open VocabReader, choose a learning language, and import an EPUB you have the right to use.
 
 > [!IMPORTANT]
-> VocabReader 目前是 Early Preview，安裝程式尚未完成開發者簽章。macOS 或 Windows 第一次開啟時，可能出現「無法驗證開發者」或「發布者未驗證」的提醒。請從本專案的官方 Releases 頁面下載，並確認檔名符合你的電腦版本。
+> VocabReader is currently an Early Preview, and its installers are not yet developer-signed. macOS or Windows may show an “unidentified developer,” “cannot verify developer,” or “unknown publisher” warning the first time you open it. Download only from this project's official Releases page and confirm that the filename matches your platform.
 
 <p align="center">
-  <a href="https://github.com/highsunday/VocabReader/releases"><strong>下載 VocabReader</strong></a>
+  <a href="https://github.com/highsunday/VocabReader/releases"><strong>Download VocabReader</strong></a>
 </p>
 
 <details>
-<summary><strong>資料儲存與傳送方式</strong></summary>
+<summary><strong>How data is stored and transmitted</strong></summary>
 
-| 資料 | 處理方式 |
+| Data | How it is handled |
 |---|---|
-| EPUB、書庫、閱讀進度、標註、卡片與快閃卡片複習紀錄 | 保存在本機 Electron user data。 |
-| 跟讀錄音與 AI 示範語音 | 保存在目前裝置，不建立雲端錄音庫。 |
-| AI 解釋、出題與批改 | 執行相關操作時，會把該操作需要的閱讀內容或卡片傳送給 Codex。 |
-| 選取朗讀與 AI 語音 | 只有你明確要求播放時，才使用你設定的 OpenAI API key 傳送所選文字。 |
-| 備份 | 手動匯出為可攜 ZIP；還原會完整取代目標裝置的學習資料，不是雲端同步。 |
+| EPUBs, book library, reading progress, annotations, Learning Library, review history, and AI conversations | Stored in local Electron user data. VocabReader does not create a cloud account. |
+| Listen & Repeat material, learner recordings, and AI model audio | Stored on the current device. VocabReader does not create a cloud recording library or transcribe your voice. |
+| AI explanations, question generation, grading, and text segmentation | Only when you invoke the relevant feature, the required reading segment, learning items, answers, or practice material is sent to Codex. |
+| Read-selection-aloud and AI model speech | Only when you explicitly request playback, the required text is sent using the OpenAI API key you configured. |
+| Backups | Books, learning items, review data, activity statistics, and shared settings can be exported manually as a portable ZIP. AI conversations, the current review paper, Listen & Repeat material, and audio are excluded. Restoring replaces the destination data completely; it is not cloud sync. |
 
 </details>
 
 <details>
-<summary><strong>從原始碼啟動與開發</strong></summary>
+<summary><strong>Run from source and develop</strong></summary>
 
-你需要 Node.js、npm，以及可以執行 `codex app-server` 的 Codex 安裝。
+You need Node.js, npm, and a Codex installation that can run `codex app-server`.
 
 ```bash
 git clone https://github.com/highsunday/VocabReader.git
@@ -162,12 +217,12 @@ npm install
 npm run dev
 ```
 
-VocabReader 使用 Electron、React、TypeScript、Fastify、SQLite、`ts-fsrs`、Codex App Server、Vitest 與 Playwright。
+VocabReader uses Electron, React, TypeScript, Fastify, SQLite, `ts-fsrs`, Codex App Server, Vitest, and Playwright.
 
 ```text
 apps/
-├── desktop/   Electron main、preload、React renderer 與桌面測試
-└── server/    Fastify Reader Server 與 API 邊界
+├── desktop/   Electron main, preload, React renderer, and desktop tests
+└── server/    Fastify Reader Server and API boundary
 ```
 
 ```bash
@@ -177,16 +232,16 @@ npm run test:e2e
 npm run build
 ```
 
-若要在目前平台建立 installer，可使用 desktop workspace 的 `dist:mac:arm64`、`dist:mac:x64` 或 `dist:win:x64` script。正式 Release 由 GitHub Actions 在對應的原生 runner 建置。
+To build an installer for the current platform, use the desktop workspace's `dist:mac:arm64`, `dist:mac:x64`, or `dist:win:x64` script. Official releases are built by GitHub Actions on the corresponding native runners.
 
 </details>
 
-## 參與專案
+## Contributing
 
-- Star 這個 repository 以追蹤後續版本。
-- 在 [Issues](https://github.com/highsunday/VocabReader/issues) 回報問題或提出建議。
-- Fork 專案、建立分支並送出 Pull Request。
+- Star this repository to follow future releases.
+- Report problems or propose ideas in [Issues](https://github.com/highsunday/VocabReader/issues).
+- Fork the project, create a branch, and open a pull request.
 
 ## License
 
-VocabReader 採用 [MIT License](LICENSE)。
+VocabReader is available under the [MIT License](LICENSE).
