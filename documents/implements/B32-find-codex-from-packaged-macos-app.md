@@ -4,7 +4,7 @@ date: 2026-08-25
 title: 修正 macOS 安裝版無法啟動 Codex app-server
 uuid: 7c0c8ad7-4813-4a26-8de7-c3c77d6c7c4d
 version: 1.0.0
-status: approved
+status: implemented
 ---
 
 # Bug Fix: 修正 macOS 安裝版無法啟動 Codex app-server
@@ -105,7 +105,119 @@ Desktop 執行檔，macOS 一律執行裸命令 `codex`，因此無法使用已�
 
 ### Status
 
-Implementation pending on 2026-08-25.
+Implemented and publicly released as `v0.1.2` on 2026-08-25.
+
+### Implementation Summary
+
+- `findMacOSCodexExecutable` now checks system and user Applications for the native CLI bundled
+  with `ChatGPT.app` or `Codex.app`, then checks Apple Silicon Homebrew, Intel Homebrew, and
+  `~/.local/bin` candidates. Only regular executable files are accepted.
+- `spawnCodexAppServer` uses the discovered absolute path on macOS and retains the existing PATH
+  fallback for development or nonstandard environments.
+- A spawn `ENOENT` is normalized into an actionable instruction to install ChatGPT/Codex Desktop
+  or Codex CLI and restart VocabReader.
+- Windows native Desktop and `codex.cmd` fallback behavior remains unchanged.
+- Desktop version and release metadata were advanced to `0.1.2`.
+- GitHub Actions run
+  [`32807777213`](https://github.com/highsunday/VocabReader/actions/runs/32807777213) completed
+  successfully for Apple Silicon, Intel, and Windows x64.
+- Public Release [`v0.1.2`](https://github.com/highsunday/VocabReader/releases/tag/v0.1.2)
+  contains all three expected installers.
+
+### Test Coverage
+
+| Test scenario | Automated or acceptance basis | Result |
+|---|---|---|
+| TC1 | system ChatGPT App fixture resolver test | passed |
+| TC2 | user-local CLI fallback resolver test | passed |
+| TC3 | macOS absolute-path spawn argument test | passed |
+| TC4 | spawned-client `ENOENT` normalization test | passed |
+| TC5 | existing Windows native and shim tests | passed |
+| TC6 | production and packaged App launched with GUI-only PATH | `Codex is connected.` |
+| TC7 | GitHub Actions run and public Release asset inspection | passed |
+
+### Commands Executed
+
+```bash
+npm test -w @reader/desktop -- --run ../main/codex-app-server-client.test.ts
+npm run test:release -w @reader/desktop
+npm run typecheck -w @reader/desktop
+npm test
+npm run test:e2e -w @reader/desktop
+npm audit --audit-level=high
+npm run dist:mac:arm64 -w @reader/desktop
+hdiutil verify apps/desktop/release/VocabReader-0.1.2-mac-arm64.dmg
+codesign --verify --deep --strict --verbose=4 <mounted VocabReader.app>
+```
+
+Results:
+
+- target Codex transport tests: 9/9 passed
+- release config tests: 4/4 passed
+- TypeScript typecheck: passed
+- server tests: 3/3 passed
+- desktop tests: 565/565 passed
+- Electron end-to-end tests: 4/4 passed
+- dependency audit: 0 vulnerabilities
+- local Apple Silicon DMG build, checksum, and recursive bundle signature: passed
+- GitHub Actions three-platform build and both macOS mounted-DMG gates: passed
+- public Apple Silicon DMG download: 138,499,505 bytes, SHA-256
+  `3d16e19fb087e8f28d721101558fc2b86400b0692546f2a0786632243f8d1cf2`
+- public quarantined App copy under GUI-only PATH: `Codex is connected.`
+
+### Changed Files
+
+#### Production Code
+
+- `apps/desktop/src/main/codex-app-server-client.ts`
+- `apps/desktop/package.json`
+- `package-lock.json`
+
+#### Test Code
+
+- `apps/desktop/src/main/codex-app-server-client.test.ts`
+- `apps/desktop/tests/release-config.test.mjs`
+
+#### Documentation
+
+- `docs/release-notes/v0.1.2.md`
+- `documents/modules/ai-conversation.md`
+- `documents/implements/B32-find-codex-from-packaged-macos-app.md`
+
+### Acceptance Criteria Verification
+
+| Acceptance criterion | Status | Basis |
+|---|---|---|
+| Finder PATH 使用 ChatGPT 內建 Codex | Pass | production、packaged、public App 三層實機握手 |
+| 支援正常 Desktop／CLI 安裝位置 | Pass | deterministic resolver tests |
+| 未安裝時提供可操作訊息 | Pass | client process-error regression test |
+| Windows 行為不回歸 | Pass | existing native and `codex.cmd` tests |
+| 公開發布修正版 | Pass | Actions run 32807777213 and v0.1.2 Release |
+
+### Hypotheses and Decisions
+
+The confirmed root cause was the highest-ranked hypothesis: Finder-launched apps do not inherit the
+interactive shell PATH containing `/opt/homebrew/bin`, while macOS had no Desktop executable
+resolver. The installed ChatGPT App exposes a working native CLI at
+`/Applications/ChatGPT.app/Contents/Resources/codex`, and it ran both `--version` and
+`app-server --help` under the minimal GUI PATH. The fix therefore resolves fixed trusted install
+locations and launches an absolute executable rather than invoking a login shell whose startup
+output could corrupt the JSONL protocol.
+
+The first target-test command used a repository-root path even though Vitest's configured root is
+`apps/desktop/src/renderer`; it found no test files. The corrected `../main/...` filter then produced
+the intended four red failures before implementation and nine green tests afterward.
+
+### Deferred Items
+
+- Apple Developer ID signing and notarization remain separate release work.
+- VocabReader still requires an existing authenticated ChatGPT/Codex Desktop or Codex CLI install;
+  it intentionally does not bundle the Codex binary or credentials.
+
+### Architectural Observation
+
+No additional refactor is required. Codex executable discovery remains inside the existing
+transport boundary and has a deterministic injected-filesystem test seam.
 
 ## Appendix: TDD Fix Workflow
 

@@ -357,13 +357,15 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/renderer/segment-retelling-artifact.test.ts` | 復述 artifact、分數、attempt、比較與提交格式 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | Electron 啟動、runtime skills、typed bridges 與 Node 隔離 |
 
-最近驗證（2026-08-08）：
+最近驗證（2026-08-25）：
 
 - Server Vitest：3 tests passed。
-- Desktop Vitest：394 tests passed。
+- Desktop Vitest：565 tests passed。
+- Desktop release config：4 tests passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
-- Electron Playwright E2E：2 tests passed。
+- Electron Playwright E2E：4 tests passed。
+- Apple Silicon packaged App 使用不含 Homebrew 的 GUI PATH 完成 Codex account handshake。
 
 ## 10. Known Limitations and Follow-up
 
