@@ -74,6 +74,10 @@ describe("LearningItemEditController", () => {
       "不要與 repair 混淆。"
     )).toBe("Traditional Chinese");
     expect(inferLearningContentLanguage(
+      "## Meaning\n효과나 능력을 약화하다.",
+      "비슷한 표현과 구별하세요."
+    )).toBe("Korean");
+    expect(inferLearningContentLanguage(
       "## 意味\n能力や機能を弱めること。",
       "repair と混同しない。"
     )).toBe("Japanese");

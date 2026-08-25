@@ -14,7 +14,7 @@ const directories: string[] = [];
 const settings: AppSettings = {
   learningLanguage: "ja",
   explanationLanguage: "zh-TW",
-  explanationLanguages: { en: "en", ja: "zh-TW", "zh-TW": "source" },
+  explanationLanguages: { en: "en", ja: "zh-TW", "zh-TW": "source", ko: "source" },
   aiConversationFontSize: 13,
   ebookContentFontSize: 19,
   readingPaperWidth: 760,
@@ -42,10 +42,11 @@ describe("LearningLanguageDataBackupService", () => {
     const counts = {
       en: { books: 1, activeLearningItems: 2, trashedLearningItems: 3 },
       ja: { books: 4, activeLearningItems: 5, trashedLearningItems: 6 },
-      "zh-TW": { books: 7, activeLearningItems: 8, trashedLearningItems: 9 }
+      "zh-TW": { books: 7, activeLearningItems: 8, trashedLearningItems: 9 },
+      ko: { books: 10, activeLearningItems: 11, trashedLearningItems: 12 }
     };
     const workspaces = Object.fromEntries(
-      (["en", "ja", "zh-TW"] as const).map((language) => [language, {
+      (["en", "ja", "zh-TW", "ko"] as const).map((language) => [language, {
         exportToPath: async (path: string) => {
           await writeFile(path, `${language}-backup`);
           return { status: "exported" as const, fileName: `${language}.zip` };
@@ -85,20 +86,47 @@ describe("LearningLanguageDataBackupService", () => {
       "settings.json",
       "workspaces/en.zip",
       "workspaces/ja.zip",
-      "workspaces/zh-TW.zip"
+      "workspaces/zh-TW.zip",
+      "workspaces/ko.zip"
     ]));
     const preview = await service.selectBackupFromPath(archivePath);
     expect(preview).toMatchObject({
-      books: 12,
-      activeLearningItems: 15,
-      trashedLearningItems: 18,
+      books: 22,
+      activeLearningItems: 26,
+      trashedLearningItems: 30,
       workspaceCounts: counts
     });
 
     await service.restoreBackup(preview.token);
-    expect(restored).toEqual(["en", "ja", "zh-TW"]);
+    expect(restored).toEqual(["en", "ja", "zh-TW", "ko"]);
     expect(saveSettings).toHaveBeenCalledWith(settings);
     expect(relaunch).toHaveBeenCalledOnce();
+
+    const versionOneManifest = JSON.parse(
+      await zip.file("manifest.json")!.async("text")
+    );
+    versionOneManifest.version = 1;
+    versionOneManifest.workspaces = ["en", "ja", "zh-TW"];
+    zip.file("manifest.json", JSON.stringify(versionOneManifest));
+    const versionOneSettings = JSON.parse(
+      await zip.file("settings.json")!.async("text")
+    );
+    delete versionOneSettings.explanationLanguages.ko;
+    zip.file("settings.json", JSON.stringify(versionOneSettings));
+    zip.remove("workspaces/ko.zip");
+    const versionOnePath = join(root, "version-one.zip");
+    await writeFile(versionOnePath, await zip.generateAsync({ type: "nodebuffer" }));
+
+    saveSettings.mockClear();
+    const versionOnePreview = await service.selectBackupFromPath(versionOnePath);
+    await service.restoreBackup(versionOnePreview.token);
+    expect(saveSettings).toHaveBeenCalledWith({
+      ...settings,
+      explanationLanguages: {
+        ...settings.explanationLanguages,
+        ko: "source"
+      }
+    });
   });
 
   it("converts a validated legacy backup into language workspaces", async () => {
@@ -148,7 +176,7 @@ describe("LearningLanguageDataBackupService", () => {
     await writeFile(archivePath, await legacy.generateAsync({ type: "nodebuffer" }));
     let sequence = 0;
     const workspaces = Object.fromEntries(
-      (["en", "ja", "zh-TW"] as const).map((language) => [language, {
+      (["en", "ja", "zh-TW", "ko"] as const).map((language) => [language, {
         exportToPath: vi.fn(),
         selectBackupFromPath: async (path: string) => {
           if (path === archivePath) {
@@ -204,7 +232,8 @@ describe("LearningLanguageDataBackupService", () => {
       workspaceCounts: {
         en: { activeLearningItems: 1 },
         ja: { activeLearningItems: 1 },
-        "zh-TW": { activeLearningItems: 1 }
+        "zh-TW": { activeLearningItems: 1 },
+        ko: { activeLearningItems: 0 }
       }
     });
   });

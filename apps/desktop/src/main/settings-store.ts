@@ -30,7 +30,8 @@ const defaultSettings = (): AppSettings => ({
   explanationLanguages: {
     en: "source",
     ja: "source",
-    "zh-TW": "source"
+    "zh-TW": "source",
+    ko: "source"
   },
   aiConversationFontSize: AI_CONVERSATION_FONT_SIZE.default,
   ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default,
@@ -66,12 +67,27 @@ export class LocalSettingsStore {
       const legacyExplanationLanguage = isExplanationLanguage(
         parsed?.explanationLanguage
       ) ? parsed.explanationLanguage : defaults.explanationLanguage;
-      const explanationLanguages = isExplanationLanguages(
-        parsed?.explanationLanguages
-      ) ? parsed.explanationLanguages : {
-          ...defaults.explanationLanguages,
-          en: legacyExplanationLanguage
-        };
+      const storedExplanationLanguages = parsed?.explanationLanguages;
+      const storedByLanguage = storedExplanationLanguages &&
+        typeof storedExplanationLanguages === "object"
+        ? storedExplanationLanguages as Record<string, unknown>
+        : {};
+      const explanationLanguages = isExplanationLanguages(storedExplanationLanguages)
+        ? storedExplanationLanguages
+        : {
+            en: isExplanationLanguage(storedByLanguage.en)
+              ? storedByLanguage.en
+              : legacyExplanationLanguage,
+            ja: isExplanationLanguage(storedByLanguage.ja)
+              ? storedByLanguage.ja
+              : defaults.explanationLanguages.ja,
+            "zh-TW": isExplanationLanguage(storedByLanguage["zh-TW"])
+              ? storedByLanguage["zh-TW"]
+              : defaults.explanationLanguages["zh-TW"],
+            ko: isExplanationLanguage(storedByLanguage.ko)
+              ? storedByLanguage.ko
+              : defaults.explanationLanguages.ko
+          };
       return {
         learningLanguage,
         explanationLanguage: explanationLanguages[learningLanguage],

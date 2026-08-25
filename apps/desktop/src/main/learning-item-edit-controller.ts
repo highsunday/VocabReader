@@ -60,7 +60,7 @@ function resultId(value: unknown, key: "thread" | "turn") {
 }
 
 export type LearningContentLanguage =
-  "English" | "Traditional Chinese" | "Japanese";
+  "English" | "Traditional Chinese" | "Japanese" | "Korean";
 
 export function inferLearningContentLanguage(
   markdownContent: string,
@@ -69,6 +69,8 @@ export function inferLearningContentLanguage(
   const content = `${markdownContent}\n${cautionNote}`;
   const kanaCount = content.match(/[\u3040-\u30ff]/gu)?.length ?? 0;
   if (kanaCount >= 2) return "Japanese";
+  const hangulCount = content.match(/\p{Script=Hangul}/gu)?.length ?? 0;
+  if (hangulCount >= 2) return "Korean";
   const hanCount = content.match(/\p{Script=Han}/gu)?.length ?? 0;
   if (hanCount >= 2) return "Traditional Chinese";
   return "English";

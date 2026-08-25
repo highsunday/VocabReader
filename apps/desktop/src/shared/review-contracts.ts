@@ -151,7 +151,7 @@ export interface ReviewGrade {
 }
 
 export interface GenerateReviewPaperInput {
-  explanationLanguage: "source" | "zh-TW" | "en" | "ja";
+  explanationLanguage: "source" | "zh-TW" | "en" | "ja" | "ko";
 }
 
 export interface GradeReviewPaperInput {

@@ -137,8 +137,19 @@ const LEARNING_LANGUAGE_SWITCH_DELAY_MS = 550;
 const learningLanguageLabels: Record<LearningLanguage, string> = {
   en: "English",
   ja: "Japanese",
-  "zh-TW": "Traditional Chinese"
+  "zh-TW": "Traditional Chinese",
+  ko: "Korean"
 };
+const learningLanguageOptions: Array<{
+  value: LearningLanguage;
+  glyph: string;
+  description: string;
+}> = [
+  { value: "en", glyph: "A", description: "Latin alphabet" },
+  { value: "ja", glyph: "あ", description: "Kana & kanji" },
+  { value: "zh-TW", glyph: "\u7e41", description: "Traditional characters" },
+  { value: "ko", glyph: "한", description: "Hangul" }
+];
 const selectionSpeechVoiceLabels: Record<SelectionSpeechVoice, string> = {
   cedar: "Cedar",
   marin: "Marin",
@@ -384,7 +395,8 @@ export function App() {
     explanationLanguages: {
       en: "source",
       ja: "source",
-      "zh-TW": "source"
+      "zh-TW": "source",
+      ko: "source"
     },
     aiConversationFontSize: AI_CONVERSATION_FONT_SIZE.default,
     ebookContentFontSize: EBOOK_CONTENT_FONT_SIZE.default,
@@ -1533,9 +1545,7 @@ export function App() {
       setLearningLibraryRevision((current) => current + 1);
       setDataBackupMessage(
         `Moved ${assigned} unclassified learning item${assigned === 1 ? "" : "s"} to ${
-          unclassifiedTargetLanguage === "en"
-            ? "English"
-            : unclassifiedTargetLanguage === "ja" ? "Japanese" : "Traditional Chinese"
+          learningLanguageLabels[unclassifiedTargetLanguage]
         }.`
       );
     } catch (error) {
@@ -3749,27 +3759,43 @@ export function App() {
                   <h3>General</h3>
                   <p>Choose an isolated learning workspace and its AI explanation language.</p>
                 </div>
-                <div className="settings-control">
-                  <label htmlFor="learning-language">Learning language</label>
-                  <select
-                    id="learning-language"
-                    aria-label="Learning language"
-                    value={settings.learningLanguage}
-                    disabled={isSettingsSaving || Boolean(dataBackupOperation) ||
-                      Boolean(chatSnapshot.activeTurnId) ||
-                      chatSnapshot.managementBusy ||
-                      isConversationActionPending ||
-                      reviewWorkspaceStatus !== "idle"}
-                    onChange={(event) => void saveLearningLanguage(
-                      event.target.value as LearningLanguage
-                    )}
-                  >
-                    <option value="en">English</option>
-                    <option value="ja">Japanese</option>
-                    <option value="zh-TW">Traditional Chinese</option>
-                  </select>
+                <fieldset className="settings-control language-picker-fieldset">
+                  <legend>Learning language</legend>
+                  <div className="language-card-grid" role="radiogroup" aria-label="Learning language">
+                    {learningLanguageOptions.map((option) => {
+                      const selected = settings.learningLanguage === option.value;
+                      return (
+                        <button
+                          className={`language-card ${selected ? "selected" : ""}`}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          key={option.value}
+                          disabled={isSettingsSaving || Boolean(dataBackupOperation) ||
+                            Boolean(chatSnapshot.activeTurnId) ||
+                            chatSnapshot.managementBusy ||
+                            isConversationActionPending ||
+                            reviewWorkspaceStatus !== "idle"}
+                          onClick={() => void saveLearningLanguage(option.value)}
+                        >
+                          <span className={`language-card-glyph language-${option.value}`} aria-hidden="true">
+                            {option.glyph}
+                          </span>
+                          <span className="language-card-copy">
+                            <strong>{learningLanguageLabels[option.value]}</strong>
+                            <small>{option.description}</small>
+                          </span>
+                          {selected ? (
+                            <span className="language-card-check" aria-hidden="true">
+                              <Check />
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <p>Switches books, learning items, practice progress, and AI conversations as one workspace.</p>
-                </div>
+                </fieldset>
                 <div className="settings-control">
                   <label htmlFor="explanation-language">Explanation language</label>
                   <select
@@ -3785,6 +3811,7 @@ export function App() {
                     <option value="zh-TW">Traditional Chinese</option>
                     <option value="en">English</option>
                     <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
                   </select>
                   <p>
                     Applies to AI responses, teaching and grading explanations, annotation
@@ -3813,6 +3840,7 @@ export function App() {
                       <option value="en">English</option>
                       <option value="ja">Japanese</option>
                       <option value="zh-TW">Traditional Chinese</option>
+                      <option value="ko">Korean</option>
                     </select>
                     <button
                       type="button"
@@ -3852,7 +3880,7 @@ export function App() {
                   <p>
                     Export or fully restore books, reading progress, annotations,
                     learning items, and review history, plus sentence-practice
-                    activity for all three learning-language workspaces. Shared
+                    activity for all four learning-language workspaces. Shared
                     settings and each workspace&apos;s explanation language are included.
                     AI conversations and Codex sign-in are not included.
                   </p>
@@ -4386,10 +4414,9 @@ export function App() {
             </p>
             <dl className="data-restore-summary">
               {dataRestorePreview.workspaceCounts
-                ? (["en", "ja", "zh-TW"] as const).map((language) => (
+                ? (["en", "ja", "zh-TW", "ko"] as const).map((language) => (
                     <div key={language}>
-                      <dt>{language === "en" ? "English" : language === "ja"
-                        ? "Japanese" : "Traditional Chinese"}</dt>
+                      <dt>{learningLanguageLabels[language]}</dt>
                       <dd>
                         {dataRestorePreview.workspaceCounts?.[language].books} books · {" "}
                         {dataRestorePreview.workspaceCounts?.[language]

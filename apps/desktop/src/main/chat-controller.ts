@@ -57,7 +57,7 @@ interface ChatControllerOptions {
   conversationStore?: ChatConversationStore;
   createConversationId?(): string;
   now?(): number;
-  learningLanguage?: "en" | "ja" | "zh-TW";
+  learningLanguage?: "en" | "ja" | "zh-TW" | "ko";
 }
 
 const isolationConfig = Object.freeze({
@@ -89,7 +89,7 @@ export function composeDeveloperInstructions(
   }
   const creationSkill = learningItemCreationSkillInstructions?.trim();
   const instructions = [
-    "You are the AI Conversation Panel in an English-learning EPUB reader.",
+    "You are the AI Conversation Panel in a language-learning EPUB reader.",
     "Use the App-provided default response language for each turn unless the user explicitly asks for another language.",
     "Use only the explicitly provided reading segment and prior conversation.",
     "Never claim knowledge of text outside the provided reading segment.",
@@ -287,12 +287,14 @@ export function composeCodexInput(
     source: sourceLanguage,
     "zh-TW": "Traditional Chinese",
     en: "English",
-    ja: "Japanese"
+    ja: "Japanese",
+    ko: "Korean"
   }[input.explanationLanguage ?? "source"];
   const learningLanguage = {
     en: "English",
     ja: "Japanese",
-    "zh-TW": "Traditional Chinese"
+    "zh-TW": "Traditional Chinese",
+    ko: "Korean"
   }[input.learningLanguage ?? "en"];
   if (input.intent === "practiceReading") {
     return [
@@ -430,7 +432,7 @@ function validateLearningItemBatchScope(
   batch: LearningItemDraftBatch,
   targets: string[],
   candidates: LearningItem[],
-  workspaceLanguage: "en" | "ja" | "zh-TW" = "en"
+  workspaceLanguage: "en" | "ja" | "zh-TW" | "ko" = "en"
 ) {
   const requested = new Set(targets.map(normalizedLearningItemTitle));
   if (requested.size === 0) {

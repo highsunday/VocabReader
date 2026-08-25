@@ -19,6 +19,7 @@ const languageLabels: Record<LearningItemLanguage, string> = {
   en: "English",
   ja: "Japanese",
   "zh-TW": "Traditional Chinese",
+  ko: "Korean",
   other: "Other language"
 };
 

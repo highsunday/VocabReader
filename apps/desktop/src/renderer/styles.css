@@ -1133,6 +1133,143 @@ button {
   margin-bottom: 8px;
 }
 
+.language-picker-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.language-picker-fieldset legend {
+  margin-bottom: 10px;
+  padding: 0;
+  font-weight: 800;
+}
+
+.language-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.language-card {
+  position: relative;
+  min-width: 0;
+  min-height: 76px;
+  padding: 12px 38px 12px 12px;
+  border: 1px solid #cfd4cc;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #343c35;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 150ms ease, background 150ms ease,
+    box-shadow 150ms ease, transform 150ms ease;
+}
+
+.language-card:hover:not(:disabled) {
+  border-color: #93a396;
+  background: #fbfcf9;
+  box-shadow: 0 4px 14px rgb(48 72 58 / 8%);
+  transform: translateY(-1px);
+}
+
+.language-card:focus-visible {
+  outline: 3px solid rgb(71 113 88 / 24%);
+  outline-offset: 2px;
+}
+
+.language-card.selected {
+  border-color: #527a61;
+  background: #f1f6f2;
+  box-shadow: 0 0 0 1px rgb(82 122 97 / 18%);
+}
+
+.language-card:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.language-card-glyph {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: #3b664c;
+  background: #e5efe7;
+  font-size: 21px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.language-card-glyph.language-ja {
+  color: #436776;
+  background: #e3f0f4;
+}
+
+.language-card-glyph.language-zh-TW {
+  color: #985735;
+  background: #f7e8df;
+}
+
+.language-card-glyph.language-ko {
+  color: #62587d;
+  background: #ebe8f4;
+}
+
+.language-card-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.language-card-copy strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.language-card-copy small {
+  overflow: hidden;
+  color: #788078;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.language-card-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #527a61;
+}
+
+.language-card-check svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 3;
+}
+
+@media (max-width: 620px) {
+  .language-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .settings-control select {
   width: 100%;
   padding: 11px 12px;

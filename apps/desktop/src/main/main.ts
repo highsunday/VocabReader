@@ -125,7 +125,8 @@ function workspaceRecord<T>(
   return {
     en: create("en"),
     ja: create("ja"),
-    "zh-TW": create("zh-TW")
+    "zh-TW": create("zh-TW"),
+    ko: create("ko")
   };
 }
 

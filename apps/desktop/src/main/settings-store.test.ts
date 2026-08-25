@@ -30,7 +30,8 @@ describe("LocalSettingsStore", () => {
       explanationLanguages: {
         en: "source",
         ja: "source",
-        "zh-TW": "source"
+        "zh-TW": "source",
+        ko: "source"
       },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
@@ -50,7 +51,8 @@ describe("LocalSettingsStore", () => {
       explanationLanguages: {
         en: "zh-TW",
         ja: "ja",
-        "zh-TW": "en"
+        "zh-TW": "en",
+        ko: "source"
       },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
@@ -69,7 +71,8 @@ describe("LocalSettingsStore", () => {
       explanationLanguages: {
         en: "zh-TW",
         ja: "ja",
-        "zh-TW": "en"
+        "zh-TW": "en",
+        ko: "source"
       },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
@@ -89,7 +92,8 @@ describe("LocalSettingsStore", () => {
       explanationLanguages: {
         en: "zh-TW",
         ja: "ja",
-        "zh-TW": "en"
+        "zh-TW": "en",
+        ko: "source"
       },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
@@ -114,7 +118,7 @@ describe("LocalSettingsStore", () => {
       learningLanguage: "en",
       explanationLanguage: "source",
       explanationLanguages: {
-        en: "source", ja: "source", "zh-TW": "source"
+        en: "source", ja: "source", "zh-TW": "source", ko: "source"
       },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
@@ -138,7 +142,7 @@ describe("LocalSettingsStore", () => {
       learningLanguage: "en",
       explanationLanguage: "ja",
       explanationLanguages: {
-        en: "ja", ja: "source", "zh-TW": "source"
+        en: "ja", ja: "source", "zh-TW": "source", ko: "source"
       },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
@@ -170,7 +174,7 @@ describe("LocalSettingsStore", () => {
       learningLanguage: "en",
       explanationLanguage: "en",
       explanationLanguages: {
-        en: "en", ja: "source", "zh-TW": "source"
+        en: "en", ja: "source", "zh-TW": "source", ko: "source"
       },
       aiConversationFontSize: 13,
       ebookContentFontSize: 28,
@@ -207,7 +211,7 @@ describe("LocalSettingsStore", () => {
       learningLanguage: "en",
       explanationLanguage: "zh-TW",
       explanationLanguages: {
-        en: "zh-TW", ja: "source", "zh-TW": "source"
+        en: "zh-TW", ja: "source", "zh-TW": "source", ko: "source"
       },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,

@@ -13,7 +13,7 @@ describe("settings IPC", () => {
       load: vi.fn().mockResolvedValue({
         learningLanguage: "en",
         explanationLanguage: "source",
-        explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
+        explanationLanguages: { en: "source", ja: "source", "zh-TW": "source", ko: "source" },
         aiConversationFontSize: 13,
         ebookContentFontSize: 19,
         readingPaperWidth: 760,
@@ -29,7 +29,7 @@ describe("settings IPC", () => {
       save: vi.fn().mockResolvedValue({
         learningLanguage: "ja",
         explanationLanguage: "zh-TW",
-        explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en" },
+        explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en", ko: "source" },
         aiConversationFontSize: 18,
         ebookContentFontSize: 24,
         readingPaperWidth: 900,
@@ -49,7 +49,7 @@ describe("settings IPC", () => {
     await expect(handlers.get("settings:get")?.()).resolves.toEqual({
       learningLanguage: "en",
       explanationLanguage: "source",
-      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source", ko: "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -65,7 +65,7 @@ describe("settings IPC", () => {
     await expect(handlers.get("settings:save")?.({}, {
       learningLanguage: "ja",
       explanationLanguage: "zh-TW",
-      explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en" },
+      explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en", ko: "source" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -80,7 +80,7 @@ describe("settings IPC", () => {
     })).resolves.toEqual({
       learningLanguage: "ja",
       explanationLanguage: "zh-TW",
-      explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en" },
+      explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en", ko: "source" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -96,7 +96,7 @@ describe("settings IPC", () => {
     expect(store.save).toHaveBeenCalledWith({
       learningLanguage: "ja",
       explanationLanguage: "zh-TW",
-      explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en" },
+      explanationLanguages: { en: "source", ja: "zh-TW", "zh-TW": "en", ko: "source" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,

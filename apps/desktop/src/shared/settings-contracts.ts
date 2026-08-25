@@ -1,5 +1,5 @@
-export type ExplanationLanguage = "source" | "zh-TW" | "en" | "ja";
-export type LearningLanguage = "en" | "ja" | "zh-TW";
+export type ExplanationLanguage = "source" | "zh-TW" | "en" | "ja" | "ko";
+export type LearningLanguage = "en" | "ja" | "zh-TW" | "ko";
 export type ExplanationLanguages = Record<LearningLanguage, ExplanationLanguage>;
 export type SelectionSpeechVoice = "cedar" | "marin" | "coral" | "onyx";
 export type SelectionSpeechTone = "learning" | "natural" | "calm" | "expressive";
@@ -104,13 +104,15 @@ export const explanationLanguages: readonly ExplanationLanguage[] = [
   "source",
   "zh-TW",
   "en",
-  "ja"
+  "ja",
+  "ko"
 ];
 
 export const learningLanguages: readonly LearningLanguage[] = [
   "en",
   "ja",
-  "zh-TW"
+  "zh-TW",
+  "ko"
 ];
 
 export function isLearningLanguage(value: unknown): value is LearningLanguage {

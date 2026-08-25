@@ -1,5 +1,5 @@
 export type LearningItemType = "word" | "phrase";
-export type LearningItemLanguage = "en" | "ja" | "zh-TW" | "other";
+export type LearningItemLanguage = "en" | "ja" | "zh-TW" | "ko" | "other";
 export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 export type LearningItemStatus = "active" | "trashed";
 export type LearningItemStudyStatus =

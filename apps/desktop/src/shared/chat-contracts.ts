@@ -64,7 +64,7 @@ export interface LearningItemTarget {
 export interface LearningItemPreparation {
   status: "preparing" | "failed" | "completed";
   targets: LearningItemTarget[];
-  explanationLanguage?: "source" | "zh-TW" | "en" | "ja";
+  explanationLanguage?: "source" | "zh-TW" | "en" | "ja" | "ko";
   error?: string;
 }
 
@@ -73,8 +73,8 @@ export interface SendChatMessageInput {
   context?: ChatContext;
   intent?: "explainAnnotations" | "practiceReading" | "practiceRetelling" |
     "createLearningItems";
-  explanationLanguage?: "source" | "zh-TW" | "en" | "ja";
-  learningLanguage?: "en" | "ja" | "zh-TW";
+  explanationLanguage?: "source" | "zh-TW" | "en" | "ja" | "ko";
+  learningLanguage?: "en" | "ja" | "zh-TW" | "ko";
   learningItemTargets?: LearningItemTarget[];
 }
 

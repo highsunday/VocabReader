@@ -8,7 +8,7 @@ export interface DataBackupPreview extends DataBackupCounts {
   token: string;
   createdAt: string;
   appVersion: string;
-  workspaceCounts?: Record<"en" | "ja" | "zh-TW", DataBackupCounts>;
+  workspaceCounts?: Record<"en" | "ja" | "zh-TW" | "ko", DataBackupCounts>;
   unclassifiedLearningItems?: number;
 }
 

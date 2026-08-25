@@ -918,7 +918,7 @@ test("launches the secure Electron reading shell", async () => {
     await page.evaluate(() => window.readerDesktop?.settings.save({
       learningLanguage: "en",
       explanationLanguage: "ja",
-      explanationLanguages: { en: "ja", ja: "source", "zh-TW": "source" },
+      explanationLanguages: { en: "ja", ja: "source", "zh-TW": "source", ko: "source" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,

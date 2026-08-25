@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatDesktopApi, ChatSnapshot } from "../shared/chat-contracts";
 import type { LibraryBook } from "../shared/library-contracts";
@@ -112,7 +112,8 @@ function installLibraryApi(
     explanationLanguages: {
       en: "source",
       ja: "source",
-      "zh-TW": "source"
+      "zh-TW": "source",
+      ko: "source"
     },
     aiConversationFontSize: 13,
     ebookContentFontSize: 19,
@@ -317,10 +318,15 @@ describe("learning-language workspace settings", () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
-    const learningLanguage = screen.getByLabelText("Learning language");
-    expect(learningLanguage).toHaveValue("en");
+    const learningLanguage = screen.getByRole("radiogroup", {
+      name: "Learning language"
+    });
+    expect(within(learningLanguage).getByRole("radio", { name: /English/ }))
+      .toHaveAttribute("aria-checked", "true");
+    expect(within(learningLanguage).getByRole("radio", { name: /Korean/ }))
+      .toBeInTheDocument();
 
-    fireEvent.change(learningLanguage, { target: { value: "ja" } });
+    fireEvent.click(within(learningLanguage).getByRole("radio", { name: /Japanese/ }));
     expect(screen.queryByRole("dialog", { name: "Settings" }))
       .not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Switching to Japanese");
@@ -332,7 +338,8 @@ describe("learning-language workspace settings", () => {
         explanationLanguages: {
           en: "source",
           ja: "source",
-          "zh-TW": "source"
+          "zh-TW": "source",
+          ko: "source"
         }
       })
     ));
@@ -349,7 +356,8 @@ describe("learning-language workspace settings", () => {
         explanationLanguages: {
           en: "source",
           ja: "zh-TW",
-          "zh-TW": "source"
+          "zh-TW": "source",
+          ko: "source"
         }
       })
     ));
@@ -846,7 +854,7 @@ describe("App", () => {
     await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
       learningLanguage: "en",
       explanationLanguage: "source",
-      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source", ko: "source" },
       aiConversationFontSize: 18,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -904,7 +912,7 @@ describe("App", () => {
     await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
       learningLanguage: "en",
       explanationLanguage: "source",
-      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source", ko: "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -985,7 +993,7 @@ describe("App", () => {
     await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
       learningLanguage: "en",
       explanationLanguage: "source",
-      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source", ko: "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 24,
       readingPaperWidth: 900,
@@ -1006,7 +1014,7 @@ describe("App", () => {
     await waitFor(() => expect(saveSettings).toHaveBeenLastCalledWith({
       learningLanguage: "en",
       explanationLanguage: "source",
-      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
+      explanationLanguages: { en: "source", ja: "source", "zh-TW": "source", ko: "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,
@@ -4118,7 +4126,7 @@ describe("App", () => {
     await waitFor(() => expect(saveSettings).toHaveBeenCalledWith({
       learningLanguage: "en",
       explanationLanguage: "ja",
-      explanationLanguages: { en: "ja", ja: "source", "zh-TW": "source" },
+      explanationLanguages: { en: "ja", ja: "source", "zh-TW": "source", ko: "source" },
       aiConversationFontSize: 13,
       ebookContentFontSize: 19,
       readingPaperWidth: 760,

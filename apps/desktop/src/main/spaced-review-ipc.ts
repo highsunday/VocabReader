@@ -31,7 +31,7 @@ export function registerSpacedReviewIpc(
     return controller.generatePaper(
       {
         explanationLanguage: input.explanationLanguage as
-          "source" | "zh-TW" | "en" | "ja"
+          "source" | "zh-TW" | "en" | "ja" | "ko"
       },
       (progress) => {
         if (!sender.isDestroyed?.()) {

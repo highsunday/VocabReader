@@ -34,7 +34,7 @@ export interface LearningItemEditResult {
 }
 
 const itemTypes = new Set<LearningItemType>(["word", "phrase"]);
-const languages = new Set<LearningItemLanguage>(["en", "ja", "zh-TW", "other"]);
+const languages = new Set<LearningItemLanguage>(["en", "ja", "zh-TW", "ko", "other"]);
 const cefrLevels = new Set<CefrLevel>(["A1", "A2", "B1", "B2", "C1", "C2"]);
 
 function isObject(value: unknown): value is Record<string, unknown> {

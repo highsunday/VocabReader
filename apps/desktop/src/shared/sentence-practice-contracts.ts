@@ -117,12 +117,12 @@ export interface StartSentencePracticeInput {
 export interface SubmitSentencePracticeInput {
   sessionId: string;
   draft: string;
-  explanationLanguage: "source" | "zh-TW" | "en" | "ja";
+  explanationLanguage: "source" | "zh-TW" | "en" | "ja" | "ko";
 }
 
 export interface GenerateSentencePracticeExamplesInput {
   sessionId: string;
-  explanationLanguage: "source" | "zh-TW" | "en" | "ja";
+  explanationLanguage: "source" | "zh-TW" | "en" | "ja" | "ko";
 }
 
 export interface SentencePracticeDesktopApi {

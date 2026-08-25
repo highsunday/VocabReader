@@ -55,7 +55,8 @@ export interface LearningLanguageDataBackupServiceOptions {
   now?: () => Date;
 }
 
-const languages: LearningLanguage[] = ["en", "ja", "zh-TW"];
+const languages: LearningLanguage[] = ["en", "ja", "zh-TW", "ko"];
+const versionOneLanguages: LearningLanguage[] = ["en", "ja", "zh-TW"];
 const format = "vocabreader-learning-language-backup";
 const legacyFormat = "lingoshelf-data-backup";
 
@@ -92,23 +93,55 @@ function filterLearningDatabase(path: string, language: LearningLanguage | "othe
   }
 }
 
-function validSettings(value: unknown): value is AppSettings {
-  if (!value || typeof value !== "object") return false;
+function normalizeSettings(value: unknown): AppSettings | undefined {
+  if (!value || typeof value !== "object") return undefined;
   const settings = value as Partial<AppSettings>;
-  return isLearningLanguage(settings.learningLanguage) &&
-    isExplanationLanguage(settings.explanationLanguage) &&
-    isExplanationLanguages(settings.explanationLanguages) &&
-    isAiConversationFontSize(settings.aiConversationFontSize) &&
-    isEbookContentFontSize(settings.ebookContentFontSize) &&
-    isReadingPaperWidth(settings.readingPaperWidth) &&
-    isEbookLineHeight(settings.ebookLineHeight) &&
-    isDailyReviewCompletionLimit(settings.dailyNewItemCompletionLimit) &&
-    isDailyReviewCompletionLimit(settings.dailyDueReviewCompletionLimit) &&
-    isDailyReviewCompletionLimit(settings.dailySentencePracticeGoal) &&
-    isDailyReviewCompletionLimit(settings.dailyListenRepeatGoal) &&
-    isReviewPaperSize(settings.reviewPaperSize) &&
-    isSelectionSpeechVoice(settings.selectionSpeechVoice) &&
-    isSelectionSpeechTone(settings.selectionSpeechTone);
+  const storedExplanationLanguages = settings.explanationLanguages as unknown;
+  const legacyExplanationLanguages = storedExplanationLanguages &&
+    typeof storedExplanationLanguages === "object"
+    ? storedExplanationLanguages as Record<string, unknown>
+    : undefined;
+  const normalizedExplanationLanguages = isExplanationLanguages(
+    storedExplanationLanguages
+  ) ? storedExplanationLanguages : legacyExplanationLanguages &&
+    versionOneLanguages.every((language) =>
+      isExplanationLanguage(legacyExplanationLanguages[language])
+    ) ? {
+        en: legacyExplanationLanguages.en as AppSettings["explanationLanguage"],
+        ja: legacyExplanationLanguages.ja as AppSettings["explanationLanguage"],
+        "zh-TW": legacyExplanationLanguages["zh-TW"] as AppSettings["explanationLanguage"],
+        ko: "source" as const
+      } : undefined;
+  if (!normalizedExplanationLanguages ||
+    !isLearningLanguage(settings.learningLanguage) ||
+    !isExplanationLanguage(settings.explanationLanguage) ||
+    !isAiConversationFontSize(settings.aiConversationFontSize) ||
+    !isEbookContentFontSize(settings.ebookContentFontSize) ||
+    !isReadingPaperWidth(settings.readingPaperWidth) ||
+    !isEbookLineHeight(settings.ebookLineHeight) ||
+    !isDailyReviewCompletionLimit(settings.dailyNewItemCompletionLimit) ||
+    !isDailyReviewCompletionLimit(settings.dailyDueReviewCompletionLimit) ||
+    !isDailyReviewCompletionLimit(settings.dailySentencePracticeGoal) ||
+    !isDailyReviewCompletionLimit(settings.dailyListenRepeatGoal) ||
+    !isReviewPaperSize(settings.reviewPaperSize) ||
+    !isSelectionSpeechVoice(settings.selectionSpeechVoice) ||
+    !isSelectionSpeechTone(settings.selectionSpeechTone)) return undefined;
+  return {
+    learningLanguage: settings.learningLanguage,
+    explanationLanguage: settings.explanationLanguage,
+    explanationLanguages: normalizedExplanationLanguages,
+    aiConversationFontSize: settings.aiConversationFontSize,
+    ebookContentFontSize: settings.ebookContentFontSize,
+    readingPaperWidth: settings.readingPaperWidth,
+    ebookLineHeight: settings.ebookLineHeight,
+    dailyNewItemCompletionLimit: settings.dailyNewItemCompletionLimit,
+    dailyDueReviewCompletionLimit: settings.dailyDueReviewCompletionLimit,
+    dailySentencePracticeGoal: settings.dailySentencePracticeGoal,
+    dailyListenRepeatGoal: settings.dailyListenRepeatGoal,
+    reviewPaperSize: settings.reviewPaperSize,
+    selectionSpeechVoice: settings.selectionSpeechVoice,
+    selectionSpeechTone: settings.selectionSpeechTone
+  };
 }
 
 export class LearningLanguageDataBackupService {
@@ -144,7 +177,7 @@ export class LearningLanguageDataBackupService {
       }
       zip.file("manifest.json", `${JSON.stringify({
         format,
-        version: 1,
+        version: 2,
         createdAt: this.#now().toISOString(),
         appVersion: this.options.appVersion,
         workspaces: languages
@@ -208,16 +241,20 @@ export class LearningLanguageDataBackupService {
       }
       const manifest = rawManifest;
       const manifestWorkspaces = manifest.workspaces;
-      if (manifest.format !== format || manifest.version !== 1 ||
+      const backupLanguages = manifest.version === 1
+        ? versionOneLanguages
+        : manifest.version === 2 ? languages : undefined;
+      if (manifest.format !== format || !backupLanguages ||
         !Array.isArray(manifestWorkspaces) ||
-        languages.some((language) => !manifestWorkspaces.includes(language)) ||
+        manifestWorkspaces.length !== backupLanguages.length ||
+        backupLanguages.some((language) => !manifestWorkspaces.includes(language)) ||
         typeof manifest.createdAt !== "string" ||
         !Number.isFinite(Date.parse(manifest.createdAt)) ||
         typeof manifest.appVersion !== "string") {
         throw new Error("Invalid learning-language workspace backup manifest");
       }
-      const settings: unknown = JSON.parse(await settingsEntry.async("text"));
-      if (!validSettings(settings)) {
+      const settings = normalizeSettings(JSON.parse(await settingsEntry.async("text")));
+      if (!settings) {
         throw new Error("The workspace backup contains invalid settings");
       }
       const unclassifiedEntry = zip.file("unclassified/learning-items.sqlite");
@@ -231,9 +268,18 @@ export class LearningLanguageDataBackupService {
       const previews = {} as Record<LearningLanguage, DataBackupPreview>;
       for (const language of languages) {
         const entry = zip.file(`workspaces/${language}.zip`);
-        if (!entry) throw new Error(`The backup is missing the ${language} workspace`);
         const workspacePath = join(directory, `${language}.zip`);
-        await writeFile(workspacePath, await entry.async("nodebuffer"));
+        if (entry) {
+          await writeFile(workspacePath, await entry.async("nodebuffer"));
+        } else if (manifest.version === 1 && language === "ko") {
+          const preserved = await this.options.workspaces.ko
+            .exportToPath(workspacePath);
+          if (preserved.status !== "exported") {
+            throw new Error("Unable to preserve the current Korean workspace");
+          }
+        } else {
+          throw new Error(`The backup is missing the ${language} workspace`);
+        }
         previews[language] = await this.options.workspaces[language]
           .selectBackupFromPath(workspacePath);
         selected.push([language, previews[language].token]);

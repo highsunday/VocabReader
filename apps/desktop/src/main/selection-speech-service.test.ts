@@ -19,7 +19,7 @@ function defaultSettings(): AppSettings {
   return {
     learningLanguage: "en",
     explanationLanguage: "source",
-    explanationLanguages: { en: "source", ja: "source", "zh-TW": "source" },
+    explanationLanguages: { en: "source", ja: "source", "zh-TW": "source", ko: "source" },
     aiConversationFontSize: 13,
     ebookContentFontSize: 19,
     readingPaperWidth: 760,

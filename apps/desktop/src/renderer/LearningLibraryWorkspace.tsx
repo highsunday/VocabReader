@@ -47,12 +47,14 @@ const languageLabels: Record<LearningItemLanguage, string> = {
   en: "English",
   ja: "Japanese",
   "zh-TW": "Traditional Chinese",
+  ko: "Korean",
   other: "Other language"
 };
 const speechLocales: Record<LearningItemLanguage, string | undefined> = {
   en: "en-US",
   ja: "ja-JP",
   "zh-TW": "zh-TW",
+  ko: "ko-KR",
   other: undefined
 };
 const studyStatusLabels: Record<LearningItemStudyStatus, string> = {

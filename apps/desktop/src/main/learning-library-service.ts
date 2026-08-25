@@ -138,7 +138,7 @@ interface LocalLearningLibraryOptions {
 }
 
 const itemTypes = new Set<LearningItemType>(["word", "phrase"]);
-const languages = new Set<LearningItemLanguage>(["en", "ja", "zh-TW", "other"]);
+const languages = new Set<LearningItemLanguage>(["en", "ja", "zh-TW", "ko", "other"]);
 const cefrLevels = new Set<CefrLevel>(["A1", "A2", "B1", "B2", "C1", "C2"]);
 const statuses = new Set<LearningItemStatus>(["active", "trashed"]);
 const studyStatuses = new Set<LearningItemStudyStatus>([
@@ -875,7 +875,7 @@ export class LocalLearningLibrary {
           title TEXT NOT NULL,
           item_type TEXT NOT NULL CHECK (item_type IN ('word', 'phrase')),
           language TEXT NOT NULL DEFAULT 'en'
-            CHECK (language IN ('en', 'ja', 'zh-TW', 'other')),
+            CHECK (language IN ('en', 'ja', 'zh-TW', 'ko', 'other')),
           cefr TEXT NOT NULL CHECK (cefr IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
           sense TEXT NOT NULL,
           markdown_content TEXT NOT NULL,
@@ -943,7 +943,7 @@ export class LocalLearningLibrary {
       if (!learningItemColumns.some(({ name }) => name === "language")) {
         database.exec(`
           ALTER TABLE learning_items ADD COLUMN language TEXT NOT NULL DEFAULT 'en'
-            CHECK (language IN ('en', 'ja', 'zh-TW', 'other'))
+            CHECK (language IN ('en', 'ja', 'zh-TW', 'ko', 'other'))
         `);
       }
       database.prepare(`

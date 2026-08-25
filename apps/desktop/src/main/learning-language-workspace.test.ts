@@ -9,7 +9,8 @@ describe("LearningLanguageWorkspaceRegistry", () => {
     const resources = {
       en: { read: vi.fn(() => "English") },
       ja: { read: vi.fn(() => "日本語") },
-      "zh-TW": { read: vi.fn(() => "繁體中文") }
+      "zh-TW": { read: vi.fn(() => "繁體中文") },
+      ko: { read: vi.fn(() => "한국어") }
     };
     const registry = new LearningLanguageWorkspaceRegistry("en", resources);
     const active = createActiveWorkspaceProxy(registry);
@@ -19,16 +20,20 @@ describe("LearningLanguageWorkspaceRegistry", () => {
     expect(active.read()).toBe("日本語");
     registry.switchTo("zh-TW");
     expect(active.read()).toBe("繁體中文");
+    registry.switchTo("ko");
+    expect(active.read()).toBe("한국어");
     expect(resources.en.read).toHaveBeenCalledTimes(1);
     expect(resources.ja.read).toHaveBeenCalledTimes(1);
     expect(resources["zh-TW"].read).toHaveBeenCalledTimes(1);
+    expect(resources.ko.read).toHaveBeenCalledTimes(1);
   });
 
   it("rejects unsupported languages and reports all workspace resources", () => {
     const registry = new LearningLanguageWorkspaceRegistry("en", {
       en: { id: "en" },
       ja: { id: "ja" },
-      "zh-TW": { id: "zh-TW" }
+      "zh-TW": { id: "zh-TW" },
+      ko: { id: "ko" }
     });
 
     expect(() => registry.switchTo("other" as never)).toThrow(
@@ -37,7 +42,8 @@ describe("LearningLanguageWorkspaceRegistry", () => {
     expect(registry.all().map(([language]) => language)).toEqual([
       "en",
       "ja",
-      "zh-TW"
+      "zh-TW",
+      "ko"
     ]);
   });
 });

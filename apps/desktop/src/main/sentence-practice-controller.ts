@@ -40,10 +40,10 @@ export interface SentencePracticeControllerOptions {
   workingDirectory?: string;
   skillPath?: string;
   skillInstructions?: string;
-  learningLanguage?: "en" | "ja" | "zh-TW";
+  learningLanguage?: "en" | "ja" | "zh-TW" | "ko";
 }
 
-const explanationLanguages = new Set(["source", "zh-TW", "en", "ja"]);
+const explanationLanguages = new Set(["source", "zh-TW", "en", "ja", "ko"]);
 const isolationConfig = Object.freeze({
   "skills.include_instructions": false,
   "skills.bundled.enabled": false,
@@ -114,7 +114,7 @@ function examplesPrompt(
   sessionId: string,
   sourceItems: SentencePracticeSourceItem[],
   input: GenerateSentencePracticeExamplesInput,
-  learningLanguage: "en" | "ja" | "zh-TW"
+  learningLanguage: "en" | "ja" | "zh-TW" | "ko"
 ): string {
   return [
     "$practice-integrated-sentences",
@@ -138,10 +138,10 @@ function examplesPrompt(
   ].join("\n");
 }
 
-function learningLanguageName(language: "en" | "ja" | "zh-TW") {
+function learningLanguageName(language: "en" | "ja" | "zh-TW" | "ko") {
   return language === "en" ? "English" : language === "ja"
     ? "Japanese"
-    : "Traditional Chinese";
+    : language === "ko" ? "Korean" : "Traditional Chinese";
 }
 
 async function runBoundedSentencePracticeTurn(

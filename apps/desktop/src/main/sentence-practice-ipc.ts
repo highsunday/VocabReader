@@ -34,7 +34,7 @@ export function registerSentencePracticeIpc(
       sessionId: input.sessionId,
       draft: input.draft,
       explanationLanguage: input.explanationLanguage as
-        "source" | "zh-TW" | "en" | "ja"
+        "source" | "zh-TW" | "en" | "ja" | "ko"
     });
   });
   ipc.handle("sentence-practice:examples", (_event, input) => {
@@ -47,7 +47,7 @@ export function registerSentencePracticeIpc(
     return controller.generateExamples({
       sessionId: input.sessionId,
       explanationLanguage: input.explanationLanguage as
-        "source" | "zh-TW" | "en" | "ja"
+        "source" | "zh-TW" | "en" | "ja" | "ko"
     });
   });
 }

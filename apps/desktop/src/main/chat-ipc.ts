@@ -32,6 +32,7 @@ function validItemType(value: unknown): value is LearningItemType {
 
 function validLanguage(value: unknown): value is LearningItemLanguage {
   return value === "en" || value === "ja" || value === "zh-TW" ||
+    value === "ko" ||
     value === "other";
 }
 
