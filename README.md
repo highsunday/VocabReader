@@ -40,111 +40,101 @@ VocabReader does not use AI to replace reading, and it is not an automatic whole
 
 ### What makes it different
 
-- **Explanations stay connected to the text:** AI interprets words, phrases, sentence patterns, and meaning using the current book, chapter, and reading segment—not an isolated dictionary entry.
-- **What you look up remains useful:** Valuable explanations can become learning items that preserve the intended sense and continue into review and production practice.
-- **Understanding, memory, and use form one workflow:** Reading exercises check immediate comprehension, spaced repetition strengthens long-term recall, and writing and speaking turn recognition into active use.
-- **Your learning data is local-first:** Books, progress, annotations, learning items, and review history are stored on your current device and can be exported as a portable backup.
+- **Learn with AI Tutor:** Ask about words, phrases, grammar, or meaning in the passage you are reading.
+- **Save what you want to learn:** Add words and phrases from the book to your Learning Library with explanations and examples.
+- **Review and practise in one app:** Use spaced review, reading exercises, writing practice, and Listen & Repeat without switching tools.
+- **Keep your data on your device:** Books, reading progress, annotations, learning items, and review history are stored locally and can be backed up manually.
 
 ## Key features
 
-### 1. Build your own EPUB learning library
+### 1. Learn with AI Tutor
 
-After you import an EPUB, VocabReader organises its title, author, cover, chapters, and nested sections so novels, nonfiction, and specialist books can become long-term learning material. It remembers the current chapter, reading position, reading segment, and annotations for each book, allowing you to continue where you left off after switching books or reopening the app.
+While reading an EPUB, ask about the current passage, the use of a word or phrase, sentence structure, or grammar. AI Tutor answers with the text you are reading in mind, so you do not have to copy the passage or explain the context each time.
 
-You can adjust the reading font size, content width, and line spacing. The original text and AI Tutor remain side by side, so asking a question, checking an explanation, and returning to the book all happen in one workspace—without copying entire pages into another service.
-
-> VocabReader supports common text, images, tables, and lists in standard EPUB 2 and EPUB 3 files. DRM-protected books and EPUBs that depend on complex interactivity, media, or custom presentation are not guaranteed to render correctly.
-
-### 2. Control exactly what the AI can read
-
-Each chapter has `START` and `END` range markers that define the current reading segment. AI conversations, annotation explanations, reading exercises, and retelling practice use only the text inside this range. This prevents unread parts of the chapter from leaking into an answer and avoids sending an unnecessarily long chapter all at once.
-
-Ask freely about the meaning of a passage, a word's sense in context, sentence structure, grammar, tone, or the author's choice of expression. AI Tutor answers from the current reading context and supports multi-turn conversations, so you can keep exploring after the first explanation.
+You can continue with follow-up questions—for example, ask for the overall meaning first, then look more closely at the grammar or tone of one sentence. The book and AI conversation stay side by side for easy comparison.
 
 ![AI Tutor answering questions about meaning and grammar from the current reading segment](docs/readme-assets/ask-ai-context.gif)
 
-### 3. Mark and explain the parts you actually find difficult
+### 2. Mark difficult text and explain it together
 
-Highlight unfamiliar words, phrases, or complete sentences as you read. Annotations keep their position in the source text, so you do not have to leave the book at every interruption or manually collect a list of disconnected questions.
+Mark several unfamiliar words, phrases, or complete sentences while you read. When you finish the current passage, ask AI to organise and explain them together instead of stopping for every question.
 
-When you finish a reading segment, AI can organise all annotations in that segment by type and source order, explaining:
+AI keeps the original order and groups the results by type:
 
-- A word's contextual meaning, part of speech, common collocations, pronunciation, or frequent mistakes.
-- Reusable phrases, fixed expressions, and grammar units.
-- The syntax, grammar relationships, tone, and an easier paraphrase of a complex sentence.
-- The estimated CEFR level and a concise review hint for each item in the current context.
+- Words and phrases include their meaning in the passage, common usage, collocations, and examples.
+- Complete sentences include sentence structure, grammar relationships, tone, and a simpler paraphrase when helpful.
+- AI explains only what you marked; the surrounding text is used only for context.
 
-Unmarked text is used only as context. AI does not indiscriminately explain or translate the entire segment, keeping the response focused while preserving a read-first, analyse-later rhythm.
+Annotations stay in their original positions and remain available when you reopen the book.
 
 ![AI classifying and explaining annotations in their reading context](docs/readme-assets/explain-reader-annotations.gif)
 
-### 4. Keep what is worth remembering in the Learning Library
+### 3. Create learning cards from explanations or chat
 
-After an annotation explanation, choose which words and reusable phrases should enter the Learning Library. AI prepares drafts for confirmation first, preventing sentence-level analysis, unrelated details, or duplicate items from being saved automatically. You can also ask to add an item in natural language during an AI conversation—no rigid command syntax is required.
+After an annotation explanation, choose the words and phrases you want to turn into Anki-style learning cards. AI prepares card drafts for confirmation before adding them to the Learning Library, so you do not have to copy explanations or build the cards manually.
 
-A learning item can contain much more than a surface translation:
+You can also ask to add a word or phrase directly from an AI conversation. VocabReader uses the current reading context to identify the meaning used in the book instead of saving only the most common dictionary definition.
 
-- The intended sense inferred from the reading context and the item type; different senses of the same term can be stored separately.
-- CEFR level, part of speech or phrase category, pronunciation, and common collocations.
-- Three to five natural examples, plus genuinely useful notes on nuance, usage, or common mistakes.
-- An optional caution note and representative image, along with its study state, review count, and next due time.
-
-Open any item for full details, revise it with AI assistance, or move it to the trash. The library distinguishes new, studying, familiar, and strong items, while also showing due and scheduled states, so a growing collection remains manageable.
+Each meaning you want to learn becomes its own card with item type, CEFR level, pronunciation, common collocations, examples, and usage notes. Cards are collected in the Learning Library and enter spaced review according to their current learning state.
 
 ![Turning annotation explanations into reusable learning items](docs/readme-assets/add-cards-from-explanation.gif)
 
 ![Creating a learning item from an AI conversation using natural language](docs/readme-assets/add-card-with-command.gif)
 
-### 5. Review with AI-generated papers and FSRS scheduling
+The Learning Library shows every card and its New, Studying, Familiar, or Strong state. You can also search, filter, sort, and check when a card is due next.
 
-Learning items enter an FSRS-based spaced-repetition schedule, so you do not have to decide manually what to study each day. VocabReader selects new and due items for a review paper, and AI writes a fresh contextual sentence for each target sense. This reduces dependence on memorising the fixed layout or wording of a card.
+![The VocabReader Learning Library showing learning cards, study states, search, and filters](docs/images/learning-library.png)
 
-For every question, recall what the highlighted term means in that sentence. After you submit the complete paper, AI evaluates meaning, explains expression issues, and provides a suggested answer. You then confirm how the item felt—`Forgotten`, `Hard`, `Good`, or `Easy`. Only after confirmation does VocabReader write the review history and calculate the next due time.
+Open a card to see its full meaning, pronunciation, common collocations, examples, and review schedule. You can edit it manually or ask AI to help revise the content.
 
-Daily limits for new and due items, as well as the number of questions per paper, are configurable. VocabReader retains review progress, past answers, and solid-recall results. You can leave while a paper is being generated or before it is confirmed and return to the same work later in the app session.
+![An expanded learning card showing meaning, pronunciation, common collocations, examples, and review schedule](docs/images/learning-card.png)
+
+### 4. Review cards with spaced repetition
+
+The Learning Library uses a spaced-repetition schedule to select the cards that need to be learned or reviewed today. During each review, AI uses the meaning saved on the card to write a new contextual sentence. You infer what the highlighted word or phrase means from that sentence.
+
+The same word or phrase can appear in different sentences and situations across reviews. This shows how it works with other words and inside a complete sentence, instead of asking you to memorise the term and its translation separately.
+
+After you submit the paper, AI checks each answer and provides an explanation and suggested answer. Choose `Forgotten`, `Hard`, `Good`, or `Easy`, and VocabReader uses that result to schedule the next review.
+
+You can adjust the daily number of new cards, due reviews, and questions per paper. Review history and past answers are saved, and an unfinished paper can be continued later.
 
 ![Answering a scheduled review paper, reading AI feedback, and confirming recall ratings](docs/readme-assets/spaced-review-workflow.gif)
 
-### 6. Check whether you truly understood through quizzes and retelling
+> [!IMPORTANT]
+> **One card, one meaning**
+>
+> VocabReader ties each card to one specific meaning instead of putting every definition of a word on the same card. For example, `bank` as a financial institution and `bank` as the side of a river become two separate cards. Each card contains only its own meaning, collocations, and examples.
+>
+> During review, AI uses the meaning assigned to that card to write a contextual sentence, and you identify the meaning from the sentence. The two cards also keep separate study states and review schedules, so knowing the financial meaning does not imply that you have learned the river meaning.
 
-After finishing a reading segment, generate multiple-choice and open-ended questions directly from it. These exercises test comprehension, inference, and detail within the segment rather than isolated vocabulary. Submit your answers to receive question-by-question grading and an overall review.
+### 5. Practise speaking with Listen & Repeat
 
-Segment retelling asks you to restate the same content in the source language and in your own words. AI provides separate feedback on omissions, misunderstandings, organisation, and language, turning “I think I understood it” into active retrieval and expression. Segment exercises do not change the spaced-repetition schedule of any learning item.
+Paste text into Listen & Repeat, and AI splits it into chunks based on meaning and speaking rhythm. For each chunk, play the AI model, record yourself, and listen to both recordings separately for comparison.
 
-### 7. Use several learned items in one piece of writing
+Start with shorter phrases before moving to complete sentences, or practise longer chunks directly. Continuous mode automatically plays the model, counts down, records, and moves to the next chunk for uninterrupted practice.
 
-Sentence Practice selects a group of learning items that have already entered review. Use every required item naturally in one story or short passage, moving vocabulary into a coherent context instead of writing several unrelated example sentences.
-
-AI checks whether every item is present, whether it carries the intended sense, whether its form is natural, and whether the passage's grammar and collocations work. If revision is needed, your original draft remains available for editing and resubmission. Once the requirements are met, you receive a complete revision, item-by-item explanations, and a record of how each required term functions in the passage. When you need inspiration, AI can also generate several reference passages using the same set of items.
-
-Sentence Practice has its own daily goal, all-time result, and recent 30-day activity view, but it never changes the FSRS schedule. Remembering an item and using it successfully in writing remain separate, visible forms of progress.
-
-![Using several learning items in one passage and receiving AI feedback](docs/readme-assets/sentence-practice.gif)
-
-### 8. Practise pronunciation, rhythm, and fluency with Listen & Repeat
-
-Paste any-language text into Listen & Repeat. AI finds natural semantic and rhythmic boundaries, after which you can play the AI model, record yourself, and compare the two recordings one segment at a time.
-
-Two practice modes are available:
-
-- **Progressive:** Build stability with shorter chunks before unlocking and recording the complete long chunk.
-- **Advanced:** Practise full sentences or natural long chunks directly when you already have a stronger speaking foundation.
-
-You can work manually or use Continuous mode to move through model playback, countdown, recording, saving, and the next segment automatically. The app tracks a daily goal, all-time completions, and recent activity. Your recordings and generated model audio remain on the current device.
-
-The current version is designed for listening, self-recording, and A/B playback. It does not transcribe your voice or generate an automatic pronunciation score. AI model speech requires your own OpenAI API key.
+The app tracks a daily goal and completed chunks. Recordings stay on the current device. VocabReader does not currently score pronunciation automatically, and AI model speech requires your own OpenAI API key.
 
 ![Splitting material into natural chunks, playing the AI model, and recording your own voice](docs/readme-assets/listen-and-repeat.gif)
 
-### 9. Keep each learning language in its own workspace
+### 6. Write with saved vocabulary
 
-VocabReader provides complete, separate workspaces for **English, Japanese, Traditional Chinese, and Korean**. Each workspace has its own book library, Learning Library, AI conversations, reading progress, review schedule, and practice state, so material from different languages is never mixed together.
+Sentence Practice selects a group of words and phrases that have already entered review. Use every required item in one story or short passage, then submit it for AI feedback.
 
-The explanation language is configured separately from the learning language. For example, you can read Japanese while receiving explanations in Traditional Chinese; reading exercises and retelling still use the language you are learning. EPUBs in other languages can also be imported, read, and discussed with AI, but item classification, speech, and the complete learning workflow have not been optimised for every language.
+AI checks whether any required item is missing, whether each meaning is correct, whether word forms sound natural, and whether the grammar and collocations work. If changes are needed, keep editing and resubmit the original draft. When complete, VocabReader shows a revised version, an explanation of the changes, and how each item was used.
 
-![Annotating a different-language text, receiving contextual explanations, and creating learning items](docs/readme-assets/japanese-learning-workflow.gif)
+You can also ask AI for three example passages using the same items. The app tracks a separate daily writing goal and recent completions without changing the cards' spaced-repetition schedule.
 
-![Switching learning languages and loading separate libraries and learning data](docs/readme-assets/switch-learning-language.gif)
+![Using several learning items in one passage and receiving AI feedback](docs/readme-assets/sentence-practice.gif)
+
+## Read and learn in the same app
+
+VocabReader also includes an EPUB library, chapter list, saved reading position, and reading layout settings. Reopen the app and continue from where you stopped.
+
+Choose which part of the chapter AI can use. After reading, use the same passage for a comprehension exercise or retell it in your own words and receive feedback. These tools support the reading workflow without requiring separate study material.
+
+VocabReader supports common text, images, tables, and lists in standard EPUB 2 and EPUB 3 files. DRM-protected books and EPUBs that depend on complex interactivity, media, or custom presentation are not guaranteed to render correctly.
 
 ## How VocabReader differs from a general AI chatbot
 
@@ -162,6 +152,16 @@ VocabReader is free and open source. If your ChatGPT account has access to Codex
 
 > [!NOTE]
 > You need a signed-in installation of Codex Desktop or Codex CLI. Only the optional AI model speech and read-selection-aloud features require your own OpenAI API key. If you do not use AI speech, no API key is needed.
+
+## Supported learning languages
+
+VocabReader provides separate workspaces for **English, Japanese, Traditional Chinese, and Korean**. Each language has its own book library, Learning Library, reading progress, review history, and AI conversations, so content from different languages is not mixed together.
+
+You can set the explanation language separately. For example, you can read Japanese and receive explanations in Traditional Chinese. EPUBs in other languages can also be imported and read, but card classification, speech, and the complete practice workflow are currently designed mainly for the four languages above.
+
+![Annotating a different-language text, receiving contextual explanations, and creating learning items](docs/readme-assets/japanese-learning-workflow.gif)
+
+![Switching learning languages and loading separate libraries and learning data](docs/readme-assets/switch-learning-language.gif)
 
 ## Who VocabReader is for
 
