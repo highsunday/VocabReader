@@ -1,6 +1,6 @@
 {
   "name": "@reader/desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "A Codex-powered EPUB language-learning reader.",
   "author": "highsunday",
@@ -78,6 +78,8 @@
     "mac": {
       "category": "public.app-category.education",
       "icon": "assets/icon/vocabreader-language-learning-v6.png",
+      "identity": "-",
+      "hardenedRuntime": false,
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
     },
     "dmg": {

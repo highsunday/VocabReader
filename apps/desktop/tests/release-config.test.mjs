@@ -24,6 +24,7 @@ test("publishes VocabReader under the 2026 highsunday MIT license", () => {
 test("defines native installer scripts and deterministic artifact names", () => {
   const packageJson = JSON.parse(readRepositoryFile("apps/desktop/package.json"));
 
+  assert.equal(packageJson.version, "0.1.1");
   assert.equal(packageJson.devDependencies["electron-builder"], "^26.15.3");
   assert.match(packageJson.scripts.postinstall, /electron-builder install-app-deps/);
   assert.match(packageJson.scripts["dist:mac:arm64"], /--mac dmg --arm64 --publish never/);
@@ -44,6 +45,8 @@ test("defines native installer scripts and deterministic artifact names", () => 
     packageJson.build.mac.artifactName,
     "${productName}-${version}-mac-${arch}.${ext}"
   );
+  assert.equal(packageJson.build.mac.identity, "-");
+  assert.equal(packageJson.build.mac.hardenedRuntime, false);
   assert.equal(
     packageJson.build.win.artifactName,
     "${productName}-${version}-windows-${arch}-setup.${ext}"
@@ -68,6 +71,15 @@ test("builds all installers on native runners before publishing the release", ()
   assert.match(workflow, /bundle: windows-x64\b/);
   assert.match(workflow, /name: installer-\$\{\{ matrix\.bundle \}\}/);
   assert.doesNotMatch(workflow, /name: installer-\$\{\{ matrix\.script \}\}/);
+  assert.match(workflow, /name: Verify macOS DMG bundle signature/);
+  assert.match(workflow, /if: runner\.os == ['"]macOS['"]/);
+  assert.match(workflow, /hdiutil attach -readonly -nobrowse/);
+  assert.match(workflow, /codesign --verify --deep --strict --verbose=4/);
+  assert.ok(
+    workflow.indexOf("Verify macOS DMG bundle signature") <
+      workflow.indexOf("Upload installer"),
+    "the mounted DMG signature gate must run before artifact upload"
+  );
   assert.match(workflow, /contents: read/);
   assert.match(workflow, /publish:\s*\n\s*needs: build/);
   assert.match(workflow, /contents: write/);
