@@ -2,6 +2,9 @@
   "name": "@reader/desktop",
   "version": "0.1.0",
   "private": true,
+  "description": "A Codex-powered EPUB language-learning reader.",
+  "author": "highsunday",
+  "license": "MIT",
   "type": "module",
   "main": "dist-electron/main.cjs",
   "scripts": {
@@ -12,7 +15,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
-    "typecheck": "tsc --noEmit"
+    "test:release": "node --test tests/release-config.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "electron-builder install-app-deps",
+    "dist:mac:arm64": "npm run build && electron-builder --mac dmg --arm64 --publish never",
+    "dist:mac:x64": "npm run build && electron-builder --mac dmg --x64 --publish never",
+    "dist:win:x64": "npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "fast-xml-parser": "^5.10.1",
@@ -35,12 +43,62 @@
     "@vitejs/plugin-react": "^6.0.3",
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
-    "electron": "^43.1.1",
+    "electron": "43.1.1",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.1",
     "jsdom": "^29.1.1",
     "typescript": "^7.0.2",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "wait-on": "^9.0.10"
+  },
+  "build": {
+    "appId": "com.highsunday.vocabreader",
+    "productName": "VocabReader",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**/*"
+    ],
+    "npmRebuild": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist/renderer/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../LICENSE",
+        "to": "LICENSE.txt"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "assets/icon/vocabreader-language-learning-v6.png",
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "${productName} ${version}"
+    },
+    "win": {
+      "icon": "assets/icon/vocabreader-language-learning-v6.png",
+      "artifactName": "${productName}-${version}-windows-${arch}-setup.${ext}",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "VocabReader"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "highsunday",
+      "repo": "VocabReader"
+    }
   }
 }
