@@ -2304,6 +2304,45 @@ describe("create-learning-items skill", () => {
     );
   });
 
+  it("preserves useful target-sense detail without mechanically copying annotation analysis", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain("## Optional Learning Detail Contract");
+    expect(skill).toMatch(
+      /preserve details that have lasting\s+value for understanding or correctly using the target sense/
+    );
+    expect(skill).toContain("Context and nuance");
+    expect(skill).toContain("Grammar and usage");
+    expect(skill).toContain("Synonyms and distinctions");
+    expect(skill).toContain("Common mistakes");
+    expect(skill).toContain("Pronunciation notes");
+    expect(skill).toMatch(/Do not\s+impose a fixed word limit/);
+    expect(skill).toContain(
+      "Do not add optional sections mechanically or pad a simple item"
+    );
+  });
+
+  it("reuses only relevant detail when creation follows an annotation invitation", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain(
+      "follows the reader's acceptance of a learning-library invitation"
+    );
+    expect(skill).toContain(
+      "prior annotation explanation in the same AI conversation"
+    );
+    expect(skill).toMatch(
+      /Prefer useful detail already established for\s+this exact target and sense/
+    );
+    expect(skill).toContain("other marked items");
+    expect(skill).toContain("sentence-only analysis");
+    expect(skill).toContain("review table");
+    expect(skill).toContain("source metadata");
+    expect(skill).toContain(
+      "Do not copy the entire annotation explanation verbatim"
+    );
+  });
+
   it("returns structured targets whenever it asks a creation clarification", () => {
     const skill = learningItemCreationSkillInstructions;
 

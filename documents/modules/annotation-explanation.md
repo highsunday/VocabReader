@@ -2,12 +2,13 @@
 title: 解釋標記與區段解析模組
 module: annotation-explanation
 status: active
-last_updated: 2026-07-22
+last_updated: 2026-08-25
 related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - F16-invoke-annotation-explanation-skill
   - B03-load-only-bundled-annotation-skill
   - F21-ai-assisted-learning-item-creation
+  - F70-preserve-useful-detail-in-learning-items
 ---
 
 # 解釋標記與區段解析模組
@@ -67,6 +68,8 @@ related_implements:
    `learning-item-invitation`；sentence 不加入也不拆詞。
 9. Renderer 顯示「加入生詞庫」。接受後才啟動 `create-learning-items`；
    空 targets 由建立 skill 詢問要加入什麼。
+10. 建立 skill 可沿用同一 AI 對話中的本次解析，整理並保留與各目標語義直接相關、
+    值得長期複習的細節；不逐字複製整份解析或混入其他標記、整句專屬分析及複習表。
 
 執行解析不會移動 START／END、修改 EPUB、刪除標記、改寫既有回覆或更新間隔複習狀態。
 
@@ -136,8 +139,9 @@ Skill 必須：
 
 ## 10. Known Limitations and Follow-up
 
-- AI 回覆仍是非結構化 Markdown；分類、CEFR 與複習表不能直接查詢或重用。
-- invitation 只帶標題與語義提示；正式卡片內容由獨立建立 skill 產生，不保存來源句。
+- AI 回覆仍是非結構化 Markdown；分類、CEFR 與複習表不能作為獨立結構化資料查詢。
+- invitation 只帶標題與語義提示；獨立建立 skill 可在同一 AI 對話中語義性重用相關解析，
+  但不保存來源句、解析快照或兩者的永久引用。
 - 沒有解析結果版本、重新產生、比較或匯出功能。
 - 標記 skill rubric 目前與 Controller 契約測試放在同一測試檔，尚未拆成獨立 skill test。
 - Renderer `App.tsx` 同時協調標記、閱讀區段、設定與 AI preset，責任仍偏重。
@@ -153,5 +157,6 @@ Skill 必須：
 - `documents/implements/F13-persistent-annotations-and-ai-analysis.md`
 - `documents/implements/F16-invoke-annotation-explanation-skill.md`
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
+- `documents/implements/F70-preserve-useful-detail-in-learning-items.md`
 
 變更解析入口、標記序列化契約、講解語言、分類順序、教學輸出或 skill marker 時，必須同步更新本文件及 `annotation`、`skill-management` 模組文件。

@@ -2,7 +2,7 @@
 title: AI 輔助學習項目建立模組
 module: learning-item-creation
 status: active
-last_updated: 2026-08-19
+last_updated: 2026-08-25
 related_implements:
   - F21-ai-assisted-learning-item-creation
   - F22-read-only-learning-item-draft-preview
@@ -15,6 +15,7 @@ related_implements:
   - F45-classify-and-filter-learning-items-by-language
   - F53-open-existing-learning-item-from-card-review
   - F65-standardize-learning-item-example-support
+  - F70-preserve-useful-detail-in-learning-items
 ---
 
 # AI 輔助學習項目建立模組
@@ -86,6 +87,11 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
   程式不從 AI 可見文字猜測 targets，也不把含空格的片語任意拆成多個單字。
 - `explain-reader-annotations` 在複習表後輸出 `learning-item-invitation`。
   Renderer 顯示「加入生詞庫」，預設一次加入全部 word／phrase targets。
+- 接受 invitation 後的建立 turn 沿用同一 AI 對話，因此 creation skill 可把該次解析與
+  有限閱讀區段作為受限學習上下文；它優先整理與個別標題及目標語義直接相關、值得長期
+  複習的細節，而不是只依 invitation 的簡短 `senseHint` 重新壓縮內容。
+- 草稿不逐字複製整份解析，也不混入其他標記、完整句子專屬分析、整段摘要、複習表或
+  來源 metadata；沒有額外學習價值時只產生固定核心內容。
 - sentence annotation 不加入，也不拆成句中所有單字；空 targets 接受後進入上述澄清。
 - 閱讀區段只供即時判斷，不保存到草稿或正式學習項目。
 
@@ -104,6 +110,10 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
   一種，不同時顯示改寫與翻譯。
 - `Meaning`、詞性／IPA、`Common collocations`、`Examples` 使用固定 Markdown 層級；
   輔助說明不使用粗體、巢狀清單或語言化文字標籤。title 與 IPA 維持原貌。
+- `Meaning` 先保留可快速複習的簡明意思；AI 判斷有長期價值時，可在固定核心之外選擇
+  `Context and nuance`、`Grammar and usage`、`Synonyms and distinctions`、
+  `Common mistakes` 或 `Pronunciation notes` 等補充小節。詳細程度不設固定字數上限，
+  但不得機械加入所有小節、填充簡單項目或重複核心內容。
 - 結構化 `sense` 維持簡短英文語義識別，確保既有候選查詢與語義去重契約不變。
 
 ## 5. Trust Boundaries
@@ -169,7 +179,8 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
 - `chat-controller.test.ts`：skill routing、候選範圍、持久澄清、草稿生命週期、重查、
   還原、不可重複提交、多語 AI route、自動 continuation、原 target 重試、放棄，
   source／固定講解語言映射，以及每句例句輔助說明的固定格式與語言分支。
-  同時固定跨語言、特定語義的 A1–C2 使用頻率 rubric。
+  同時固定跨語言、特定語義的 A1–C2 使用頻率 rubric，以及選擇性詳細內容、區段解析
+  銜接與無關內容排除契約。
 - `chat-conversation-store.test.ts`：version 1→2、批次與 interrupted preparation 持久化。
 - `chat-ipc.test.ts`：intent、targets、retry、abandon 與 mutation 邊界。
 - `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI、快捷／邀請入口、已存在項目
