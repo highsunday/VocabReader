@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-08-24
+last_updated: 2026-08-25
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -34,6 +34,7 @@ related_implements:
   - F50-limit-ai-conversation-history
   - F51-ai-assisted-learning-item-editing
   - B30-keep-one-final-ai-response-per-turn
+  - B32-find-codex-from-packaged-macos-app
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -61,7 +62,9 @@ related_implements:
 
 - Electron Main 啟動 `codex app-server`，完成 initialize／initialized／account/read
   握手；Windows 優先使用 Codex Desktop 最新 native CLI，未安裝時透過系統命令
-  處理器解析 npm 的 `codex.cmd` shim，其他平台直接啟動 `codex`。
+  處理器解析 npm 的 `codex.cmd` shim。macOS 優先探測系統或使用者 Applications 內
+  ChatGPT／Codex Desktop 的內建 native CLI，再探測 Homebrew、`/usr/local` 與
+  `~/.local/bin`；Linux 直接啟動 PATH 中的 `codex`。
 - 自動沿用本機 Codex／ChatGPT 登入狀態，不讀取 OpenAI API key。
 - 顯示 disconnected、connecting、ready、auth-required 與 error 連線階段。
 - 依 300 與 10,080 分鐘視窗辨識五小時與每週額度；缺值、載入中與確實 0% 保持不同語意。
@@ -284,8 +287,9 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - Codex 子程序只由 Electron Main 管理，Renderer 不可直接存取。
 - Codex transport 的預設啟動命令依平台決定：Windows 在固定的 Codex Desktop
   安裝根目錄選擇最新 regular `codex.exe`，找不到時透過 `ComSpec` 執行固定的
-  `codex.cmd app-server`；其他平台直接執行 `codex app-server`。路徑與命令不接受
-  Renderer 或使用者輸入。
+  `codex.cmd app-server`；macOS 只從固定的 Desktop App 與常見 CLI 候選位置選擇
+  regular executable 並以絕對路徑啟動，找不到候選時才 fallback 到 PATH；Linux
+  直接執行 `codex app-server`。路徑與命令不接受 Renderer 或使用者輸入。
 - 一般對話 thread 使用 `approvalPolicy: never`、read-only sandbox，停用一般 skill
   instruction catalog、bundled skills、plugins、apps、memories 及 web search。Electron
   Main 只把四份對話用 App skills 組入 developer instructions；不得探索其他 skill。
@@ -374,7 +378,8 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - Markdown 程式碼區塊目前不提供語法高亮。
 - 區段練習的未提交答案不做跨啟動保存，也沒有獨立題庫、成績資料表或歷史趨勢；
   間隔複習已獨立實作，但刻意不保存完整試卷、答案或詳細 AI 回饋。
-- 本機 GUI 環境必須能找到已安裝的 `codex` 可執行檔。
+- 使用 AI 功能前仍需安裝並登入 ChatGPT／Codex Desktop 或 Codex CLI；macOS App 會探測
+  正常安裝位置，但不內嵌 Codex binary、登入流程或帳戶切換。
 
 ## 11. Related Documents
 
@@ -408,5 +413,6 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 - `documents/implements/F49-segment-retelling-practice.md`
 - `documents/implements/F50-limit-ai-conversation-history.md`
 - `documents/implements/F51-ai-assisted-learning-item-editing.md`
+- `documents/implements/B32-find-codex-from-packaged-macos-app.md`
 
 變更 Codex protocol、snapshot、上下文邊界、Renderer bridge、狀態卡、訊息呈現或對話生命週期時，必須同步更新本文件與相關 FXX 實作紀錄。

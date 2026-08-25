@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { readdirSync, statSync } from "node:fs";
+import { accessSync, constants, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 
@@ -37,7 +38,14 @@ interface SpawnCodexAppServerOptions {
   platform?: NodeJS.Platform;
   environment?: NodeJS.ProcessEnv;
   desktopExecutable?: string | null;
+  macExecutable?: string | null;
   spawnCommand?: typeof spawn;
+}
+
+interface FindMacOSCodexExecutableOptions {
+  applicationsDirectory?: string;
+  homeDirectory?: string;
+  fallbackBinDirectories?: readonly string[];
 }
 
 interface PendingRequest {
@@ -106,6 +114,41 @@ export function findCodexDesktopExecutable(
   }
 }
 
+function isExecutableFile(path: string): boolean {
+  try {
+    if (!statSync(path).isFile()) return false;
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function findMacOSCodexExecutable(
+  options: FindMacOSCodexExecutableOptions = {}
+): string | null {
+  const applicationsDirectory = options.applicationsDirectory ?? "/Applications";
+  const homeDirectory = options.homeDirectory ?? homedir();
+  const applicationDirectories = [
+    applicationsDirectory,
+    ...(homeDirectory ? [join(homeDirectory, "Applications")] : [])
+  ];
+  const desktopCandidates = applicationDirectories.flatMap((directory) =>
+    ["ChatGPT.app", "Codex.app"].map((appName) =>
+      join(directory, appName, "Contents", "Resources", "codex")
+    )
+  );
+  const fallbackBinDirectories = options.fallbackBinDirectories ?? [
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    ...(homeDirectory ? [join(homeDirectory, ".local", "bin")] : [])
+  ];
+  return [
+    ...desktopCandidates,
+    ...fallbackBinDirectories.map((directory) => join(directory, "codex"))
+  ].find(isExecutableFile) ?? null;
+}
+
 export function spawnCodexAppServer(
   options: SpawnCodexAppServerOptions = {}
 ): ChildProcessWithoutNullStreams {
@@ -131,9 +174,24 @@ export function spawnCodexAppServer(
       }
     );
   }
+  if (platform === "darwin") {
+    const macExecutable = options.macExecutable === undefined
+      ? findMacOSCodexExecutable({ homeDirectory: environment.HOME })
+      : options.macExecutable;
+    return spawnCommand(macExecutable ?? "codex", ["app-server"], {
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+  }
   return spawnCommand("codex", ["app-server"], {
     stdio: ["pipe", "pipe", "pipe"]
   });
+}
+
+function normalizeCodexLaunchError(error: Error): Error {
+  if ((error as NodeJS.ErrnoException).code !== "ENOENT") return error;
+  return new Error(
+    "Codex could not be found. Install the ChatGPT/Codex desktop app or Codex CLI, then restart VocabReader."
+  );
 }
 
 export class SpawnedCodexAppServerClient implements CodexAppServerClient {
@@ -259,11 +317,12 @@ export class SpawnedCodexAppServerClient implements CodexAppServerClient {
   #handleExit(error: Error): void {
     if (this.#closed) return;
     this.#closed = true;
+    const connectionError = normalizeCodexLaunchError(error);
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timer);
-      pending.reject(error);
+      pending.reject(connectionError);
     }
     this.#pending.clear();
-    this.#events.emit("exit", error);
+    this.#events.emit("exit", connectionError);
   }
 }

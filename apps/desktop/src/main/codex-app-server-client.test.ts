@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -9,8 +11,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import {
   findCodexDesktopExecutable,
+  findMacOSCodexExecutable,
+  SpawnedCodexAppServerClient,
   spawnCodexAppServer
 } from "./codex-app-server-client";
 
@@ -78,6 +83,102 @@ describe("spawnCodexAppServer", () => {
       "codex",
       ["app-server"],
       { stdio: ["pipe", "pipe", "pipe"] }
+    );
+  });
+
+  it("launches the discovered macOS Codex executable by absolute path", () => {
+    const child = childProcessFixture();
+    const spawnCommand = vi.fn(() => child) as unknown as typeof spawn;
+
+    const result = spawnCodexAppServer({
+      platform: "darwin",
+      macExecutable: "/Applications/ChatGPT.app/Contents/Resources/codex",
+      spawnCommand
+    });
+
+    expect(result).toBe(child);
+    expect(spawnCommand).toHaveBeenCalledWith(
+      "/Applications/ChatGPT.app/Contents/Resources/codex",
+      ["app-server"],
+      { stdio: ["pipe", "pipe", "pipe"] }
+    );
+  });
+});
+
+describe("findMacOSCodexExecutable", () => {
+  it("finds the executable bundled with the system ChatGPT app", () => {
+    const root = mkdtempSync(join(tmpdir(), "vocabreader-macos-codex-"));
+    const applicationsDirectory = join(root, "Applications");
+    const homeDirectory = join(root, "home");
+    const executable = join(
+      applicationsDirectory,
+      "ChatGPT.app",
+      "Contents",
+      "Resources",
+      "codex"
+    );
+    try {
+      mkdirSync(join(executable, ".."), { recursive: true });
+      writeFileSync(executable, "");
+      chmodSync(executable, 0o755);
+
+      expect(findMacOSCodexExecutable({
+        applicationsDirectory,
+        homeDirectory,
+        fallbackBinDirectories: []
+      })).toBe(executable);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to a user-local Codex CLI when no desktop app exists", () => {
+    const root = mkdtempSync(join(tmpdir(), "vocabreader-macos-codex-"));
+    const applicationsDirectory = join(root, "Applications");
+    const homeDirectory = join(root, "home");
+    const binDirectory = join(homeDirectory, ".local", "bin");
+    const executable = join(binDirectory, "codex");
+    try {
+      mkdirSync(binDirectory, { recursive: true });
+      writeFileSync(executable, "");
+      chmodSync(executable, 0o755);
+
+      expect(findMacOSCodexExecutable({
+        applicationsDirectory,
+        homeDirectory,
+        fallbackBinDirectories: [binDirectory]
+      })).toBe(executable);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("SpawnedCodexAppServerClient launch errors", () => {
+  it("turns ENOENT into an actionable Codex installation message", async () => {
+    const child = Object.assign(new EventEmitter(), {
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      kill: vi.fn()
+    }) as unknown as ChildProcessWithoutNullStreams;
+    const client = new SpawnedCodexAppServerClient({
+      spawnProcess: () => child,
+      requestTimeoutMs: 100
+    });
+    const initialization = client.initialize({
+      name: "vocab-reader",
+      title: "VocabReader",
+      version: "0.1.2"
+    });
+    const error = Object.assign(new Error("spawn codex ENOENT"), {
+      code: "ENOENT"
+    });
+
+    child.emit("error", error);
+
+    await expect(initialization).rejects.toThrow(
+      /Install the ChatGPT\/Codex desktop app or Codex CLI.*restart VocabReader/i
     );
   });
 });
