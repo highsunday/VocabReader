@@ -1,9 +1,9 @@
 <h1 align="center">VocabReader</h1>
 
 <p align="center">
-  <strong>讓 AI 陪你讀原文，也陪你把它學會。</strong><br />
-  匯入一本想讀的 EPUB。遇到不懂的地方，AI 會根據前後文解釋，<br />
-  再把值得記住的內容加入卡片、安排快閃卡片複習——不用一直切換閱讀器、字典和聊天視窗。
+  <strong>結合 AI 的英文原文書閱讀與練習工具。</strong><br />
+  閱讀時可以直接詢問內容、解釋標記，並把需要練習的單字或片語保存成卡片。<br />
+  保存後的內容可以接著用於間隔複習、跟讀與造句練習。
 </p>
 
 <p align="center">
@@ -17,132 +17,126 @@
 <p align="center">
   <a href="https://github.com/highsunday/VocabReader/releases"><strong>下載 macOS／Windows 版本</strong></a>
   ·
-  <a href="#從讀懂到記住四個學習步驟"><strong>看看怎麼學</strong></a>
+  <a href="#主要功能"><strong>查看主要功能</strong></a>
   ·
   <a href="https://github.com/highsunday/VocabReader/issues"><strong>提供意見</strong></a>
 </p>
 
-## 讀原文最累的，常常不是看不懂
+![VocabReader 書庫中已匯入 Harry Potter and the Sorcerer's Stone 與 Harry Potter and the Chamber of Secrets](docs/readme-assets/library-overview.png)
 
-而是每遇到一個生字，就要離開書本查字典；想問句子，又得把原文貼進 AI；好不容易看懂了，幾天後卻什麼也沒留下。
+VocabReader 將 EPUB 閱讀、AI 對話、學習卡片和練習放在同一個桌面 App。上圖的書庫已匯入兩本 Harry Potter；選擇書籍後，可以從章節列表開始閱讀，原文和 AI Tutor 會保留在同一個畫面。
 
-VocabReader 把這些步驟放回同一個閱讀畫面。你可以先專心讀，真的卡住時才標註內容，讓右側的 **AI Tutor 根據目前這一段原文回答**。理解之後，把值得記住的內容加入卡片，再透過快閃卡片反覆複習。
+## 主要功能
 
-> **AI 不替你把書讀完，而是幫你把每一次卡住，變成下一次真的會用。**
+### 1. 閱讀時直接詢問 AI
 
-## 從讀懂到記住，四個學習步驟
+AI Tutor 會讀取目前的閱讀段落，再回答使用者提出的問題。詢問「這段英文的意思是什麼？」時，回答會說明該段內容；詢問「請解釋這句的文法。」時，回答會引用句中的結構，不是脫離文章的一般文法說明。
 
-### 1. 標註與解釋：讀不懂，就在原文旁邊問
+![依序詢問段落意思與句子文法，AI 根據目前文章上下文回答](docs/readme-assets/ask-ai.gif)
 
-標註不懂的單字、片語或句子，AI 會結合前後文說明它在這裡的意思、語氣和用法。你不必複製貼上，也不用重新向 AI 交代自己正在讀哪一本書、哪一段話。
+### 2. 標記不懂的內容並一次解釋
 
-![標註原文並請 AI 根據目前閱讀內容提供解釋](docs/images/reading-with-ai.png)
+同一個閱讀範圍可以標記多個單字、片語和句子，再交給 AI 統一整理。下方示範包含 `mysterious`、`nonsense`、`beefy`、`mustache` 四個單字，`perfectly normal`、`hardly any neck` 兩個片語，以及一個較長的完整句子。
 
-### 2. 加入卡片：把值得記住的內容收進卡片庫
+解釋結果會依項目區分意思、程度、用法和句子結構，原文仍留在閱讀畫面中，方便對照。
 
-解釋清楚之後，可以把值得學的單字和片語加入卡片。每張卡片保留它在原文裡的特定意思、常見搭配和例句；送進卡片庫之前，你可以先檢查和修改。
+![標記四個單字、兩個片語與一個長句，並查看 AI 分項解釋](docs/readme-assets/explain-annotations.gif)
 
-#### 一張卡片，不只是一條翻譯
+### 3. 從解釋或對話建立學習卡片
 
-卡片會保留這次閱讀中的意思、詞性、發音、常見搭配和雙語例句，之後複習時不會把同一個字的不同用法混在一起。
+標記內容解釋完成後，可以點擊 `Add to Learning Library`，把選定的單字和片語整理成卡片。操作完成後，Learning Library（卡片庫）會顯示剛新增的項目、詞義、類型、CEFR 程度和複習狀態。
 
-![單張卡片詳情：包含目標意思、詞性、發音、常見搭配、雙語例句與複習排程](docs/images/learning-card.png)
+![從標記解釋點擊 Add to Learning Library，再到 Card Library 查看新增結果](docs/readme-assets/add-from-explanation.gif)
 
-#### 所有卡片，集中放進自己的卡片庫
+也可以直接在對話輸入欄輸入 `add mysterious`。AI Tutor 會依照目前閱讀內容準備該項目的卡片資料；新增後可在 Learning Library 查看保存的解釋與主要欄位。
 
-你可以搜尋、篩選和查看每張卡片目前的學習狀態，知道哪些剛加入、哪些正在學，以及哪些已經記得很穩。
+![在對話輸入 add mysterious，並在 Card Library 查看卡片](docs/readme-assets/add-with-command.gif)
 
-![把原文裡遇到的單字和片語加入卡片庫](docs/images/learning-library.png)
+### 4. 使用間隔複習回顧卡片
 
-### 3. 快閃卡片複習：在快忘記之前，再想起來
+新增的卡片會進入間隔複習。Review 會依卡片的目前狀態安排題目，讓使用者在句子情境中回想指定意思；提交答案後，AI 會提供意義判斷和可參考的答案。
 
-VocabReader 會依照你的回想狀況，安排每天需要複習的快閃卡片。AI 會針對卡片中的特定意思出題並提供回饋，最後由你判斷自己是忘記、勉強想起，還是真的記住了。下一次複習時間會依照你的回答自動調整。
+使用者最後可以把熟悉程度設為 `Forgotten`、`Hard`、`Good` 或 `Easy`，系統再更新下一次複習時間。這採用與 Anki 類似的間隔複習概念，但題目、AI 回饋和最後評分都是 VocabReader 自己的操作流程。
 
-![快閃卡片複習：根據句子情境回想卡片中的特定意思](docs/images/flashcard-review.png)
+![開始 Review、回答題目、查看 AI 回饋並選擇熟悉程度](docs/readme-assets/spaced-review.gif)
 
-### 4. 主動練習：不只看得懂，還要用得出來
+### 5. 跟讀與發音練習
 
-讀完一段後，可以請 AI 出閱讀測驗、練習不看原文復述，或把幾個學過的詞寫進同一篇短文。你也能逐句跟讀、錄下自己的聲音，從理解一路練到真正能說、能寫。
+在 Listen & Repeat 輸入一段練習文本後，可以選擇短片語或完整句子的練習方式。AI 示範語音和使用者錄音是兩份不同的音訊：先播放 `Play AI`，再用 `Record`／`Re-record` 錄下自己的跟讀，最後用 `Play mine` 回放並逐段比較。
 
-![VocabReader 寫作練習：把多個學過的詞自然用進同一篇短文](docs/images/sentence-practice.png)
+目前版本提供示範語音、錄音、並列回放與完成進度，不會產生自動發音準確度分數。AI 示範語音需要使用者自行設定 OpenAI API key；使用者錄音保存在目前裝置。
 
-## AI Tutor 可以陪你做什麼？
+![輸入跟讀文本，進入練習後播放 AI 示範、錄音並回放自己的聲音](docs/readme-assets/listen-and-repeat.gif)
 
-| 你想做的事 | AI 如何協助 |
+### 6. 使用收藏內容造句
+
+Sentence Practice 會從已收藏並進入學習流程的單字和片語中選出練習項目。使用者需要在同一段文字中使用所有指定內容，再交給 AI 檢查文法、用字和每一項是否使用正確。
+
+下方示範使用 `beefy`、`perfectly normal`、`mysterious`、`hardly any neck` 和 `nonsense`。提交後可以看到修訂結果、整體回饋，以及各單字或片語在文章中的實際用法。
+
+![使用五個已收藏的單字與片語完成短文，再查看 AI 檢查結果](docs/readme-assets/sentence-practice.gif)
+
+## 在同一個 App 裡閱讀與學習
+
+使用一般工具閱讀原文時，通常需要在閱讀器、字典、AI 聊天工具、筆記和卡片 App 之間切換。查詢過的內容也需要另外整理，才能用於後續複習。
+
+VocabReader 把這些功能整合在同一個 App。除了上面的六項主要功能，閱讀畫面也提供以目前段落為範圍的閱讀理解測驗和復述練習。
+
+## 與一般 AI 聊天工具的差異
+
+| 一般 AI 聊天工具 | VocabReader |
 |---|---|
-| **標註與解釋** | 根據目前閱讀內容，解釋單字、片語、句型和語氣。 |
-| **加入卡片** | 草擬意思、程度、常見搭配與例句；加入卡片庫前先讓你確認。 |
-| **快閃卡片複習** | 針對卡片中的特定意思出題、提供回饋，並安排下一次複習。 |
-| **確認自己真的看懂** | 針對剛讀完的內容出題，而不是只給一份通用練習。 |
-| **練習用自己的話表達** | 檢查復述有沒有遺漏原意，並指出可以說得更自然的地方。 |
-| **把卡片內容用進寫作** | 指定多張學過的卡片，陪你把它們自然寫進句子、短文或故事。 |
+| 需要手動提供原文和背景 | AI Tutor 會讀取指定的閱讀範圍 |
+| 查詢結果不會連結到學習資料 | 解釋可以接著加入卡片、複習與練習 |
+| 同一個字的不同意思需要自行區分 | 卡片會記錄該字在目前原文中的意思 |
+| 閱讀、卡片和練習分散在不同工具 | 閱讀、卡片和練習整合在同一個 App |
 
-## 和把原文貼進聊天工具，有什麼不同？
+## 文字 AI 不需要另外設定 API key
 
-| 一般的做法 | 使用 VocabReader |
-|---|---|
-| 每次重新複製原文、解釋背景 | AI Tutor 已經知道你指定的閱讀範圍 |
-| 得到答案後，對話就結束了 | 解釋可以接著加入卡片、快閃卡片複習與練習 |
-| 同一個字的不同意思混在一起 | 記住這個字在這次原文中的特定意思 |
-| 閱讀、背單字和寫作分散在不同工具 | 從輸入到輸出，都留在同一個學習流程 |
-
-## 不用先研究 API，也能開始
-
-VocabReader 本身免費、開源。如果你的 ChatGPT 帳號已經可以使用 Codex，VocabReader 會沿用本機的 Codex 登入狀態。標註與解釋、加入卡片、快閃卡片複習、閱讀測驗、復述和寫作回饋，都不需要另外申請或貼入 OpenAI API key。
+VocabReader 是免費開源軟體。如果你的 ChatGPT 帳號可以使用 Codex，VocabReader 會沿用本機的 Codex 登入狀態。標註與解釋、加入卡片、快閃卡片複習、閱讀測驗、復述和寫作回饋都不需要另外申請或輸入 OpenAI API key。
 
 > [!NOTE]
 > 你需要已登入的 Codex Desktop 或 Codex CLI。只有可選的 AI 示範語音／選取朗讀功能需要自行提供 OpenAI API key；不使用這項語音功能，就不必設定 API key。
 
-## 不只用來學英文
+## 支援的學習語言
 
-VocabReader 的閱讀與 AI 理解流程不綁特定語言。只要 EPUB 文字能被正常讀取，AI 就能依照上下文協助你理解。
+VocabReader 可以處理不同語言的 EPUB 內容。EPUB 文字可以正常讀取時，AI 會依照上下文提供解釋。
 
-目前完整提供 **英文、日文與繁體中文**三種獨立學習空間。每種語言都有自己的書庫、進度和卡片庫，不會全部混在一起。其他語言的 EPUB 也可以匯入、閱讀和詢問 AI；不過卡片分類、語音等細節，還沒有針對每一種語言逐一調整。
+目前完整提供 **英文、日文和繁體中文** 三種獨立學習空間。每種語言都有個別的書庫、進度和卡片庫。其他語言的 EPUB 也可以匯入、閱讀和詢問 AI，但卡片分類、語音等功能尚未針對每一種語言調整。
 
-## 這款 App 適合你嗎？
+## 適用情境
 
-VocabReader 適合：
+VocabReader 適合以下需求：
 
-- 想用小說、非虛構作品或專業書籍學習語言的人。
-- 已經能讀一些原文，但常常被生字和長句打斷的人。
-- 收集過很多單字，卻缺少快閃卡片複習、總是過幾天就忘記的人。
-- 希望 AI 幫忙理解，而不是直接把整本書翻譯完的人。
-- 已有可使用 Codex 的 ChatGPT 帳號，不想再管理文字 AI API key 和用量的人。
+- 想用小說、非虛構作品或專業書籍作為語言學習材料的人。
+- 閱讀原文時，需要查詢生字、片語或長句的人。
+- 想把閱讀中遇到的內容整理成卡片並定期複習的人。
+- 想使用閱讀材料進行理解、復述、跟讀或寫作練習的人。
+- 已有可使用 Codex 的 ChatGPT 帳號，希望沿用登入狀態而不另外設定文字 AI API key 的人。
 
-如果你需要的是整本自動翻譯、手機 App、雲端同步，或完全離線的無 AI 閱讀器，目前的 VocabReader 可能不適合你。
+VocabReader 目前不提供整本自動翻譯、手機 App、雲端同步或完全離線的 AI 功能。
 
-<details>
-<summary><strong>看看更多產品畫面</strong></summary>
-
-### 從短片語開始練習跟讀
-
-聽示範、錄下自己的聲音，再逐步練到完整句子。錄音和練習進度保存在自己的電腦。
-
-![VocabReader 跟讀練習：從短片語逐步練到完整句子](docs/images/listen-and-repeat.png)
-
-</details>
-
-## 三步開始使用
+## 安裝與使用
 
 1. 從 [GitHub Releases](https://github.com/highsunday/VocabReader/releases) 下載 macOS Apple Silicon、macOS Intel 或 Windows 64-bit 版本。
 2. 確認 Codex Desktop／CLI 已安裝，並登入能使用 Codex 的 ChatGPT 帳號。
 3. 開啟 VocabReader，選擇學習語言，匯入一本你有權使用的 EPUB。
 
 > [!IMPORTANT]
-> VocabReader 目前仍是 Early Preview，安裝程式還沒有完成開發者簽章。macOS 或 Windows 第一次開啟時，可能出現「無法驗證開發者」或「發布者未驗證」的提醒。請只從本專案的官方 Releases 頁面下載，並確認檔名符合你的電腦版本。
+> VocabReader 目前是 Early Preview，安裝程式尚未完成開發者簽章。macOS 或 Windows 第一次開啟時，可能出現「無法驗證開發者」或「發布者未驗證」的提醒。請從本專案的官方 Releases 頁面下載，並確認檔名符合你的電腦版本。
 
 <p align="center">
-  <a href="https://github.com/highsunday/VocabReader/releases"><strong>下載 VocabReader，從下一頁原文開始學</strong></a>
+  <a href="https://github.com/highsunday/VocabReader/releases"><strong>下載 VocabReader</strong></a>
 </p>
 
 <details>
-<summary><strong>你的書籍和學習資料如何被使用？</strong></summary>
+<summary><strong>資料儲存與傳送方式</strong></summary>
 
 | 資料 | 處理方式 |
 |---|---|
 | EPUB、書庫、閱讀進度、標註、卡片與快閃卡片複習紀錄 | 保存在本機 Electron user data。 |
 | 跟讀錄音與 AI 示範語音 | 保存在目前裝置，不建立雲端錄音庫。 |
-| AI 解釋、出題與批改 | 只有你明確操作時，才把完成該動作所需的有限閱讀內容或卡片交給 Codex。 |
+| AI 解釋、出題與批改 | 執行相關操作時，會把該操作需要的閱讀內容或卡片傳送給 Codex。 |
 | 選取朗讀與 AI 語音 | 只有你明確要求播放時，才使用你設定的 OpenAI API key 傳送所選文字。 |
 | 備份 | 手動匯出為可攜 ZIP；還原會完整取代目標裝置的學習資料，不是雲端同步。 |
 
@@ -179,16 +173,12 @@ npm run build
 
 </details>
 
-## 一起把 VocabReader 變得更好
+## 參與專案
 
-- ⭐ Star 這個 repository，追蹤後續版本。
-- 🐛 在 [Issues](https://github.com/highsunday/VocabReader/issues) 分享使用感受、回報問題或提出建議。
-- 🔧 Fork 專案、建立分支並送出 Pull Request。
+- Star 這個 repository 以追蹤後續版本。
+- 在 [Issues](https://github.com/highsunday/VocabReader/issues) 回報問題或提出建議。
+- Fork 專案、建立分支並送出 Pull Request。
 
 ## License
 
 VocabReader 採用 [MIT License](LICENSE)。
-
-<p align="center">
-  <strong>不只是讀完一本書，而是帶走裡面的語言。</strong>
-</p>
