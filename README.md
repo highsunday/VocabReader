@@ -104,6 +104,14 @@ VocabReader 可以處理不同語言的 EPUB 內容。EPUB 文字可以正常讀
 
 目前完整提供 **英文、日文和繁體中文** 三種獨立學習空間。每種語言都有個別的書庫、進度和卡片庫。其他語言的 EPUB 也可以匯入、閱讀和詢問 AI，但卡片分類、語音等功能尚未針對每一種語言調整。
 
+下方示範在日文文章中標記內容、取得解釋，再把需要複習的項目加入日文卡片庫。
+
+![在日文文章中標記內容、查看解釋並建立日文學習卡片](docs/readme-assets/japanese-learning.gif)
+
+從 Settings 切換學習語言時，App 會進入該語言獨立的書庫與卡片庫，不會把不同語言的學習內容混在一起。
+
+![從設定切換學習語言，並查看該語言獨立的卡片庫](docs/readme-assets/separate-language-libraries.gif)
+
 ## 適用情境
 
 VocabReader 適合以下需求：
