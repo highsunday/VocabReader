@@ -2,7 +2,7 @@
 title: 本機生詞庫模組
 module: learning-library
 status: active
-last_updated: 2026-08-14
+last_updated: 2026-08-25
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
@@ -51,8 +51,8 @@ related_implements:
 - 頁首以單列緊湊按鈕顯示 New、Studying、Familiar、Strong 四個互斥進度數量；
   按鈕同時作為篩選入口。Strong 直接共用 Review 的 Solid recall 項目集合與數量，
   Due／Scheduled 等時間狀態仍保留於卡片。
-- 學習項目語言固定為英文、日文、繁體中文與其他語言；AI 新增時逐筆判定，詳情編輯
-  可修正，清單卡片、草稿預覽與完整詳情皆顯示人類可讀標籤。
+- 學習項目語言固定為英文、日文、繁體中文、韓文與舊資料使用的其他語言；目前工作區
+  新增時必須使用該工作區語言，清單卡片、草稿預覽與完整詳情皆顯示人類可讀標籤。
 - 同標題不同語義以不同不可變 id 保存，不合併內容。
 - 每個項目提供可留空的學習注意事項；完整詳情以 `Note`、紅字與紅底線顯示，清單摘要
   與未作答複習題面不載入或顯示。
@@ -177,7 +177,7 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 | Type | Meaning |
 |---|---|
 | `LearningItemType` | `word | phrase` |
-| `LearningItemLanguage` | `en | ja | zh-TW | other` |
+| `LearningItemLanguage` | `en | ja | zh-TW | ko | other` |
 | `CefrLevel` | `A1 | A2 | B1 | B2 | C1 | C2` |
 | `LearningItemStatus` | `active | trashed` |
 | `LearningItemSort` | `recent | alphabetical | study-status | next-due` |

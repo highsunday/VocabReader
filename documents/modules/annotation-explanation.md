@@ -7,6 +7,7 @@ related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - F16-invoke-annotation-explanation-skill
   - B03-load-only-bundled-annotation-skill
+  - B34-exclude-japanese-clauses-from-learning-items
   - F21-ai-assisted-learning-item-creation
   - F70-preserve-useful-detail-in-learning-items
 ---
@@ -27,9 +28,11 @@ related_implements:
 
 - 閱讀頁提供「解釋標記」預設按鈕。
 - 每次點擊都重新附上當下 START／END 閱讀區段，不套用一般追問的區段去重。
-- Renderer 傳送白名單 `intent: "explainAnnotations"` 與目前全域**講解語言**。
+- Renderer 傳送白名單 `intent: "explainAnnotations"` 與目前學習語言工作區的**講解語言**。
 - Main Process 加入 `$explain-reader-annotations` marker、有限閱讀上下文與固定型別化 skill item。
 - Skill 只解釋 `<reader-annotation>` 內容，未標記文字只作為上下文。
+- 片語必須是可在其他句子中重複使用的詞彙、固定表達、搭配或文法單位；
+  帶自身述語的完整命題或連接子句都屬於句子層級。
 - 沒有標記時，以指定語言簡短告知目前區段沒有標記後停止。
 - 解析結果以安全 Markdown 留在目前 AI 對話，不回寫標記；結尾另附結構化邀請，
   讓使用者明確選擇是否把本次全部單字與片語送入學習項目草稿流程。
@@ -42,7 +45,7 @@ related_implements:
 
 - `text: "講解標記內容"`
 - `intent: "explainAnnotations"`
-- `explanationLanguage: source | zh-TW | en | ja`
+- `explanationLanguage: source | zh-TW | en | ja | ko`
 - 可選的書名與章節名稱
 - 當下 `<reading-segment>`，其中區段內標記以 `<reader-annotation id="A…">` 表示
 
@@ -63,9 +66,11 @@ related_implements:
 4. IPC 驗證 intent、語言與 context 欄位型別。
 5. `composeCodexInput()` 加入 marker、有限上下文、語言指令；若沒有 annotation tag，另加入明確無標記提示。
 6. `turn/start.input` 包含 text item 及固定 `explain-reader-annotations` skill item。
-7. 已載入的 skill 按標記類型與原文順序建立教學回覆。
-8. Skill 在複習表後詢問是否加入生詞庫，並輸出只含 word／phrase 的
-   `learning-item-invitation`；sentence 不加入也不拆詞。
+7. 已載入的 skill 按標記類型與原文順序建立教學回覆；分類時依是否自足
+   表達命題及是否具有自身述語判斷，不依字數或結尾標點。
+8. Skill 在複習表後詢問是否加入生詞庫，並輸出只含 word／可重複使用
+   phrase 的 `learning-item-invitation`；sentence 與有限定述語的從屬／連接子句
+   不加入也不拆詞。
 9. Renderer 顯示「加入生詞庫」。接受後才啟動 `create-learning-items`；
    空 targets 由建立 skill 詢問要加入什麼。
 10. 建立 skill 可沿用同一 AI 對話中的本次解析，整理並保留與各目標語義直接相關、
@@ -78,13 +83,18 @@ related_implements:
 Skill 必須：
 
 1. 把每個標記分類為單字、片語或句子。
-2. 固定依「單字、片語、句子」分組；同組內維持原文出現順序。
-3. 依本文用法估計 A1–C2 CEFR，不以孤立字典難度取代上下文判斷。
-4. 只選擇有助理解的教學小節，例如 Meaning、Context、Grammar、Vocabulary、Examples、Synonyms、Collocations、Pronunciation、Common mistakes、Easy paraphrase。
-5. 採用 Examples 小節時，必須提供 3–5 個彼此不同、完整且自然的例句，不得只提供 1 或 2 句。
-6. 不機械性輸出所有小節，不翻譯或摘要整個閱讀區段，也不主動解釋未標記文字。
-7. 最後提供本次講解語言的精簡複習表：標記內容、簡單意思、CEFR 與實用提示。
-8. 以相同講解語言詢問是否加入全部單字與片語，並輸出可驗證 invitation；不得聲稱
+2. 片語限於可完整移入其他句子的詞彙表達、固定表達、搭配或文法單位；
+   帶自身述語、表達完整或從屬命題的標記列入句子組。這個邊界套用於
+   英文、日文、繁體中文與韓文，也是其他語言的預設規則。日文即使未選到 `。`，
+   以 `〜ですが` 等連接形或 `〜ありません` 等有限述語完成的命題仍屬句子層級；
+   韓文以 `-지만`、`-는데`、`-니까` 等連接形收尾且已有自身述語的命題也一樣。
+3. 固定依「單字、片語、句子」分組；同組內維持原文出現順序。
+4. 依本文用法估計 A1–C2 CEFR，不以孤立字典難度取代上下文判斷。
+5. 只選擇有助理解的教學小節，例如 Meaning、Context、Grammar、Vocabulary、Examples、Synonyms、Collocations、Pronunciation、Common mistakes、Easy paraphrase。
+6. 採用 Examples 小節時，必須提供 3–5 個彼此不同、完整且自然的例句，不得只提供 1 或 2 句。
+7. 不機械性輸出所有小節，不翻譯或摘要整個閱讀區段，也不主動解釋未標記文字。
+8. 最後提供本次講解語言的精簡複習表：標記內容、簡單意思、CEFR 與實用提示。
+9. 以相同講解語言詢問是否加入全部單字與可重複使用的片語，並輸出可驗證 invitation；不得聲稱
    已保存或自行提交。
 
 原始標記文字、IPA 及學習上需要保持原貌的例句可保留原文形式。
@@ -97,6 +107,7 @@ Skill 必須：
 | `zh-TW` | 繁體中文 |
 | `en` | 清楚、適合學習者的 English |
 | `ja` | 日本語 |
+| `ko` | 한국어 |
 
 講解語言控制標題、解釋、提示與表格欄位，不修改 EPUB 原文、一般自由問答或既有 AI 回覆。缺少、損壞或未知設定由設定模組降級為 `source`。
 
@@ -108,7 +119,7 @@ Skill 必須：
 | `reading-range` | START／END 邊界與區段外內容排除 |
 | `skill-management` | 固定 skill 安裝、內嵌 instructions、marker gate 與隔離設定 |
 | `ai-conversation` | Thread／turn 生命週期、串流回覆、Markdown 與對話保存 |
-| settings | 全域講解語言讀取、驗證與持久化 |
+| settings | 各學習語言工作區講解語言的讀取、驗證與持久化 |
 
 本模組不擁有標記資料，也不把 AI 分類保存回 `Annotation`。它與閱讀測驗共用閱讀區段、講解語言與 AI 對話，但兩個 preset intent 和 skills 必須保持互斥。
 
@@ -133,7 +144,7 @@ Skill 必須：
 | `apps/desktop/src/renderer/reading-range.test.ts` | 區段裁切、annotation tag、escaping、順序與交集 |
 | `apps/desktop/src/renderer/App.test.tsx` | 按鈕入口、每次附最新區段、無標記仍送出、講解語言傳值 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | `explainAnnotations` 與語言白名單 |
-| `apps/desktop/src/main/chat-controller.test.ts` | marker、固定 skill item、四種語言、無標記提示、skill rubric 與一般／測驗 turn 隔離 |
+| `apps/desktop/src/main/chat-controller.test.ts` | marker、固定 skill item、五種講解語言（source／繁中／英／日／韓）、無標記提示、四學習語言的句子／片語邊界、skill rubric 與一般／測驗 turn 隔離 |
 | `apps/desktop/src/main/bundled-skill.test.ts` | runtime 安裝與更新 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | production Electron runtime 中的標記解析 skill |
 
@@ -157,6 +168,7 @@ Skill 必須：
 - `documents/implements/F13-persistent-annotations-and-ai-analysis.md`
 - `documents/implements/F16-invoke-annotation-explanation-skill.md`
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
+- `documents/implements/B34-exclude-japanese-clauses-from-learning-items.md`
 - `documents/implements/F70-preserve-useful-detail-in-learning-items.md`
 
 變更解析入口、標記序列化契約、講解語言、分類順序、教學輸出或 skill marker 時，必須同步更新本文件及 `annotation`、`skill-management` 模組文件。

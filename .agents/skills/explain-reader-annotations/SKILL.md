@@ -18,6 +18,19 @@ Explain only the marked parts of the supplied reading segment. Use the surroundi
 
 If there are no `<reader-annotation>` elements, briefly say in the requested explanation language that this reading segment has no marked items, then stop.
 
+## Word, Phrase, and Sentence Boundary
+
+- A phrase must be a reusable lexical expression, fixed expression, collocation, or grammar unit that can function inside other sentences. It must not be an entire proposition merely because the marked selection is short or lacks sentence-final punctuation.
+- Classify a marked span as a sentence when it expresses a proposition with its own predicate. For this workflow, `sentence` includes both an independent sentence and sentence-level material such as a finite dependent or connective clause.
+- Apply that semantic and syntactic boundary even when the selection omits final punctuation or ends inside a larger sentence. Do not classify by character count or punctuation alone.
+- Apply this boundary to every language, including the active English, Japanese, Traditional Chinese, and Korean learning-language workspaces. A language without a special example below still follows the same predicate-and-proposition test.
+- For English, `There is no difference large enough to prevent communication` is a sentence and `Although motivations for learning a language differ from person to person` is a dependent clause; neither is a phrase. Reusable expressions such as `in theory` and `in my experience` are phrases.
+- For Japanese, treat a span with its own finite predicate as sentence-level material. Japanese finite predicates and connective clause endings such as `ですが`, `けれど`, `ので`, `から`, `なら`, `たら`, and `ても` do not make the proposition a reusable phrase. Predicate endings such as `ありません` remain sentence-level even when `。` is outside the marked span.
+- Example: `部分も多少はあるのですが、コミュニケーションが取れないほど大きな違いはありません` is a sentence, and `外国語を学ぶ動機は人それぞれですが` is a sentence-level connective clause. Neither is a phrase or an invitation target.
+- By contrast, reusable Japanese expressions such as `理論上` and `私の経験上` are phrases because they do not independently assert a proposition and can be reused inside many sentences.
+- For Traditional Chinese, `差異並沒有大到無法溝通的程度` is a sentence and `雖然學習外語的動機因人而異` is a dependent clause; neither is a phrase even without `。`。Reusable expressions such as `理論上` and `依我的經驗` are phrases.
+- For Korean, `의사소통이 불가능할 정도로 큰 차이는 없습니다` is a sentence and `외국어를 배우는 동기는 사람마다 다르지만` is a connective clause; neither is a phrase. Korean endings such as `-지만`, `-는데`, `-아서/-어서`, `-니까`, `-면`, and `-더라도` remain sentence-level when the span has its own predicate and proposition. The endings themselves may still be eligible grammar units when marked independently. Reusable expressions such as `이론상` and `제 경험상` are phrases.
+
 ## Explanation Workflow
 
 1. Classify every marked item as a word, phrase, or sentence.
@@ -56,7 +69,8 @@ Then emit exactly one fenced `learning-item-invitation` block with valid JSON:
 ```
 
 - Include every annotation classified as a word or phrase, in source order.
-- Do not include sentence annotations and do not split sentence annotations into all of their words.
+- Recheck every proposed target against the word/phrase boundary above before emitting the invitation.
+- Do not include sentence annotations or sentence-level clauses, and do not split them into all of their words.
 - Use an empty `targets` array when the explanation contains no word or phrase. The Add to Learning Library action will ask the reader what to add.
 - Do not claim that anything has been saved. The App only uses this block to display an explicit invitation action.
 - Put no commentary after the block.

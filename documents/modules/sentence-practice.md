@@ -2,7 +2,7 @@
 title: 整合造句練習模組
 module: sentence-practice
 status: active
-last_updated: 2026-08-14
+last_updated: 2026-08-25
 related_implements:
   - F46-integrated-sentence-practice
   - F47-generate-sentence-practice-examples
@@ -226,7 +226,7 @@ local calendar day.
   每個本地日期的造句運用次數。
 - 不提供主題、故事情境、手動 item selection、deck 或標籤篩選。
 - 必要用詞的自然詞形與目標語義由 AI 判斷，不提供本機英文形態分析器。
-- Meaning 提示沿用項目已保存的語言；變更全域講解語言不會即時翻譯既有內容。
+- Meaning 提示沿用項目已保存的語言；變更目前工作區的講解語言不會即時翻譯既有內容。
 
 ## 10. Related Documents
 

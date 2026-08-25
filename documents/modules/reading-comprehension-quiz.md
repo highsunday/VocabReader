@@ -2,7 +2,7 @@
 title: 閱讀測驗與區段練習模組
 module: reading-comprehension-quiz
 status: active
-last_updated: 2026-08-03
+last_updated: 2026-08-25
 related_implements:
   - F17-reading-segment-comprehension-quiz
   - F18-use-reading-comprehension-skill
@@ -44,7 +44,8 @@ related_implements:
 - 使用者直接點選 A–D、輸入問答題並一次提交完整答案；未完成所有題目時不可提交。
 - 試卷在送出後鎖定答案並顯示批改中狀態；skill 以 matching grade artifact 回傳逐題批改與 final review。
 - 完整批改以紅筆批註風格顯示在原題旁；總結預設只顯示分數與摘要列，閱讀理解、書面表達及複習重點可另外展開。不完整、格式錯誤或 quiz id 不相符的 artifact 不會被視為完成。
-- 題目、問答題預期作答語言及批改共同遵守全域**講解語言**，直接引文保留原文。
+- 題目與問答題預期作答語言使用目前**學習語言**；批改與教學說明使用目前工作區的
+  **講解語言**，直接引文保留原文。
 - 題目與批改 artifact 隨 AI 訊息保存在對話文字中；Renderer 作答狀態不另做跨啟動持久化。
 - 閱讀頁另提供「Retelling practice」入口；AI 判斷閱讀區段的主要原文語言並產生單一自由文字框，不提供主旨、細節、句數或字數提示。
 - 復述批改依序顯示具體理解／遺漏／語言改善意見、**基礎修正版**、只補入少量原文細節的**進階優化版**，以及正確度、完整度、原文語言表達各 0–5 分的**復述評分**。
@@ -57,7 +58,7 @@ related_implements:
 
 - `text: "開始閱讀測驗"`
 - `intent: "practiceReading"`
-- `explanationLanguage: source | zh-TW | en | ja`
+- `explanationLanguage: source | zh-TW | en | ja | ko`
 - 可選的書名與章節名稱
 - 當下 `<reading-segment>`
 
@@ -174,7 +175,7 @@ Main Process 將同一個 `explanationLanguage` 映射值同時提供給 `Quiz l
 | `annotation`／`reading-range` | START／END 區段與安全序列化；標記只作 markup |
 | `skill-management` | 固定閱讀測驗／復述 skills 安裝、內嵌 instructions、marker gate 與隔離設定 |
 | `ai-conversation` | 同一 thread 的出題、後續作答、串流、Markdown 與對話保存 |
-| settings | 全域講解語言，以及 AI 對話／試卷可閱讀文字大小的讀取、驗證與持久化 |
+| settings | 各學習語言工作區的講解語言，以及 AI 對話／試卷可閱讀文字大小的讀取、驗證與持久化 |
 
 本模組不擁有標記資料、題庫、學習項目、回答評估排程或間隔複習資料。它和解釋標記共用 context 與語言設定，但 `practiceReading` turn 不得注入標記解析 skill。
 

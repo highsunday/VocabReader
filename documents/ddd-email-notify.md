@@ -1093,3 +1093,41 @@ DDD standalone TDD completion notification.
 
 **Follow-up**
 - No action required.
+
+#### L055 — 2026-08-25 20:14 CST — B34 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B34 排除被誤判為片語的日文句子與子句`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a038d7706e52b3f`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- No action required.
+
+#### L056 — 2026-08-25 20:22 CST — B34 v1.1 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification for the multilingual and Korean expansion.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B34 v1.1 跨語言排除句子與子句（含韓文）`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a038ded51f8c5d1`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- No action required.

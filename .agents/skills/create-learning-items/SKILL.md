@@ -16,12 +16,26 @@ Create structured drafts for words and phrases. Never write to the learning libr
 - Follow the requested explanation language. Preserve target-language terms, IPA, collocations, and example sentences as needed.
 - Follow the App-provided `Learning-language workspace`. Every requested target and every draft must belong to that language. If a target belongs to another supported language, do not emit a draft for it; tell the reader to switch to that learning-language workspace.
 
+## Target Eligibility Boundary
+
+- Revalidate every App-supplied target as an eligible word or reusable phrase before duplicate comparison or drafting. Do not assume that an upstream invitation classified the target correctly.
+- A reusable phrase is a lexical expression, fixed expression, collocation, or grammar unit that can function inside other sentences. A span that expresses a proposition with its own predicate is sentence-level material, including finite dependent and connective clauses.
+- Never emit a draft, existing match, or trashed match for a complete sentence or clause. Do not turn the whole span into a phrase title, and do not automatically split it into words or smaller targets.
+- Apply this boundary semantically and syntactically. Do not decide from character count or punctuation alone; a long fixed expression can be eligible, while a short unpunctuated clause can be ineligible.
+- Apply the same eligibility boundary to every language, including the active English, Japanese, Traditional Chinese, and Korean learning-language workspaces. A language without a special example below still follows the same predicate-and-proposition test.
+- For English, reject `There is no difference large enough to prevent communication` and `Although motivations for learning a language differ from person to person`; keep `in theory` and `in my experience` eligible.
+- For Japanese, finite predicates and connective clause endings such as `ですが`, `けれど`, `ので`, `から`, `なら`, `たら`, and `ても` are sentence-level when the marked span already expresses a proposition. A missing `。` does not make that material a phrase.
+- Reject `部分も多少はあるのですが、コミュニケーションが取れないほど大きな違いはありません` and `外国語を学ぶ動機は人それぞれですが` as sentence-level material. Keep reusable phrases such as `理論上` and `私の経験上` eligible.
+- For Traditional Chinese, reject `差異並沒有大到無法溝通的程度` and `雖然學習外語的動機因人而異`; keep `理論上` and `依我的經驗` eligible.
+- For Korean, reject `의사소통이 불가능할 정도로 큰 차이는 없습니다` and `외국어를 배우는 동기는 사람마다 다르지만`; keep `이론상` and `제 경험상` eligible. Endings such as `-지만`, `-는데`, `-아서/-어서`, `-니까`, `-면`, and `-더라도` are sentence-level when attached to a span that already expresses a proposition, but may be eligible grammar units when independently requested.
+- When eligible and ineligible targets are mixed, omit every ineligible target from `drafts`, `existing`, and `trashed`, briefly tell the reader which sentence-level targets were skipped, and continue with the eligible targets. When none remain eligible, ask one focused question under the clarification contract and do not emit a draft batch.
+
 ## Explanation Language
 
 - When the App requests the source language, use the active learning-language workspace as the explanation language for every draft.
 - When the App requests a fixed language, use that language for every draft in the batch, regardless of the target or reading-segment language.
 - Apply the selected language to meanings, learner-facing notes, and example support. Preserve target titles, IPA, target-language example sentences, and other content that must remain in its original form.
-- Write every example in the learning item's own language, independently of the requested explanation language. English items use English examples, Japanese items use Japanese examples, Traditional Chinese items use Traditional Chinese examples, and `other` items use the specific language inferred from their title and sense.
+- Write every example in the learning item's own language, independently of the requested explanation language. English items use English examples, Japanese items use Japanese examples, Traditional Chinese items use Traditional Chinese examples, Korean items use Korean examples, and `other` items use the specific language inferred from their title and sense.
 - When the explanation language and learning-item language are the same, follow every example with a simpler same-language paraphrase. When they differ, follow every example with a natural translation in the explanation language. The support line is required in both cases.
 - Keep `sense` as a short English semantic identifier for stable duplicate comparison.
 
@@ -115,7 +129,7 @@ For every new word or phrase, provide:
 - `title`
 - `requestedTitles`: one or more exact requested titles resolved by this entry
 - `itemType`: `word` or `phrase`
-- `language`: the App-provided active workspace code (`en`, `ja`, or `zh-TW`)
+- `language`: the App-provided active workspace code (`en`, `ja`, `zh-TW`, or `ko`)
 - `cefr`: `A1`, `A2`, `B1`, `B2`, `C1`, or `C2`
 - `sense`: a short English semantic identifier
 - `markdownContent`

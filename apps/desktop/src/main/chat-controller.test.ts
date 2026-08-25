@@ -2077,7 +2077,8 @@ describe("composeCodexInput", () => {
     ["source", "Use the same language as the current reading segment"],
     ["zh-TW", "Traditional Chinese"],
     ["en", "English"],
-    ["ja", "Japanese"]
+    ["ja", "Japanese"],
+    ["ko", "Korean"]
   ] as const)("passes the %s explanation language to the annotation skill", (
     explanationLanguage,
     expectedLanguage
@@ -2125,7 +2126,8 @@ describe("composeCodexInput", () => {
   it.each([
     ["zh-TW", "Traditional Chinese"],
     ["en", "English"],
-    ["ja", "Japanese"]
+    ["ja", "Japanese"],
+    ["ko", "Korean"]
   ] as const)("uses fixed %s for every learning card", (
     explanationLanguage,
     expectedLanguage
@@ -2353,6 +2355,61 @@ describe("create-learning-items skill", () => {
       "contextual answer itself as a new card title"
     );
   });
+
+  it("revalidates trusted targets and excludes sentences or clauses from drafts", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain(
+      "Revalidate every App-supplied target as an eligible word or reusable phrase"
+    );
+    expect(skill).toContain(
+      "Do not assume that an upstream invitation classified the target correctly"
+    );
+    expect(skill).toMatch(
+      /Never emit a draft, existing match, or trashed match for a complete sentence or clause/
+    );
+    expect(skill).toContain(
+      "部分も多少はあるのですが、コミュニケーションが取れないほど大きな違いはありません"
+    );
+    expect(skill).toContain("外国語を学ぶ動機は人それぞれですが");
+    expect(skill).toContain("理論上");
+    expect(skill).toContain("私の経験上");
+  });
+
+  it("revalidates sentence boundaries in every supported learning language", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain("Apply the same eligibility boundary to every language");
+    expect(skill).toContain(
+      "There is no difference large enough to prevent communication"
+    );
+    expect(skill).toContain(
+      "Although motivations for learning a language differ from person to person"
+    );
+    expect(skill).toContain("in theory");
+    expect(skill).toContain("in my experience");
+    expect(skill).toContain("差異並沒有大到無法溝通的程度");
+    expect(skill).toContain("雖然學習外語的動機因人而異");
+    expect(skill).toContain("依我的經驗");
+    expect(skill).toContain("의사소통이 불가능할 정도로 큰 차이는 없습니다");
+    expect(skill).toContain("외국어를 배우는 동기는 사람마다 다르지만");
+    expect(skill).toContain("이론상");
+    expect(skill).toContain("제 경험상");
+  });
+
+  it("supports Korean learning-item drafts and examples", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain(
+      "Korean items use Korean examples"
+    );
+    expect(skill).toContain(
+      "the App-provided active workspace code (`en`, `ja`, `zh-TW`, or `ko`)"
+    );
+    expect(skill).toMatch(
+      /A batch may\s+not contain multiple language values or `other`/
+    );
+  });
 });
 
 describe("explain-reader-annotations skill", () => {
@@ -2375,5 +2432,48 @@ describe("explain-reader-annotations skill", () => {
     expect(skill).toContain("learning-item-invitation");
     expect(skill).toContain("Do not include sentence annotations");
     expect(skill).not.toContain("give 2–3 natural examples");
+  });
+
+  it("classifies Japanese propositions and connective clauses as sentences", () => {
+    const skill = annotationExplanationSkillInstructions;
+
+    expect(skill).toContain(
+      "A phrase must be a reusable lexical expression, fixed expression, collocation, or grammar unit"
+    );
+    expect(skill).toContain(
+      "Classify a marked span as a sentence when it expresses a proposition with its own predicate"
+    );
+    expect(skill).toContain(
+      "even when the selection omits final punctuation or ends inside a larger sentence"
+    );
+    expect(skill).toContain(
+      "Japanese finite predicates and connective clause endings"
+    );
+    expect(skill).toContain("ですが");
+    expect(skill).toContain("ありません");
+    expect(skill).toContain("理論上");
+    expect(skill).toContain("私の経験上");
+    expect(skill).toMatch(/Do not classify by character count or punctuation alone/);
+  });
+
+  it("defines sentence and phrase examples for every supported learning language", () => {
+    const skill = annotationExplanationSkillInstructions;
+
+    expect(skill).toContain("Apply this boundary to every language");
+    expect(skill).toContain(
+      "There is no difference large enough to prevent communication"
+    );
+    expect(skill).toContain(
+      "Although motivations for learning a language differ from person to person"
+    );
+    expect(skill).toContain("in theory");
+    expect(skill).toContain("in my experience");
+    expect(skill).toContain("差異並沒有大到無法溝通的程度");
+    expect(skill).toContain("雖然學習外語的動機因人而異");
+    expect(skill).toContain("依我的經驗");
+    expect(skill).toContain("의사소통이 불가능할 정도로 큰 차이는 없습니다");
+    expect(skill).toContain("외국어를 배우는 동기는 사람마다 다르지만");
+    expect(skill).toContain("이론상");
+    expect(skill).toContain("제 경험상");
   });
 });

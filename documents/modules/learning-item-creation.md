@@ -9,6 +9,7 @@ related_implements:
   - B06-use-explanation-language-for-learning-cards
   - B19-use-learning-item-language-for-examples
   - B07-preserve-clarified-learning-item-targets
+  - B34-exclude-japanese-clauses-from-learning-items
   - F27-trigger-learning-card-creation-from-natural-language
   - F28-ai-graded-spaced-review-paper
   - F34-route-multilingual-learning-item-intent-with-ai
@@ -42,9 +43,10 @@ related_implements:
 4. `LocalLearningLibrary.findDuplicateCandidates()` 以 trim、英文大小寫不敏感、
    完整標題相等查詢 active 與 trashed 候選。
 5. `create-learning-items` 只收到請求目標、有限閱讀區段及候選的
-   id／title／sense／status／Markdown，負責原型化、語義去重、必要澄清及草稿內容。
+   id／title／sense／status／Markdown，先重新驗證每個 target 是可獨立學習的單字或
+   可重複使用片語，再負責原型化、語義去重、必要澄清及草稿內容。
 6. Main 驗證 fenced `learning-item-result`；每個結果的 `requestedTitles` 必須落在該
-   turn 的受信任目標，並具有 `en | ja | zh-TW | other` 其中一個學習項目語言；match id
+   turn 的受信任目標，並具有 `en | ja | zh-TW | ko | other` 其中一個學習項目語言；match id
    仍必須來自 App 提供的候選。
 7. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要與安全
    渲染的 Markdown 預覽；使用者可把草稿排除／恢復，但不可編輯草稿內容。active
@@ -60,7 +62,7 @@ related_implements:
    首次引入順序由複習模組按 CEFR A1→C2 決定。
 
 AI 逐筆依 canonical title 與目標語義判定**學習項目語言**；它不沿用請求、閱讀區段、
-介面或講解語言。同批草稿可具有不同語言，無法可靠歸入英文、日文或繁體中文時使用
+介面或講解語言。同批草稿限於目前工作區的學習語言；舊資料無法可靠歸入英文、日文、繁體中文或韓文時使用
 其他語言。提交 recheck 只判斷語義重複，並保留草稿原語言。
 
 AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使用頻率
@@ -87,6 +89,14 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
   程式不從 AI 可見文字猜測 targets，也不把含空格的片語任意拆成多個單字。
 - `explain-reader-annotations` 在複習表後輸出 `learning-item-invitation`。
   Renderer 顯示「加入生詞庫」，預設一次加入全部 word／phrase targets。
+- 解析與建立兩個 skill 共用同一個適格性邊界：phrase 必須是可在其他句子中
+  重複使用的詞彙、固定表達、搭配或文法單位；帶自身述語且表達命題的
+  完整句、從屬子句或連接子句都不適格。這個邊界顯式套用於英文、日文、
+  繁體中文與韓文，並是其他語言的預設原則。日文選取即使缺少 `。`，以
+  `〜ですが` 等連接形或 `〜ありません` 等有限述語完成命題時仍不是 phrase；
+  韓文已有述語的 `-지만`、`-는데`、`-니까` 等連接子句也不是 phrase。
+- creation skill 不信任上游已正確分類 target；混合批次只對適格 word／phrase
+  產生 draft／existing／trashed，不適格句子／子句不轉成整句標題也不自動拆詞。
 - 接受 invitation 後的建立 turn 沿用同一 AI 對話，因此 creation skill 可把該次解析與
   有限閱讀區段作為受限學習上下文；它優先整理與個別標題及目標語義直接相關、值得長期
   複習的細節，而不是只依 invitation 的簡短 `senseHint` 重新壓縮內容。
@@ -97,13 +107,13 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
 
 ## 4. Explanation Language
 
-- 建立流程沿用全域**講解語言**設定，不新增卡片專用設定。
+- 建立流程沿用目前學習語言工作區的**講解語言**設定，不新增卡片專用設定。
 - 設定為 `source` 時，以每個 requested target title 本身的語言為準：英文使用英文、
-  繁體中文使用繁體中文、日文使用日文。同一批草稿可以逐張使用不同語言，閱讀區段的
+  繁體中文使用繁體中文、日文使用日文、韓文使用韓文。閱讀區段的
   語言不得覆蓋這項判斷。
-- 設定為 `zh-TW`、`en` 或 `ja` 時，批次內每張草稿分別固定使用繁體中文、英文或日文。
-- 每句例句本體使用該筆學習項目語言；英文、日文與繁體中文項目分別使用自然的
-  英文、日文與繁體中文例句。
+- 設定為 `zh-TW`、`en`、`ja` 或 `ko` 時，批次內每張草稿分別固定使用繁體中文、英文、日文或韓文。
+- 每句例句本體使用該筆學習項目語言；英文、日文、繁體中文與韓文項目分別使用自然的
+  英文、日文、繁體中文與韓文例句。
 - 每句例句以有序清單呈現、粗體標出目標詞，並固定緊接一個以 `→` 開頭的縮排行作為
   **例句輔助說明**。講解語言與學習項目語言相同時，該行以較簡單的同語言換句話說
   解開目標詞在句中的意思；兩者不同時，該行使用講解語言自然翻譯。每句只使用其中
@@ -187,9 +197,14 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
   唯讀詳情與錯誤重試，以及普通訊息不做 Renderer 文字配對、重試 UI 與明確放棄流程。
 - `desktop.spec.ts`：production skill 安裝與 preload bridge 白名單。
 
+`chat-controller.test.ts` 另驗證日文完整命題、連接子句與真正可重複使用片語的
+分類邊界，以及 creation skill 對上游誤分 target 的二次防護；同組契約測試
+也以英文、繁體中文與韓文正反例驗證跨語言一致性。
+`learning-item-artifacts.test.ts` 驗證 `language: ko` 草稿可通過 Main artifact 邊界並保留韓文標題。
+
 ## 9. Non-goals
 
 不支援 sentence 卡片、來源追溯、完整生詞庫 AI 搜尋、任意 AI 資料庫工具、自動提交、
 匯入／匯出、同步或跨裝置資料。間隔複習由獨立模組承接已提交項目，不改變本模組的
 草稿與交易規則。任意語言只適用於建立意圖與 targets 的語義辨識；草稿內容仍只使用
-現有 `source | zh-TW | en | ja` 講解語言契約。
+現有 `source | zh-TW | en | ja | ko` 講解語言契約。

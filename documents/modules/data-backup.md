@@ -2,19 +2,21 @@
 title: 資料備份與完整還原模組
 module: data-backup
 status: active
-last_updated: 2026-08-20
+last_updated: 2026-08-25
 related_implements:
   - F38-export-and-restore-data-backup
   - F59-add-learning-item-representative-image
   - F64-show-sentence-practice-activity-statistics
   - F66-daily-listen-repeat-goal-and-activity
+  - F69-isolate-learning-language-workspaces
 ---
 
 # 資料備份與完整還原模組
 
-> F69 格式：最外層改為 `vocabreader-learning-language-backup`，包含 `en`、`ja`、`zh-TW`
-> 三份下述既有格式的完整工作區 ZIP、共享設定與可選待分類 SQLite。預覽分區顯示數量，
-> 還原完整取代三區與設定後重啟；AI 對話、Codex runtime、目前跟讀素材與音訊仍排除。
+> F69 格式：最外層改為 `vocabreader-learning-language-backup` version 2，包含 `en`、`ja`、
+> `zh-TW`、`ko` 四份下述既有格式的完整工作區 ZIP、共享設定與可選待分類 SQLite。
+> 預覽分區顯示數量，還原完整取代四區與設定後重啟；匯入舊 version 1 三區備份時保留
+> 目的裝置目前的韓文工作區。AI 對話、Codex runtime、目前跟讀素材與音訊仍排除。
 
 ## 1. Purpose
 
@@ -22,8 +24,8 @@ related_implements:
 活動量**封裝為單一 VocabReader ZIP，供使用者自行移到另一台電腦，再以**資料還原**完整
 取代目的裝置的四個資料域。
 
-這是手動備份／還原，不是雙向同步或合併匯入。AI 對話、全域設定、Codex runtime
-及暫態複習試卷刻意不在備份範圍內。
+這是手動備份／還原，不是雙向同步或合併匯入。外層多語工作區備份會保存共享設定；
+AI 對話、Codex runtime 及暫態複習試卷刻意不在備份範圍內。
 
 ## 2. Current Implementation Status
 

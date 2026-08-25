@@ -117,6 +117,32 @@ describe("parseLearningItemArtifacts", () => {
       language: "ja"
     });
 
+    const korean = parseLearningItemArtifacts([
+      "카드를 준비했습니다.",
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "이론상",
+          requestedTitles: ["이론상"],
+          itemType: "phrase",
+          language: "ko",
+          cefr: "B1",
+          sense: "in theory",
+          markdownContent: "## Meaning\n이론적으로 따져 보면."
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```"
+    ].join("\n"), () => "draft-ko");
+
+    expect(korean.error).toBeUndefined();
+    expect(korean.batch?.drafts[0]).toMatchObject({
+      id: "draft-ko",
+      language: "ko",
+      title: "이론상"
+    });
+
     const missing = parseLearningItemArtifacts([
       "```learning-item-result",
       JSON.stringify({

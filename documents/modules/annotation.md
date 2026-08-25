@@ -2,7 +2,7 @@
 title: 持久標記與 AI 標記解析模組
 module: annotation
 status: active
-last_updated: 2026-08-10
+last_updated: 2026-08-25
 related_implements:
   - F13-persistent-annotations-and-ai-analysis
   - F14-sticky-annotation-tool
@@ -13,6 +13,7 @@ related_implements:
   - B04-use-language-setting-for-reading-quiz
   - F18-use-reading-comprehension-skill
   - B05-use-quiz-language-for-open-ended-answers
+  - B34-exclude-japanese-clauses-from-learning-items
   - F25-adjustable-reading-and-conversation-font-sizes
   - F38-export-and-restore-data-backup
   - F56-speak-selected-reader-text
@@ -60,9 +61,9 @@ AI 只取得 START／END 內的原文與標記交集。一般提問維持正常�
 - 以 `<reading-segment>` 包住閱讀區段，並以 `<reader-annotation id="A1">…</reader-annotation>` 依原語序標出區段內標記。
 - START／END 或標記新增、移除後，下一則 AI 訊息會取得最新版本；一般未變追問不重傳相同上下文。
 - 「講解標記內容」每次都附上當下區段，避免先前一般問答的上下文去重使解析意圖看不到標記。
-- 「閱讀測驗」每次也附上當下區段，明確呼叫 App 內建閱讀理解 skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題問答題；題面、問答題回答與批改使用目前講解語言，不要求已有標記，第一輪不揭露答案、解析或提示。
+- 「閱讀測驗」每次也附上當下區段，明確呼叫 App 內建閱讀理解 skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題問答題；題面與問答題回答使用目前學習語言，批改說明使用目前工作區的講解語言，不要求已有標記，第一輪不揭露答案、解析或提示。
 - AI 解析明確呼叫 App 內建並安裝到 user data 的 `explain-reader-annotations` skill，固定依單字、片語、句子分組，同組依原文位置排列，並依標記本文用法提供 CEFR 與複習表；分類只存在於 AI 回覆，不回寫標記。
-- 全域講解語言可選原文語言、繁體中文、English 或日本語，預設為原文語言並持久保存；後續標記解析、閱讀測驗題面、問答題回答要求及批改共用這項設定。
+- 每個學習語言工作區各自保存講解語言，可選原文語言、繁體中文、English、日本語或한국어，預設為原文語言；後續標記解析、閱讀測驗與復述批改說明使用目前工作區的設定。
 
 ## 3. Domain Data and Invariants
 
@@ -135,21 +136,23 @@ Renderer 只能傳送型別化的 `intent: "explainAnnotations"` 與受限講解
 
 - 只把 `<reader-annotation>` 內文字視為標記。
 - 自動判斷單字、片語、句子，固定依此順序分組，同組依原文順序排列。
+- 片語必須是能在其他句子中重複使用的詞彙、固定表達、搭配或獨立文法單位；
+  具有自身述語並表達完整或從屬命題的內容屬於句子層級，不因缺少結尾標點而改判片語。
 - 句子可說明句型、文法與上下文語意。
 - 每個標記依本文用法提供約略 CEFR；Meaning、Context、Grammar、Vocabulary、Examples、Synonyms、Common collocations、Pronunciation、Common mistakes、Easy paraphrase 等小節只在有助理解時使用；採用 Examples 時必須提供 3–5 個彼此不同、完整且自然的例句，不得只給 1 或 2 句。
 - 回覆最後提供本次講解語言的精簡複習表。
 - 不翻譯整段、不自行選取未標記文字。
 - 沒有標籤時明確回覆目前沒有標記內容。
-- 依 `source | zh-TW | en | ja` 決定本次講解語言。
+- 依 `source | zh-TW | en | ja | ko` 決定本次講解語言。
 
-Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受限講解語言。Main process 加入 `$practice-reading-comprehension` marker 及指向 App user data 固定路徑的型別化 skill input。skill 先估計 CEFR，再依區段長度與複雜度產生 8 至 12 題 A–D 四選一及 1 至 3 題問答題，並在後續答案 turn 逐題批改與提供 final review。標題、題目、選項、問答題、作答說明、問答題預期回答及批改依 `source | zh-TW | en | ja` 使用原文語言、繁體中文、English 或日本語；直接引用閱讀區段時保留原文，問答題不限制句數。第一輪不揭露答案、解析、參考回答或提示。這個意圖不注入標記解析 skill，且標記只作為閱讀器邊界資訊，不改變出題範圍。
+Renderer 也可以傳送白名單內的 `intent: "practiceReading"` 與相同受限講解語言。Main process 加入 `$practice-reading-comprehension` marker 及指向 App user data 固定路徑的型別化 skill input。skill 先估計 CEFR，再依區段長度與複雜度產生 8 至 12 題 A–D 四選一及 1 至 3 題問答題，並在後續答案 turn 逐題批改與提供 final review。標題、題目、選項、問答題、作答說明、問答題預期回答及批改依 `source | zh-TW | en | ja | ko` 使用原文語言、繁體中文、English、日本語或한국어；直接引用閱讀區段時保留原文，問答題不限制句數。第一輪不揭露答案、解析、參考回答或提示。這個意圖不注入標記解析 skill，且標記只作為閱讀器邊界資訊，不改變出題範圍。
 
 一般輸入沒有此 intent，即使上下文含標籤也只是正常 AI 問答。預設動作沿用目前右側 AI 對話及 Codex thread；空白對話仍在送出時才建立。
 
 ## 7. Settings Boundary
 
-講解語言、字體、AI Voice 角色與語氣都是全域應用程式偏好，不屬於單本書、單章或單一
-AI 對話。Main process 的 `LocalSettingsStore` 只把受限非敏感設定保存到 Electron user data
+講解語言由各學習語言工作區分別保存；字體、AI Voice 角色與語氣則是全域應用程式偏好。
+這些設定都不屬於單本書、單章或單一 AI 對話。Main process 的 `LocalSettingsStore` 只把受限非敏感設定保存到 Electron user data
 的 `settings/settings.json`，串行寫入 `.next` 再原子替換。AI Voice 預設為 Cedar／Learning。
 OpenAI API key 則由獨立 credential store 使用 Electron `safeStorage` 加密保存；一般設定 API
 只回傳 `hasApiKey`，不回傳原始 key。按下 Apply and preview 會先以候選設定播放固定短句，

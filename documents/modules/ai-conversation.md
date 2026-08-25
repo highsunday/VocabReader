@@ -21,6 +21,7 @@ related_implements:
   - F19-local-learning-library-page
   - F21-ai-assisted-learning-item-creation
   - B07-preserve-clarified-learning-item-targets
+  - B34-exclude-japanese-clauses-from-learning-items
   - F23-interactive-reading-practice-paper
   - F24-reorder-reader-chat-presets
   - F25-adjustable-reading-and-conversation-font-sizes
@@ -86,7 +87,7 @@ related_implements:
 - 預設解析意圖由 Main process 明確注入 App 內建並安裝到 user data 的 `explain-reader-annotations` skill；skill 提供選擇式教學小節、本文用法 CEFR 與複習表，一般輸入仍是正常多輪問答。
 - 閱讀頁提供「閱讀測驗」預設動作；Main process 明確呼叫 App 內建 `practice-reading-comprehension` skill，依區段長度與複雜度產生 8 至 12 題四選一及 1 至 3 題問答題。Renderer 驗證 AI 訊息中的固定 quiz artifact 後，在該訊息下方顯示可折疊試卷產物；點擊後直接在同一 AI 訊息內展開。試卷以 AI 對話欄自身寬度採單／雙欄自適應排版，提供進度條、48px 答案點擊區、問答輸入及一次提交；matching grade artifact 以易讀紅筆批註呈現逐題批改、分數與可展開的 final review。
 - 閱讀頁提供「復述練習」預設動作；Main process 明確呼叫 App 內建 `practice-segment-retelling` skill。有效 task artifact 在原 AI 訊息中顯示與閱讀測驗一致風格的可折疊紙張卡，要求使用者以 AI 判定的原文主要語言在單一文字框自由復述；matching grade artifact 依序呈現改善意見、基礎修正版、進階優化版及三項 0–5 分，並支援一次空白的再次復述與兩次比較。
-- 設定入口可保存全域講解語言：原文語言（預設）、繁體中文、English 或日本語；影響後續標記解析，以及閱讀測驗的題面、問答題回答要求與批改。
+- 設定入口為每個學習語言工作區各自保存講解語言：原文語言（預設）、繁體中文、English、日本語或한국어；影響後續標記解析，以及閱讀測驗與復述的批改說明。閱讀測驗題面與問答題回答要求仍使用目前學習語言。
 - 設定入口可在 12–24px 間即時調整 AI 對話可閱讀內容；預設 13px，使用者訊息、AI 回覆、相對 Markdown 排版及區段練習試卷的題名、重點、題目、選項、問答輸入、批改與總結共用此設定。工具列、模型選擇、提問框，以及試卷進度、題號、CEFR 與操作控制不受影響。
 - assistant delta 即時累加，item completed 校正最終文字，turn completed 解除 busy；同一
   turn 開始新的 agent message item 時會取代較早的 commentary、不完整輸出或重試回答，
@@ -234,7 +235,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - `context.chapterTitle`：可選，目前章節名稱。
 - `context.readingSegment`：可選，只能來自 `extractReadingSegment()` 的非空輸出。
 - `intent`：可選且只接受 `explainAnnotations | practiceReading | practiceRetelling | createLearningItems`。
-- `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja`；供標記解析、閱讀測驗、復述批改與學習項目草稿共用；復述答案本身仍使用原文主要語言。
+- `explanationLanguage`：可選且只接受 `source | zh-TW | en | ja | ko`；供標記解析、閱讀測驗、復述批改與學習項目草稿共用；復述答案本身仍使用原文主要語言。
 - `learningItemTargets`：只允許 creation intent 使用，最多 50 個 title／senseHint。
 
 ## 5. Connection and Allowance Flow
