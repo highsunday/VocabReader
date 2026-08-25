@@ -4,7 +4,7 @@ date: 2026-08-25
 title: 修正 macOS Release 被判定為已損毀
 uuid: df53eb62-01e4-44d8-95a5-f190fdb8be85
 version: 1.0.0
-status: approved
+status: implemented
 ---
 
 # Bug Fix: 修正 macOS Release 被判定為已損毀
@@ -105,7 +105,57 @@ bundle seal。
 
 ### Status
 
-Implementation in progress on 2026-08-25.
+Implemented and publicly released as `v0.1.1` on 2026-08-25.
+
+### Final Behavior
+
+- electron-builder now receives explicit `mac.identity: "-"` and applies ad-hoc signing to the
+  complete app bundle. `hardenedRuntime` is disabled for this unsigned Early Preview build.
+- Both macOS matrix jobs mount the generated DMG and run
+  `codesign --verify --deep --strict --verbose=4` before the installer can be uploaded.
+- Desktop and workspace release metadata now identify the package as `0.1.1`.
+- GitHub Actions run
+  [`32805072399`](https://github.com/highsunday/VocabReader/actions/runs/32805072399) completed
+  successfully for Apple Silicon, Intel, and Windows x64.
+- Public Release [`v0.1.1`](https://github.com/highsunday/VocabReader/releases/tag/v0.1.1)
+  contains all three expected installers.
+
+### Test and Verification Coverage
+
+| Verification | Result |
+|---|---|
+| `node --test apps/desktop/tests/release-config.test.mjs` | 4/4 passed |
+| `npm run typecheck` | passed |
+| `npm test` | server 3/3, desktop 561/561 passed |
+| Electron end-to-end tests | 4/4 passed |
+| `npm audit` | 0 vulnerabilities |
+| Local Apple Silicon DMG build | passed |
+| Local mounted-DMG strict codesign verification | passed |
+| GitHub Actions three-platform release workflow | passed |
+| Public Apple Silicon DMG download and checksum verification | passed |
+| Public DMG `hdiutil verify` | valid |
+| Public DMG mounted app strict codesign verification | passed |
+| Chrome-quarantined copied app strict codesign verification | passed |
+
+The public Apple Silicon asset was downloaded without repository authentication from its Release
+URL. It was 138,497,532 bytes with SHA-256
+`ed2419e0a76ca6930f601b514f665e6cf78dcf47945a790129dd7e449eb28756`. The mounted app reported
+`Identifier=com.highsunday.vocabreader`, `Signature=adhoc`, and contained a 37,192-byte
+`Contents/_CodeSignature/CodeResources` seal.
+
+### Acceptance Result
+
+- TC1: passed — the release config test requires explicit ad-hoc identity and compatible runtime
+  settings.
+- TC2: passed — the test requires the DMG mount and strict codesign gate before upload.
+- TC3: passed — both local and CI macOS DMGs passed strict recursive verification.
+- TC4: passed — a copied app with Chrome-style quarantine metadata retained a valid bundle seal.
+- TC5: passed — `v0.1.1` exposes Apple Silicon DMG, Intel DMG, and Windows x64 EXE assets publicly.
+
+### Architectural Observation
+
+No new architectural debt was found. The change is confined to release configuration, its contract
+test, version metadata, and release documentation; runtime modules remain unchanged.
 
 ## Appendix: TDD Fix Workflow
 
