@@ -57,6 +57,25 @@ jobs:
       - name: Build installer
         run: npm run ${{ matrix.script }} -w @reader/desktop
 
+      - name: Verify macOS DMG bundle signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          dmg_path="$(find apps/desktop/release -maxdepth 1 -name 'VocabReader-*-mac-*.dmg' -type f -print -quit)"
+          if [[ -z "$dmg_path" ]]; then
+            echo "No macOS DMG was produced"
+            exit 1
+          fi
+          mount_path="$(mktemp -d)"
+          cleanup() {
+            hdiutil detach "$mount_path" >/dev/null 2>&1 || true
+            rmdir "$mount_path" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount_path" "$dmg_path"
+          codesign --verify --deep --strict --verbose=4 "$mount_path/VocabReader.app"
+          codesign -dvv "$mount_path/VocabReader.app" 2>&1 | grep -q 'Signature=adhoc'
+
       - name: Upload installer
         uses: actions/upload-artifact@v7
         with:
