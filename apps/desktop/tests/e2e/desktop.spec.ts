@@ -149,6 +149,7 @@ test("launches the secure Electron reading shell", async () => {
     const userDataPath = await electronApp.evaluate(({ app }) =>
       app.getPath("userData")
     );
+    expect(userDataPath).toMatch(/-dev$/);
     const installedSkill = readFileSync(join(
       userDataPath,
       "codex-runtime/.agents/skills/explain-reader-annotations/SKILL.md"

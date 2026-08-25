@@ -70,9 +70,12 @@ import {
 } from "./selection-speech-service";
 import { SpacedReviewController } from "./spaced-review-controller";
 import { registerSpacedReviewIpc } from "./spaced-review-ipc";
+import { configureDevelopmentUserDataPath } from "./user-data-path";
 import {
   type LearningLanguage
 } from "../shared/settings-contracts";
+
+configureDevelopmentUserDataPath(app);
 
 let chatControllersForShutdown: ChatController[] = [];
 let unsubscribeChatState: (() => void) | undefined;
