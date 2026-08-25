@@ -1,107 +1,146 @@
-<p align="center">
-  <img src="docs/images/vocabreader-hero.png" alt="VocabReader：把原文變成你的英語教室" width="100%" />
-</p>
-
 <h1 align="center">VocabReader</h1>
 
 <p align="center">
-  <strong>Read first. Learn deeply.</strong><br />
-  一個由 Codex 驅動、把 EPUB 閱讀自然接到理解、記憶與主動輸出的桌面學習閱讀器。
+  <strong>讓 AI 陪你讀原文，也陪你把它學會。</strong><br />
+  匯入一本想讀的 EPUB。遇到不懂的地方，AI 會根據前後文解釋，<br />
+  再陪你複習、跟讀、復述和寫作——不用一直切換閱讀器、字典和聊天視窗。
 </p>
 
 <p align="center">
   <img alt="Early Preview" src="https://img.shields.io/badge/status-early_preview-C66A32?style=flat-square" />
-  <img alt="Electron" src="https://img.shields.io/badge/Electron-43-315F4B?style=flat-square&logo=electron&logoColor=white" />
-  <img alt="React" src="https://img.shields.io/badge/React-19-315F4B?style=flat-square&logo=react&logoColor=white" />
-  <img alt="Codex powered" src="https://img.shields.io/badge/AI-Codex-315F4B?style=flat-square&logo=openai&logoColor=white" />
-  <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-C66A32?style=flat-square" />
+  <img alt="macOS and Windows" src="https://img.shields.io/badge/platform-macOS_%7C_Windows-315F4B?style=flat-square" />
+  <img alt="Codex powered" src="https://img.shields.io/badge/AI-Codex_powered-315F4B?style=flat-square&logo=openai&logoColor=white" />
+  <img alt="No API key for text AI" src="https://img.shields.io/badge/text_AI-no_API_key-315F4B?style=flat-square" />
+  <img alt="Free and open source" src="https://img.shields.io/badge/app-free_%26_open_source-C66A32?style=flat-square" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/highsunday/VocabReader/releases"><strong>查看 Releases</strong></a>
+  <a href="https://github.com/highsunday/VocabReader/releases"><strong>下載 macOS／Windows 版本</strong></a>
   ·
-  <a href="#從原始碼啟動"><strong>立即試用</strong></a>
+  <a href="#一次閱讀走完三個學習階段"><strong>看看怎麼學</strong></a>
   ·
-  <a href="https://github.com/highsunday/VocabReader/issues"><strong>回報問題</strong></a>
+  <a href="https://github.com/highsunday/VocabReader/issues"><strong>提供意見</strong></a>
 </p>
+
+![在 VocabReader 閱讀原文，並讓 AI Tutor 根據目前段落提供協助](docs/images/reading-with-ai.png)
+
+## 讀原文最累的，常常不是看不懂
+
+而是每遇到一個生字，就要離開書本查字典；想問句子，又得把原文貼進 AI；好不容易看懂了，幾天後卻什麼也沒留下。
+
+VocabReader 把這些步驟放回同一個閱讀畫面。你可以先專心讀，真的卡住時才標記內容，讓右側的 **AI Tutor 根據目前這一段原文回答**。理解之後，生詞可以直接留下來複習，剛讀完的內容也能立刻拿來測驗、復述或造句。
+
+> **AI 不替你把書讀完，而是幫你把每一次卡住，變成下一次真的會用。**
+
+## 一次閱讀，走完三個學習階段
+
+### 1. 讀不懂，就在原文旁邊問
+
+標記不懂的單字、片語或句子，AI 會結合前後文說明它在這裡的意思、語氣和用法。你不必複製貼上，也不用重新向 AI 交代自己正在讀哪一本書、哪一段話。
+
+### 2. 看懂之後，讓它留得更久
+
+值得學的單字和片語，可以直接整理成自己的生詞卡。VocabReader 會記住它在原文裡的特定意思，並依照你的回想狀況安排下一次複習；AI 負責出題和提供回饋，最後仍由你判斷自己是否真的記得。
+
+![VocabReader 複習畫面：依照記憶狀況安排每天需要複習的內容](docs/images/spaced-review.png)
+
+### 3. 不只看得懂，還要用得出來
+
+讀完一段後，可以請 AI 出閱讀測驗、練習不看原文復述，或把幾個學過的詞寫進同一篇短文。你也能逐句跟讀、錄下自己的聲音，從理解一路練到真正能說、能寫。
+
+![VocabReader 寫作練習：把多個學過的詞自然用進同一篇短文](docs/images/sentence-practice.png)
+
+## AI Tutor 可以陪你做什麼？
+
+| 你想做的事 | AI 如何協助 |
+|---|---|
+| **弄懂一句原文** | 根據目前閱讀內容，解釋單字、片語、句型和語氣。 |
+| **留下值得學的詞** | 草擬意思、程度、常見搭配與例句；送進生詞庫前先讓你確認。 |
+| **確認自己真的看懂** | 針對剛讀完的內容出題，而不是只給一份通用練習。 |
+| **練習用自己的話表達** | 檢查復述有沒有遺漏原意，並指出可以說得更自然的地方。 |
+| **把生詞用進寫作** | 指定多個學過的詞，陪你把它們自然寫進句子、短文或故事。 |
+
+## 和把原文貼進聊天工具，有什麼不同？
+
+| 一般的做法 | 使用 VocabReader |
+|---|---|
+| 每次重新複製原文、解釋背景 | AI Tutor 已經知道你指定的閱讀範圍 |
+| 得到答案後，對話就結束了 | 解釋可以接著變成生詞、測驗與練習 |
+| 同一個字的不同意思混在一起 | 記住這個字在這次原文中的特定意思 |
+| 閱讀、背單字和寫作分散在不同工具 | 從輸入到輸出，都留在同一個學習流程 |
+
+## 不用先研究 API，也能開始
+
+VocabReader 本身免費、開源。如果你的 ChatGPT 帳號已經可以使用 Codex，VocabReader 會沿用本機的 Codex 登入狀態。上下文解釋、生詞整理、閱讀測驗、複習批改、復述和寫作回饋，都不需要另外申請或貼入 OpenAI API key。
+
+> [!NOTE]
+> 你需要已登入的 Codex Desktop 或 Codex CLI。只有可選的 AI 示範語音／選取朗讀功能需要自行提供 OpenAI API key；不使用這項語音功能，就不必設定 API key。
+
+## 不只用來學英文
+
+VocabReader 的閱讀與 AI 理解流程不綁特定語言。只要 EPUB 文字能被正常讀取，AI 就能依照上下文協助你理解。
+
+目前完整提供 **英文、日文與繁體中文**三種獨立學習空間。每種語言都有自己的書庫、進度和生詞，不會全部混在一起。其他語言的 EPUB 也可以匯入、閱讀和詢問 AI；不過生詞分類、語音等細節，還沒有針對每一種語言逐一調整。
+
+## 這款 App 適合你嗎？
+
+VocabReader 適合：
+
+- 想用小說、非虛構作品或專業書籍學習語言的人。
+- 已經能讀一些原文，但常常被生字和長句打斷的人。
+- 查過很多單字，卻總是過幾天就忘記的人。
+- 希望 AI 幫忙理解，而不是直接把整本書翻譯完的人。
+- 已有可使用 Codex 的 ChatGPT 帳號，不想再管理文字 AI API key 和用量的人。
+
+如果你需要的是整本自動翻譯、手機 App、雲端同步，或完全離線的無 AI 閱讀器，目前的 VocabReader 可能不適合你。
+
+<details>
+<summary><strong>看看更多產品畫面</strong></summary>
+
+### 把讀過的詞整理成自己的生詞庫
+
+每張卡片保存的是你在原文裡遇到的意思，不只是孤立的中文翻譯。
+
+![VocabReader 生詞庫：搜尋與整理從閱讀內容留下的單字和片語](docs/images/learning-library.png)
+
+### 從短片語開始練習跟讀
+
+聽示範、錄下自己的聲音，再逐步練到完整句子。錄音和練習進度保存在自己的電腦。
+
+![VocabReader 跟讀練習：從短片語逐步練到完整句子](docs/images/listen-and-repeat.png)
+
+</details>
+
+## 三步開始使用
+
+1. 從 [GitHub Releases](https://github.com/highsunday/VocabReader/releases) 下載 macOS Apple Silicon、macOS Intel 或 Windows 64-bit 版本。
+2. 確認 Codex Desktop／CLI 已安裝，並登入能使用 Codex 的 ChatGPT 帳號。
+3. 開啟 VocabReader，選擇學習語言，匯入一本你有權使用的 EPUB。
 
 > [!IMPORTANT]
-> VocabReader 目前是 Early Preview。macOS 與 Windows 安裝包可從 [GitHub Releases](https://github.com/highsunday/VocabReader/releases) 下載；第一版尚未簽章或 notarize，macOS Gatekeeper／Windows SmartScreen 可能顯示「發布者未驗證」警告。
-
-## 閱讀，不該被查單字切得支離破碎
-
-VocabReader 讓你先專心讀原文、標出真正不懂的地方，再讓 AI 只針對目前的**閱讀區段**提供有上下文的說明。值得記住的單字與片語會沉澱成**學習項目**，進入間隔複習；理解過的內容則能立刻拿來復述、跟讀與寫作。
-
-它不是幫你把整本書翻譯完，而是保留第一次獨立閱讀的思考，讓每一次卡住都能變成下一次真正會用的能力。
+> VocabReader 目前仍是 Early Preview，安裝程式還沒有完成開發者簽章。macOS 或 Windows 第一次開啟時，可能出現「無法驗證開發者」或「發布者未驗證」的提醒。請只從本專案的官方 Releases 頁面下載，並確認檔名符合你的電腦版本。
 
 <p align="center">
-  <strong>閱讀 → 理解 → 收進生詞庫 → 間隔複習 → 復述、跟讀與造句</strong>
+  <a href="https://github.com/highsunday/VocabReader/releases"><strong>下載 VocabReader，從下一頁原文開始學</strong></a>
 </p>
 
-## 一套連續的語言學習循環
+<details>
+<summary><strong>你的書籍和學習資料如何被使用？</strong></summary>
 
-| 階段 | VocabReader 幫你做什麼 |
+| 資料 | 處理方式 |
 |---|---|
-| **閱讀** | 導入 EPUB、選定閱讀區段、保留章節位置與進度，讓長篇閱讀更容易持續。 |
-| **理解** | 標記不懂的單字、片語或句子；AI 依原文上下文集中解釋，而不是脫離語境查字。 |
-| **沉澱** | 把值得記住的目標語義整理成學習項目，保存詞性、程度、搭配、例句與來源脈絡。 |
-| **記憶** | 以 FSRS 安排 Anki 式間隔複習，AI 依特定語義出題、批改，再由你確認最終評級。 |
-| **輸出** | 用閱讀測驗、自由復述、逐句跟讀與整合造句，把「看得懂」推進到「說得出、寫得出」。 |
+| EPUB、書庫、閱讀進度、標記、生詞與複習紀錄 | 保存在本機 Electron user data。 |
+| 跟讀錄音與 AI 示範語音 | 保存在目前裝置，不建立雲端錄音庫。 |
+| AI 解釋、出題與批改 | 只有你明確操作時，才把完成該動作所需的有限閱讀內容或學習項目交給 Codex。 |
+| 選取朗讀與 AI 語音 | 只有你明確要求播放時，才使用你設定的 OpenAI API key 傳送所選文字。 |
+| 備份 | 手動匯出為可攜 ZIP；還原會完整取代目標裝置的學習資料，不是雲端同步。 |
 
-## 真的在閱讀介面裡學
+</details>
 
-### 原文、閱讀範圍與 AI Tutor 同時在眼前
+<details>
+<summary><strong>從原始碼啟動與開發</strong></summary>
 
-不用在閱讀器、字典、聊天視窗與筆記工具之間反覆切換。右側 AI Tutor 知道目前允許讀取的範圍，可以解釋標記、建立學習項目、產生閱讀測驗，或開始區段復述練習。
-
-![VocabReader 閱讀頁與 AI Tutor](docs/images/reading-with-ai.png)
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <strong>語義導向的生詞庫</strong><br /><br />
-      <img src="docs/images/learning-library.png" alt="VocabReader 生詞庫" width="100%" /><br />
-      同一個字的不同語義可以分開學；依狀態、語言與 CEFR 快速搜尋與整理。
-    </td>
-    <td width="50%" valign="top">
-      <strong>AI 批改 × FSRS 間隔複習</strong><br /><br />
-      <img src="docs/images/spaced-review.png" alt="VocabReader 間隔複習" width="100%" /><br />
-      系統安排下一次複習，並用回想結果呈現真正的記憶變化，而不只計算打卡次數。
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <strong>逐句跟讀，從短片語練到完整表達</strong><br /><br />
-      <img src="docs/images/listen-and-repeat.png" alt="VocabReader 逐句跟讀練習" width="100%" /><br />
-      聽 AI 示範、錄下自己的聲音並反覆比較；錄音與練習狀態保留在本機。
-    </td>
-    <td width="50%" valign="top">
-      <strong>把學過的詞放進自己的句子</strong><br /><br />
-      <img src="docs/images/sentence-practice.png" alt="VocabReader 整合造句練習" width="100%" /><br />
-      一次自然運用多個已複習項目，寫成短文或故事，再取得保留原意的 AI 修改建議。
-    </td>
-  </tr>
-</table>
-
-## 你會喜歡的細節
-
-- **少切換工具**：書庫、閱讀、AI 對話、生詞庫、複習與輸出練習都在同一個桌面 App。
-- **只教你真正卡住的地方**：先讀後問，AI 優先處理你標記的內容與目前閱讀區段。
-- **記住的是這一次的語義**：學習項目保留目標語義、常用搭配、例句、程度與學習狀態，不只是孤立翻譯。
-- **理解與記憶分開設計**：閱讀測驗確認當下理解；FSRS 間隔複習負責長期記憶。
-- **從輸入走向輸出**：支援區段復述、逐句跟讀與多詞整合造句，不讓學習停在「看過」。
-- **本機優先**：EPUB、閱讀進度、學習項目、複習紀錄與錄音保存在自己的裝置，並可手動備份與完整還原。
-- **多語工作區**：目前提供英文、日文與繁體中文學習語言工作區；書庫、進度與生詞庫彼此隔離。
-
-## 從原始碼啟動
-
-### 需要準備
-
-- Node.js 與 npm。
-- 可執行 `codex app-server` 的 Codex 安裝，並已完成 ChatGPT／Codex 帳戶登入。
-- 一本你有權使用的 EPUB 電子書。
-
-> 核心文字 AI 功能沿用 Codex／ChatGPT 登入狀態，不需要另外貼入 OpenAI API key。只有選取朗讀與 AI 示範語音是例外：啟用時需在設定中提供自己的 OpenAI API key，並會使用 API 額度。
+你需要 Node.js、npm，以及可以執行 `codex app-server` 的 Codex 安裝。
 
 ```bash
 git clone https://github.com/highsunday/VocabReader.git
@@ -110,9 +149,13 @@ npm install
 npm run dev
 ```
 
-啟動後會同時執行 Electron 桌面 App 與本機 Reader Server。首次開啟時，選擇學習語言並匯入 EPUB，就可以從書籍總覽開始閱讀。
+VocabReader 使用 Electron、React、TypeScript、Fastify、SQLite、`ts-fsrs`、Codex App Server、Vitest 與 Playwright。
 
-### 建置與驗證
+```text
+apps/
+├── desktop/   Electron main、preload、React renderer 與桌面測試
+└── server/    Fastify Reader Server 與 API 邊界
+```
 
 ```bash
 npm run typecheck
@@ -123,40 +166,12 @@ npm run build
 
 若要在目前平台建立 installer，可使用 desktop workspace 的 `dist:mac:arm64`、`dist:mac:x64` 或 `dist:win:x64` script。正式 Release 由 GitHub Actions 在對應的原生 runner 建置。
 
-> [!WARNING]
-> Early Preview 安裝包尚未簽章。macOS Gatekeeper 與 Windows SmartScreen 可能要求你額外確認；請只從本 repository 的官方 Releases 頁面下載，並確認檔名包含正確版本、平台與架構。
+</details>
 
-## 資料與 AI 邊界
-
-| 類型 | 處理方式 |
-|---|---|
-| EPUB、書庫、閱讀進度、標記、學習項目、複習紀錄 | 保存在本機 Electron user data。 |
-| 跟讀錄音與 AI 示範語音 | 保存在目前裝置；不會建立雲端錄音庫。 |
-| AI 解析、出題與批改 | 只在你明確操作時，把完成該動作所需的有限閱讀內容或學習項目交給 Codex。 |
-| 選取朗讀與 AI 語音 | 只有你明確要求播放時，才使用你設定的 OpenAI API key 傳送所選文字。 |
-| 備份 | 手動匯出為可攜 ZIP；還原會完整取代目標裝置上的學習資料，不是雲端同步。 |
-
-## 技術組成
-
-- Electron + React + TypeScript
-- Node.js + Fastify
-- SQLite 本機學習資料
-- `ts-fsrs` 間隔複習排程
-- Codex App Server AI 整合
-- Vitest + Playwright
-
-```text
-apps/
-├── desktop/   Electron main、preload、React renderer 與桌面測試
-└── server/    Fastify Reader Server 與 API 邊界
-```
-
-## 一起把它變得更好
-
-VocabReader 正在往第一個公開安裝版前進。如果你也想把原文閱讀變成真正能累積的語言能力：
+## 一起把 VocabReader 變得更好
 
 - ⭐ Star 這個 repository，追蹤後續版本。
-- 🐛 在 [Issues](https://github.com/highsunday/VocabReader/issues) 回報問題或提出建議。
+- 🐛 在 [Issues](https://github.com/highsunday/VocabReader/issues) 分享使用感受、回報問題或提出建議。
 - 🔧 Fork 專案、建立分支並送出 Pull Request。
 
 ## License
@@ -164,5 +179,5 @@ VocabReader 正在往第一個公開安裝版前進。如果你也想把原文�
 VocabReader 採用 [MIT License](LICENSE)。
 
 <p align="center">
-  <strong>從你正在讀的那一頁，開始學會真正會用的語言。</strong>
+  <strong>不只是讀完一本書，而是帶走裡面的語言。</strong>
 </p>
