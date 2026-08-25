@@ -20,14 +20,17 @@ jobs:
           - label: macOS Apple Silicon
             runner: macos-15
             script: dist:mac:arm64
+            bundle: macos-arm64
             artifact: apps/desktop/release/VocabReader-*-mac-arm64.dmg
           - label: macOS Intel
             runner: macos-15-intel
             script: dist:mac:x64
+            bundle: macos-x64
             artifact: apps/desktop/release/VocabReader-*-mac-x64.dmg
           - label: Windows x64
             runner: windows-latest
             script: dist:win:x64
+            bundle: windows-x64
             artifact: apps/desktop/release/VocabReader-*-windows-x64-setup.exe
     runs-on: ${{ matrix.runner }}
     env:
@@ -57,7 +60,7 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v7
         with:
-          name: installer-${{ matrix.script }}
+          name: installer-${{ matrix.bundle }}
           path: ${{ matrix.artifact }}
           if-no-files-found: error
           compression-level: 0
