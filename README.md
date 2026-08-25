@@ -32,7 +32,7 @@ VocabReader 將 EPUB 閱讀、AI 對話、學習卡片和練習放在同一個�
 
 AI Tutor 會讀取目前的閱讀段落，再回答使用者提出的問題。詢問「這段英文的意思是什麼？」時，回答會說明該段內容；詢問「請解釋這句的文法。」時，回答會引用句中的結構，不是脫離文章的一般文法說明。
 
-![依序詢問段落意思與句子文法，AI 根據目前文章上下文回答](docs/readme-assets/ask-ai.gif)
+![依序詢問段落意思與句子文法，AI 根據目前文章上下文回答](docs/readme-assets/ask-ai-context.gif)
 
 ### 2. 標記不懂的內容並一次解釋
 
@@ -40,17 +40,17 @@ AI Tutor 會讀取目前的閱讀段落，再回答使用者提出的問題。�
 
 解釋結果會依項目區分意思、程度、用法和句子結構，原文仍留在閱讀畫面中，方便對照。
 
-![標記四個單字、兩個片語與一個長句，並查看 AI 分項解釋](docs/readme-assets/explain-annotations.gif)
+![標記四個單字、兩個片語與一個長句，並查看 AI 分項解釋](docs/readme-assets/explain-reader-annotations.gif)
 
 ### 3. 從解釋或對話建立學習卡片
 
 標記內容解釋完成後，可以點擊 `Add to Learning Library`，把選定的單字和片語整理成卡片。操作完成後，Learning Library（卡片庫）會顯示剛新增的項目、詞義、類型、CEFR 程度和複習狀態。
 
-![從標記解釋點擊 Add to Learning Library，再到 Card Library 查看新增結果](docs/readme-assets/add-from-explanation.gif)
+![從標記解釋點擊 Add to Learning Library，再到 Card Library 查看新增結果](docs/readme-assets/add-cards-from-explanation.gif)
 
 也可以直接在對話輸入欄輸入 `add mysterious`。AI Tutor 會依照目前閱讀內容準備該項目的卡片資料；新增後可在 Learning Library 查看保存的解釋與主要欄位。
 
-![在對話輸入 add mysterious，並在 Card Library 查看卡片](docs/readme-assets/add-with-command.gif)
+![在對話輸入 add mysterious，並在 Card Library 查看卡片](docs/readme-assets/add-card-with-command.gif)
 
 ### 4. 使用間隔複習回顧卡片
 
@@ -58,7 +58,7 @@ AI Tutor 會讀取目前的閱讀段落，再回答使用者提出的問題。�
 
 使用者最後可以把熟悉程度設為 `Forgotten`、`Hard`、`Good` 或 `Easy`，系統再更新下一次複習時間。這採用與 Anki 類似的間隔複習概念，但題目、AI 回饋和最後評分都是 VocabReader 自己的操作流程。
 
-![開始 Review、回答題目、查看 AI 回饋並選擇熟悉程度](docs/readme-assets/spaced-review.gif)
+![開始 Review、回答題目、查看 AI 回饋並選擇熟悉程度](docs/readme-assets/spaced-review-workflow.gif)
 
 ### 5. 跟讀與發音練習
 
@@ -106,11 +106,11 @@ VocabReader 可以處理不同語言的 EPUB 內容。EPUB 文字可以正常讀
 
 下方示範在日文文章中標記內容、取得解釋，再把需要複習的項目加入日文卡片庫。
 
-![在日文文章中標記內容、查看解釋並建立日文學習卡片](docs/readme-assets/japanese-learning.gif)
+![在日文文章中標記內容、查看解釋並建立日文學習卡片](docs/readme-assets/japanese-learning-workflow.gif)
 
 從 Settings 切換學習語言時，App 會進入該語言獨立的書庫與卡片庫，不會把不同語言的學習內容混在一起。
 
-![從設定切換學習語言，並查看該語言獨立的卡片庫](docs/readme-assets/separate-language-libraries.gif)
+![從設定切換學習語言，並查看該語言獨立的卡片庫](docs/readme-assets/switch-learning-language.gif)
 
 ## 適用情境
 
