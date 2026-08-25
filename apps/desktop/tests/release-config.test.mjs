@@ -63,6 +63,11 @@ test("builds all installers on native runners before publishing the release", ()
   assert.match(workflow, /script: dist:mac:arm64\b/);
   assert.match(workflow, /script: dist:mac:x64\b/);
   assert.match(workflow, /script: dist:win:x64\b/);
+  assert.match(workflow, /bundle: macos-arm64\b/);
+  assert.match(workflow, /bundle: macos-x64\b/);
+  assert.match(workflow, /bundle: windows-x64\b/);
+  assert.match(workflow, /name: installer-\$\{\{ matrix\.bundle \}\}/);
+  assert.doesNotMatch(workflow, /name: installer-\$\{\{ matrix\.script \}\}/);
   assert.match(workflow, /contents: read/);
   assert.match(workflow, /publish:\s*\n\s*needs: build/);
   assert.match(workflow, /contents: write/);
