@@ -13,3 +13,6 @@ test-results/
 
 # Local source recordings used to build the tracked README GIFs.
 /docs/readme-assets/source-videos/
+
+# Standalone local product website artifact.
+/website/
