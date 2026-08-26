@@ -11,9 +11,9 @@
     <link rel="icon" type="image/png" href="/VocabReader/assets/vocabreader-icon.png" />
     <link rel="apple-touch-icon" href="/VocabReader/assets/vocabreader-icon.png" />
     <title>Download and install VocabReader</title>
-    <script type="module" crossorigin src="/VocabReader/assets/download-JTDb6SoM.js"></script>
-    <link rel="modulepreload" crossorigin href="/VocabReader/assets/i18n-C1hbU5-u.js">
-    <link rel="stylesheet" crossorigin href="/VocabReader/assets/i18n-QBfz9HE-.css">
+    <script type="module" crossorigin src="/VocabReader/assets/download-BrfMEtXj.js"></script>
+    <link rel="modulepreload" crossorigin href="/VocabReader/assets/i18n-CG6e_KBH.js">
+    <link rel="stylesheet" crossorigin href="/VocabReader/assets/i18n-D_ZOW62G.css">
   </head>
   <body class="download-page">
     <a class="skip-link" href="#platform-downloads" data-i18n="a11y.skip">Skip to download options</a>
@@ -61,7 +61,7 @@
             <p data-i18n="platform.intro">We select a likely match automatically. You can switch at any time.</p>
           </div>
 
-          <div class="platform-tabs" role="tablist" aria-labelledby="platform-title">
+          <div class="platform-tabs" role="tablist" aria-labelledby="platform-title" data-platform-tabs>
             <button
               id="tab-windows"
               type="button"
@@ -239,33 +239,141 @@
 
       <section id="install" class="codex-section shell" aria-labelledby="codex-title">
         <div class="download-section-heading">
-          <h2 id="codex-title" data-i18n="install.title">Connect Codex for text AI</h2>
-          <p data-i18n="install.intro">VocabReader uses the Codex CLI already signed in on your computer.</p>
+          <h2 id="codex-title" data-i18n="install.title">Install Codex to enable text AI</h2>
+          <p data-i18n="install.intro">This is a one-time setup. Choose your computer and follow the four steps below.</p>
         </div>
 
-        <div class="command-grid">
-          <article class="command-column">
-            <h3 data-i18n="install.windowsTitle">Windows PowerShell</h3>
-            <p data-i18n="install.commandHint">Copy and run this official install command:</p>
-            <pre tabindex="0"><code>powershell -ExecutionPolicy ByPass -c &quot;irm https://chatgpt.com/codex/install.ps1 | iex&quot;</code></pre>
-          </article>
-          <article class="command-column">
-            <h3 data-i18n="install.macTitle">macOS Terminal</h3>
-            <p data-i18n="install.commandHint">Copy and run this official install command:</p>
-            <pre tabindex="0"><code>curl -fsSL https://chatgpt.com/codex/install.sh | sh</code></pre>
-          </article>
+        <div class="platform-tabs codex-platform-tabs" role="tablist" aria-label="Codex setup platform" data-i18n-aria-label="install.platformLabel" data-platform-tabs>
+          <button
+            id="tab-codex-windows"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="panel-codex-windows"
+            tabindex="0"
+            data-platform="windows"
+            data-i18n="platform.windows"
+          >Windows</button>
+          <button
+            id="tab-codex-macos"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="panel-codex-macos"
+            tabindex="-1"
+            data-platform="macos"
+            data-i18n="platform.macos"
+          >macOS</button>
         </div>
 
-        <div class="codex-signin">
-          <div>
-            <h3 data-i18n="install.loginTitle">Sign in to Codex</h3>
-            <pre tabindex="0"><code>codex login</code></pre>
-          </div>
-          <div class="codex-signin-copy">
-            <p data-i18n="install.loginBody">Run codex login, complete the browser sign-in, then restart VocabReader.</p>
-            <p data-i18n="install.openBody">Open VocabReader again. It reuses that sign-in for text AI.</p>
-          </div>
-        </div>
+        <article
+          id="panel-codex-windows"
+          class="codex-platform-panel"
+          role="tabpanel"
+          aria-labelledby="tab-codex-windows"
+          data-platform-panel="windows"
+        >
+          <p class="codex-skip-note" data-i18n="install.skipNote">Already installed Codex? Start from step 3.</p>
+          <ol class="codex-steps">
+            <li>
+              <div class="codex-step-copy">
+                <h3 data-i18n="install.windowsOpenTitle">Open PowerShell</h3>
+                <p data-i18n="install.windowsOpenBody">Press the Windows key, type PowerShell, then open Windows PowerShell. Keep this window open for the next two steps.</p>
+              </div>
+            </li>
+            <li>
+              <div class="codex-step-copy">
+                <h3 data-i18n="install.installTitle">Install Codex</h3>
+                <p id="windows-install-help" data-i18n="install.windowsInstallBody">Select Copy install command, paste it into PowerShell, then press Enter and wait for it to finish.</p>
+              </div>
+              <div class="command-action">
+                <pre tabindex="0"><code>powershell -ExecutionPolicy ByPass -c &quot;irm https://chatgpt.com/codex/install.ps1 | iex&quot;</code></pre>
+                <button
+                  class="copy-command"
+                  type="button"
+                  data-copy-command="powershell -ExecutionPolicy ByPass -c &quot;irm https://chatgpt.com/codex/install.ps1 | iex&quot;"
+                  aria-describedby="windows-install-help"
+                ><span data-i18n="install.copyInstall">Copy install command</span></button>
+              </div>
+            </li>
+            <li>
+              <div class="codex-step-copy">
+                <h3 data-i18n="install.loginTitle">Sign in with ChatGPT</h3>
+                <p id="windows-login-help" data-i18n="install.windowsLoginBody">Copy the login command, paste it into the same PowerShell window, and press Enter. Your browser will open for sign-in.</p>
+              </div>
+              <div class="command-action command-action-short">
+                <pre tabindex="0"><code>codex login</code></pre>
+                <button
+                  class="copy-command"
+                  type="button"
+                  data-copy-command="codex login"
+                  aria-describedby="windows-login-help"
+                ><span data-i18n="install.copyLogin">Copy login command</span></button>
+              </div>
+            </li>
+            <li>
+              <div class="codex-step-copy">
+                <h3 data-i18n="install.finishTitle">Return to VocabReader</h3>
+                <p data-i18n="install.finishBody">Complete the ChatGPT sign-in in your browser, then close and reopen VocabReader. Text AI is ready to use.</p>
+              </div>
+            </li>
+          </ol>
+        </article>
+
+        <article
+          id="panel-codex-macos"
+          class="codex-platform-panel"
+          role="tabpanel"
+          aria-labelledby="tab-codex-macos"
+          data-platform-panel="macos"
+          hidden
+        >
+          <p class="codex-skip-note" data-i18n="install.skipNote">Already installed Codex? Start from step 3.</p>
+          <ol class="codex-steps">
+            <li>
+              <div class="codex-step-copy">
+                <h3 data-i18n="install.macOpenTitle">Open Terminal</h3>
+                <p data-i18n="install.macOpenBody">Press Command and Space, type Terminal, then open it. Keep this window open for the next two steps.</p>
+              </div>
+            </li>
+            <li>
+              <div class="codex-step-copy">
+                <h3 data-i18n="install.installTitle">Install Codex</h3>
+                <p id="mac-install-help" data-i18n="install.macInstallBody">Select Copy install command, paste it into Terminal, then press Return and wait for it to finish.</p>
+              </div>
+              <div class="command-action">
+                <pre tabindex="0"><code>curl -fsSL https://chatgpt.com/codex/install.sh | sh</code></pre>
+                <button
+                  class="copy-command"
+                  type="button"
+                  data-copy-command="curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+                  aria-describedby="mac-install-help"
+                ><span data-i18n="install.copyInstall">Copy install command</span></button>
+              </div>
+            </li>
+            <li>
+              <div class="codex-step-copy">
+                <h3 data-i18n="install.loginTitle">Sign in with ChatGPT</h3>
+                <p id="mac-login-help" data-i18n="install.macLoginBody">Copy the login command, paste it into the same Terminal window, and press Return. Your browser will open for sign-in.</p>
+              </div>
+              <div class="command-action command-action-short">
+                <pre tabindex="0"><code>codex login</code></pre>
+                <button
+                  class="copy-command"
+                  type="button"
+                  data-copy-command="codex login"
+                  aria-describedby="mac-login-help"
+                ><span data-i18n="install.copyLogin">Copy login command</span></button>
+              </div>
+            </li>
+            <li>
+              <div class="codex-step-copy">
+                <h3 data-i18n="install.finishTitle">Return to VocabReader</h3>
+                <p data-i18n="install.finishBody">Complete the ChatGPT sign-in in your browser, then close and reopen VocabReader. Text AI is ready to use.</p>
+              </div>
+            </li>
+          </ol>
+        </article>
 
         <div class="account-boundary">
           <p data-i18n="install.accountNote">A ChatGPT plan or workspace with Codex access is required for text AI.</p>
