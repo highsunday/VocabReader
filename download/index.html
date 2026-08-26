@@ -11,9 +11,9 @@
     <link rel="icon" type="image/png" href="/VocabReader/assets/vocabreader-icon.png" />
     <link rel="apple-touch-icon" href="/VocabReader/assets/vocabreader-icon.png" />
     <title>Download and install VocabReader</title>
-    <script type="module" crossorigin src="/VocabReader/assets/download-DrM62tBG.js"></script>
-    <link rel="modulepreload" crossorigin href="/VocabReader/assets/i18n-Czxq233O.js">
-    <link rel="stylesheet" crossorigin href="/VocabReader/assets/i18n-DVdpoYlw.css">
+    <script type="module" crossorigin src="/VocabReader/assets/download-LFP3ugL6.js"></script>
+    <link rel="modulepreload" crossorigin href="/VocabReader/assets/i18n-DPV8Ev1M.js">
+    <link rel="stylesheet" crossorigin href="/VocabReader/assets/i18n-BmX7F7E2.css">
   </head>
   <body class="download-page">
     <a class="skip-link" href="#platform-downloads" data-i18n="a11y.skip">Skip to download options</a>
@@ -107,8 +107,8 @@
                 <p data-i18n="windows.step1Body">Save the .exe file, then double-click it from Downloads.</p>
               </li>
               <li>
-                <h4 data-i18n="windows.step2Title">If SmartScreen appears, inspect before continuing</h4>
-                <p data-i18n="windows.step2Body">Select More info, confirm the app name and source, then select Run anyway.</p>
+                <h4 data-i18n="windows.step2Title">If Windows shows a protection message</h4>
+                <p data-i18n="windows.step2Body">Select More info, then select Run anyway to continue installing VocabReader.</p>
               </li>
               <li>
                 <h4 data-i18n="windows.step3Title">Finish setup</h4>
@@ -119,9 +119,9 @@
             <aside class="security-note">
               <div>
                 <h4 data-i18n="windows.warningTitle">Why does Windows show a warning?</h4>
-                <p data-i18n="windows.warningBody">This Early Preview is not yet signed with a paid Windows publisher certificate.</p>
+                <p data-i18n="windows.warningBody">This Early Preview is not yet signed with a paid Windows publisher certificate, so SmartScreen may not recognize its publisher.</p>
               </div>
-              <p class="security-boundary" data-i18n="windows.warningLimit">Do not disable SmartScreen or antivirus protection system-wide.</p>
+              <p class="security-boundary" data-i18n="windows.warningLimit">Do not disable SmartScreen or antivirus protection. You only need to allow this installer.</p>
               <a href="https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview" target="_blank" rel="noreferrer">Microsoft Smart App Control &amp; SmartScreen</a>
             </aside>
           </article>
@@ -165,17 +165,33 @@
                 <p data-i18n="mac.step2Body">Open it from Applications. If macOS blocks it, close the message.</p>
               </li>
               <li>
-                <h4 data-i18n="mac.step3Title">Allow this copy in Settings</h4>
-                <p data-i18n="mac.step3Body">Open System Settings › Privacy &amp; Security, select Open Anyway, then confirm.</p>
+                <h4 data-i18n="mac.step3Title">Find VocabReader in Privacy &amp; Security</h4>
+                <p data-i18n="mac.step3Body">Open System Settings › Privacy &amp; Security, scroll to Security, select Force Open beside VocabReader, then confirm.</p>
               </li>
             </ol>
+
+            <figure class="mac-security-guide">
+              <img
+                src="/VocabReader/assets/macos-privacy-security-force-open.png"
+                alt="macOS Privacy &amp; Security settings with the Force Open button beside VocabReader highlighted"
+                data-i18n-alt="mac.securityImageAlt"
+                width="1654"
+                height="1376"
+                loading="lazy"
+                decoding="async"
+              />
+              <figcaption>
+                <strong data-i18n="mac.securityImageTitle">Select Force Open on the right</strong>
+                <span data-i18n="mac.securityImageCaption">Scroll to Security, find the VocabReader message, and select Force Open on its right. Some macOS versions show Open Anyway.</span>
+              </figcaption>
+            </figure>
 
             <aside class="security-note">
               <div>
                 <h4 data-i18n="mac.warningTitle">Why does macOS block the first launch?</h4>
-                <p data-i18n="mac.warningBody">This Early Preview is not yet signed and notarized with a paid Apple Developer ID.</p>
+                <p data-i18n="mac.warningBody">This Early Preview is not yet signed and notarized with a paid Apple Developer ID, so macOS cannot verify its developer during the first launch.</p>
               </div>
-              <p class="security-boundary" data-i18n="mac.warningLimit">Keep Gatekeeper enabled. Open Anyway creates a narrow exception for this app.</p>
+              <p class="security-boundary" data-i18n="mac.warningLimit">You only need to allow VocabReader here. Keep Gatekeeper enabled; there is no need to change security settings for the whole Mac.</p>
               <a href="https://support.apple.com/102445" target="_blank" rel="noreferrer">Apple Support: safely open apps</a>
             </aside>
           </article>
