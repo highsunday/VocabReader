@@ -1,4 +1,0 @@
-interface:
-  display_name: "Edit Learning Item"
-  short_description: "Revise one learning item without saving it"
-  default_prompt: "Use $edit-learning-item to revise the App-supplied learning item draft."

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Segment Retelling Practice"
-  short_description: "Create and grade a two-attempt passage retelling"
-  default_prompt: "Use $practice-segment-retelling with the current reading segment."

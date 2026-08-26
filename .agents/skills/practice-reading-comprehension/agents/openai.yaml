@@ -1,4 +1,0 @@
-interface:
-  display_name: "Reading Comprehension Practice"
-  short_description: "Create and grade adaptive reading comprehension quizzes"
-  default_prompt: "Use $practice-reading-comprehension to create a reading exercise from the current passage."

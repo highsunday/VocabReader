@@ -1,4 +1,0 @@
-interface:
-  display_name: "Explain Reader Annotations"
-  short_description: "Explain marked passages for language learning"
-  default_prompt: "Use $explain-reader-annotations to explain the marked parts of this reading segment."

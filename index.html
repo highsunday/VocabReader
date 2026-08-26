@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6f3eb" />
+    <meta
+      name="description"
+      content="VocabReader connects EPUB reading with Codex-powered AI help, multilingual learning cards, and FSRS spaced repetition."
+    />
+    <link rel="icon" type="image/png" href="/VocabReader/assets/vocabreader-icon.png" />
+    <link rel="apple-touch-icon" href="/VocabReader/assets/vocabreader-icon.png" />
+    <title>VocabReader — Read first. Learn deeply.</title>
+    <script type="module" crossorigin src="/VocabReader/assets/index-DhabBZNE.js"></script>
+    <link rel="stylesheet" crossorigin href="/VocabReader/assets/index-Dblj2yOy.css">
+  </head>
+  <body>
+    <!--
+      THESIS: Turn one real reading passage into an ongoing learning loop; refuse the generic feature-card landing page.
+      OWN-WORLD: Warm paper, forest green, ink typography, fine rules, modest radii, and the App's own screenshots.
+      STORY: Understand the product in seconds, see the reading-to-practice workflow, then download or inspect the source.
+      FIRST VIEWPORT: Quiet navbar, concise two-column promise, visible actions, and a large real AI Tutor screenshot above the fold.
+      FORM: Screenshot-led editorial product story, selected directly from the user's pinned brief; seed brief-pinned-code-first.
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+    -->
+    <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+
+    <header class="site-header">
+      <nav class="navbar shell" data-i18n-aria-label="nav.label">
+        <a class="brand" href="#hero" aria-label="VocabReader home" data-i18n-aria-label="nav.homeLabel">
+          <img src="/VocabReader/assets/vocabreader-icon.png" alt="" width="40" height="40" />
+          <span>VocabReader</span>
+        </a>
+
+        <div class="nav-links" aria-label="Primary navigation" data-i18n-aria-label="nav.linksLabel">
+          <a href="#core-capabilities" data-i18n="nav.features">Features</a>
+          <a href="#workflow" data-i18n="nav.workflow">How it works</a>
+          <a href="#showcase" data-i18n="nav.product">Product</a>
+          <a href="#audience" data-i18n="nav.audience">Who it is for</a>
+        </div>
+
+        <div class="nav-actions">
+          <div class="language-switch" data-i18n-aria-label="language.label">
+            <button type="button" data-locale="zh-Hant" aria-pressed="false">中文</button>
+            <span aria-hidden="true">/</span>
+            <button type="button" data-locale="en" aria-pressed="false">EN</button>
+          </div>
+          <a
+            class="nav-star"
+            data-star-cta
+            href="https://github.com/highsunday/VocabReader"
+            target="_blank"
+            rel="noreferrer"
+            data-i18n-aria-label="cta.starLabel"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17">
+              <path d="m12 3 2.78 5.63 6.22.91-4.5 4.38 1.06 6.19L12 17.18l-5.56 2.93 1.06-6.19L3 9.54l6.22-.91L12 3Z" />
+            </svg>
+            <span data-i18n="cta.star">Star on GitHub</span>
+          </a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section id="hero" class="hero shell">
+        <div class="hero-copy">
+          <img
+            class="hero-icon"
+            src="/VocabReader/assets/vocabreader-icon.png"
+            alt=""
+            width="72"
+            height="72"
+          />
+          <h1 data-i18n="hero.title">Read first. Learn deeply.</h1>
+          <p class="hero-lead" data-i18n="hero.lead">
+            VocabReader turns real EPUB reading into AI-assisted learning with Codex,
+            learning cards, and spaced repetition—without a separate API key for text AI.
+          </p>
+          <div class="hero-actions">
+            <a
+              class="button button-primary"
+              href="https://github.com/highsunday/VocabReader/releases"
+              target="_blank"
+              rel="noreferrer"
+              data-i18n="cta.download"
+            >Download for free</a>
+            <a
+              class="button button-secondary"
+              href="https://github.com/highsunday/VocabReader"
+              target="_blank"
+              rel="noreferrer"
+              data-i18n="cta.github"
+            >View on GitHub</a>
+          </div>
+          <p class="hero-note" data-i18n="hero.note">
+            Free and open-source Early Preview · Codex sign-in for text AI · macOS and Windows
+          </p>
+        </div>
+
+        <figure class="hero-visual product-frame">
+          <img
+            src="/VocabReader/assets/reading-with-ai.png"
+            data-i18n-alt="hero.imageAlt"
+            alt="VocabReader showing an EPUB beside AI Tutor"
+            width="1440"
+            height="920"
+            fetchpriority="high"
+          />
+          <figcaption data-i18n="hero.caption">
+            Your book and AI Tutor, side by side.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="problem-band" aria-labelledby="problem-title">
+        <div class="shell problem-layout">
+          <h2 id="problem-title" data-i18n="problem.title">
+            Looking something up should not be the end of learning it.
+          </h2>
+          <p data-i18n="problem.body">
+            VocabReader keeps the passage, the meaning you met, and the practice that
+            follows connected—so a moment of confusion can become lasting knowledge.
+          </p>
+        </div>
+      </section>
+
+      <section id="core-capabilities" class="section shell product-tour" aria-labelledby="core-title">
+        <div id="features" class="section-heading">
+          <h2 id="core-title" data-i18n="core.title">From AI help to lasting memory, in one clear flow.</h2>
+          <p data-i18n="core.intro">
+            Start with AI Tutor, turn useful explanations into learning cards, review them
+            at the right time, and keep every learning language in its own workspace.
+          </p>
+        </div>
+
+        <article class="feature-story">
+          <div class="feature-copy">
+            <h3 data-i18n="features.contextTitle">Understand the passage in context</h3>
+            <p data-i18n="features.contextBody">
+              Ask AI Tutor about meaning, phrasing, sentence structure, or grammar in the
+              reading segment you choose. Follow-up questions stay beside the source.
+            </p>
+            <ul class="quiet-list">
+              <li data-i18n="features.contextPoint1">You decide which passage AI can read.</li>
+              <li data-i18n="features.contextPoint2">Mark several difficult parts and explain them together.</li>
+            </ul>
+            <div class="core-connection">
+              <h4 data-i18n="core.codexTitle">Codex, without API setup</h4>
+              <p data-i18n="core.codexBody">Text AI uses your signed-in Codex installation. No separate API key is required.</p>
+            </div>
+          </div>
+          <figure class="media-frame media-frame-motion">
+            <img
+              src="/VocabReader/assets/ask-ai-context.gif"
+              data-i18n-alt="features.contextAlt"
+              alt="Asking AI Tutor about meaning and grammar"
+              width="800"
+              height="500"
+              loading="lazy"
+            />
+          </figure>
+        </article>
+
+        <article class="feature-story feature-story-stacked">
+          <div class="feature-copy">
+            <h3 data-i18n="features.libraryTitle">Turn explanations into learning cards</h3>
+            <p data-i18n="features.libraryBody">
+              Turn explanations into confirmed learning items with the intended meaning,
+              pronunciation, collocations, examples, and their source context intact.
+            </p>
+            <ul class="quiet-list">
+              <li data-i18n="features.libraryPoint1">One item keeps one specific meaning.</li>
+              <li data-i18n="features.libraryPoint2">Search, filter, edit, and see what is due next.</li>
+            </ul>
+          </div>
+          <div class="product-evidence-pair">
+            <figure class="media-frame">
+              <img
+                src="/VocabReader/assets/learning-library.png"
+                data-i18n-alt="features.libraryAlt"
+                alt="VocabReader Learning Library"
+                width="1440"
+                height="920"
+                loading="lazy"
+              />
+            </figure>
+            <figure class="media-frame">
+              <img
+                src="/VocabReader/assets/learning-card.png"
+                data-i18n-alt="features.cardAlt"
+                alt="A VocabReader learning card with one precise meaning"
+                width="1440"
+                height="920"
+                loading="lazy"
+              />
+            </figure>
+          </div>
+        </article>
+
+        <article class="feature-story feature-story-reverse">
+          <div class="feature-copy">
+            <h3 data-i18n="showcase.reviewTitle">Remember with contextual review</h3>
+            <p data-i18n="showcase.reviewBody">
+              AI writes a fresh sentence for the meaning saved on each item. Answer from
+              context, review the feedback, then confirm the recall rating that schedules
+              the next review.
+            </p>
+          </div>
+          <figure class="media-frame media-frame-motion">
+            <img
+              src="/VocabReader/assets/spaced-review-workflow.gif"
+              data-i18n-alt="showcase.reviewAlt"
+              alt="Completing a spaced review paper"
+              width="800"
+              height="500"
+              loading="lazy"
+            />
+          </figure>
+        </article>
+
+        <article class="feature-story">
+          <div class="feature-copy">
+            <h3 data-i18n="core.languagesProofTitle">Learn English, Japanese, Korean, and Traditional Chinese.</h3>
+            <p data-i18n="core.languagesProofBody">Each learning language has its own workspace, so books, vocabulary, and progress stay clearly separated.</p>
+          </div>
+          <figure class="media-frame media-frame-motion">
+            <img
+              src="/VocabReader/assets/switch-learning-language.gif"
+              data-i18n-alt="core.languagesProofAlt"
+              alt="Switching between language workspaces in VocabReader"
+              width="800"
+              height="500"
+              loading="lazy"
+            />
+          </figure>
+        </article>
+      </section>
+
+      <section id="workflow" class="workflow-section" aria-labelledby="workflow-title">
+        <div class="shell">
+          <div class="section-heading section-heading-compact">
+            <h2 id="workflow-title" data-i18n="workflow.title">From page to practice, without rebuilding the context.</h2>
+            <p data-i18n="workflow.intro">
+              The workflow is deliberately simple: your reading creates the material for
+              everything that follows.
+            </p>
+          </div>
+
+          <ol class="workflow-list">
+            <li>
+              <span class="step-number" aria-hidden="true">1</span>
+              <div>
+                <h3 data-i18n="workflow.step1Title">Import and read</h3>
+                <p data-i18n="workflow.step1Body">Open an EPUB, choose a reading segment, and mark only what interrupts understanding.</p>
+              </div>
+            </li>
+            <li>
+              <span class="step-number" aria-hidden="true">2</span>
+              <div>
+                <h3 data-i18n="workflow.step2Title">Ask and clarify</h3>
+                <p data-i18n="workflow.step2Body">Use AI Tutor or explain all annotations together after your first reading.</p>
+              </div>
+            </li>
+            <li>
+              <span class="step-number" aria-hidden="true">3</span>
+              <div>
+                <h3 data-i18n="workflow.step3Title">Choose what to keep</h3>
+                <p data-i18n="workflow.step3Body">Review AI-prepared drafts before adding useful words and phrases to your Learning Library.</p>
+              </div>
+            </li>
+            <li>
+              <span class="step-number" aria-hidden="true">4</span>
+              <div>
+                <h3 data-i18n="workflow.step4Title">Recall and use</h3>
+                <p data-i18n="workflow.step4Body">Review with FSRS, write with saved vocabulary, retell passages, or practise speaking.</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="showcase" class="section shell" aria-labelledby="showcase-title">
+        <div class="section-heading">
+          <h2 id="showcase-title" data-i18n="showcase.title">Practice that grows out of what you read.</h2>
+          <p data-i18n="showcase.intro">
+            VocabReader keeps comprehension, long-term memory, writing, and speaking as
+            distinct practices—while letting them share the same learning material.
+          </p>
+        </div>
+
+        <article class="showcase-row showcase-row-reverse">
+          <div class="showcase-copy">
+            <h3 data-i18n="showcase.speakingTitle">Move from recognition to expression</h3>
+            <p data-i18n="showcase.speakingBody">
+              Use several saved items in one passage, or listen and repeat natural chunks.
+              Writing and speaking activity stay separate from your spaced-review schedule.
+            </p>
+          </div>
+          <div class="showcase-pair">
+            <figure class="media-frame">
+              <img
+                src="/VocabReader/assets/sentence-practice.png"
+                data-i18n-alt="showcase.writingAlt"
+                alt="Sentence Practice using saved learning items"
+                width="1440"
+                height="920"
+                loading="lazy"
+              />
+            </figure>
+            <figure class="media-frame">
+              <img
+                src="/VocabReader/assets/listen-and-repeat.png"
+                data-i18n-alt="showcase.speakingAlt"
+                alt="Listen and Repeat speaking workspace"
+                width="1440"
+                height="920"
+                loading="lazy"
+              />
+            </figure>
+          </div>
+        </article>
+      </section>
+
+      <section id="audience" class="audience-section" aria-labelledby="audience-title">
+        <div class="shell audience-layout">
+          <div>
+            <h2 id="audience-title" data-i18n="audience.title">Made for readers who want more than a lookup.</h2>
+            <p data-i18n="audience.intro">
+              VocabReader fits a deliberate, self-directed learning style—not automatic
+              translation or passive vocabulary collection.
+            </p>
+          </div>
+          <ul class="audience-list">
+            <li data-i18n="audience.item1">You learn from novels, nonfiction, or specialist EPUB books.</li>
+            <li data-i18n="audience.item2">You want explanations tied to the exact passage and meaning.</li>
+            <li data-i18n="audience.item3">You want spaced repetition to bring vocabulary back at the right time and build long-term memory.</li>
+            <li data-i18n="audience.item4">You want writing and speaking practice to grow from real reading and saved vocabulary.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="get-started" class="get-started shell" aria-labelledby="get-started-title">
+        <img src="/VocabReader/assets/vocabreader-icon.png" alt="" width="64" height="64" loading="lazy" />
+        <div>
+          <h2 id="get-started-title" data-i18n="start.title">Bring your next EPUB. Keep what you learn.</h2>
+          <p data-i18n="start.body">
+            Download VocabReader for free on macOS or Windows. Text AI uses your signed-in
+            Codex installation; optional AI speech requires your own OpenAI API key.
+          </p>
+        </div>
+        <div class="get-started-actions">
+          <a
+            class="button button-primary"
+            href="https://github.com/highsunday/VocabReader/releases"
+            target="_blank"
+            rel="noreferrer"
+            data-i18n="cta.download"
+          >Download for free</a>
+          <a
+            class="text-link"
+            href="https://github.com/highsunday/VocabReader#install-and-get-started"
+            target="_blank"
+            rel="noreferrer"
+            data-i18n="start.instructions"
+          >Read install notes</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-layout">
+        <div class="footer-brand">
+          <img src="/VocabReader/assets/vocabreader-icon.png" alt="" width="34" height="34" loading="lazy" />
+          <span>VocabReader</span>
+        </div>
+        <p data-i18n="footer.note">Free and open source under the MIT License.</p>
+        <div class="footer-links">
+          <a href="https://github.com/highsunday/VocabReader" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/highsunday/VocabReader/issues" target="_blank" rel="noreferrer" data-i18n="footer.feedback">Feedback</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
