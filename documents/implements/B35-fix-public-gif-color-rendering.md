@@ -91,7 +91,8 @@ GitHub README 與 VocabReader 官網使用的操作 GIF 出現偏灰、暖米色
   不在本次重新設計 App UI。
 - 本次不改寫官網文案、頁面結構、CTA、路由或 README 節點順序。
 - 本次不建立新的產品宣傳畫面，也不使用合成或 AI 生成的產品截圖。
-- 本次更新本地官網來源與 GitHub README 資產；不自動 push repository 或觸發部署。
+- 產生與驗證本身不隱式觸發部署；只在使用者後續明確要求上傳後，才分別更新
+  `main` 與 GitHub Pages `gh-pages` 分支。
 
 ## 8. Implementation Record
 
@@ -180,8 +181,19 @@ bash -n scripts/build-public-gifs.sh
   中間編碼邊界，不只是把最後調色盤調大。
 - Bayer 會把平坦 UI 表面的調色盤誤差排成規律網點；改用 `sierra2_4a`
   保留視覺細節且不產生固定點陣。
-- 產品網站來源被 Git 忽略，但在當前 workspace 中由同一產生器更新；本次
-  不 push repository 或觸發外部部署。
+- 產品網站來源被 Git 忽略，但在當前 workspace 中由同一產生器更新；使用者後續
+  明確要求上傳後，已將 README 資產推送至 `main`，並以非 force-push 方式將
+  已驗證的 `website/dist` 發布至 `gh-pages`。
+
+### Production Deployment
+
+- GitHub `main` 已推送 GIF、共用產生器與合約測試：`5ae9f93cf74476d05be18b134dc63d15b2c68450`。
+- GitHub Pages `gh-pages` 已發布官網三個 GIF 與 provenance sidecar：
+  `b8f4c291a8e563cf09fed7fdab4364eb2cd31e60`。
+- GitHub Pages `pages build and deployment` run `33038235380` 完成且 conclusion 為 `success`。
+- `https://highsunday.github.io/VocabReader/` 與 `/VocabReader/download/` 皆回傳 HTTP 200。
+- 從正式網址重新下載的 `ask-ai-context.gif`、`spaced-review-workflow.gif` 與
+  `switch-learning-language.gif` 均與本地 production build 位元級一致。
 
 ### Deferred Items
 
