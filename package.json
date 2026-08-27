@@ -11,6 +11,7 @@
     "dev:server": "npm run dev -w @reader/server",
     "build": "npm run build -w @reader/server && npm run build -w @reader/desktop",
     "test": "npm run test -w @reader/server && npm run test -w @reader/desktop",
+    "test:media": "node --test scripts/public-gif-contract.test.mjs",
     "test:e2e": "npm run test:e2e -w @reader/desktop",
     "typecheck": "npm run typecheck -w @reader/server && npm run typecheck -w @reader/desktop"
   },
