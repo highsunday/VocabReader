@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { AppInfoDesktopApi } from "../shared/app-info-contracts";
 import type {
   ChatDesktopApi,
   ChatSnapshot,
@@ -65,6 +66,10 @@ const desktopApi = Object.freeze({
     electron: process.versions.electron,
     node: process.versions.node
   }),
+  appInfo: Object.freeze({
+    getVersion: (): Promise<string> =>
+      ipcRenderer.invoke("app-info:get-version")
+  } satisfies AppInfoDesktopApi),
   library: Object.freeze({
     listBooks: (): Promise<LibraryBook[]> => ipcRenderer.invoke("library:list"),
     importBook: (): Promise<ImportBookResult> =>

@@ -1393,6 +1393,24 @@ button {
   color: #a04534;
 }
 
+.settings-dialog-footer {
+  min-height: 42px;
+  flex: 0 0 auto;
+  padding: 0 26px;
+  border-top: 1px solid #ded9cf;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #737970;
+  background: #faf8f2;
+  font-size: 12px;
+}
+
+.settings-dialog-footer span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
 .data-backup-setting h3 {
   margin: 0;
   color: #30372f;

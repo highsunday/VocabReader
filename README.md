@@ -16,6 +16,7 @@
   <img alt="Codex powered" src="https://img.shields.io/badge/AI-Codex_powered-315F4B?style=flat-square&logo=openai&logoColor=white" />
   <img alt="No API key for text AI" src="https://img.shields.io/badge/text_AI-no_API_key-315F4B?style=flat-square" />
   <img alt="Free and open source" src="https://img.shields.io/badge/app-free_%26_open_source-C66A32?style=flat-square" />
+  <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-315F4B?style=flat-square" />
 </p>
 
 <p align="center">

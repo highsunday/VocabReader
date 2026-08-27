@@ -39,6 +39,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import vocabReaderIconUrl from "../../assets/icon/vocabreader-language-learning-v6.png";
+import type { AppInfoDesktopApi } from "../shared/app-info-contracts";
 import type {
   ChatDesktopApi,
   ChatConversationSummary,
@@ -207,6 +208,7 @@ const initialChatSnapshot: ChatSnapshot = {
 };
 
 function desktopBridge(): {
+  appInfo?: AppInfoDesktopApi;
   library?: LibraryDesktopApi;
   learning?: LearningDesktopApi;
   review?: ReviewDesktopApi;
@@ -220,6 +222,7 @@ function desktopBridge(): {
   return (
     window as unknown as {
       readerDesktop?: {
+        appInfo?: AppInfoDesktopApi;
         library?: LibraryDesktopApi;
         learning?: LearningDesktopApi;
         review?: ReviewDesktopApi;
@@ -232,6 +235,10 @@ function desktopBridge(): {
       };
     }
   ).readerDesktop;
+}
+
+function desktopAppInfo(): AppInfoDesktopApi | undefined {
+  return desktopBridge()?.appInfo;
 }
 
 function desktopLibrary(): LibraryDesktopApi | undefined {
@@ -411,6 +418,7 @@ export function App() {
     selectionSpeechTone: "learning"
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
   const [switchingLearningLanguage, setSwitchingLearningLanguage] =
     useState<LearningLanguage>();
   const [activeSettingsSection, setActiveSettingsSection] =
@@ -647,6 +655,22 @@ export function App() {
     chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
     pendingChatScrollUserCountRef.current = null;
   }, [chatSnapshot.messages]);
+
+  useEffect(() => {
+    const api = desktopAppInfo();
+    if (!api) return;
+    let active = true;
+    void api.getVersion()
+      .then((version) => {
+        if (active) setAppVersion(version);
+      })
+      .catch(() => {
+        if (active) setAppVersion("Unavailable");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const api = desktopSettings();
@@ -4372,6 +4396,12 @@ export function App() {
               </section>
             ) : null}
             {settingsError ? <small role="alert">{settingsError}</small> : null}
+            <footer className="settings-dialog-footer">
+              <span>VocabReader</span>
+              <span aria-label="VocabReader version">
+                Version {appVersion || "Loading…"}
+              </span>
+            </footer>
           </section>
         </div>
       ) : null}

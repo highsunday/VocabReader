@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { ChatDesktopApi } from "../shared/chat-contracts";
+import type { AppInfoDesktopApi } from "../shared/app-info-contracts";
 import type { DataBackupDesktopApi } from "../shared/data-backup-contracts";
 import type { LearningDesktopApi } from "../shared/learning-contracts";
 import type { ListenRepeatDesktopApi } from "../shared/listen-repeat-contracts";
@@ -16,6 +17,7 @@ interface ReaderDesktopApi {
     electron: string;
     node: string;
   };
+  appInfo: AppInfoDesktopApi;
   library: {
     listBooks(): Promise<DesktopLibraryBook[]>;
     importBook(): Promise<

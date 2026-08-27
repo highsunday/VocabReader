@@ -21,6 +21,7 @@ import {
   installBundledListenRepeatSkill,
   installBundledSpacedReviewSkill
 } from "./bundled-skill";
+import { registerAppInfoIpc } from "./app-info-ipc";
 import { ChatController } from "./chat-controller";
 import { LocalChatConversationStore } from "./chat-conversation-store";
 import { registerChatIpc } from "./chat-ipc";
@@ -531,6 +532,7 @@ app.whenReady().then(async () => {
       language
     )
   });
+  registerAppInfoIpc(ipcMain, () => app.getVersion());
   createMainWindow();
   void chatControllerRegistry.active.connect();
 

@@ -492,6 +492,13 @@ _Avoid using:_ 複習排程器（排程屬於產品領域邏輯，不應完全�
 - 更新複習間隔時應保留 AI 建議評級、使用者最終評級與計算前後結果，使排程可以追溯與測試；不保留完整試卷內容。
 - 整合造句的資格計數與隨機抽取由生詞與複習領域負責，但草稿與造句批改結果不得寫入複習事件或更新排程。
 
+### 桌面版本與安裝檔發佈流程
+
+- 桌面 App 的唯一版本來源是 `apps/desktop/package.json` 的 `version`；`package-lock.json` 必須同步。Settings 顯示的版本必須透過唯讀 IPC 取得 Electron 執行中的 `app.getVersion()`，不得在 Renderer 另寫一份版本常數。
+- 發佈新內容前先確認最新的 `vX.Y.Z` Git tag；已使用過的版本號不得承載不同程式內容。依 SemVer 影響範圍更新桌面套件版本，並同步更新 release configuration test 的期望值。
+- 安裝檔建置前至少執行桌面 App 的 tests、typecheck、release configuration test 與 production build。macOS Apple Silicon、macOS Intel、Windows x64 分別使用 `dist:mac:arm64`、`dist:mac:x64`、`dist:win:x64`；electron-builder 會把桌面套件版本寫入 App metadata 與安裝檔名稱，輸出至 `apps/desktop/release/`。
+- 官方發佈必須從已提交且測試通過的乾淨版本建立與套件版本完全相符的 `vX.Y.Z` tag；push tag 後由 `.github/workflows/release.yml` 在原生 runner 建置三種安裝檔、驗證 macOS DMG 內的 App 簽章狀態，最後建立或更新 GitHub Release。未簽章的 Early Preview 警告仍須保留。
+
 ### 使用者介面
 
 - 主要閱讀介面左側／中央呈現 EPUB 內容，右側提供 AI 對話面板；實際版面比例與響應式行為待設計。

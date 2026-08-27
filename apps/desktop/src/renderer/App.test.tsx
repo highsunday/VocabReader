@@ -273,6 +273,7 @@ function installLibraryApi(
     value: {
       platform: "darwin",
       versions: { chrome: "1", electron: "1", node: "1" },
+      appInfo: { getVersion: vi.fn().mockResolvedValue("0.1.3") },
       library: {
         listBooks: vi.fn().mockResolvedValue(storedBooks),
         importBook,
@@ -313,6 +314,16 @@ function installLibraryApi(
 // F69 TC1/TC10: language workspaces switch from Settings and preserve their
 // own explanation language while active operations lock the selector.
 describe("learning-language workspace settings", () => {
+  it("shows the installed application version in the Settings footer", async () => {
+    installLibraryApi();
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+
+    expect(await screen.findByLabelText("VocabReader version"))
+      .toHaveTextContent("Version 0.1.3");
+  });
+
   it("switches workspace language and restores its explanation language", async () => {
     const { saveSettings } = installLibraryApi();
     render(<App />);
