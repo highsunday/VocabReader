@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_dir="$repo_root/docs/readme-assets/source-videos"
 readme_dir="$repo_root/docs/readme-assets"
 website_dir="$repo_root/website/public/assets"
-staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/vocabreader-public-gifs.XXXXXX")"
+staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/vocabreader-public-media.XXXXXX")"
 
 cleanup() {
   find "$staging_dir" -type f -delete 2>/dev/null || true
@@ -13,7 +13,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command_name in ffmpeg ffprobe; do
+for command_name in ffmpeg ffprobe cwebp; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     printf 'Missing required command: %s\n' "$command_name" >&2
     exit 1
@@ -37,12 +37,19 @@ render_single() {
   local width="$4"
   local height="$5"
   local source_path="$source_dir/$source_name"
+  local mp4_name="${output_name%.gif}.mp4"
   require_source "$source_path"
 
   ffmpeg -hide_banner -loglevel error -y \
     -i "$source_path" \
     -filter_complex "[0:v]setpts=${timing_scale}*PTS,fps=6,scale=${width}:${height}:flags=lanczos,setsar=1,format=rgb24,split[p0][p1];[p0]palettegen=max_colors=256:stats_mode=diff[p];[p1][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle" \
     -an -loop 0 "$staging_dir/$output_name"
+
+  ffmpeg -hide_banner -loglevel error -y \
+    -i "$source_path" \
+    -vf "setpts=${timing_scale}*PTS,fps=30,scale=${width}:${height}:flags=lanczos,setsar=1,format=yuv420p" \
+    -an -c:v libx264 -preset slow -crf 23 -pix_fmt yuv420p \
+    -movflags +faststart "$staging_dir/$mp4_name"
 }
 
 render_concat() {
@@ -54,6 +61,7 @@ render_concat() {
   local height="$6"
   local first_source_path="$source_dir/$first_source_name"
   local second_source_path="$source_dir/$second_source_name"
+  local mp4_name="${output_name%.gif}.mp4"
   require_source "$first_source_path"
   require_source "$second_source_path"
 
@@ -62,6 +70,13 @@ render_concat() {
     -i "$second_source_path" \
     -filter_complex "[0:v][1:v]concat=n=2:v=1:a=0,setpts=${timing_scale}*PTS,fps=6,scale=${width}:${height}:flags=lanczos,setsar=1,format=rgb24,split[p0][p1];[p0]palettegen=max_colors=256:stats_mode=diff[p];[p1][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle" \
     -an -loop 0 "$staging_dir/$output_name"
+
+  ffmpeg -hide_banner -loglevel error -y \
+    -i "$first_source_path" \
+    -i "$second_source_path" \
+    -filter_complex "[0:v][1:v]concat=n=2:v=1:a=0,setpts=${timing_scale}*PTS,fps=30,scale=${width}:${height}:flags=lanczos,setsar=1,format=yuv420p[out]" \
+    -map "[out]" -an -c:v libx264 -preset slow -crf 23 -pix_fmt yuv420p \
+    -movflags +faststart "$staging_dir/$mp4_name"
 }
 
 render_concat \
@@ -87,13 +102,31 @@ for gif_path in "$staging_dir"/*.gif; do
   fi
 done
 
-for gif_path in "$staging_dir"/*.gif; do
-  cp "$gif_path" "$readme_dir/$(basename "$gif_path")"
+for mp4_path in "$staging_dir"/*.mp4; do
+  mp4_name="$(basename "$mp4_path")"
+  codec_name="$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$mp4_path")"
+  if [[ "$codec_name" != "h264" ]]; then
+    printf 'Generated MP4 is not H.264: %s\n' "$mp4_name" >&2
+    exit 1
+  fi
 done
 
-for gif_name in ask-ai-context.gif spaced-review-workflow.gif switch-learning-language.gif; do
-  cp "$staging_dir/$gif_name" "$website_dir/$gif_name"
+for media_stem in ask-ai-context spaced-review-workflow switch-learning-language; do
+  ffmpeg -hide_banner -loglevel error -y \
+    -i "$staging_dir/$media_stem.mp4" \
+    -frames:v 1 -f image2pipe -c:v png - | \
+    cwebp -quiet -q 82 -o "$staging_dir/$media_stem-poster.webp" -- -
 done
 
-printf 'Updated README GIFs in %s\n' "$readme_dir"
-printf 'Synchronized website GIFs in %s\n' "$website_dir"
+for media_path in "$staging_dir"/*.gif "$staging_dir"/*.mp4; do
+  cp "$media_path" "$readme_dir/$(basename "$media_path")"
+done
+
+for media_stem in ask-ai-context spaced-review-workflow switch-learning-language; do
+  cp "$staging_dir/$media_stem.gif" "$website_dir/$media_stem.gif"
+  cp "$staging_dir/$media_stem.mp4" "$website_dir/$media_stem.mp4"
+  cp "$staging_dir/$media_stem-poster.webp" "$website_dir/$media_stem-poster.webp"
+done
+
+printf 'Updated README GIF and MP4 media in %s\n' "$readme_dir"
+printf 'Synchronized website GIF and MP4 media in %s\n' "$website_dir"
