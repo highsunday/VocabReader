@@ -1131,3 +1131,79 @@ DDD standalone TDD completion notification for the multilingual and Korean expan
 
 **Follow-up**
 - No action required.
+
+#### L057 — 2026-08-26 14:25 CST — F73 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F73 建立 VocabReader 獨立推廣官網`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a03cbc6051e21bd`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- No action required.
+
+#### L058 — 2026-08-26 14:28 CST — F73 v1.1 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification for the promotional website product-tour expansion.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F73 v1.1 補充 VocabReader 官網實際操作畫面`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a03cbfe9fa111d6`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- No action required.
+
+#### L059 — 2026-08-27 12:13 CST — B35 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B35 修正官網與 GitHub README 的 GIF 色彩轉換`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a041605e5f75e25`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- No action required.
+
+#### L060 — 2026-08-27 13:41 CST — F75 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F75 為公開操作 GIF 補上 MP4 版本`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a041bd0d62ec365`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- No action required. Website changes were verified locally but not deployed to `gh-pages`.
