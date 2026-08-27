@@ -354,8 +354,15 @@ _Avoid using:_ 唯一正確答案、完整字典定義
 以使用者本機既有的 Codex／ChatGPT 登入狀態為身分基礎，負責對話、區段解析、區段選擇題生成、複習試卷生成、答案回饋、複習評級建議及整合造句批改。它應向產品提供可辨識的連線、帳戶與使用額度狀態；最終評級確認與複習排程不由 AI 負責，造句批改也不得直接寫入排程。
 _Avoid using:_ 複習排程器（排程屬於產品領域邏輯，不應完全交由 AI 決定）
 
+**產品官網（Product Website）**：
+公開介紹 VocabReader、展示真實產品畫面，並把一般使用者引導至正確下載、安裝與 Codex 設定流程的靜態雙語網站。目前發布於 GitHub Pages；它是產品取得與支援介面，不是可在線閱讀 EPUB 的 Web 版 VocabReader，不持有書庫、生詞庫或 AI 對話。
+_Avoid using:_ Web App、線上版閱讀器、App Renderer
+
 ## Relationships
 
+- **產品官網**首頁先說明產品價值與真實學習流程，再由主要下載行動進入站內下載與安裝導覽；GitHub repository 維持原始碼與社群入口，GitHub Releases 維持安裝檔的唯一下載來源。
+- **產品官網**不讀取或同步桌面 App 的**書庫**、**生詞庫**、**學習語言工作區**、**AI 對話**或 Codex 登入；網站只在瀏覽器保存繁體中文／英文的介面語言偏好。
+- 下載與安裝導覽可以依瀏覽器平台預選 Windows 或 macOS，但使用者仍可手動切換；選擇平台只改變網站顯示，不代表網站已檢查裝置相容性或安裝檔安全性。
 - 一本 **書籍** 包含多個有順序的 **章節**。
 - **書庫** 包含使用者已導入的書籍，並允許在書籍之間快速切換。
 - 一份 **資料備份** 同時保存一個時間點的完整 **書庫** 與完整 **生詞庫**。
@@ -492,6 +499,16 @@ _Avoid using:_ 複習排程器（排程屬於產品領域邏輯，不應完全�
 - 更新複習間隔時應保留 AI 建議評級、使用者最終評級與計算前後結果，使排程可以追溯與測試；不保留完整試卷內容。
 - 整合造句的資格計數與隨機抽取由生詞與複習領域負責，但草稿與造句批改結果不得寫入複習事件或更新排程。
 
+### 產品官網與發行導覽
+
+- **產品官網**是與 Electron App、server workspace 分離的 Vite 靜態網站，不得匯入 App runtime、SQLite、EPUB 內容或本機 Codex controller。
+- 正式網址固定以 GitHub Pages 專案路徑 `/VocabReader/` 為基底；首頁與 `/VocabReader/download/` 必須使用站內相對導覽，建置資產不得錯誤指向網域根路徑。
+- 首頁負責產品介紹、真實畫面、雙語內容與信任入口；下載頁負責平台檔案選擇、未簽章警告說明、限定範圍的系統確認步驟、Codex CLI 安裝登入與來源證據。
+- 安裝檔只來自 `highsunday/VocabReader` 官方 GitHub Releases。網站可以從公開 latest-release API 更新連結，但 API 失敗時必須保留已驗證的靜態 fallback，不得改用第三方鏡像。
+- 未簽章說明必須區分「作業系統無法驗證發行者」與「已偵測到惡意軟體」，不得宣稱 Apple、Microsoft 或網站已完成不存在的安全驗證，也不得要求全面關閉 Gatekeeper、SmartScreen 或防毒保護。
+- 網站不得收集書籍、學習資料、ChatGPT 密碼或 API key；目前除語言偏好的 `localStorage` 外，不提供帳號、analytics、cookie tracking 或 App 資料同步。
+- 官網原始碼目前位於被 Git 忽略的 `website/`，正式建置輸出人工發布至 `gh-pages` 分支；此發布邊界不得與 `main` 上的 App source 或 root npm workspaces 混合。
+
 ### 桌面版本與安裝檔發佈流程
 
 - 桌面 App 的唯一版本來源是 `apps/desktop/package.json` 的 `version`；`package-lock.json` 必須同步。Settings 顯示的版本必須透過唯讀 IPC 取得 Electron 執行中的 `app.getVersion()`，不得在 Renderer 另寫一份版本常數。
@@ -516,3 +533,4 @@ _Avoid using:_ 複習排程器（排程屬於產品領域邏輯，不應完全�
 2. **資料保存與同步**：已確認提供手動資料備份與完整取代式資料還原；是否另提供帳號與自動跨裝置同步尚未決定。
 3. **EPUB 支援範圍**：是否支援圖片、註腳、表格、複雜排版、直排內容及 DRM EPUB 尚未決定。
 4. **隱私與版權**：可傳送給 AI 的 EPUB 內容範圍、資料保留政策與版權內容處理方式尚未決定。
+5. **官網原始碼治理與自動發布**：目前 `website/` 被 `main` 的 `.gitignore` 排除，只有編譯後網站保存在 `gh-pages`；是否改由 `main` 追蹤原始碼、移至獨立 repository，或建立 GitHub Actions 自動發布尚未決定。

@@ -43,6 +43,8 @@ VocabReader 的米白閱讀底色、深綠主色、襯線閱讀語氣與正式 A
 - 以產品現有深綠、米白、襯線閱讀排版與克制的細框線為主要視覺語言。
 - 首屏與核心功能區必須優先強調 AI 輔助學習、沿用 Codex 登入且文字 AI 不需另外設定
   API key、多語言獨立工作區、建立學習卡，以及 FSRS 間隔重複。
+- Codex 登入說明旁以雙語 `IMPORTANT／重要` 紅字警示，明確說明文字 AI 必須使用包含
+  Codex 存取權的 ChatGPT 訂閱方案。
 - 使用 repository 既有的多語言切換 GIF 作為真實功能證據，不只用文案宣稱多語言。
 - 核心產品畫面依學習路徑呈現：先展示 AI Tutor，接著在同一功能段落並列展示
   學習卡庫與單張學習卡，再展示間隔複習，最後呈現多語言工作區。
@@ -129,6 +131,7 @@ VocabReader 的米白閱讀底色、深綠主色、襯線閱讀語氣與正式 A
 | TC13 | 寫作與跟讀產品畫面尺寸 | CSS 與 responsive layout | 檢查 showcase 結構 | 說明文字置頂，兩張產品畫面使用完整內容寬度並排，手機版再上下堆疊 | High |
 | TC14 | 卡片庫與單字卡畫面對齊 | CSS 與 responsive layout | 檢查 learning-card evidence pair | 桌機版兩張同尺寸產品畫面等寬、同高、頂端對齊，手機版上下堆疊 | High |
 | TC15 | 放大間隔複習產品展示 | CSS 與 responsive layout | 檢查 spaced-review feature row | 桌機版產品 GIF 取得較寬欄位以呈現操作細節，手機版維持全寬 | High |
+| TC16 | ChatGPT 訂閱門檻警示 | HTML、CSS 與雙語字典 | 檢查 Codex 登入說明 | 以紅字 `IMPORTANT／重要` 明示文字 AI 需要包含 Codex 存取權的 ChatGPT 訂閱方案 | Critical |
 
 ## 6. Implementation Notes
 
@@ -157,8 +160,8 @@ VocabReader 的米白閱讀底色、深綠主色、襯線閱讀語氣與正式 A
 ## 8. Module Documentation Impact
 
 官網是被 Git 忽略的獨立 artifact，不改變 App domain module、API、資料契約或 runtime；
-因此不需新增或更新 `documents/modules/` 文件。`apps/desktop/PRODUCT.md` 記錄跨表面的產品
-真相與品牌承諾，供後續設計工作沿用。
+其公開表面、雙語、build 與部署邊界記錄於 `documents/modules/product-website.md`。
+`website/PRODUCT.md` 另記錄官網受眾、產品證據與品牌承諾，供後續設計工作沿用。
 
 ## 9. Implementation Record
 
@@ -182,7 +185,7 @@ Implemented and verified on 2026-08-26.
 
 ### Test Coverage
 
-- TC1–TC6、TC8–TC15：`npm test --prefix website` 通過（14/14）。
+- TC1–TC6、TC8–TC16：`npm test --prefix website` 通過（15/15）。
 - TC7：實作前執行 root `npm run dev`，server、Vite renderer 與 Electron 均成功啟動。
 - Production：`npm run build --prefix website` 通過，Vite 成功產出靜態 build。
 - Browser QA：在 1440×1000 與 390×844 檢查無水平 overflow、Navbar、CTA、實際截圖與排版。
