@@ -16,3 +16,15 @@ test-results/
 
 # Standalone local product website artifact.
 /website/
+
+# Local Codex and frontend-design tooling state.
+/.codex-tmp/
+/.codex/
+/.agents/skills/impeccable/
+
+# Local promotional-deck exports containing user-library screenshots.
+/VocabReader_產品介紹_開源推廣.pptx
+/VocabReader_產品介紹_開源推廣.pptx.inspect.ndjson
+/VocabReader_產品介紹_開源推廣/
+/docs/images/ai-context-grammar.png
+/docs/images/ai-context-meaning.png
