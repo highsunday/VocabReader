@@ -5,9 +5,9 @@
 <h1 align="center">VocabReader</h1>
 
 <p align="center">
-  <strong>Turn every moment of confusion into something you can remember and use.</strong><br />
-  VocabReader is a desktop app that brings EPUB reading, AI explanations, vocabulary management, and active practice together.<br />
-  Go from understanding a passage to spaced review, writing, and speaking without jumping between a reader, dictionary, chatbot, and flashcard app.
+  <strong>An AI Tutor for the books you actually want to read.</strong><br />
+  VocabReader puts a context-aware AI Tutor beside your own EPUB books.<br />
+  Understand the exact passage, then turn what you choose into learning cards, spaced review, writing, and speaking—so every book expands what you can read next.
 </p>
 
 <p align="center">
@@ -27,28 +27,30 @@
   <a href="https://github.com/highsunday/VocabReader/issues"><strong>Share feedback</strong></a>
 </p>
 
-![A VocabReader library containing Harry Potter and the Sorcerer's Stone and Harry Potter and the Chamber of Secrets](docs/readme-assets/library-overview.png)
+![VocabReader showing an EPUB beside AI Tutor](docs/images/reading-with-ai.png)
 
-## Make every reading session build real language ability
+## Ask AI Tutor without leaving the book
 
-The frustrating part of reading in another language is not encountering an unfamiliar word. It is looking that word up, understanding it for a moment, and then forgetting it. A reader can display the book, a dictionary can define a word, a chatbot can answer a question, and a flashcard app can schedule reviews—but turning all of those scattered results into a sustainable learning process takes work.
+The books you genuinely want to read are often just beyond your current level. You can follow the main idea, but unfamiliar words, phrases, and structures keep interrupting the experience. AI Tutor uses the reading context you select to explain what a word, sentence, grammar point, or tone means here—without making you leave the book or repeatedly copy and paste the source text.
+
+A reader can display the EPUB, a chatbot can explain a difficult sentence, and a flashcard app can schedule reviews. VocabReader connects the original text, contextual AI Tutor, learning cards, and spaced practice in one reading flow.
 
 VocabReader connects the entire flow:
 
-**Import an EPUB → Read and mark questions → Get contextual explanations → Create learning items → Review with spaced repetition → Practise through writing and speaking**
+**Import your EPUB → Read and mark what blocks understanding → Make it comprehensible in context → Save what is worth learning → Review it over time with spaced repetition → Use it in writing and speaking**
 
 VocabReader does not use AI to replace reading, and it is not an automatic whole-book translation tool. It preserves the process of reading and thinking for yourself, offers focused help when you ask for it, and carries the material worth learning into later practice.
 
 ### What makes it different
 
-- **Learn with AI Tutor:** Ask about words, phrases, grammar, or meaning in the passage you are reading.
-- **Save what you want to learn:** Add words and phrases from the book to your Learning Library with explanations and examples.
-- **Review and practise in one app:** Use spaced review, reading exercises, writing practice, and Listen & Repeat without switching tools.
+- **Ask an AI Tutor that understands the passage:** Get explanations grounded in the reading context you select, without repeatedly copying the source text.
+- **Build vocabulary from real encounters:** Save words and phrases with the precise meaning and examples that mattered in the book you chose.
+- **Review useful language over time:** Use spaced review, reading exercises, writing practice, and Listen & Repeat after the page has moved on.
 - **Keep your data on your device:** Books, reading progress, annotations, learning items, and review history are stored locally and can be backed up manually.
 
 ## Key features
 
-### 1. Learn with AI Tutor
+### 1. Ask AI Tutor without leaving the book
 
 While reading an EPUB, ask about the current passage, the use of a word or phrase, sentence structure, or grammar. AI Tutor answers with the text you are reading in mind, so you do not have to copy the passage or explain the context each time.
 
@@ -168,6 +170,7 @@ You can set the explanation language separately. For example, you can read Japan
 
 VocabReader is a good fit if you:
 
+- Already have enough foundation to follow the main idea of an original-language book, but still meet language that stretches you.
 - Want to use novels, nonfiction, or specialist books as language-learning material.
 - Are frequently interrupted by unfamiliar words, phrases, complex sentences, or grammar while reading.
 - Want the app to schedule future practice from actual review results instead of merely collecting vocabulary.
@@ -175,6 +178,8 @@ VocabReader is a good fit if you:
 - Want to practise reading comprehension, retelling, integrated writing, pronunciation, and shadowing in one place.
 - Study more than one language and want each language's books, progress, and learning items kept separate.
 - Have a ChatGPT account with Codex access and want to reuse that sign-in without configuring a text-AI API key.
+
+It is not designed to choose a perfectly levelled book for you or to translate an entire book automatically. You choose the EPUB and do the reading; VocabReader helps make the difficult parts comprehensible and turns selected discoveries into material you can review later.
 
 ### Current product boundaries
 
