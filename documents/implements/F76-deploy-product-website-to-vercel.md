@@ -139,6 +139,7 @@ Implemented and production-verified on 2026-08-31.
 - Stable production URL: `https://vocabreader.vercel.app/`
 - Vercel Root Directory: `website`
 - Git integration: `https://github.com/highsunday/VocabReader`, with `main` as the production branch
+- First Git-triggered production commit: `af6a515a132ae399d3f446ddee7ae7fadba6c297`
 - Build command: `npm run build`
 - Output directory: `dist`
 - Legacy site retained: `https://highsunday.github.io/VocabReader/`
@@ -186,6 +187,10 @@ Implemented and production-verified on 2026-08-31.
   `website` 後重新 inspect，確認 Vite build boundary 正確。
 - favicon 初次縮圖命令因工作目錄已在 `website/` 卻再次加上 `website/` prefix 而找不到來源；
   修正為 `public/assets/vocabreader-icon.png` 後成功產生 96×96 RGBA PNG。
+- 第一次推送含媒體的 commit 時，Git HTTPS smart protocol 在送出 pack 後回報 HTTP 400，遠端
+  commit 比對確認實際未更新。HTTP/1.1 單獨重試仍失敗；加大單次 post buffer 後，同一 commit
+  成功推送。遠端 `main` 與本機 commit 相符，隨後 Vercel Git integration 自動產生 READY 的
+  production deployment，排除 branch protection 或 Vercel webhook 問題。
 
 ### Acceptance Result
 
