@@ -155,13 +155,15 @@ Implemented and production-verified on 2026-08-31.
 ### Production Result
 
 - Vercel project: `highsundays-projects/vocabreader`
-- Stable production URL: `https://vocabreader.vercel.app/`
+- Canonical production URL: `https://www.vocabreader.site/`
+- Apex redirect: `https://vocabreader.site/` → `https://www.vocabreader.site/` (HTTP 308)
+- Vercel technical alias retained: `https://vocabreader.vercel.app/`
 - Vercel Root Directory: `website`
 - Git integration: `https://github.com/highsunday/VocabReader`, with `main` as the production branch
 - First Git-triggered production commit: `af6a515a132ae399d3f446ddee7ae7fadba6c297`
 - Build command: `npm run build`
 - Output directory: `dist`
-- Legacy site retained: `https://highsunday.github.io/VocabReader/`
+- Legacy redirect site retained: `https://highsunday.github.io/VocabReader/`
 
 ### Files Changed
 
@@ -176,6 +178,10 @@ Implemented and production-verified on 2026-08-31.
 - `website/public/favicon.png`
 - `website/public/robots.txt`
 - `website/public/sitemap.xml`
+- `website/legacy-github-pages/index.html`
+- `website/legacy-github-pages/download/index.html`
+- `website/legacy-github-pages/robots.txt`
+- `website/legacy-github-pages/sitemap.xml`
 - `website/tests/contracts.test.mjs`
 - previously local `website/` source, tests, design guidance, and public assets are now tracked by `main`
 
@@ -195,6 +201,25 @@ Implemented and production-verified on 2026-08-31.
    宣告 `https://vocabreader.vercel.app/` canonical 與 `/favicon.png`。
 7. Legacy：舊 GitHub Pages 首頁仍回傳 HTTP 200，未刪除或覆寫 `gh-pages`。
 
+### Version 1.1 Custom Domain and Legacy Migration
+
+- RED：將 canonical、sitemap、robots、`WebSite` structured data 與逐頁 legacy redirect
+  契約改為自訂網域後，F76 測試 5 項依預期失敗。
+- GREEN：新增 custom-domain metadata 與 tracked legacy templates 後，F76 contracts 8/8
+  通過；完整 `npm test` 通過 40/40，`npm run build` 通過。
+- Main deployment：commit `a4e75d8` 觸發 Vercel Git production deployment
+  `dpl_9QosamvjtRMebBa4FT9ry6TYPYNg`，狀態 READY，aliases 包含 apex、`www` 與
+  `vocabreader.vercel.app`。
+- Production verification：apex 回傳 308 至 `www`；首頁、下載頁、favicon、robots、sitemap
+  與 Google HTML 驗證檔回傳 HTTP 200；production HTML 只宣告 `www.vocabreader.site`
+  canonical，首頁 `WebSite` JSON-LD 可解析。
+- Legacy deployment：`gh-pages` commit `63067e0` 成功發布。舊首頁與下載頁維持 HTTP 200，
+  各自提供對應新網址 canonical、0 秒 meta refresh、JavaScript fallback 與可點擊連結；
+  legacy robots 與 sitemap 只引用自訂網域，原 Google 驗證檔保留。
+- Manual follow-up：Google Search Console 的 Domain property 與 DNS TXT ownership
+  verification 必須由使用者在 Google／Namecheap 帳號中完成，之後提交新 sitemap 並要求
+  首頁與下載頁重新建立索引。
+
 ### Diagnostic Notes
 
 - 第一次執行 `vercel --prod` 上傳失敗。假說依序為：舊 CLI 不支援目前 upload endpoint、
@@ -213,5 +238,5 @@ Implemented and production-verified on 2026-08-31.
 
 ### Acceptance Result
 
-TC1–TC7 全部通過。Vercel production site 已可使用；Google 搜尋結果何時改用新 favicon
+TC1–TC9 全部通過。Vercel custom-domain production site 與 GitHub Pages 逐頁搬家入口已可使用；Google 搜尋結果何時改用新 favicon
 仍取決於 Google 對新 hostname 的檢索與重新建立索引，不屬於部署成功的同步保證。

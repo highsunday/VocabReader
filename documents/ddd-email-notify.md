@@ -1226,3 +1226,22 @@ DDD standalone TDD completion notification for the Vercel product-website migrat
 
 **Follow-up**
 - No action required. The Vercel production site and Git-triggered automatic deployment are live.
+
+#### L062 — 2026-08-31 21:43 CST — F76 v1.1 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification for the custom domain and GitHub Pages migration.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] F76 v1.1 自訂網域與 GitHub Pages 搬遷`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a0580f64b094317`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- User must finish Google Search Console Domain-property TXT verification and submit the custom-domain sitemap.
