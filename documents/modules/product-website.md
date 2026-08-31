@@ -147,7 +147,7 @@ static v0.1.2 official asset URLs
 - Git integration 以 repository 的 `website/` 為 Root Directory；後續推送 `main` 時由
   Vercel 自動建置 production deployment，其他分支則產生 preview deployment。
 - 舊 `gh-pages` 分支與 `https://highsunday.github.io/VocabReader/` 暫時保留，避免搜尋索引與
-  既有連結在新站重新收錄期間直接失效；舊站不得再作為 canonical 或 sitemap 來源。
+  既有連結在新站重新收錄期間直接失效；新站的 canonical 與 sitemap 不得再指向舊站。
 
 ## 8. Key Files
 
