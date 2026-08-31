@@ -502,12 +502,13 @@ _Avoid using:_ Web App、線上版閱讀器、App Renderer
 ### 產品官網與發行導覽
 
 - **產品官網**是與 Electron App、server workspace 分離的 Vite 靜態網站，不得匯入 App runtime、SQLite、EPUB 內容或本機 Codex controller。
-- 正式網址以獨立 hostname 根目錄發布；首頁與 `/download/` 必須使用站內相對導覽，建置資產、canonical、sitemap 與 favicon 必須共用同一正式網站根目錄。
+- 正式 canonical origin 是 `https://www.vocabreader.site/`；apex `https://vocabreader.site/` 必須永久轉向 `www`。首頁與 `/download/` 必須使用站內相對導覽，建置資產、canonical、sitemap、favicon 與 `WebSite` structured data 必須共用該正式網站根目錄。
 - 首頁負責產品介紹、真實畫面、雙語內容與信任入口；下載頁負責平台檔案選擇、未簽章警告說明、限定範圍的系統確認步驟、Codex CLI 安裝登入與來源證據。
 - 安裝檔只來自 `highsunday/VocabReader` 官方 GitHub Releases。網站可以從公開 latest-release API 更新連結，但 API 失敗時必須保留已驗證的靜態 fallback，不得改用第三方鏡像。
 - 未簽章說明必須區分「作業系統無法驗證發行者」與「已偵測到惡意軟體」，不得宣稱 Apple、Microsoft 或網站已完成不存在的安全驗證，也不得要求全面關閉 Gatekeeper、SmartScreen 或防毒保護。
 - 網站不得收集書籍、學習資料、ChatGPT 密碼或 API key；目前除語言偏好的 `localStorage` 外，不提供帳號、analytics、cookie tracking 或 App 資料同步。
 - 官網原始碼由 `main` 分支追蹤，但維持獨立 `website/` package 與建置邊界，不得加入 root npm workspaces、匯入 App runtime 或讓官網建置執行 Electron/server 工作。
+- 舊 GitHub Pages 首頁與下載頁只作為對應的新網址搬家入口；不得繼續提供完整重複內容、加入 `noindex` 或把下載頁錯誤導向新首頁，`gh-pages` 與 Google 驗證檔在遷移期內必須保留。
 
 ### 桌面版本與安裝檔發佈流程
 

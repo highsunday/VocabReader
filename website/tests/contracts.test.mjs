@@ -398,30 +398,31 @@ test("keeps the Google Search Console verification file in the website build", a
   );
 });
 
-test("F76 TC2 declares one Vercel production canonical for each indexable page", async () => {
+test("F76 TC2 declares the custom production domain as the only canonical origin", async () => {
   const home = await text("index.html");
   const download = await text("download/index.html");
 
   assert.equal((home.match(/rel=["']canonical["']/g) ?? []).length, 1);
   assert.match(
     home,
-    /<link\s+rel=["']canonical["']\s+href=["']https:\/\/vocabreader\.vercel\.app\/["']\s*\/?>/,
+    /<link\s+rel=["']canonical["']\s+href=["']https:\/\/www\.vocabreader\.site\/["']\s*\/?>/,
   );
   assert.equal((download.match(/rel=["']canonical["']/g) ?? []).length, 1);
   assert.match(
     download,
-    /<link\s+rel=["']canonical["']\s+href=["']https:\/\/vocabreader\.vercel\.app\/download\/["']\s*\/?>/,
+    /<link\s+rel=["']canonical["']\s+href=["']https:\/\/www\.vocabreader\.site\/download\/["']\s*\/?>/,
   );
+  assert.doesNotMatch(`${home}\n${download}`, /vocabreader\.vercel\.app|highsunday\.github\.io/);
 });
 
-test("F76 TC2 publishes a sitemap containing only the Vercel canonical pages", async () => {
+test("F76 TC2 publishes a sitemap containing only the custom-domain canonical pages", async () => {
   const sitemap = await text("public/sitemap.xml");
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
 
   assert.match(sitemap, /<urlset\s+xmlns=["']http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9["']>/);
   assert.deepEqual(locations, [
-    "https://vocabreader.vercel.app/",
-    "https://vocabreader.vercel.app/download/",
+    "https://www.vocabreader.site/",
+    "https://www.vocabreader.site/download/",
   ]);
   assert.doesNotMatch(sitemap, /index\.html/);
 });
@@ -442,13 +443,46 @@ test("F76 TC3 exposes one stable square root favicon on both pages", async () =>
   assert.equal(favicon.readUInt32BE(20), 96);
 });
 
-test("F76 TC4 publishes crawl guidance for the Vercel production hostname", async () => {
+test("F76 TC4 publishes crawl guidance for the custom production hostname", async () => {
   const robots = await text("public/robots.txt");
 
   assert.match(robots, /^User-agent:\s*\*$/m);
   assert.match(robots, /^Allow:\s*\/$/m);
-  assert.match(robots, /^Sitemap:\s*https:\/\/vocabreader\.vercel\.app\/sitemap\.xml$/m);
-  assert.doesNotMatch(robots, /highsunday\.github\.io|\/VocabReader\//);
+  assert.match(robots, /^Sitemap:\s*https:\/\/www\.vocabreader\.site\/sitemap\.xml$/m);
+  assert.doesNotMatch(robots, /vocabreader\.vercel\.app|highsunday\.github\.io|\/VocabReader\//);
+});
+
+test("F76 TC8 declares a parseable VocabReader WebSite identity for Google", async () => {
+  const home = await text("index.html");
+  const match = home.match(/<script\s+type=["']application\/ld\+json["']>([\s\S]*?)<\/script>/);
+
+  assert.ok(match, "homepage must include WebSite structured data");
+  const structuredData = JSON.parse(match[1]);
+  assert.deepEqual(structuredData, {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "VocabReader",
+    alternateName: "VocabReader AI Tutor",
+    url: "https://www.vocabreader.site/",
+  });
+});
+
+test("F76 TC9 tracks one direct legacy redirect for each indexed GitHub Pages URL", async () => {
+  const redirects = [
+    ["legacy-github-pages/index.html", "https://www.vocabreader.site/"],
+    ["legacy-github-pages/download/index.html", "https://www.vocabreader.site/download/"],
+  ];
+
+  for (const [file, destination] of redirects) {
+    const html = await text(file);
+    const escapedDestination = destination.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    assert.match(html, new RegExp(`<link\\s+rel=["']canonical["']\\s+href=["']${escapedDestination}["']`));
+    assert.match(html, new RegExp(`<meta\\s+http-equiv=["']refresh["']\\s+content=["']0;\\s*url=${escapedDestination}["']`));
+    assert.match(html, new RegExp(`location\\.replace\\(["']${escapedDestination}["']\\)`));
+    assert.match(html, new RegExp(`<a\\s+href=["']${escapedDestination}["']`));
+    assert.doesNotMatch(html, /noindex|vocabreader\.vercel\.app/i);
+  }
 });
 
 test("TC19 offers platform-aware official GitHub Release downloads", async () => {

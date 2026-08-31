@@ -3,7 +3,7 @@ author: Codex
 date: 2026-08-31
 title: 將 VocabReader 產品官網遷移至 Vercel
 uuid: 4e2c4c65-75b4-4f7d-8f46-de4d95a2f95e
-version: 1.0.0
+version: 1.1.0
 status: implemented
 ---
 
@@ -16,6 +16,11 @@ VocabReader 產品官網目前發布於 GitHub Pages 專案路徑
 網站名稱以 hostname 為單位，不支援專案子目錄的獨立網站身分。本功能將官網
 發布到 Vercel 的獨立 production hostname，使 VocabReader 的 favicon、canonical URL、
 sitemap 與搜尋結果來源具有一致的網站根目錄。
+
+版本 1.1 將使用者既有的 `vocabreader.site` 接到 Vercel，選定
+`https://www.vocabreader.site/` 為唯一 canonical origin，並將保留的 GitHub Pages 首頁與
+下載頁改為對應的新網址搬家入口，避免 GitHub Pages、`vercel.app` 與自訂網域形成三份
+可索引的重複內容。
 
 官網原始碼將改由現有 `highsunday/VocabReader` repository 的 `main` 分支追蹤，
 Vercel 只以 `website/` 為建置根目錄。它仍是獨立的 Vite 靜態網站，不加入 root
@@ -47,17 +52,23 @@ workspaces，不匯入 Electron App 或 server runtime。舊 GitHub Pages 網站
 
 ### 3.3 搜尋與品牌資訊
 
-- 首頁與下載頁 canonical 必須指向 Vercel 穩定 production hostname。
-- sitemap 必須只列出 Vercel production hostname 的首頁與下載頁。
+- 首頁與下載頁 canonical 必須指向 `https://www.vocabreader.site/` 的對應正式頁面。
+- sitemap 必須只列出 `https://www.vocabreader.site/` 的首頁與下載頁。
 - 首頁與下載頁都必須宣告正式 VocabReader favicon，favicon 必須在網站根目錄
   具有穩定、可直接讀取的 URL。
-- 建置輸出不得殘留 `/VocabReader/` GitHub Pages base 或舊 canonical。
+- 首頁必須提供 `WebSite` structured data，明確宣告 `VocabReader` 網站名稱與 canonical URL。
+- robots 的 sitemap、建置輸出與 Google metadata 不得殘留 `/VocabReader/` GitHub Pages base、
+  `vocabreader.vercel.app` 或舊 canonical。
 
 ### 3.4 發布安全與保留邊界
 
 - 新 Vercel 站必須在發布後通過 HTTP 200、HTML metadata、favicon、hashed assets 與
   `/download/` 現網驗證。
 - 舊 GitHub Pages 站在新站通過驗證前不得下架或覆寫。
+- 自訂網域通過 DNS、TLS 與內容驗證後，舊 GitHub Pages 首頁與下載頁必須使用 0 秒
+  meta refresh、canonical、JavaScript fallback 與可點擊連結，直接導向各自對應的新網址。
+- `gh-pages` 分支與 Google 驗證檔必須保留；搬家頁不得加入 `noindex`，不得把下載頁錯誤
+  導向新首頁。
 - GitHub Releases 維持安裝檔唯一來源；搬遷不得複製 installer 到 Vercel。
 - 網站不新增 analytics、cookie tracking、帳號、後端或私密 token。
 
@@ -85,17 +96,25 @@ workspaces，不匯入 Electron App 或 server runtime。舊 GitHub Pages 網站
   - **Then** 必要資源皆回傳 HTTP 200，metadata 與建置輸出一致
   - **And** 舊 GitHub Pages 首頁仍回傳 HTTP 200
 
+- **Scenario 5：自訂網域成為唯一搜尋來源**
+  - **Given** `www.vocabreader.site` 已通過 Vercel DNS 與 TLS 驗證
+  - **When** 檢查新站 metadata 與舊 GitHub Pages 搬家頁
+  - **Then** 新站 canonical、sitemap、robots 與 `WebSite` structured data 只使用自訂網域
+  - **And** 舊首頁與下載頁分別即時導向對應的新網址
+
 ## 5. Test Scenarios
 
 | ID | Scenario | Given | When | Then | Priority |
 |---|---|---|---|---|---|
 | TC1 | Vercel 根路徑建置契約 | `vite.config.js` 與 build output | 執行 contract tests 與 build | base 為 `/`，輸出無 `/VocabReader/` prefix | Critical |
-| TC2 | canonical 與 sitemap 契約 | 首頁、下載頁、sitemap | 執行 contract tests | 所有正式 URL 一致使用穩定 Vercel hostname | Critical |
+| TC2 | canonical 與 sitemap 契約 | 首頁、下載頁、sitemap | 執行 contract tests | 所有正式 URL 一致使用 `www.vocabreader.site` | Critical |
 | TC3 | favicon 搜尋契約 | 兩個 HTML entry 與 public assets | 執行 contract tests | 兩頁都宣告 root favicon，檔案為方形且可建置 | Critical |
 | TC4 | Git/Vercel 發布邊界 | `.gitignore`、root package、Vercel config | 執行 contract tests | website 可追蹤、仍與 App workspace 隔離、本機輸出被忽略 | Critical |
 | TC5 | production build 可部署 | Vercel project settings | 執行 `npm run build` | `dist/index.html` 與 `dist/download/index.html` 皆存在且 assets 可從根路徑解析 | Critical |
 | TC6 | production 現網驗證 | Vercel production URL | 請求公開資源 | 首頁、下載頁、favicon 與 hashed assets 回傳 HTTP 200 | Critical |
 | TC7 | 舊站保留 | GitHub Pages URL | Vercel 驗證完成後請求舊首頁 | 舊首頁仍回傳 HTTP 200 | High |
+| TC8 | Google 網站名稱契約 | 首頁 structured data | 執行 contract tests | `WebSite` name 與 URL 明確且可解析 | High |
+| TC9 | 舊站逐頁搬遷契約 | tracked legacy redirect templates | 執行 contract tests | 首頁與下載頁各自使用對應 canonical、0 秒 refresh、JS fallback 且無 noindex | Critical |
 
 ## 6. Implementation Notes
 
@@ -116,9 +135,9 @@ workspaces，不匯入 Electron App 或 server runtime。舊 GitHub Pages 網站
 
 ### Non-goals
 
-- 本功能不購買或設定自訂網域。
+- 本功能不購買新網域；只設定使用者已擁有的 `vocabreader.site`。
 - 不建立 `highsunday.github.io` 根網站。
-- 不在本功能中下架 GitHub Pages、強制舊 URL 轉向或刪除 `gh-pages` 分支。
+- 不下架 GitHub Pages 或刪除 `gh-pages` 分支；只把可索引頁改為對應的新網址搬家入口。
 - 不變更頁面視覺、產品文案、安裝說明、installer 連結或 App 功能。
 - 不新增 analytics、CMS、backend、帳號或 tracking cookie。
 

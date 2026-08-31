@@ -27,9 +27,10 @@ Windows 或 macOS 安裝檔、理解未簽章警告、完成限定範圍的系�
 
 狀態：**已實作並發布**
 
-- 正式首頁：`https://vocabreader.vercel.app/`
-- 下載與安裝頁：`https://vocabreader.vercel.app/download/`
-- 舊 GitHub Pages 網址暫時保留為 legacy site，不是 canonical 來源。
+- 正式首頁：`https://www.vocabreader.site/`
+- 下載與安裝頁：`https://www.vocabreader.site/download/`
+- `https://vocabreader.site/` 由 Vercel 以 308 轉向 `www` canonical origin。
+- 舊 GitHub Pages 網址保留為逐頁搬家入口，不再提供完整重複內容。
 - 首頁與下載頁皆提供完整繁體中文／英文內容，共用同一語言偏好。
 - 首頁兩個主要下載 CTA 先進入站內安裝導覽，不直接把一般使用者送往 GitHub Releases。
 - 下載頁依瀏覽器資訊預選 Windows 或 macOS，並支援滑鼠及 Left／Right／Home／End 鍵盤切換。
@@ -73,7 +74,7 @@ website/index.html + website/download/index.html
   → website/dist/index.html
   → website/dist/download/index.html
   → Vercel production deployment
-  → https://vocabreader.vercel.app/
+  → https://www.vocabreader.site/
 ```
 
 - `website/` 由 repository `main` 分支追蹤，但仍是獨立的 vanilla JavaScript／Vite 專案，
@@ -139,15 +140,18 @@ static v0.1.2 official asset URLs
 
 ## 7. Deployment
 
-- Vercel project 為 `highsundays-projects/vocabreader`，穩定 production alias 為
-  `https://vocabreader.vercel.app/`。
+- Vercel project 為 `highsundays-projects/vocabreader`；正式 canonical origin 為
+  `https://www.vocabreader.site/`，apex `https://vocabreader.site/` 以 308 轉向 `www`。
+- `https://vocabreader.vercel.app/` 保留為 Vercel 技術 alias，不得出現在 canonical、sitemap、
+  robots 或 `WebSite` structured data。
 - `main` 追蹤 `website/` 的 source、tests 與 public assets；`node_modules/`、`dist/`、
   `.vercel/` 與本機設計檢查輸出維持忽略。
 - `website/vercel.json` 固定 `npm run build`、`dist` output 與 trailing-slash 路由。
 - Git integration 以 repository 的 `website/` 為 Root Directory；後續推送 `main` 時由
   Vercel 自動建置 production deployment，其他分支則產生 preview deployment。
-- 舊 `gh-pages` 分支與 `https://highsunday.github.io/VocabReader/` 暫時保留，避免搜尋索引與
-  既有連結在新站重新收錄期間直接失效；新站的 canonical 與 sitemap 不得再指向舊站。
+- `website/legacy-github-pages/` 追蹤可重現的舊站搬家模板。舊 `gh-pages` 分支保留首頁、
+  下載頁、Google 驗證檔、robots 與 sitemap；首頁與下載頁使用 0 秒 meta refresh、canonical、
+  JavaScript fallback 與可點擊連結，分別直接導向對應的新網址。
 
 ## 8. Key Files
 
@@ -172,6 +176,7 @@ static v0.1.2 official asset URLs
 | `website/public/favicon.png` | Google 與瀏覽器可從 hostname 根目錄取得的 96×96 品牌 favicon |
 | `website/public/robots.txt` | crawler 規則與 production sitemap 位置 |
 | `website/public/sitemap.xml` | production 首頁與下載頁 URL |
+| `website/legacy-github-pages/` | 舊 GitHub Pages 首頁、下載頁、robots 與 sitemap 搬家模板 |
 | `website/tests/contracts.test.mjs` | 內容、雙語、連結、build、平台、安全與 responsive contracts |
 | `website/DESIGN.md` | 官網視覺語言與設計約束 |
 | `website/PRODUCT.md` | 官網受眾、目的、證據與產品原則 |
@@ -181,23 +186,24 @@ static v0.1.2 official asset URLs
 
 從 `website/` 執行：
 
-- `npm test`：38 項 contract tests，涵蓋首頁、雙語、真實資產、MP4 漸進增強、reduced motion、CTA、平台分頁、未簽章
-  指引、Windows SmartScreen 雙圖、macOS「強制打開」圖解、Codex 指令、信任說明、Vercel root base、favicon、canonical、sitemap、robots 與 responsive／accessibility contracts。
+- `npm test`：40 項 contract tests，涵蓋首頁、雙語、真實資產、MP4 漸進增強、reduced motion、CTA、平台分頁、未簽章
+  指引、Windows SmartScreen 雙圖、macOS「強制打開」圖解、Codex 指令、信任說明、Vercel root base、favicon、自訂網域 canonical、sitemap、robots、`WebSite` structured data、舊站逐頁搬家與 responsive／accessibility contracts。
 - `npm run build`：必須同時產生 `dist/index.html` 與 `dist/download/index.html`，且資產 URL
   使用 hostname 根目錄的 `/assets/`。
 - repository root 的 `npm run test:media`：6 項媒體契約，驗證 GIF 色彩、MP4 codec／尺寸／
   duration／檔案大小，以及 README／官網資產同步。
 - 發布前另以 1440px 桌機與 390px 手機檢查繁中長文、鍵盤分頁、focus、console error 與
   水平 overflow。
-- 發布後確認首頁、下載頁、favicon、robots、sitemap 及 hashed assets 皆回傳 HTTP 200；
-  canonical 必須只指向 `vocabreader.vercel.app`，舊 GitHub Pages 首頁仍須可讀取。
+- 發布後確認自訂網域首頁、下載頁、favicon、robots、sitemap 及 hashed assets 皆回傳 HTTP 200；
+  apex 必須以 308 轉向 `www`，canonical 只指向 `www.vocabreader.site`，舊 GitHub Pages 首頁
+  與下載頁必須仍回傳 HTTP 200 並即時前往對應的新網址。
 
 ## 10. Known Limitations and Follow-up
 
 - Google 搜尋結果中的 favicon 與網址更新仍由 Google 重新檢索決定；Vercel 上線不保證立即
   改變既有搜尋結果。可在 Search Console 為新 URL prefix 提交 sitemap 並要求重新建立索引。
-- 舊 GitHub Pages 專案路徑無法在目前靜態託管架構提供跨 hostname 的 HTTP 301；在確認搜尋與
-  外部連結已遷移前先保留 legacy site，後續需另行決定替代頁或轉址策略。
+- 舊 GitHub Pages 專案路徑無法提供跨 hostname 的 HTTP 301，目前以 Google 可辨識的 0 秒
+  meta refresh 作為 client-side 永久搬家訊號；`gh-pages` 應至少保留一年並持續監測舊 URL。
 - Vercel Hobby 目前只用於免費開源 Early Preview；若產品改為商業用途，需重新確認 Vercel
   方案與使用條款。
 - installer 尚未購買 Windows／Apple 開發者簽章，也尚未完成 macOS notarization；網站只能
