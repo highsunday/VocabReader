@@ -148,7 +148,8 @@ static v0.1.2 official asset URLs
   `.vercel/` 與本機設計檢查輸出維持忽略。
 - `website/vercel.json` 固定 `npm run build`、`dist` output 與 trailing-slash 路由。
 - Git integration 以 repository 的 `website/` 為 Root Directory；後續推送 `main` 時由
-  Vercel 自動建置 production deployment，其他分支則產生 preview deployment。
+  Vercel 自動建置 production deployment，其他一般分支產生 preview deployment；
+  `git.deploymentEnabled` 明確排除只負責 GitHub Pages 搬家頁的 `gh-pages` 分支。
 - `website/legacy-github-pages/` 追蹤可重現的舊站搬家模板。舊 `gh-pages` 分支保留首頁、
   下載頁、Google 驗證檔、robots 與 sitemap；首頁與下載頁使用 0 秒 meta refresh、canonical、
   JavaScript fallback 與可點擊連結，分別直接導向對應的新網址。

@@ -216,6 +216,10 @@ Implemented and production-verified on 2026-08-31.
 - Legacy deployment：`gh-pages` commit `63067e0` 成功發布。舊首頁與下載頁維持 HTTP 200，
   各自提供對應新網址 canonical、0 秒 meta refresh、JavaScript fallback 與可點擊連結；
   legacy robots 與 sitemap 只引用自訂網域，原 Google 驗證檔保留。
+- Branch isolation：首次 `gh-pages` push 讓 Vercel 嘗試建立沒有 `website/` root 的 Preview，
+  該 Preview 預期失敗但未影響 production。`website/vercel.json` 新增
+  `git.deploymentEnabled.gh-pages: false` 契約，並把同一份 branch exclusion config 放入
+  `gh-pages` 的 `website/` root，後續搬家頁更新不再觸發無意義的 Vercel Preview。
 - Manual follow-up：Google Search Console 的 Domain property 與 DNS TXT ownership
   verification 必須由使用者在 Google／Namecheap 帳號中完成，之後提交新 sitemap 並要求
   首頁與下載頁重新建立索引。

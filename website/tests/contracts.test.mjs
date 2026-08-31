@@ -118,6 +118,7 @@ test("F76 TC4 website is tracked while remaining outside the App workspaces", as
   assert.deepEqual(rootPackage.workspaces, ["apps/*"]);
   assert.equal(vercelConfig.buildCommand, "npm run build");
   assert.equal(vercelConfig.outputDirectory, "dist");
+  assert.deepEqual(vercelConfig.git?.deploymentEnabled, { "gh-pages": false });
 });
 
 test("TC8 foregrounds the five confirmed core product capabilities in both locales", async () => {
