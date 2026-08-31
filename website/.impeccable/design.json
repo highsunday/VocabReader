@@ -1,0 +1,268 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-26T07:29:27Z",
+  "title": "Design System: VocabReader Website",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Reading Paper",
+        "canonical": "#f6f3eb",
+        "tonalRamp": ["oklch(15% 0.025 90)", "oklch(27% 0.025 90)", "oklch(39% 0.025 90)", "oklch(51% 0.025 90)", "oklch(63% 0.025 90)", "oklch(75% 0.025 90)", "oklch(87% 0.025 90)", "oklch(95% 0.025 90)"]
+      },
+      "paper-raised": {
+        "role": "neutral",
+        "displayName": "Raised Paper",
+        "canonical": "#fffdf8",
+        "tonalRamp": ["oklch(15% 0.015 90)", "oklch(27% 0.015 90)", "oklch(39% 0.015 90)", "oklch(51% 0.015 90)", "oklch(63% 0.015 90)", "oklch(75% 0.015 90)", "oklch(87% 0.015 90)", "oklch(95% 0.015 90)"]
+      },
+      "paper-muted": {
+        "role": "neutral",
+        "displayName": "Muted Paper",
+        "canonical": "#eeece3",
+        "tonalRamp": ["oklch(15% 0.02 90)", "oklch(27% 0.02 90)", "oklch(39% 0.02 90)", "oklch(51% 0.02 90)", "oklch(63% 0.02 90)", "oklch(75% 0.02 90)", "oklch(87% 0.02 90)", "oklch(95% 0.02 90)"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Reader Ink",
+        "canonical": "#273129",
+        "tonalRamp": ["oklch(15% 0.02 145)", "oklch(27% 0.02 145)", "oklch(39% 0.02 145)", "oklch(51% 0.02 145)", "oklch(63% 0.02 145)", "oklch(75% 0.02 145)", "oklch(87% 0.02 145)", "oklch(95% 0.02 145)"]
+      },
+      "ink-soft": {
+        "role": "neutral",
+        "displayName": "Soft Reader Ink",
+        "canonical": "#5d685f",
+        "tonalRamp": ["oklch(15% 0.018 145)", "oklch(27% 0.018 145)", "oklch(39% 0.018 145)", "oklch(51% 0.018 145)", "oklch(63% 0.018 145)", "oklch(75% 0.018 145)", "oklch(87% 0.018 145)", "oklch(95% 0.018 145)"]
+      },
+      "forest": {
+        "role": "primary",
+        "displayName": "Forest Green",
+        "canonical": "#315f4b",
+        "tonalRamp": ["oklch(15% 0.055 155)", "oklch(27% 0.055 155)", "oklch(39% 0.055 155)", "oklch(51% 0.055 155)", "oklch(63% 0.055 155)", "oklch(75% 0.055 155)", "oklch(87% 0.055 155)", "oklch(95% 0.055 155)"]
+      },
+      "forest-deep": {
+        "role": "primary",
+        "displayName": "Deep Forest Ink",
+        "canonical": "#173c30",
+        "tonalRamp": ["oklch(15% 0.055 160)", "oklch(27% 0.055 160)", "oklch(39% 0.055 160)", "oklch(51% 0.055 160)", "oklch(63% 0.055 160)", "oklch(75% 0.055 160)", "oklch(87% 0.055 160)", "oklch(95% 0.055 160)"]
+      },
+      "forest-soft": {
+        "role": "primary",
+        "displayName": "Soft Forest Wash",
+        "canonical": "#dfe9df",
+        "tonalRamp": ["oklch(15% 0.025 145)", "oklch(27% 0.025 145)", "oklch(39% 0.025 145)", "oklch(51% 0.025 145)", "oklch(63% 0.025 145)", "oklch(75% 0.025 145)", "oklch(87% 0.025 145)", "oklch(95% 0.025 145)"]
+      },
+      "copper": {
+        "role": "secondary",
+        "displayName": "Margin Copper",
+        "canonical": "#b86842",
+        "tonalRamp": ["oklch(15% 0.12 48)", "oklch(27% 0.12 48)", "oklch(39% 0.12 48)", "oklch(51% 0.12 48)", "oklch(63% 0.12 48)", "oklch(75% 0.12 48)", "oklch(87% 0.12 48)", "oklch(95% 0.12 48)"]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Fine Rule",
+        "canonical": "#d8d3c7",
+        "tonalRamp": ["oklch(15% 0.02 85)", "oklch(27% 0.02 85)", "oklch(39% 0.02 85)", "oklch(51% 0.02 85)", "oklch(63% 0.02 85)", "oklch(75% 0.02 85)", "oklch(87% 0.02 85)", "oklch(95% 0.02 85)"]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Rule",
+        "canonical": "#bfc4ba",
+        "tonalRamp": ["oklch(15% 0.015 140)", "oklch(27% 0.015 140)", "oklch(39% 0.015 140)", "oklch(51% 0.015 140)", "oklch(63% 0.015 140)", "oklch(75% 0.015 140)", "oklch(87% 0.015 140)", "oklch(95% 0.015 140)"]
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "White",
+        "canonical": "#ffffff",
+        "tonalRamp": ["oklch(15% 0 0)", "oklch(27% 0 0)", "oklch(39% 0 0)", "oklch(51% 0 0)", "oklch(63% 0 0)", "oklch(75% 0 0)", "oklch(87% 0 0)", "oklch(95% 0 0)"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Hero statement only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Major section propositions and concluding calls to action."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Feature and showcase story headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explanatory product copy and long-form support text."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Small navigation, metadata, and contextual connection labels."
+      },
+      "action": {
+        "displayName": "Action",
+        "purpose": "Primary and secondary call-to-action text."
+      },
+      "nav-label": {
+        "displayName": "Navigation Label",
+        "purpose": "The compact GitHub navigation action."
+      }
+    },
+    "shadows": [
+      {
+        "name": "scrolled-header",
+        "value": "0 8px 24px rgb(37 49 39 / 7%)",
+        "purpose": "Appears only after the sticky header has moved beyond its initial position."
+      },
+      {
+        "name": "brand-icon",
+        "value": "0 12px 28px rgb(32 65 52 / 16%)",
+        "purpose": "Gives the production app icon a small tactile lift in the hero."
+      },
+      {
+        "name": "product-evidence",
+        "value": "0 20px 48px rgb(48 58 49 / 11%)",
+        "purpose": "Standard ambient lift for real screenshot frames."
+      },
+      {
+        "name": "motion-evidence",
+        "value": "0 18px 44px rgb(48 58 49 / 9%)",
+        "purpose": "A slightly quieter lift for workflow GIFs."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-standard",
+        "value": "160ms ease",
+        "purpose": "Default color, border, background, and 1px lift transition."
+      },
+      {
+        "name": "reveal-direct",
+        "value": "160ms ease-out",
+        "purpose": "Direct skip-link reveal for keyboard navigation."
+      },
+      {
+        "name": "header-state",
+        "value": "180ms ease",
+        "purpose": "Sticky-header border and shadow transition after scrolling."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "Near-instant transition duration under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "stack",
+        "value": "960px"
+      },
+      {
+        "name": "mobile",
+        "value": "620px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The high-emphasis free-download action.",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">Download Early Preview</a>",
+      "css": ".ds-btn-primary { min-height: 48px; padding: 12px 18px; border: 1px solid transparent; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: var(--forest, #315f4b); font: 750 0.95rem/1.6 Inter, ui-sans-serif, system-ui, sans-serif; text-decoration: none; transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 160ms ease; } .ds-btn-primary:hover { background: var(--forest-deep, #173c30); transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: 3px solid #5f866f; outline-offset: 4px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A quiet secondary action that keeps the paper field visible.",
+      "html": "<a class=\"ds-btn-secondary\" href=\"#\">View on GitHub</a>",
+      "css": ".ds-btn-secondary { min-height: 48px; padding: 12px 18px; border: 1px solid var(--line-strong, #bfc4ba); border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; color: var(--forest-deep, #173c30); background: transparent; font: 750 0.95rem/1.6 Inter, ui-sans-serif, system-ui, sans-serif; text-decoration: none; transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 160ms ease; } .ds-btn-secondary:hover { border-color: #829185; background: var(--paper-raised, #fffdf8); transform: translateY(-1px); } .ds-btn-secondary:focus-visible { outline: 3px solid #5f866f; outline-offset: 4px; }"
+    },
+    {
+      "name": "GitHub Navigation Action",
+      "kind": "button",
+      "refersTo": "nav-action",
+      "description": "The single compact raised action in the otherwise flat navigation.",
+      "html": "<a class=\"ds-nav-action\" href=\"#\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><path d=\"m12 3 2.78 5.63 6.22.91-4.5 4.38 1.06 6.19L12 17.18l-5.56 2.93 1.06-6.19L3 9.54l6.22-.91L12 3Z\" /></svg><span>Star on GitHub</span></a>",
+      "css": ".ds-nav-action { height: 38px; min-height: 38px; padding: 7px 11px; border: 1px solid var(--line, #d8d3c7); border-radius: 10px; display: inline-flex; align-items: center; gap: 7px; color: var(--forest-deep, #173c30); background: var(--paper-raised, #fffdf8); font: 720 0.8rem/1.6 Inter, ui-sans-serif, system-ui, sans-serif; text-decoration: none; transition: border-color 160ms ease, background 160ms ease; } .ds-nav-action svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-linejoin: round; stroke-width: 1.8; } .ds-nav-action:hover { border-color: #8e9d90; background: var(--forest-soft, #dfe9df); } .ds-nav-action:focus-visible { outline: 3px solid #5f866f; outline-offset: 4px; }"
+    },
+    {
+      "name": "Language Switch",
+      "kind": "nav",
+      "description": "A typographic, borderless locale control with one clearly pressed option.",
+      "html": "<div class=\"ds-language-switch\" aria-label=\"Choose website language\"><button type=\"button\" aria-pressed=\"true\">中文</button><span aria-hidden=\"true\">/</span><button type=\"button\" aria-pressed=\"false\">EN</button></div>",
+      "css": ".ds-language-switch { display: inline-flex; align-items: center; gap: 6px; color: #6a736c; font: 400 0.82rem/1.6 Inter, ui-sans-serif, system-ui, sans-serif; } .ds-language-switch button { padding: 5px 4px; border: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; transition: color 160ms ease; } .ds-language-switch button[aria-pressed=\"true\"] { color: var(--forest-deep, #173c30); font-weight: 760; } .ds-language-switch button:focus-visible { outline: 3px solid #5f866f; outline-offset: 4px; }"
+    },
+    {
+      "name": "Primary Navigation",
+      "kind": "nav",
+      "description": "Quiet section links that recede beside the product brand and primary actions.",
+      "html": "<nav class=\"ds-nav-links\" aria-label=\"Primary navigation\"><a href=\"#\">Features</a><a href=\"#\">How it works</a><a href=\"#\">Product</a><a href=\"#\">Who it is for</a></nav>",
+      "css": ".ds-nav-links { display: flex; align-items: center; justify-content: center; gap: 24px; color: var(--ink-soft, #5d685f); font: 650 0.92rem/1.6 Inter, ui-sans-serif, system-ui, sans-serif; } .ds-nav-links a { color: inherit; text-decoration: none; transition: color 160ms ease; } .ds-nav-links a:hover { color: var(--forest, #315f4b); } .ds-nav-links a:focus-visible { outline: 3px solid #5f866f; outline-offset: 4px; }"
+    },
+    {
+      "name": "Product Evidence Frame",
+      "kind": "card",
+      "refersTo": "media-frame",
+      "description": "A border-and-shadow frame that gives authentic screenshots the dominant visual role.",
+      "html": "<figure class=\"ds-media-frame\"><div class=\"ds-media-preview\" role=\"img\" aria-label=\"Product screenshot preview\"><span>VocabReader</span><strong>Real product screenshot</strong></div><figcaption>Your book and AI Tutor, side by side.</figcaption></figure>",
+      "css": ".ds-media-frame { max-width: 560px; margin: 0; overflow: hidden; border: 1px solid var(--line, #d8d3c7); border-radius: 14px; color: var(--ink-soft, #5d685f); background: var(--paper-raised, #fffdf8); box-shadow: 0 20px 48px rgb(48 58 49 / 11%); } .ds-media-preview { min-height: 220px; padding: 24px; display: grid; align-content: space-between; color: var(--forest-deep, #173c30); background: var(--paper-raised, #fffdf8); font: 600 0.78rem/1.4 Inter, ui-sans-serif, system-ui, sans-serif; } .ds-media-preview strong { font: 700 1.5rem/1.15 \"Vocab Serif\", Georgia, serif; } .ds-media-frame figcaption { padding: 12px 16px; border-top: 1px solid var(--line, #d8d3c7); font: 400 0.8rem/1.5 Inter, ui-sans-serif, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Editorial Workflow Row",
+      "kind": "custom",
+      "description": "A sequential, rule-separated step that reads as one continuous workflow rather than a card.",
+      "html": "<div class=\"ds-workflow-row\"><span class=\"ds-step-number\" aria-hidden=\"true\">2</span><div><h3>Ask and clarify</h3><p>Use AI Tutor after your first reading.</p></div></div>",
+      "css": ".ds-workflow-row { max-width: 620px; padding: 28px 0; border-top: 1px solid var(--line-strong, #bfc4ba); border-bottom: 1px solid var(--line-strong, #bfc4ba); display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 24px; color: var(--ink-soft, #5d685f); background: var(--paper-muted, #eeece3); } .ds-step-number { width: 40px; height: 40px; border: 1px solid #9dac9e; border-radius: 50%; display: grid; place-items: center; color: var(--forest-deep, #173c30); font: 760 1rem/1 Inter, ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; } .ds-workflow-row h3 { margin: 0 0 7px; color: var(--forest-deep, #173c30); font: 700 1.42rem/1.18 \"Vocab Serif\", Georgia, serif; letter-spacing: -0.025em; } .ds-workflow-row p { margin: 0; font: 400 1rem/1.6 Inter, ui-sans-serif, system-ui, sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Contextual Reading Desk",
+    "overview": "The VocabReader website feels like a calm reading desk where a real book, a pencil note, and a focused tutor can share one surface. Warm paper, forest ink, literary headings, and fine rules make the experience editorial and trustworthy; the interface remains quiet enough for the product screenshots and workflow recordings to carry the proof.\n\nContextual AI is the lead capability, with the user's ChatGPT sign-in through Codex presented as the practical connection that enables text help without a separate API key. The primary product tour follows the learning loop in one fixed order: AI Tutor, AI-assisted learning cards, spaced review, then multilingual learning support. Copy leads with learner outcomes—understanding, long-term memory, and active use—while real product evidence proves how the benefit is delivered.",
+    "keyCharacteristics": [
+      "Warm paper surfaces with deep forest ink and a single copper orientation accent.",
+      "Literary serif headlines paired with plain, highly legible sans-serif product copy.",
+      "Real screenshots and workflow GIFs as the dominant visual evidence.",
+      "Fine rules, modest radii, and low-opacity shadows that clarify structure.",
+      "Restrained 160–180ms interaction motion with a complete reduced-motion fallback."
+    ],
+    "rules": [
+      {
+        "name": "The Forest-and-Paper Rule",
+        "body": "Forest carries action and authority; paper carries space. Copper never becomes a competing call-to-action color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Editorial Contrast Rule",
+        "body": "Serif carries ideas; sans serif carries explanation and action. Do not use the display face for paragraphs or dense interface labels.",
+        "section": "typography"
+      },
+      {
+        "name": "The Evidence Plane Rule",
+        "body": "Elevation belongs to product evidence and transient navigation state, not to feature copy or decorative containers.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Quiet State Rule",
+        "body": "Hover and focus should clarify an existing control with color, border, or at most 1px of lift; they should not introduce glow, scale, or promotional motion.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do lead with contextual AI as the product capability and describe Codex as the enabling connection.",
+      "Do keep the primary tour in learning order: AI Tutor → AI-assisted learning cards → spaced review → multilingual learning support.",
+      "Do let real VocabReader screenshots and workflow GIFs carry the visual proof.",
+      "Do use fine rules and generous whitespace to create editorial grouping.",
+      "Do preserve keyboard focus, useful image alternatives, bilingual text resilience, and reduced-motion behavior.",
+      "Do make free download the primary action while keeping Early Preview status, platform, and AI setup boundaries as quiet factual context."
+    ],
+    "donts": [
+      "Don't convert the story into a generic matrix of interchangeable feature cards.",
+      "Don't introduce neon, glow, glassmorphism, heavy gradients, or black-and-orange Impeccable styling.",
+      "Don't decorate empty space with blobs, oversized icons, floating badges, or marketing effects.",
+      "Don't invent testimonials, customer logos, usage metrics, or comparative claims.",
+      "Don't let Codex branding eclipse VocabReader or imply that AI replaces the learner's first reading."
+    ]
+  }
+}

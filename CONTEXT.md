@@ -355,7 +355,7 @@ _Avoid using:_ 唯一正確答案、完整字典定義
 _Avoid using:_ 複習排程器（排程屬於產品領域邏輯，不應完全交由 AI 決定）
 
 **產品官網（Product Website）**：
-公開介紹 VocabReader、展示真實產品畫面，並把一般使用者引導至正確下載、安裝與 Codex 設定流程的靜態雙語網站。目前發布於 GitHub Pages；它是產品取得與支援介面，不是可在線閱讀 EPUB 的 Web 版 VocabReader，不持有書庫、生詞庫或 AI 對話。
+公開介紹 VocabReader、展示真實產品畫面，並把一般使用者引導至正確下載、安裝與 Codex 設定流程的靜態雙語網站。它是產品取得與支援介面，不是可在線閱讀 EPUB 的 Web 版 VocabReader，不持有書庫、生詞庫或 AI 對話。
 _Avoid using:_ Web App、線上版閱讀器、App Renderer
 
 ## Relationships
@@ -502,12 +502,12 @@ _Avoid using:_ Web App、線上版閱讀器、App Renderer
 ### 產品官網與發行導覽
 
 - **產品官網**是與 Electron App、server workspace 分離的 Vite 靜態網站，不得匯入 App runtime、SQLite、EPUB 內容或本機 Codex controller。
-- 正式網址固定以 GitHub Pages 專案路徑 `/VocabReader/` 為基底；首頁與 `/VocabReader/download/` 必須使用站內相對導覽，建置資產不得錯誤指向網域根路徑。
+- 正式網址以獨立 hostname 根目錄發布；首頁與 `/download/` 必須使用站內相對導覽，建置資產、canonical、sitemap 與 favicon 必須共用同一正式網站根目錄。
 - 首頁負責產品介紹、真實畫面、雙語內容與信任入口；下載頁負責平台檔案選擇、未簽章警告說明、限定範圍的系統確認步驟、Codex CLI 安裝登入與來源證據。
 - 安裝檔只來自 `highsunday/VocabReader` 官方 GitHub Releases。網站可以從公開 latest-release API 更新連結，但 API 失敗時必須保留已驗證的靜態 fallback，不得改用第三方鏡像。
 - 未簽章說明必須區分「作業系統無法驗證發行者」與「已偵測到惡意軟體」，不得宣稱 Apple、Microsoft 或網站已完成不存在的安全驗證，也不得要求全面關閉 Gatekeeper、SmartScreen 或防毒保護。
 - 網站不得收集書籍、學習資料、ChatGPT 密碼或 API key；目前除語言偏好的 `localStorage` 外，不提供帳號、analytics、cookie tracking 或 App 資料同步。
-- 官網原始碼目前位於被 Git 忽略的 `website/`，正式建置輸出人工發布至 `gh-pages` 分支；此發布邊界不得與 `main` 上的 App source 或 root npm workspaces 混合。
+- 官網原始碼由 `main` 分支追蹤，但維持獨立 `website/` package 與建置邊界，不得加入 root npm workspaces、匯入 App runtime 或讓官網建置執行 Electron/server 工作。
 
 ### 桌面版本與安裝檔發佈流程
 
@@ -533,4 +533,3 @@ _Avoid using:_ Web App、線上版閱讀器、App Renderer
 2. **資料保存與同步**：已確認提供手動資料備份與完整取代式資料還原；是否另提供帳號與自動跨裝置同步尚未決定。
 3. **EPUB 支援範圍**：是否支援圖片、註腳、表格、複雜排版、直排內容及 DRM EPUB 尚未決定。
 4. **隱私與版權**：可傳送給 AI 的 EPUB 內容範圍、資料保留政策與版權內容處理方式尚未決定。
-5. **官網原始碼治理與自動發布**：目前 `website/` 被 `main` 的 `.gitignore` 排除，只有編譯後網站保存在 `gh-pages`；是否改由 `main` 追蹤原始碼、移至獨立 repository，或建立 GitHub Actions 自動發布尚未決定。

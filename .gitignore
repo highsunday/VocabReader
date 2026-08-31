@@ -14,8 +14,9 @@ test-results/
 # Local source recordings used to build the tracked README GIFs.
 /docs/readme-assets/source-videos/
 
-# Standalone local product website artifact.
-/website/
+# Product website build output and local Vercel/design-review state.
+/website/.vercel/
+/website/.impeccable/review/
 
 # Local Codex and frontend-design tooling state.
 /.codex-tmp/

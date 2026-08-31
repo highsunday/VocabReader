@@ -2,13 +2,14 @@
 title: 產品官網與下載安裝導覽模組
 module: product-website
 status: active
-last_updated: 2026-08-27
+last_updated: 2026-08-31
 related_implements:
   - F71-create-github-project-page
   - F72-publish-mit-installers
   - F73-bilingual-product-website
   - F74-add-safe-download-and-install-guide
   - F75-add-mp4-workflow-media
+  - F76-deploy-product-website-to-vercel
 ---
 
 # 產品官網與下載安裝導覽模組
@@ -26,13 +27,14 @@ Windows 或 macOS 安裝檔、理解未簽章警告、完成限定範圍的系�
 
 狀態：**已實作並發布**
 
-- 正式首頁：`https://highsunday.github.io/VocabReader/`
-- 下載與安裝頁：`https://highsunday.github.io/VocabReader/download/`
+- 正式首頁：`https://vocabreader.vercel.app/`
+- 下載與安裝頁：`https://vocabreader.vercel.app/download/`
+- 舊 GitHub Pages 網址暫時保留為 legacy site，不是 canonical 來源。
 - 首頁與下載頁皆提供完整繁體中文／英文內容，共用同一語言偏好。
 - 首頁兩個主要下載 CTA 先進入站內安裝導覽，不直接把一般使用者送往 GitHub Releases。
 - 下載頁依瀏覽器資訊預選 Windows 或 macOS，並支援滑鼠及 Left／Right／Home／End 鍵盤切換。
 - Windows 提供 x64 installer；macOS 提供 Apple Silicon 與 Intel DMG。
-- 正式靜態檔由 `gh-pages` 分支提供；Vite build base 固定為 `/VocabReader/`。
+- 正式靜態檔由 Vercel 提供；Vite build base 為 `/`，專案建置根目錄為 `website/`。
 
 ## 3. Public Surfaces
 
@@ -70,13 +72,14 @@ website/index.html + website/download/index.html
   → Vite multi-page build
   → website/dist/index.html
   → website/dist/download/index.html
-  → gh-pages branch
-  → https://highsunday.github.io/VocabReader/
+  → Vercel production deployment
+  → https://vocabreader.vercel.app/
 ```
 
-- `website/` 是獨立的 vanilla JavaScript／Vite 專案，不屬於 root npm workspaces。
-- `vite.config.js` 設定兩個 HTML input 與 `/VocabReader/` base；站內頁面使用相對 URL，
-  靜態資產由 Vite 改寫至 `/VocabReader/assets/`。
+- `website/` 由 repository `main` 分支追蹤，但仍是獨立的 vanilla JavaScript／Vite 專案，
+  不屬於 root npm workspaces。
+- `vite.config.js` 設定兩個 HTML input 與 `/` base；站內頁面使用相對 URL，靜態資產由
+  Vite 改寫至 hostname 根目錄的 `/assets/`。
 - 網站沒有 server-side application、database、App IPC、service worker 或 Electron bridge。
 - `main.js` 處理首頁雙語內容；`download.js` 處理下載頁雙語、平台分頁與 Release 更新。
 - 視覺系統沿用 warm paper、forest ink、editorial serif、細線與真實產品素材；首頁與下載頁
@@ -136,12 +139,15 @@ static v0.1.2 official asset URLs
 
 ## 7. Deployment
 
-- GitHub Pages 從 `gh-pages` 分支根目錄提供編譯後靜態檔。
-- `main` 目前以 `.gitignore` 忽略整個 `/website/`，因此官網原始碼與測試不會出現在一般
-  `main` commit；目前只有正式 build artifact 保存在 `gh-pages`。
-- 發布目前是人工流程：驗證 source、執行測試與 build、以 build output 取代 `gh-pages`
-  內容，再確認正式首頁、下載頁與 hashed assets 回傳 HTTP 200。
-- 發布不得 force-push 覆蓋未知的遠端變更；部署前應先確認本機 `gh-pages` 基準仍等於遠端。
+- Vercel project 為 `highsundays-projects/vocabreader`，穩定 production alias 為
+  `https://vocabreader.vercel.app/`。
+- `main` 追蹤 `website/` 的 source、tests 與 public assets；`node_modules/`、`dist/`、
+  `.vercel/` 與本機設計檢查輸出維持忽略。
+- `website/vercel.json` 固定 `npm run build`、`dist` output 與 trailing-slash 路由。
+- Git integration 以 repository 的 `website/` 為 Root Directory；後續推送 `main` 時由
+  Vercel 自動建置 production deployment，其他分支則產生 preview deployment。
+- 舊 `gh-pages` 分支與 `https://highsunday.github.io/VocabReader/` 暫時保留，避免搜尋索引與
+  既有連結在新站重新收錄期間直接失效；舊站不得再作為 canonical 或 sitemap 來源。
 
 ## 8. Key Files
 
@@ -161,31 +167,39 @@ static v0.1.2 official asset URLs
 | `website/src/download.js` | 下載頁語言、平台 tabs、latest Release 更新 |
 | `website/src/download-helpers.js` | 可獨立測試的平台偵測與 Release asset resolver |
 | `website/src/styles.css` | 兩個頁面的視覺系統、responsive 與 accessibility states |
-| `website/vite.config.js` | GitHub Pages base 與 multi-page build inputs |
+| `website/vite.config.js` | Vercel root base 與 multi-page build inputs |
+| `website/vercel.json` | Vercel build、output 與 trailing-slash 設定 |
+| `website/public/favicon.png` | Google 與瀏覽器可從 hostname 根目錄取得的 96×96 品牌 favicon |
+| `website/public/robots.txt` | crawler 規則與 production sitemap 位置 |
+| `website/public/sitemap.xml` | production 首頁與下載頁 URL |
 | `website/tests/contracts.test.mjs` | 內容、雙語、連結、build、平台、安全與 responsive contracts |
 | `website/DESIGN.md` | 官網視覺語言與設計約束 |
 | `website/PRODUCT.md` | 官網受眾、目的、證據與產品原則 |
-| `.gitignore` | 目前排除 `/website/` 原始碼的專案治理邊界 |
+| `.gitignore` | 排除官網 dependencies、build output、本機 Vercel 與設計檢查狀態 |
 
 ## 9. Testing Notes
 
 從 `website/` 執行：
 
-- `npm test`：30 項 contract tests，涵蓋首頁、雙語、真實資產、MP4 漸進增強、reduced motion、CTA、平台分頁、未簽章
-  指引、Windows SmartScreen 雙圖、macOS「強制打開」圖解、Codex 指令、信任說明、GitHub Pages base 與
-  responsive／accessibility contracts。
+- `npm test`：38 項 contract tests，涵蓋首頁、雙語、真實資產、MP4 漸進增強、reduced motion、CTA、平台分頁、未簽章
+  指引、Windows SmartScreen 雙圖、macOS「強制打開」圖解、Codex 指令、信任說明、Vercel root base、favicon、canonical、sitemap、robots 與 responsive／accessibility contracts。
 - `npm run build`：必須同時產生 `dist/index.html` 與 `dist/download/index.html`，且資產 URL
-  使用 `/VocabReader/assets/`。
+  使用 hostname 根目錄的 `/assets/`。
 - repository root 的 `npm run test:media`：6 項媒體契約，驗證 GIF 色彩、MP4 codec／尺寸／
   duration／檔案大小，以及 README／官網資產同步。
 - 發布前另以 1440px 桌機與 390px 手機檢查繁中長文、鍵盤分頁、focus、console error 與
   水平 overflow。
-- 發布後確認首頁、下載頁及下載頁 hashed JavaScript asset 皆回傳 HTTP 200。
+- 發布後確認首頁、下載頁、favicon、robots、sitemap 及 hashed assets 皆回傳 HTTP 200；
+  canonical 必須只指向 `vocabreader.vercel.app`，舊 GitHub Pages 首頁仍須可讀取。
 
 ## 10. Known Limitations and Follow-up
 
-- 官網 source 被 `main` 忽略且沒有自動發布 workflow；換機、重新 clone 或人工部署失誤可能
-  使原始碼與線上 build 無法追溯。應另行決定納入 `main`、獨立 repository 或 GitHub Actions。
+- Google 搜尋結果中的 favicon 與網址更新仍由 Google 重新檢索決定；Vercel 上線不保證立即
+  改變既有搜尋結果。可在 Search Console 為新 URL prefix 提交 sitemap 並要求重新建立索引。
+- 舊 GitHub Pages 專案路徑無法在目前靜態託管架構提供跨 hostname 的 HTTP 301；在確認搜尋與
+  外部連結已遷移前先保留 legacy site，後續需另行決定替代頁或轉址策略。
+- Vercel Hobby 目前只用於免費開源 Early Preview；若產品改為商業用途，需重新確認 Vercel
+  方案與使用條款。
 - installer 尚未購買 Windows／Apple 開發者簽章，也尚未完成 macOS notarization；網站只能
   誠實引導單一 App 例外，不能消除作業系統警告。
 - latest Release 查詢受公開 GitHub API 可用性與 rate limit 影響；靜態 fallback 版本需隨發行
@@ -205,8 +219,9 @@ static v0.1.2 official asset URLs
 - `documents/implements/F73-bilingual-product-website.md`
 - `documents/implements/F74-add-safe-download-and-install-guide.md`
 - `documents/implements/F75-add-mp4-workflow-media.md`
+- `documents/implements/F76-deploy-product-website-to-vercel.md`
 - `website/DESIGN.md`
 - `website/PRODUCT.md`
 
-變更官網路由、GitHub Pages base、下載來源、平台資產命名、Codex 安裝流程、未簽章安全
+變更官網路由、Vercel production hostname、下載來源、平台資產命名、Codex 安裝流程、未簽章安全
 說明、語言 storage key 或發布方式時，必須同步更新本文件與相關 FXX 文件。
