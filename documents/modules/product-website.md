@@ -128,7 +128,7 @@ root `/` → saved locale → browser languages → default English
 ### 5.3 Release Assets
 
 ```text
-static v0.1.2 official asset URLs
+static v0.1.5 official asset URLs
   → page remains immediately downloadable
   → fetch public latest-release API
   → match filename suffix by platform

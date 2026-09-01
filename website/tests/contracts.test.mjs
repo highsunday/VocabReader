@@ -528,17 +528,17 @@ test("TC19 offers platform-aware official GitHub Release downloads", async () =>
   const helperUrl = `data:text/javascript;base64,${Buffer.from(helperSource).toString("base64")}`;
   const { detectPlatform, resolveReleaseAssets } = await import(helperUrl);
   const assets = resolveReleaseAssets([
-    { name: "VocabReader-0.1.2-windows-x64-setup.exe", browser_download_url: "https://example.test/win" },
-    { name: "VocabReader-0.1.2-mac-arm64.dmg", browser_download_url: "https://example.test/arm" },
-    { name: "VocabReader-0.1.2-mac-x64.dmg", browser_download_url: "https://example.test/x64" },
+    { name: "VocabReader-0.1.5-windows-x64-setup.exe", browser_download_url: "https://example.test/win" },
+    { name: "VocabReader-0.1.5-mac-arm64.dmg", browser_download_url: "https://example.test/arm" },
+    { name: "VocabReader-0.1.5-mac-x64.dmg", browser_download_url: "https://example.test/x64" },
   ]);
 
   assert.match(html, /role=["']tablist["']/);
   assert.match(html, /data-platform=["']windows["']/);
   assert.match(html, /data-platform=["']macos["']/);
-  assert.match(html, /VocabReader-0\.1\.2-windows-x64-setup\.exe/);
-  assert.match(html, /VocabReader-0\.1\.2-mac-arm64\.dmg/);
-  assert.match(html, /VocabReader-0\.1\.2-mac-x64\.dmg/);
+  assert.match(html, /VocabReader-0\.1\.5-windows-x64-setup\.exe/);
+  assert.match(html, /VocabReader-0\.1\.5-mac-arm64\.dmg/);
+  assert.match(html, /VocabReader-0\.1\.5-mac-x64\.dmg/);
   assert.equal(detectPlatform({ userAgentDataPlatform: "Windows" }), "windows");
   assert.equal(detectPlatform({ userAgentDataPlatform: "macOS" }), "macos");
   assert.equal(detectPlatform({ userAgent: "Mozilla/5.0 (X11; Linux x86_64)" }), "windows");
