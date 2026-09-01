@@ -26,6 +26,7 @@ test-results/
 /.agents/skills/impeccable/
 
 # Local promotional-deck exports containing user-library screenshots.
+/documents/marketing/
 /VocabReader_產品介紹_開源推廣.pptx
 /VocabReader_產品介紹_開源推廣.pptx.inspect.ndjson
 /VocabReader_產品介紹_開源推廣/

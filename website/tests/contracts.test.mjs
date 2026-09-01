@@ -164,8 +164,8 @@ test("TC10 tells the product story in learning order and foregrounds free downlo
   const { translations } = await import(moduleUrl);
   const evidence = [
     "ask-ai-context.gif",
-    "learning-library.png",
-    "learning-card.png",
+    "learning-library-1440.webp",
+    "learning-card-1440.webp",
     "spaced-review-workflow.gif",
     "switch-learning-language.gif",
   ].map((asset) => html.indexOf(asset));
@@ -253,9 +253,9 @@ test("the homepage leads with a contextual AI Tutor and preserves cumulative rea
 test("TC31 keeps the closing CTA focused and touch targets usable", async () => {
   const html = await text("index.html");
   const css = await text("src/styles.css");
-  const iconImages = html.match(/<img\b[^>]*vocabreader-icon\.png[^>]*>/g) ?? [];
+  const iconImages = html.match(/<img\b[^>]*src=["']\/favicon\.png["'][^>]*>/g) ?? [];
 
-  assert.equal(iconImages.length, 1, "the product icon should appear only in the header");
+  assert.equal(iconImages.length, 1, "the optimized product icon should appear only in the header");
   assert.doesNotMatch(html, /<section\b[^>]*id=["']get-started["'][^>]*>[\s\S]*?<img\b/);
   assert.match(css, /\.language-switch (?:button|a)\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
   assert.match(css, /\.nav-star\s*{[^}]*min-height:\s*44px;/s);
@@ -325,7 +325,7 @@ test("TC16 clearly warns that AI Tutor requires an eligible ChatGPT subscription
   }
 });
 
-test("F75 TC4 progressively enhances workflow GIFs with accessible MP4 video", async () => {
+test("F75 TC4 progressively enhances workflow GIFs with viewport-deferred MP4 video", async () => {
   const html = await text("index.html");
   const source = await text("src/main.js");
   const videoTags = html.match(/<video\b[\s\S]*?<\/video>/g) || [];
@@ -334,7 +334,8 @@ test("F75 TC4 progressively enhances workflow GIFs with accessible MP4 video", a
   for (const name of ["ask-ai-context", "spaced-review-workflow", "switch-learning-language"]) {
     const video = videoTags.find((tag) => tag.includes(`${name}.mp4`));
     assert.ok(video, `missing ${name}.mp4 video`);
-    assert.match(video, /\bautoplay\b/);
+    assert.doesNotMatch(video, /\bautoplay\b/);
+    assert.match(video, /\bpreload=["']none["']/);
     assert.match(video, /\bmuted\b/);
     assert.match(video, /\bloop\b/);
     assert.match(video, /\bplaysinline\b/);
@@ -348,8 +349,40 @@ test("F75 TC4 progressively enhances workflow GIFs with accessible MP4 video", a
   }
 
   assert.match(source, /matchMedia\(["']\(prefers-reduced-motion: reduce\)["']\)/);
+  assert.match(source, /IntersectionObserver/);
+  assert.match(source, /rootMargin:\s*["']240px 0px["']/);
   assert.match(source, /\.pause\(\)/);
-  assert.match(source, /removeAttribute\(["']autoplay["']\)/);
+  assert.match(source, /\.play\(\)/);
+});
+
+test("P2 serves the compact favicon for every visible product mark", async () => {
+  for (const page of ["index.html", "download/index.html"]) {
+    const html = await text(page);
+    const visibleIcons = html.match(/<img\b[^>]*src=["']\/favicon\.png["'][^>]*>/g) ?? [];
+
+    assert.ok(visibleIcons.length > 0, `${page} should use the compact product mark`);
+    assert.doesNotMatch(html, /<img\b[^>]*src=["']\/assets\/vocabreader-icon\.png["']/);
+  }
+});
+
+test("P2 serves responsive WebP screenshots without discarding the PNG sources", async () => {
+  const html = await text("index.html");
+
+  for (const name of [
+    "reading-with-ai",
+    "learning-library",
+    "learning-card",
+    "sentence-practice",
+    "listen-and-repeat",
+  ]) {
+    assert.match(
+      html,
+      new RegExp(`srcset=["'][^"']*${name}-800\\.webp 800w, [^"']*${name}-1440\\.webp 1440w["']`),
+    );
+    await readFile(new URL(`public/assets/${name}-800.webp`, root));
+    await readFile(new URL(`public/assets/${name}-1440.webp`, root));
+    await readFile(new URL(`public/assets/${name}.png`, root));
+  }
 });
 
 test("TC17 routes homepage download actions through the official install guide", async () => {

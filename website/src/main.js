@@ -64,23 +64,56 @@ document.querySelectorAll("[data-locale]").forEach((link) => {
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const workflowVideos = document.querySelectorAll("video[data-workflow-video]");
 
-function syncWorkflowVideoMotion() {
-  workflowVideos.forEach((video) => {
-    if (reducedMotion.matches) {
-      video.removeAttribute("autoplay");
-      video.pause();
-      video.currentTime = 0;
-      return;
-    }
+function pauseWorkflowVideo(video, { reset = false } = {}) {
+  video.pause();
+  if (reset) video.currentTime = 0;
+}
 
-    video.setAttribute("autoplay", "");
-    video.play().catch(() => {
-      // The GIF poster remains visible if the browser blocks autoplay.
-    });
+function playWorkflowVideo(video) {
+  if (reducedMotion.matches) {
+    pauseWorkflowVideo(video, { reset: true });
+    return;
+  }
+
+  video.preload = "metadata";
+  video.play().catch(() => {
+    // The poster remains visible if the browser blocks autoplay.
   });
 }
 
-syncWorkflowVideoMotion();
+function syncWorkflowVideoMotion() {
+  workflowVideos.forEach((video) => {
+    if (reducedMotion.matches) {
+      pauseWorkflowVideo(video, { reset: true });
+    } else if (video.dataset.inViewport === "true") {
+      playWorkflowVideo(video);
+    }
+  });
+}
+
+if ("IntersectionObserver" in window) {
+  const workflowVideoObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        entry.target.dataset.inViewport = String(entry.isIntersecting);
+        if (entry.isIntersecting) {
+          playWorkflowVideo(entry.target);
+        } else {
+          pauseWorkflowVideo(entry.target);
+        }
+      });
+    },
+    { rootMargin: "240px 0px" },
+  );
+
+  workflowVideos.forEach((video) => workflowVideoObserver.observe(video));
+} else {
+  workflowVideos.forEach((video) => {
+    video.dataset.inViewport = "true";
+    playWorkflowVideo(video);
+  });
+}
+
 if (typeof reducedMotion.addEventListener === "function") {
   reducedMotion.addEventListener("change", syncWorkflowVideoMotion);
 } else {
