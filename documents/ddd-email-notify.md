@@ -1284,3 +1284,43 @@ DDD standalone TDD completion notification for imaginative Memory tips on new le
 **Follow-up**
 - Implementation remains complete. Reconnect an authorized Gmail sender or explicitly request a
   later send from a verified account.
+
+#### L065 — 2026-09-01 14:09 CST — B36 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification for spelling-first, method-flexible Memory tips.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B36 讓記憶提示優先幫助回想拼寫`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a05b9766bd3a63c`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- Local implementation, tests, production build, and runtime skill installation verification are
+  complete. Versioning, commit, GitHub push, and release remain deferred until requested.
+
+#### L066 — 2026-09-01 14:19 CST — B37 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification for safe inline Markdown in Memory tips.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B37 安全渲染記憶提示的行內 Markdown`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a05b9f4767ffb08`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- Local implementation, tests, build, Electron E2E, and visual inspection are complete.
+  Versioning, commit, GitHub push, and release remain deferred until requested.

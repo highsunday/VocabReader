@@ -174,8 +174,17 @@ export function LearningMemoryTip({ children }: { children?: string }) {
     <aside className="learning-memory-tip" role="note" aria-label="Memory tip">
       <BrainCircuit aria-hidden="true" strokeWidth={1.8} />
       <div>
-        <strong>Memory tip</strong>
-        <p>{content}</p>
+        <strong className="learning-memory-tip-label">Memory tip</strong>
+        <div className="learning-memory-tip-copy">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            skipHtml
+            allowedElements={["p", "strong", "em", "del", "code", "br"]}
+            unwrapDisallowed
+          >
+            {content}
+          </ReactMarkdown>
+        </div>
       </div>
     </aside>
   );

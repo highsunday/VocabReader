@@ -132,7 +132,7 @@ For every new word or phrase, provide:
 - `language`: the App-provided active workspace code (`en`, `ja`, `zh-TW`, or `ko`)
 - `cefr`: `A1`, `A2`, `B1`, `B2`, `C1`, or `C2`
 - `sense`: a short English semantic identifier
-- `memoryTip`: a concise, concrete memory cue in the requested explanation language
+- `memoryTip`: a memorable, spelling-oriented cue in the requested explanation language
 - `markdownContent`
 
 Verify every canonical title against the App-provided learning-language
@@ -227,15 +227,63 @@ Every new word or phrase draft must include a non-empty `memoryTip`. Write it in
 the requested explanation language while preserving any target-language term
 needed for the association.
 
-- Prefer a miniature mental scene the learner can picture and replay. Give it a
-  concrete object plus an action, direction, size, texture, or contrast, then
-  connect that image directly to the intended sense.
-- Keep the cue concise and self-contained. It should help recall, not repeat the
-  dictionary meaning or become another example section.
-- Use spelling shape, sound association, or etymology only when that connection
-  is genuinely useful. Never invent etymology or force an unrelated pun.
-- Do not rely on another difficult word to explain the target, and do not reuse
-  one generic scene across unrelated drafts.
+The primary job is to help the learner reconstruct the target's exact written form—
+letters or characters in the correct order—and then connect that form to the
+intended sense. Optimize for durable recall, not for producing a literary
+description of the meaning. For a multi-word phrase, prioritize its distinctive
+words and their order rather than forcing a separate trick for every letter.
+
+Choose the method freely for each target. You may use familiar words, phrases,
+short sentences, shared letters, chunks, letter changes, rhyme, sound association,
+word families, trustworthy morphemes or character components, acrostics, rhythm,
+a tiny story, an exaggerated image, humor, or another accurate association that
+works better. These options are inspiration, not an allowed-method list. Do not
+mechanically force rhyme, sound association, imagery, or any other single template.
+A wildly imaginative cue is welcome when it improves recall.
+
+- Make the target's spelling or written structure do real mnemonic work. It is
+  not enough to show the complete target only as a label at the end of a scene.
+- Other words used in the cue should be easier than the target. A phrase or one
+  to three short sentences is acceptable when it makes the spelling much easier
+  to retain; concision is secondary to usefulness, but do not create another
+  example section.
+- You may use light inline Markdown when it makes spelling chunks clearer: bold,
+  italics, strikethrough, or inline code. Do not use headings, lists, blockquotes,
+  links, images, tables, or raw HTML in `memoryTip`.
+- Tie the spelling device back to the intended sense so the learner remembers
+  both the form and what it means.
+- Never invent etymology, morphology, pronunciation, character history, or a
+  language relationship. A playful spelling trick is fine, but do not present it
+  as a true origin. Do not use an association likely to teach a wrong spelling
+  or pronunciation.
+- Do not reuse one generic cue across unrelated drafts.
+
+Before returning a draft, apply all four checks:
+
+1. **Spelling-recall check:** after learning this cue, is there a concrete route
+   for reconstructing more of the exact written form? If not, rewrite it.
+2. **Removal check:** If removing the target leaves only a definition scene or ordinary example,
+   reject the cue and add a spelling-linked association.
+3. **Distinctiveness check:** if the cue could be reused unchanged for several
+   synonyms, strengthen the target-specific hook.
+4. **Accuracy check:** verify that every claimed spelling, shared letter, rhyme,
+   sound, component, or word relationship is accurate. If uncertain, use a
+   different device instead of guessing.
+
+Reject definition scenes like these:
+
+- `damp`: `Picture a towel that is cool and slightly wet but not dripping—that towel is damp.`
+- `mingle`: `Picture two colored streams flowing together until their waters mix: they mingle.`
+
+Both merely dramatize the meaning; neither explains how to retain the spelling.
+Prefer target-specific bridges such as:
+
+- `grim`: `GRIM rhymes with DIM: “When the mood is DIM, faces look GRIM.” The shared -IM locks in the ending while the sentence links GRIM to a dark, serious face.`
+- `damp`: `DAMP starts with DAM; add P for Patches of slight wetness. Picture small damp patches beside a leaking DAM: DAM + P.`
+- `mingle`: `SINGLE stands alone. Replace S with M for MIX and SINGLE becomes MINGLE—people mixing instead of staying alone.`
+
+These examples demonstrate outcomes, not mandatory formats. Select or invent the
+best accurate device for the actual target and requested explanation language.
 
 ## Example Support Contract
 
@@ -285,13 +333,13 @@ End a successful preparation or recheck response with exactly one fenced `learni
 {
   "drafts": [
     {
-      "title": "reluctant",
-      "requestedTitles": ["reluctant"],
+      "title": "mingle",
+      "requestedTitles": ["mingle"],
       "itemType": "word",
       "language": "en",
-      "cefr": "B2",
-      "sense": "unwilling or hesitant",
-      "memoryTip": "Picture an open door while your feet stay glued to the floor: you hesitate to step through.",
+      "cefr": "B1",
+      "sense": "mix or socialize with others",
+      "memoryTip": "SINGLE stands alone. Replace S with M for MIX and SINGLE becomes MINGLE—people mixing instead of staying alone.",
       "markdownContent": "## Meaning\n..."
     }
   ],

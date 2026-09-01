@@ -179,6 +179,8 @@ test("launches the secure Electron reading shell", async () => {
       .toContain("name: create-learning-items");
     expect(installedLearningItemSkill)
       .toContain("learning-item-result");
+    expect(installedLearningItemSkill)
+      .toContain("reconstruct the target's exact written form");
     const installedLearningItemEditSkill = readFileSync(join(
       userDataPath,
       "codex-runtime/.agents/skills/edit-learning-item/SKILL.md"
@@ -1111,7 +1113,7 @@ test("shows a memorable cue below the stronger learning caution", async () => {
         cefr: item.cefr,
         sense: item.sense,
         markdownContent: item.markdownContent,
-        memoryTip: "Picture coins streaming through a bank door into a secure vault.",
+        memoryTip: "Link **BANK** to a secure **vault**: the bold spelling chunks should stay inline.",
         cautionNote: "Do not confuse this meaning with the bank of a river."
       });
     });
@@ -1121,8 +1123,11 @@ test("shows a memorable cue below the stronger learning caution", async () => {
 
     const memoryTip = page.getByRole("note", { name: "Memory tip" });
     await expect(memoryTip).toContainText(
-      "Picture coins streaming through a bank door into a secure vault."
+      "Link BANK to a secure vault: the bold spelling chunks should stay inline."
     );
+    await expect(memoryTip).not.toContainText("**");
+    await expect(memoryTip.locator("strong", { hasText: "BANK" })).toBeVisible();
+    await expect(memoryTip.locator("strong", { hasText: "vault" })).toBeVisible();
     const learningCueHierarchy = await page.evaluate(() => {
       const tip = document.querySelector<HTMLElement>(".learning-memory-tip");
       const caution = document.querySelector<HTMLElement>(".learning-caution");
@@ -1135,7 +1140,10 @@ test("shows a memorable cue below the stronger learning caution", async () => {
         tipTextDecoration: tipStyle.textDecorationLine,
         cautionColor: cautionStyle.color,
         cautionTextDecoration: cautionStyle.textDecorationLine,
-        hasIcon: Boolean(tip.querySelector("svg"))
+        hasIcon: Boolean(tip.querySelector("svg")),
+        emphasisDisplay: getComputedStyle(
+          tip.querySelectorAll("strong")[1] as HTMLElement
+        ).display
       };
     });
     expect(learningCueHierarchy).toEqual({
@@ -1144,7 +1152,8 @@ test("shows a memorable cue below the stronger learning caution", async () => {
       tipTextDecoration: "none",
       cautionColor: "rgb(179, 38, 54)",
       cautionTextDecoration: "underline",
-      hasIcon: true
+      hasIcon: true,
+      emphasisDisplay: "inline"
     });
   } finally {
     await electronApp.close();

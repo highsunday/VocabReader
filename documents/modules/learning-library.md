@@ -21,6 +21,8 @@ related_implements:
   - F59-add-learning-item-representative-image
   - F62-show-learning-library-study-status-counts
   - F78-add-imaginative-memory-tips
+  - B36-require-retrieval-hooks-in-memory-tips
+  - B37-render-memory-tip-inline-markdown
 ---
 
 # 本機生詞庫模組
@@ -57,9 +59,10 @@ related_implements:
 - 同標題不同語義以不同不可變 id 保存，不合併內容。
 - 每個項目提供可留空的學習注意事項；完整詳情以 `Note`、紅字與紅底線顯示，清單摘要
   與未作答複習題面不載入或顯示。
-- 每個新 AI 草稿提供一個具象 Memory tip；正式項目可人工修改或清空。非空提示在完整
+- 每個新 AI 草稿提供一個拼寫導向、聯想方法不設限的 Memory tip；正式項目可人工修改或清空。非空提示在完整
   詳情以 Brain 圖示、標籤、左側線與淡藍紫面板顯示，醒目程度高於正文但低於紅色 Note；
-  清單摘要與未作答複習題不載入或顯示。
+  粗體等輕量行內 Markdown 安全渲染，連結、圖片、區塊結構與原始 HTML 不會
+  建立可互動或任意 DOM；清單摘要與未作答複習題不載入或顯示。
 - 每個正式項目可保存一張可留空的代表圖片；Main 將 JPEG／PNG／WebP 來源自動中心裁切、
   白底合成並輸出為 256×256 JPEG 品質 85。圖片只在完整詳情顯示，清單、未作答複習題
   與複習 AI scope 都不包含圖片。
@@ -165,7 +168,8 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 - Markdown 查看、編輯、預覽與錯誤狀態。
 - 學習注意事項的人工編輯、即時預覽與醒目完整詳情呈現。
 - Memory tip 的人工編輯、空值隱藏，以及位於注意事項之後、Markdown 之前的藍紫色
-  具象提示面板。
+  提示面板；共用 `LearningMemoryTip` 為草稿、正式詳情與編輯預覽渲染受限行內
+  Markdown，並保持內文強調為 inline。
 - 代表圖片的完整詳情顯示，以及 editable 入口中的立即 Add／Replace 與確認後 Remove；
   read-only 入口只顯示、不渲染 mutation。
 - 以現有詳情作為唯一草稿預覽的 AI composer、多輪狀態、停止、明確 Apply 與未套用
@@ -262,6 +266,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - 非空注意事項顯示在 Markdown 前，以文字標示、紅色與底線共同傳達重點；空值不留區塊。
 - 非空 Memory tip 固定在注意事項之後、Markdown 之前，使用 Brain 圖示、文字標籤、
   一條較深左側線與低彩度藍紫色；不使用綠色、紅色、底線、警示圖示或重陰影。
+- Memory tip 只允許段落、粗體、斜體、刪除線、行內 code 與換行；其他 Markdown
+  容器解包成普通文字，原始 HTML 略過。
 - 代表圖片顯示在標題／sense 下方與注意事項／Markdown 上方，使用描述目前標題與 sense
   的替代文字；Remove 使用具名 `alertdialog`，取消或 Escape 保留圖片。
 - 詳情中的「刪除」先開啟具名 `alertdialog`；取消或 Escape 只關閉最上層確認視窗，
@@ -297,7 +303,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 | `spaced-review-artifacts.test.ts`、`spaced-review-controller.test.ts` | 有限 AI scope、artifact 與暫態生命週期 |
 | `learning-library-ipc.test.ts`、`learning-item-edit-ipc.test.ts` | 一般與 AI edit IPC 白名單、惡意／錯誤 payload 拒絕 |
 | `learning-item-artifacts.test.ts`、`learning-item-edit-controller.test.ts` | 嚴格 edit artifact、最小 scope、暫態草稿、Apply 與停止競態 |
-| `learning-library-workspace.test.tsx` | 查詢、四進度指標與切換篩選、卡片時間狀態、分批、Trash、retry、視窗化、共用 modal、安全 Markdown、Memory tip、注意事項、AI 草稿／停止／放棄／Apply 與唯讀邊界 |
+| `learning-library-workspace.test.tsx` | 查詢、四進度指標與切換篩選、卡片時間狀態、分批、Trash、retry、視窗化、共用 modal、安全 Markdown、Memory tip 受限行內 Markdown、注意事項、AI 草稿／停止／放棄／Apply 與唯讀邊界 |
 | `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
 | `learning-item-draft-dialog.test.tsx` | Memory tip 草稿預覽、已存在項目唯讀詳情、雙層 Escape 與載入失敗重試 |
 | `desktop.spec.ts` | 真實 Electron bridge、Memory tip 與 Note 視覺層級、十筆資料、詳情、窄版四進度無水平 overflow，以及捲到底後工具區位置不變 |
@@ -305,11 +311,11 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 最近驗證（2026-09-01）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：580/580 passed。
+- Desktop Vitest：582/582 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
 - Electron Playwright E2E：5/5 passed；Memory tip 的文字、標籤與圖示對淡藍紫背景
-  的對比分別為 9.52:1、7.32:1 與 5.27:1。
+  的對比分別為 9.52:1、7.32:1 與 5.27:1，內文粗體為 inline 且不顯示 Markdown 星號。
 
 ## 10. Known Limitations and Follow-up
 

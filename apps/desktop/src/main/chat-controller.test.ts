@@ -2237,6 +2237,33 @@ describe("composeCodexInput", () => {
 });
 
 describe("create-learning-items skill", () => {
+  it("prioritizes memorable spelling recall without restricting the mnemonic method", () => {
+    const skill = learningItemCreationSkillInstructions;
+
+    expect(skill).toContain(
+      "The primary job is to help the learner reconstruct the target's exact written form"
+    );
+    expect(skill).toMatch(/familiar words, phrases,\s+short sentences/);
+    expect(skill).toContain(
+      "inspiration, not an allowed-method list"
+    );
+    expect(skill).toMatch(
+      /Do not\s+mechanically force rhyme, sound association, imagery, or any other single template/
+    );
+    expect(skill).toContain(
+      "Picture a towel that is cool and slightly wet but not dripping—that towel is damp."
+    );
+    expect(skill).toContain(
+      "Picture two colored streams flowing together until their waters mix: they mingle."
+    );
+    expect(skill).toContain("GRIM rhymes with DIM");
+    expect(skill).toContain("DAMP starts with DAM");
+    expect(skill).toContain("SINGLE stands alone");
+    expect(skill).toContain(
+      "If removing the target leaves only a definition scene or ordinary example"
+    );
+  });
+
   it("calibrates CEFR as sense-specific cross-language usage frequency", () => {
     const skill = learningItemCreationSkillInstructions;
 

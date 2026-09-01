@@ -18,6 +18,8 @@ related_implements:
   - F65-standardize-learning-item-example-support
   - F70-preserve-useful-detail-in-learning-items
   - F78-add-imaginative-memory-tips
+  - B36-require-retrieval-hooks-in-memory-tips
+  - B37-render-memory-tip-inline-markdown
 ---
 
 # AI 輔助學習項目建立模組
@@ -50,7 +52,7 @@ related_implements:
    結果的 `requestedTitles` 必須落在該 turn 的受信任目標，並具有
    `en | ja | zh-TW | ko | other` 其中一個學習項目語言；match id 仍必須來自 App
    提供的候選。
-7. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要、具象
+7. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要、拼寫導向的
    Memory tip 與安全渲染的 Markdown 預覽；使用者可把草稿排除／恢復，但不可編輯
    草稿內容。active
    已存在項目可以點擊開啟共用唯讀詳情，關閉詳情後保留原草稿清單。
@@ -128,9 +130,16 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
   `Common mistakes` 或 `Pronunciation notes` 等補充小節。詳細程度不設固定字數上限，
   但不得機械加入所有小節、填充簡單項目或重複核心內容。
 - 結構化 `sense` 維持簡短英文語義識別，確保既有候選查詢與語義去重契約不變。
-- 結構化 `memoryTip` 使用同一講解語言，優先以具體物件、動作、方向或反差形成一個
-  可在腦中重播的微型場景，並明確連回該筆目標語義；只有確實有幫助時才使用可驗證
-  的字形、發音或詞源聯結，不捏造詞源或勉強製造讀音雙關。
+- 結構化 `memoryTip` 使用同一講解語言，首要幫助學習者按順序重建目標詞的
+  正確拼寫或字形，再連回目標語義。方法不設限：可使用其他簡單字詞、片語、短句、
+  押韻／諧音、共用字母、拆字、字母替換、詞素／漢字結構、頭字句、節奏、小故事、
+  誇張畫面或任何其他準確且有效的聯想；列舉方法只是靈感，不是白名單，也不機械套用
+  單一模板。
+- AI 交付前檢查記憶提示是否有可重建拼寫的具體路徑、是否只剩一般釋義場景、
+  是否能原封不動套用至多個近義詞，以及字形、發音、詞素或詞源關係是否準確。
+  只展示意思的 `Picture/Imagine ...` 句不是完成的記憶提示。
+- `memoryTip` 可使用粗體、斜體、刪除線與行內 code 等輕量行內 Markdown
+  強調拼寫區塊；不產生標題、清單、引用、連結、圖片、表格或原始 HTML。
 
 ## 5. Trust Boundaries
 
@@ -167,7 +176,8 @@ Memory tip、included／excluded、候選 match、submitted／abandoned 時間�
 於對話訊息。移除整筆對話會移除草稿，但不影響已提交的正式項目。
 
 中央 `LearningItemDraftDialog` 固定 header／footer，只有卡片區垂直捲動；Memory tip
-固定在 Markdown 前，以 Brain 圖示、標籤與低彩度藍紫面板呈現；Markdown 使用
+固定在 Markdown 前，以 Brain 圖示、標籤與低彩度藍紫面板呈現，並由共用
+`LearningMemoryTip` 安全渲染受限行內 Markdown；一般學習內容則使用
 `react-markdown`、GFM 與 `skipHtml`。確認浮層沒有標題、語言、類型、CEFR、語義或原始
 Markdown 的編輯控制；沒有 included 草稿時提交停用。Escape、遮罩及明確關閉按鈕只
 關閉 modal，不改變草稿狀態。pending 批次另提供「放棄這批草稿」與二次確認；
@@ -178,7 +188,7 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
 
 | File | Responsibility |
 |---|---|
-| `.agents/skills/create-learning-items/SKILL.md` | 澄清、語義去重、具象 Memory tip、草稿與提交 recheck 契約 |
+| `.agents/skills/create-learning-items/SKILL.md` | 澄清、語義去重、拼寫導向 Memory tip、草稿與提交 recheck 契約 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | word／phrase invitation 契約 |
 | `apps/desktop/src/main/learning-library-service.ts` | exact-title 候選查詢、atomic create、restore |
 | `apps/desktop/src/main/learning-item-artifacts.ts` | intent、result、invitation、recheck JSON 驗證 |
@@ -199,10 +209,11 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
   還原、不可重複提交、多語 AI route、自動 continuation、原 target 重試、放棄，
   source／固定講解語言映射，以及每句例句輔助說明的固定格式與語言分支。
   同時固定跨語言、特定語義的 A1–C2 使用頻率 rubric，以及選擇性詳細內容、區段解析
-  銜接與無關內容排除契約。
+  銜接與無關內容排除契約；並固定 Memory tip 的拼寫回想優先級、自由聯想方法、
+  反例、正例與交付前自檢。
 - `chat-conversation-store.test.ts`：version 1→2、批次與 interrupted preparation 持久化。
 - `chat-ipc.test.ts`：intent、targets、retry、abandon 與 mutation 邊界。
-- `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI、Memory tip 預覽、
+- `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI、Memory tip 受限行內 Markdown 預覽、
   快捷／邀請入口、已存在項目唯讀詳情與錯誤重試，以及普通訊息不做 Renderer 文字配對、
   重試 UI 與明確放棄流程。
 - `desktop.spec.ts`：production skill 安裝與 preload bridge 白名單。

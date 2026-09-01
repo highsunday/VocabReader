@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatDesktopApi, ChatSnapshot } from "../shared/chat-contracts";
 import type {
@@ -21,7 +21,7 @@ const batch: LearningItemDraftBatch = {
       language: "en" as const,
     cefr: "B2",
     sense: "unwilling",
-    memoryTip: "想像門已打開，但你的腳還黏在地上，不情願踏出去。",
+    memoryTip: "把 **reluctant** 的拼寫和不情願踏出去的畫面綁在一起。",
     markdownContent: "## Meaning\n不情願。",
     state: "included"
   }, {
@@ -129,7 +129,9 @@ describe("LearningItemDraftDialog", () => {
     expect(screen.getByText("視為理所當然。")).toBeInTheDocument();
     expect(screen.getAllByRole("note", { name: "Memory tip" }))
       .toHaveLength(2);
-    expect(screen.getByText(/門已打開/)).toBeInTheDocument();
+    const reluctantTip = screen.getAllByRole("note", { name: "Memory tip" })[0];
+    expect(within(reluctantTip).getByText("reluctant").tagName).toBe("STRONG");
+    expect(reluctantTip).not.toHaveTextContent("**");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByText("Markdown 內容")).not.toBeInTheDocument();

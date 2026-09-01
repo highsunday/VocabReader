@@ -9,6 +9,7 @@ import type {
 import type { ReviewDesktopApi } from "../shared/review-contracts";
 import {
   LearningItemDialog,
+  LearningMemoryTip,
   LearningLibraryWorkspace
 } from "./LearningLibraryWorkspace";
 
@@ -125,6 +126,29 @@ function api() {
     emptyTrash: vi.fn(async () => ({ deleted: 1 }))
   } satisfies LearningDesktopApi;
 }
+
+describe("LearningMemoryTip", () => {
+  it("renders spelling emphasis as safe inline Markdown instead of raw markers", () => {
+    render(
+      <LearningMemoryTip>
+        {[
+          "把 **heave** 和 **heavy** 綁在一起：兩字都有 **HEAV-**。",
+          "[reference](https://example.com) ![hidden](https://example.com/a.png)",
+          "<script>alert('unsafe')</script>"
+        ].join("\n")}
+      </LearningMemoryTip>
+    );
+
+    const note = screen.getByRole("note", { name: "Memory tip" });
+    expect(within(note).getByText("heave").tagName).toBe("STRONG");
+    expect(within(note).getByText("heavy").tagName).toBe("STRONG");
+    expect(within(note).getByText("HEAV-").tagName).toBe("STRONG");
+    expect(note).not.toHaveTextContent("**");
+    expect(note.querySelector("a, img, script")).not.toBeInTheDocument();
+    expect(note).toHaveTextContent("reference");
+    expect(note).not.toHaveTextContent("alert('unsafe')");
+  });
+});
 
 describe("LearningLibraryWorkspace", () => {
   it("does not expose a language filter inside an isolated workspace", async () => {
