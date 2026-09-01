@@ -203,3 +203,15 @@ AI 輔助建立現在要求每筆 `word`／`phrase` 草稿提供非空 `memoryTi
 - Feature E2E：`npx playwright test --grep "shows a memorable cue"` — 1/1 passed。
 - Full Electron E2E：`npm run test:e2e` — 5/5 passed；同步補齊既有 General settings
   測試對 Korean 講解語言選項與 workspace 預設值的預期。
+
+### Production Deployment
+
+- Feature commit：`dd2d728`（`feat: add imaginative memory tips`）。
+- Release commit：`e1d8845`（`release: prepare v0.1.4`）。
+- `main` 與 annotated tag `v0.1.4` 已推送至 `highsunday/VocabReader`。
+- GitHub Actions `Release desktop installers` run `33475217157` 完成且 conclusion 為
+  `success`；macOS Apple Silicon、macOS Intel 與 Windows x64 三個 native build 皆成功。
+- GitHub Release `VocabReader v0.1.4` 已公開，包含：
+  - `VocabReader-0.1.4-mac-arm64.dmg`
+  - `VocabReader-0.1.4-mac-x64.dmg`
+  - `VocabReader-0.1.4-windows-x64-setup.exe`
