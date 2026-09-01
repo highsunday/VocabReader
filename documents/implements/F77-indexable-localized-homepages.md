@@ -118,7 +118,8 @@ VocabReader 產品官網目前在同一個 `/` URL 依瀏覽器語言與 JavaScr
 
 - 不建立四個主題或八個內容頁。
 - 不拆分下載頁的語言 URL。
-- 不發布 production、不操作 Search Console、不更新外部 repository metadata。
+- F77 原始實作不以 production 發布作為驗收條件；後續使用者另行要求 push 時才觸發部署。
+- 不操作 Search Console、不更新外部 repository metadata。
 - 不改寫首頁產品定位、視覺設計或真實產品證據。
 - 不新增 CMS、analytics、backend、cookie tracking 或自動翻譯。
 
@@ -131,7 +132,7 @@ testing notes 與 known limitations；不新增 domain module。
 
 ### Status
 
-Implemented and locally verified on 2026-09-01.
+Implemented, pushed, and production-verified on 2026-09-01.
 
 ### Implementation Summary
 
@@ -208,6 +209,10 @@ npm run build                                                   # success; 4 HTM
 Browser QA：1440×1000 英文首頁與 390×844 繁中首頁皆無水平 overflow；語言連結導覽、root
 偏好、canonical、H1、download links 正確，console 無 error 或 warning。
 
+Production：commit `bc458dbfa07e22c4adb0eb48b1b0763ee5c4e247` 已推送至 `origin/main`；
+`https://www.vocabreader.site/en/` 與 `https://www.vocabreader.site/zh-tw/` 均回傳 HTTP 200，
+現網 HTML 的 lang、H1、canonical、hreflang 與 sitemap locale entries 均已驗證。
+
 ### Hypotheses and Decisions
 
 - 採用 shared template + build-time generation，避免維護兩份首頁結構。
@@ -219,9 +224,9 @@ Browser QA：1440×1000 英文首頁與 390×844 繁中首頁皆無水平 overfl
 ### Deferred Items
 
 - 主題內容頁未納入本功能，且目前沒有建立四個主題／八個頁面的執行工作。
-- Search Console 與 production 發布。
+- Search Console sitemap 提交與索引要求。
 
 ### Notes
 
-本功能只完成本機原始碼、測試、建置與 responsive QA；未 push、未觸發 Vercel production，
-也未向 Search Console 提交 sitemap。
+原始碼、測試、建置、responsive QA、push 與 Vercel production 驗證皆已完成；尚未向
+Search Console 提交 sitemap 或要求新 locale URLs 建立索引。

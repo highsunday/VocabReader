@@ -26,11 +26,11 @@ Windows 或 macOS 安裝檔、理解未簽章警告、完成限定範圍的系�
 
 ## 2. Current Implementation Status
 
-狀態：**既有官網已發布；F77 locale routes 已實作並通過本機驗證，尚待部署**
+狀態：**已實作並發布**
 
 - 正式首頁：`https://www.vocabreader.site/`
-- 英文首頁（F77 待部署）：`https://www.vocabreader.site/en/`
-- 繁體中文首頁（F77 待部署）：`https://www.vocabreader.site/zh-tw/`
+- 英文首頁：`https://www.vocabreader.site/en/`
+- 繁體中文首頁：`https://www.vocabreader.site/zh-tw/`
 - 下載與安裝頁：`https://www.vocabreader.site/download/`
 - `https://vocabreader.site/` 由 Vercel 以 308 轉向 `www` canonical origin。
 - 舊 GitHub Pages 網址保留為逐頁搬家入口，不再提供完整重複內容。
