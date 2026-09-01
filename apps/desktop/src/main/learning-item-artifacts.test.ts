@@ -20,6 +20,7 @@ describe("parseLearningItemArtifacts", () => {
       sessionId: "session-1",
       itemId: "item-1",
       markdownContent: "## Meaning\n損害或削弱。",
+      memoryTip: "用 **PAIR** 提醒自己：前面加 **IM-** 後是損害。",
       cautionNote: "impair 是削弱；repair 是修復。"
     })}\n\`\`\``;
 
@@ -28,6 +29,7 @@ describe("parseLearningItemArtifacts", () => {
       itemId: "item-1"
     })).toMatchObject({
       markdownContent: "## Meaning\n損害或削弱。",
+      memoryTip: "用 **PAIR** 提醒自己：前面加 **IM-** 後是損害。",
       cautionNote: "impair 是削弱；repair 是修復。"
     });
     expect(() => parseLearningItemEditResult(source, {
@@ -38,6 +40,35 @@ describe("parseLearningItemArtifacts", () => {
       source.replace('"cautionNote"', '"title":"repair","cautionNote"'),
       { sessionId: "session-1", itemId: "item-1" }
     )).toThrow(/edit result/);
+  });
+
+  it("requires a string memory tip in every complete learning-item edit artifact", () => {
+    const artifact = (memoryTip: unknown, include = true) => [
+      "```learning-item-edit-result",
+      JSON.stringify({
+        version: 1,
+        kind: "learning-item-edit-result",
+        sessionId: "session-1",
+        itemId: "item-1",
+        markdownContent: "## Meaning\n損害或削弱。",
+        ...(include ? { memoryTip } : {}),
+        cautionNote: ""
+      }),
+      "```"
+    ].join("\n");
+
+    expect(parseLearningItemEditResult(artifact(""), {
+      sessionId: "session-1",
+      itemId: "item-1"
+    }).memoryTip).toBe("");
+    expect(() => parseLearningItemEditResult(artifact(undefined, false), {
+      sessionId: "session-1",
+      itemId: "item-1"
+    })).toThrow(/edit result/);
+    expect(() => parseLearningItemEditResult(artifact(42), {
+      sessionId: "session-1",
+      itemId: "item-1"
+    })).toThrow(/edit result/);
   });
   it("extracts and validates a pending draft batch without rendering raw JSON", () => {
     let id = 0;

@@ -122,6 +122,7 @@ export interface LearningItemEditSnapshot {
   phase: "ready" | "responding" | "error";
   draft: {
     markdownContent: string;
+    memoryTip: string;
     cautionNote: string;
   };
   hasChanges: boolean;

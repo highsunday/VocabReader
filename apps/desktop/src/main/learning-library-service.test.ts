@@ -125,6 +125,7 @@ describe("LocalLearningLibrary", () => {
       itemId: created.id,
       baseUpdatedAt: beforeAiEdit.updatedAt,
       markdownContent: `${beforeAiEdit.markdownContent}\n\n## Habitat\nRocky mountains.`,
+      memoryTip: beforeAiEdit.memoryTip ?? "",
       cautionNote: ""
     });
     expect((await library.getItem(created.id)).representativeImageDataUrl)
@@ -752,7 +753,8 @@ describe("LocalLearningLibrary", () => {
       language: "en",
       cefr: "B2",
       sense: "weaken or damage",
-      markdownContent: "## Meaning\n損害或削弱。"
+      markdownContent: "## Meaning\n損害或削弱。",
+      memoryTip: "把 impair 想成一對東西受損。"
     });
 
     const applied = await library.applyAiEdit({
@@ -764,6 +766,7 @@ describe("LocalLearningLibrary", () => {
         "## impair vs. repair",
         "impair 是削弱；repair 是修復。"
       ].join("\n"),
+      memoryTip: "把 **IM-** 接到 **PAIR** 前：這一對被損害了。",
       cautionNote: "不要把 impair（削弱）誤解成 repair（修復）。"
     });
 
@@ -775,13 +778,23 @@ describe("LocalLearningLibrary", () => {
       cefr: original.cefr,
       sense: original.sense,
       status: "active",
+      memoryTip: "把 **IM-** 接到 **PAIR** 前：這一對被損害了。",
       cautionNote: "不要把 impair（削弱）誤解成 repair（修復）。"
     });
     expect(applied.updatedAt).not.toBe(original.updatedAt);
+    const cleared = await library.applyAiEdit({
+      itemId: original.id,
+      baseUpdatedAt: applied.updatedAt,
+      markdownContent: applied.markdownContent,
+      memoryTip: "",
+      cautionNote: applied.cautionNote ?? ""
+    });
+    expect(cleared.memoryTip).toBe("");
     await expect(library.applyAiEdit({
       itemId: original.id,
       baseUpdatedAt: original.updatedAt,
       markdownContent: "stale overwrite",
+      memoryTip: "stale",
       cautionNote: "stale"
     })).rejects.toThrow(/changed/);
 
@@ -790,6 +803,7 @@ describe("LocalLearningLibrary", () => {
       itemId: original.id,
       baseUpdatedAt: trashed.updatedAt,
       markdownContent: "trashed overwrite",
+      memoryTip: "trashed",
       cautionNote: "trashed"
     })).rejects.toThrow(/changed/);
   });

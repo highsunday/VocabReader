@@ -29,6 +29,7 @@ function fakeClient(prompts: string[]): CodexAppServerClient {
           sessionId: payload.sessionId,
           itemId: payload.itemId,
           markdownContent: `${payload.markdownContent}\n\n## impair vs. repair\n兩者意思相反。`,
+          memoryTip: "把 **IM-** 接到 **PAIR** 前：這一對被損害了。",
           cautionNote: "impair 是削弱；repair 是修復。"
         })}\n\`\`\``;
         setTimeout(() => {
@@ -93,6 +94,7 @@ describe("LearningItemEditController", () => {
       cefr: "B2" as const,
       sense: "weaken or damage",
       markdownContent: "## Meaning\n損害或削弱。",
+      memoryTip: "把 impair 想成一對東西受損。",
       cautionNote: "",
       representativeImageDataUrl: "data:image/jpeg;base64,cHJpdmF0ZS1pbWFnZQ==",
       status: "active" as const,
@@ -105,6 +107,7 @@ describe("LearningItemEditController", () => {
       applyAiEdit: vi.fn(async (input) => ({
         ...item,
         markdownContent: input.markdownContent,
+        memoryTip: input.memoryTip,
         cautionNote: input.cautionNote
       }))
     };
@@ -125,7 +128,10 @@ describe("LearningItemEditController", () => {
     );
     expect(edited).toMatchObject({
       hasChanges: true,
-      draft: { cautionNote: "impair 是削弱；repair 是修復。" }
+      draft: {
+        memoryTip: "把 **IM-** 接到 **PAIR** 前：這一對被損害了。",
+        cautionNote: "impair 是削弱；repair 是修復。"
+      }
     });
     expect(library.applyAiEdit).not.toHaveBeenCalled();
     const payload = JSON.parse(prompts[0].match(/Edit payload: (.+)\n/)![1]);
@@ -137,6 +143,7 @@ describe("LearningItemEditController", () => {
       learningItemLanguage: item.language,
       primaryExplanationLanguage: "Traditional Chinese",
       markdownContent: item.markdownContent,
+      memoryTip: item.memoryTip,
       cautionNote: "",
       request: "我常把 impair 誤解成 repair。"
     });
@@ -146,6 +153,7 @@ describe("LearningItemEditController", () => {
     expect(library.applyAiEdit).toHaveBeenCalledWith(expect.objectContaining({
       itemId: item.id,
       baseUpdatedAt: item.updatedAt,
+      memoryTip: "把 **IM-** 接到 **PAIR** 前：這一對被損害了。",
       cautionNote: "impair 是削弱；repair 是修復。"
     }));
   });

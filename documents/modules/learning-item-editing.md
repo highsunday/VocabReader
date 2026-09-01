@@ -10,6 +10,7 @@ related_implements:
   - F59-add-learning-item-representative-image
   - F65-standardize-learning-item-example-support
   - F78-add-imaginative-memory-tips
+  - B38-allow-ai-editing-memory-tips
 ---
 
 # AI 輔助學習項目編修模組
@@ -17,12 +18,12 @@ related_implements:
 ## 1. Purpose
 
 本模組讓使用者在具備編修能力的 active **學習項目詳情**中，以簡單多輪需求請 AI
-補充或調整目前項目的 Markdown 與**學習注意事項**；入口包含生詞庫、已批改的複習
+補充或調整目前項目的 Markdown、**記憶提示**與**學習注意事項**；入口包含生詞庫、已批改的複習
 試卷與複習完成頁。例如「我常把 `impair` 誤解成 `repair`」會讓 AI 在原內容中加入
 差異說明，並把最關鍵的辨別方法濃縮為醒目的注意事項。
 
 編修過程只更新畫面中的暫態草稿。使用者必須明確按下「Apply edit」後，Main process
-才會把 Markdown 與注意事項一起寫入 SQLite；取消、關閉、停止、失敗或無效 artifact
+才會把 Markdown、記憶提示與注意事項一起寫入 SQLite；取消、關閉、停止、失敗或無效 artifact
 都不會保存半成品。
 
 ## 2. Current Implementation Status
@@ -36,9 +37,10 @@ related_implements:
 - 詳情內容本身就是草稿預覽，底部只展開一個多行需求欄、簡短狀態、Send、Stop、
   Cancel 與 Apply edit，不建立第二個預覽或可見聊天紀錄。
 - 同一暫態 Codex thread 可多輪編修，每輪都以最新有效草稿為基礎。
-- AI 只能回傳完整 `markdownContent` 與 `cautionNote`；標題、類型、語言、CEFR、
-  sense、Memory tip、代表圖片、狀態與複習資料不在 artifact schema 中，因此 AI Apply
-  保留目前正式 Memory tip。
+- AI 只能回傳完整 `markdownContent`、`memoryTip` 與 `cautionNote`；標題、
+  類型、語言、CEFR、sense、代表圖片、狀態與複習資料不在 artifact schema 中。
+- AI 可依明確需求改寫或清空 Memory tip；無關需求必須保留最新草稿值。
+  改寫內容沿用主要解釋語言，並優先幫助使用者依序重建拼寫或字形。
 - 新說明預設沿用目前 Markdown 的主要解釋語言；只有使用者明確要求才切換語言。
 - 每次有效 AI 編修都會把完整 `Examples` 小節正規化：例句使用學習項目語言、粗體
   目標詞，並在每句後固定加入一行以 `→` 開頭、不含文字標籤的例句輔助說明；主要
@@ -61,7 +63,7 @@ related_implements:
 - 由 repository 依 item id 讀取目前 active 項目；Renderer 不提供正式內容。
 - 建立獨立 `SpawnedCodexAppServerClient`、唯讀 thread 與固定 skill instructions。
 - 只保留 session id、原始 item／`updatedAt`、最新有效草稿、thread／turn id 與狀態。
-- 每輪把目前標題、sense、受信任的學習項目語言、最新 Markdown、注意事項及本次需求
+- 每輪把目前標題、sense、受信任的學習項目語言、最新 Markdown、Memory tip、注意事項及本次需求
   組成 bounded payload。
 - 聚合完成訊息後，使用固定 parser 驗證完整 artifact，通過後才原子取代畫面草稿。
 - 協調停止競態、120 秒逾時、Codex exit、套用與放棄清理。
@@ -79,10 +81,12 @@ related_implements:
 - `sessionId`
 - `itemId`
 - `markdownContent`
+- `memoryTip`
 - `cautionNote`
 
 Parser 會拒絕錯誤 session／item id、空 Markdown、缺失或額外 key、錯誤版本、非字串
-注意事項與 block 外的尾隨輸出。串流文字不直接進入學習項目。
+Memory tip／注意事項與 block 外的尾隨輸出。Memory tip 可為空字串，以表示使用者明確要求移除。
+串流文字不直接進入學習項目。
 
 ### Repository Apply Boundary
 
@@ -90,15 +94,15 @@ Parser 會拒絕錯誤 session／item id、空 Markdown、缺失或額外 key、
 
 ```text
 UPDATE learning_items
-SET markdown_content, caution_note, updated_at
+SET markdown_content, memory_tip, caution_note, updated_at
 WHERE id = itemId
   AND status = active
   AND updated_at = baseUpdatedAt
 ```
 
 它不接收或寫入其他學習項目欄位，也不新增 review event 或修改 FSRS schedule。
-Memory tip 可由一般人工 editor 修改，但不在 AI artifact 與上述 SQL 欄位內；AI Apply
-因此保留其正式值。代表圖片由獨立立即 mutation 管理；人工 Save 與 AI Apply 都保留
+人工 Save 與 AI Apply 都可修改或清空 Memory tip；AI Apply 將三個內容欄位放在同一個
+conditional update 中。代表圖片由獨立立即 mutation 管理；人工 Save 與 AI Apply 都保留
 既有 BLOB。AI 編修中不顯示圖片 Add／Replace／Remove，以避免 `updatedAt` guard 與並行
 mutation 衝突。
 
@@ -121,7 +125,7 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 
 - 依 editable／read-only capability 顯示編修入口，並把是否可移入垃圾桶當作獨立能力；
   已批改但尚未確認排程的試卷可編修、不可移入垃圾桶。
-- 用 Controller snapshot 的 draft 覆蓋原詳情 Markdown 與注意事項顯示。
+- 用 Controller snapshot 的 draft 覆蓋原詳情 Markdown、Memory tip 與注意事項顯示。
 - 在底部呈現單一 composer、狀態與必要操作。
 - 回覆中停用並行送出與 Apply，Stop 後忽略已失效的舊 send promise。
 - 有效變更離開前開啟具名 `alertdialog`；選擇 Keep editing 時保留全部草稿。
@@ -133,7 +137,7 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 |---|---|
 | `LearningItem.cautionNote` | 可留空的學習注意事項純文字 |
 | `UpdateLearningItemInput.cautionNote` | 人工編輯時一併保存的注意事項 |
-| `LearningItem.memoryTip` | 可留空的具象記憶提示；不屬於 AI edit artifact |
+| `LearningItem.memoryTip` | 可留空的記憶提示；人工與 AI 編輯均可修改 |
 | `UpdateLearningItemInput.memoryTip` | 一般人工編輯時一併保存的記憶提示 |
 | `LearningItemEditSnapshot` | session／item id、phase、最新草稿、是否有變更與簡短狀態 |
 | `LearningItemEditDesktopApi` | start／send／stop／apply／discard 的窄 bridge |
@@ -150,7 +154,7 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 - schema 7 的 nullable 代表圖片 BLOB 不在 edit artifact 或 `UpdateLearningItemInput` 中；
   人工 Save／AI Apply 不覆寫它，獨立圖片 mutation 更新 `updatedAt` 後會讓過期 AI Apply
   依既有 optimistic guard 安全失敗。
-- schema 8 的 non-null `memory_tip` 由一般人工 Save 更新；AI Apply 刻意不接收或覆寫。
+- schema 8 的 non-null `memory_tip` 可由一般人工 Save 或受保護的 AI Apply 更新。
 - AI session、需求、Codex thread id、未套用草稿與編修歷史不寫入資料庫或 JSON store。
 - Apply、Discard、詳情無變更關閉、啟動另一項編修或 App quit 都會關閉目前 edit client。
 - 完整資料備份保存 SQLite 內已套用的注意事項；暫態編修資料不進入備份。
@@ -162,11 +166,13 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 - 唯一注入的 App skill 是 `edit-learning-item`，其安裝路徑與 instructions 由 Main 固定。
 - 學習項目與需求都標示為不可信任資料，不能覆蓋 developer contract。
 - AI 不執行工具、不讀寫檔案、不存取網路或 SQLite。
-- Main 依最新 Markdown 判定 English／Traditional Chinese／Japanese，並以
+- Main 依最新 Markdown 與注意事項判定 English／Traditional Chinese／Japanese／Korean，並以
   `primaryExplanationLanguage` 明確交給 AI；需求本身使用的語言不構成切換指令。
 - Main 另以 `learningItemLanguage` 傳入正式項目的語言 enum，讓 skill 可靠決定例句本體
   與例句輔助說明應走同語言改寫或跨語言翻譯分支。
 - 原文詞彙、IPA、例句等需要保留的片段不因主要解釋語言而被強制翻譯。
+- 記憶提示若被要求修改，使用同一主要解釋語言，可使用受限行內 Markdown
+  強調拼寫區塊，但不產生連結、圖片、區塊結構或原始 HTML。
 
 ## 7. UI and Accessibility
 
@@ -198,9 +204,9 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 
 | Test file | Coverage |
 |---|---|
-| `learning-item-edit-skill.test.ts` | bounded、語言、注意事項與固定結果契約 |
-| `learning-item-artifacts.test.ts` | 成功解析、錯誤 id 與額外欄位拒絕 |
-| `learning-item-edit-controller.test.ts` | 最小 AI scope、暫態草稿、明確 Apply 與停止競態 |
+| `learning-item-edit-skill.test.ts` | bounded、語言、記憶提示、注意事項與固定結果契約 |
+| `learning-item-artifacts.test.ts` | 成功解析、Memory tip 完整往返、錯誤 id 與額外欄位拒絕 |
+| `learning-item-edit-controller.test.ts` | 最小 AI scope、三欄暫態草稿、明確 Apply 與停止競態 |
 | `learning-item-edit-ipc.test.ts` | id／需求白名單及 forged payload 拒絕 |
 | `learning-library-service.test.ts` | schema 8 migration、Memory tip／圖片／注意事項保存、guarded Apply／stale／trash 拒絕 |
 | `learning-library-workspace.test.tsx` | 顯示、人工編輯、精簡 AI 草稿、明確 Apply、停止、放棄確認與唯讀邊界 |
@@ -208,13 +214,12 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 | `data-backup-service.test.ts` | schema 7 圖片 backup 相容與未來版本拒絕 |
 | `desktop.spec.ts` | production skill 安裝與 preload 子 API 白名單 |
 
-最近驗證（2026-08-10）：
+最近驗證（2026-09-01）：
 
-- Server Vitest：3/3 passed。
-- Desktop Vitest：489/489 passed。
-- TypeScript typecheck：passed。
-- Production build：passed。
-- Electron Playwright E2E：3/3 passed。
+- Desktop Vitest：60 files，584/584 passed。
+- Server 與 Desktop TypeScript typecheck：passed。
+- Server 與 Desktop production build：passed。
+- Electron Playwright E2E：5/5 passed。
 
 ## 10. Known Limitations and Follow-up
 
@@ -230,6 +235,7 @@ prompt、Codex method、working directory、sandbox、工具或權限。
 - `documents/implements/F51-ai-assisted-learning-item-editing.md`
 - `documents/implements/F59-add-learning-item-representative-image.md`
 - `documents/implements/F78-add-imaginative-memory-tips.md`
+- `documents/implements/B38-allow-ai-editing-memory-tips.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/ai-conversation.md`
 - `documents/modules/skill-management.md`

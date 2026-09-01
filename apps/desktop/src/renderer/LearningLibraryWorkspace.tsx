@@ -259,6 +259,7 @@ export function LearningItemDialog({
   const aiSendRequestRef = useRef(0);
 
   const shownMarkdown = aiEdit?.draft.markdownContent ?? item.markdownContent;
+  const shownMemoryTip = aiEdit?.draft.memoryTip ?? item.memoryTip ?? "";
   const shownCaution = aiEdit?.draft.cautionNote ?? item.cautionNote ?? "";
 
   useLayoutEffect(() => {
@@ -921,7 +922,7 @@ export function LearningItemDialog({
                     <strong>Note:</strong> {shownCaution}
                   </p>
                 ) : null}
-                <LearningMemoryTip>{item.memoryTip}</LearningMemoryTip>
+                <LearningMemoryTip>{shownMemoryTip}</LearningMemoryTip>
                 <MarkdownContent>{shownMarkdown}</MarkdownContent>
               </div>
               {reviewApi ? (

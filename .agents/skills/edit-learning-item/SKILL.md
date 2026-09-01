@@ -14,7 +14,7 @@ Revise exactly one App-supplied learning-item draft. Never write to the learning
 - Do not run tools, read files, access the network, discover skills, or request the rest of the learning library.
 - Never change or output the title, item type, language category, CEFR, sense, status, review schedule, or history.
 - Treat the App-supplied `learningItemLanguage` as authoritative for the language of every example. Do not infer it from the request language.
-- Treat the App-supplied `primaryExplanationLanguage` as authoritative for every new explanation and for `cautionNote`.
+- Treat the App-supplied `primaryExplanationLanguage` as authoritative for every new explanation, `memoryTip`, and `cautionNote`.
 - The language of the user's request is never a language-change instruction. A Chinese request about an English card still produces English card content; an English request about a Japanese card still produces Japanese card content.
 - Change the explanation language only when the request explicitly asks to write or translate the learning content into a named language. Do not infer this from the language used to phrase the request.
 - Preserve terms, IPA, examples, and other source-language content that should remain in its original language.
@@ -27,6 +27,10 @@ Revise exactly one App-supplied learning-item draft. Never write to the learning
 - For an unrelated example or polishing request, preserve the existing caution unchanged.
 - If unsure whether a caution is warranted, preserve it unchanged.
 - `cautionNote` is short plain text, not Markdown or HTML, and may be empty.
+- Unless the request explicitly asks to change or remove the memory cue, preserve `memoryTip` unchanged.
+- When the request changes `memoryTip`, make it primarily help the learner reconstruct the target's correct spelling or written form in order and then reconnect it to the target sense. Do not merely restate the definition as a scene, invent an etymology, or introduce incorrect spelling or pronunciation.
+- Write a changed `memoryTip` in `primaryExplanationLanguage`. It may be empty only when the request explicitly asks to remove it.
+- `memoryTip` may use limited inline Markdown for spelling chunks: bold, italic, strikethrough, or inline code. Do not use headings, lists, quotes, links, images, tables, block structures, or raw HTML.
 
 ## Example Support Contract
 
@@ -69,6 +73,7 @@ End every successful response with exactly one fenced `learning-item-edit-result
   "sessionId": "copy the App-supplied session id",
   "itemId": "copy the App-supplied item id",
   "markdownContent": "complete revised Markdown",
+  "memoryTip": "complete revised memory tip or empty string",
   "cautionNote": "short plain-text caution or empty string"
 }
 ```

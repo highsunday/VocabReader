@@ -1818,22 +1818,26 @@ export class LocalLearningLibrary {
     itemId: string;
     baseUpdatedAt: string;
     markdownContent: string;
+    memoryTip: string;
     cautionNote: string;
   }): Promise<LearningItem> {
     if (!input || typeof input !== "object") throw new Error("Invalid AI edit");
     const itemId = requiredText(input.itemId, "learning item");
     const baseUpdatedAt = requiredText(input.baseUpdatedAt, "base update time");
     const markdownContent = requiredText(input.markdownContent, "Markdown content");
+    if (typeof input.memoryTip !== "string") throw new Error("Invalid memory tip");
     if (typeof input.cautionNote !== "string") throw new Error("Invalid caution note");
     const baseTime = Date.parse(baseUpdatedAt);
     const updatedAt = new Date(
       Number.isFinite(baseTime) ? Math.max(Date.now(), baseTime + 1) : Date.now()
     ).toISOString();
     const result = this.#open().prepare(`
-      UPDATE learning_items SET markdown_content = ?, caution_note = ?, updated_at = ?
+      UPDATE learning_items
+      SET markdown_content = ?, memory_tip = ?, caution_note = ?, updated_at = ?
       WHERE id = ? AND status = 'active' AND updated_at = ?
     `).run(
       markdownContent,
+      input.memoryTip.trim(),
       input.cautionNote.trim(),
       updatedAt,
       itemId,

@@ -30,6 +30,7 @@ export interface LearningItemEditResult {
   sessionId: string;
   itemId: string;
   markdownContent: string;
+  memoryTip: string;
   cautionNote: string;
 }
 
@@ -217,6 +218,7 @@ export function parseLearningItemEditResult(
     "sessionId",
     "itemId",
     "markdownContent",
+    "memoryTip",
     "cautionNote"
   ]);
   if (!isObject(value) ||
@@ -227,6 +229,7 @@ export function parseLearningItemEditResult(
     value.itemId !== expected.itemId ||
     typeof value.markdownContent !== "string" ||
     !value.markdownContent.trim() ||
+    typeof value.memoryTip !== "string" ||
     typeof value.cautionNote !== "string") {
     throw new Error("Invalid learning-item edit result");
   }
@@ -236,6 +239,7 @@ export function parseLearningItemEditResult(
     sessionId: value.sessionId,
     itemId: value.itemId,
     markdownContent: value.markdownContent.trim(),
+    memoryTip: value.memoryTip.trim(),
     cautionNote: value.cautionNote.trim()
   };
 }

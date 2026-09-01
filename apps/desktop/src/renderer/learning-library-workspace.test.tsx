@@ -1013,6 +1013,7 @@ describe("LearningLibraryWorkspace", () => {
         phase: "ready" as const,
         draft: {
           markdownContent: activeItems[0].markdownContent,
+          memoryTip: activeItems[0].memoryTip ?? "",
           cautionNote: activeItems[0].cautionNote ?? ""
         },
         hasChanges: false,
@@ -1024,6 +1025,7 @@ describe("LearningLibraryWorkspace", () => {
         phase: "ready" as const,
         draft: {
           markdownContent: "## Meaning\n損害或削弱。\n\n## impair vs. repair\n兩者意思相反。",
+          memoryTip: "用 **RIVER** 的 **R** 提醒自己：bank 在河邊。",
           cautionNote: "impair 是削弱；repair 是修復。"
         },
         hasChanges: true,
@@ -1033,6 +1035,7 @@ describe("LearningLibraryWorkspace", () => {
       apply: vi.fn(async () => ({
         ...activeItems[0],
         markdownContent: "## Meaning\n損害或削弱。\n\n## impair vs. repair\n兩者意思相反。",
+        memoryTip: "用 **RIVER** 的 **R** 提醒自己：bank 在河邊。",
         cautionNote: "impair 是削弱；repair 是修復。"
       })),
       discard: vi.fn(async () => undefined)
@@ -1061,6 +1064,12 @@ describe("LearningLibraryWorkspace", () => {
       "impair 是削弱"
     );
     expect(screen.getByText("兩者意思相反。")).toBeInTheDocument();
+    expect(screen.getByRole("note", { name: "Memory tip" })).toHaveTextContent(
+      "用 RIVER 的 R 提醒自己：bank 在河邊。"
+    );
+    expect(screen.getByRole("note", { name: "Memory tip" })).not.toHaveTextContent(
+      "河水被兩邊的岸夾在中間"
+    );
     expect(learning.updateItem).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Close card details" }));

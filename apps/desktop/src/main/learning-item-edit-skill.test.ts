@@ -19,6 +19,9 @@ describe("edit-learning-item skill", () => {
     expect(skill).toContain("language of the user's request is never");
     expect(skill).toContain("recurring misunderstanding or confusing comparison");
     expect(skill).toContain("preserve the existing caution unchanged");
+    expect(skill).toContain("preserve `memoryTip` unchanged");
+    expect(skill).toContain("spelling or written form");
+    expect(skill).toContain("limited inline Markdown");
     expect(skill).toContain("## Example Support Contract");
     expect(skill).toContain("normalize the complete `## Examples` section");
     expect(skill).toContain("App-supplied `learningItemLanguage`");
@@ -31,6 +34,8 @@ describe("edit-learning-item skill", () => {
       /Never\s+provide both a paraphrase and a translation for the same example/
     );
     expect(skill).toContain("learning-item-edit-result");
+    expect(skill.match(/```learning-item-edit-result[\s\S]*?```/)?.[0])
+      .toContain('"memoryTip"');
     expect(skill).toContain("must explicitly apply it");
     for (const forbiddenField of [
       '"title"',
