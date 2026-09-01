@@ -231,7 +231,8 @@ p {
   font-size: 0.82rem;
 }
 
-.language-switch button {
+.language-switch button,
+.language-switch a {
   min-width: 44px;
   min-height: 44px;
   padding: 7px 6px;
@@ -242,7 +243,15 @@ p {
   transition: color 160ms ease;
 }
 
-.language-switch button[aria-pressed="true"] {
+.language-switch a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.language-switch [aria-pressed="true"],
+.language-switch [data-active="true"] {
   color: var(--forest-deep);
   font-weight: 760;
 }

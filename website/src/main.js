@@ -1,5 +1,5 @@
 import "./styles.css";
-import { detectLocale, storageKey, translations } from "./i18n.js";
+import { detectLocale, localeFromPath, storageKey, translations } from "./i18n.js";
 
 function readStoredLocale() {
   try {
@@ -38,22 +38,27 @@ function applyLocale(locale, { persist = false } = {}) {
     if (copy[key]) node.setAttribute("aria-label", copy[key]);
   });
 
-  document.querySelectorAll("[data-locale]").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.locale === locale));
+  document.querySelectorAll("[data-locale]").forEach((link) => {
+    if (link.dataset.locale === locale) {
+      link.dataset.active = "true";
+    } else {
+      delete link.dataset.active;
+    }
   });
 
   if (persist) storeLocale(locale);
 }
 
-const initialLocale = detectLocale({
+const pathLocale = localeFromPath(window.location.pathname);
+const initialLocale = pathLocale || detectLocale({
   stored: readStoredLocale(),
   languages: navigator.languages?.length ? navigator.languages : [navigator.language]
 });
 
 applyLocale(initialLocale);
 
-document.querySelectorAll("[data-locale]").forEach((button) => {
-  button.addEventListener("click", () => applyLocale(button.dataset.locale, { persist: true }));
+document.querySelectorAll("[data-locale]").forEach((link) => {
+  link.addEventListener("click", () => storeLocale(link.dataset.locale));
 });
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");

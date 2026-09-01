@@ -101,7 +101,8 @@ test("TC5 includes keyboard focus, reduced motion, and a mobile layout contract"
   const css = await text("src/styles.css");
 
   assert.match(html, /aria-label=/);
-  assert.match(html, /type=["']button["']/);
+  assert.match(html, /<a\b[^>]*data-locale=["']zh-Hant["'][^>]*href=["']\/zh-tw\/["']/);
+  assert.match(html, /<a\b[^>]*data-locale=["']en["'][^>]*href=["']\/en\/["']/);
   assert.match(css, /:focus-visible/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /@media\s*\([^)]*max-width:/);
@@ -256,7 +257,7 @@ test("TC31 keeps the closing CTA focused and touch targets usable", async () => 
 
   assert.equal(iconImages.length, 1, "the product icon should appear only in the header");
   assert.doesNotMatch(html, /<section\b[^>]*id=["']get-started["'][^>]*>[\s\S]*?<img\b/);
-  assert.match(css, /\.language-switch button\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+  assert.match(css, /\.language-switch (?:button|a)\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
   assert.match(css, /\.nav-star\s*{[^}]*min-height:\s*44px;/s);
   assert.match(css, /@media \(max-width:\s*620px\)[\s\S]*?\.nav-star\s*{[^}]*display:\s*none;/s);
   assert.match(css, /:lang\(zh-Hant\)[\s\S]*?letter-spacing:\s*0;/s);
@@ -356,7 +357,7 @@ test("TC17 routes homepage download actions through the official install guide",
   const source = await text("src/i18n.js");
   const moduleUrl = `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
   const { translations } = await import(moduleUrl);
-  const guideLinks = html.match(/<a\b[^>]*data-download-guide[^>]*href=["']\.\/download\/["'][^>]*>/g) ?? [];
+  const guideLinks = html.match(/<a\b[^>]*data-download-guide[^>]*href=["']\/download\/["'][^>]*>/g) ?? [];
 
   assert.equal(guideLinks.length, 2, "both primary download actions must open the first-party guide");
   assert.doesNotMatch(
@@ -374,8 +375,8 @@ test("F76 TC1 builds the multi-page website from the Vercel hostname root", asyn
 
   assert.match(config, /base:\s*["']\/["']/);
   assert.doesNotMatch(config, /\/VocabReader\//);
-  assert.equal((home.match(/href=["']\.\/download\/["']/g) ?? []).length, 2);
-  assert.match(home, /href=["']\.\/download\/#install["']/);
+  assert.equal((home.match(/href=["']\/download\/["']/g) ?? []).length, 2);
+  assert.match(home, /href=["']\/download\/#install["']/);
   assert.match(download, /class=["']brand["'][^>]*href=["']\.\.\/["']/);
   assert.match(download, /class=["']button button-primary["'][^>]*href=["']\.\.\/["']/);
   assert.doesNotMatch(download, /href=["']\/["']/);
@@ -420,9 +421,11 @@ test("F76 TC2 publishes a sitemap containing only the custom-domain canonical pa
   const sitemap = await text("public/sitemap.xml");
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
 
-  assert.match(sitemap, /<urlset\s+xmlns=["']http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9["']>/);
+  assert.match(sitemap, /<urlset\b[\s\S]*?xmlns=["']http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9["'][\s\S]*?>/);
   assert.deepEqual(locations, [
     "https://www.vocabreader.site/",
+    "https://www.vocabreader.site/en/",
+    "https://www.vocabreader.site/zh-tw/",
     "https://www.vocabreader.site/download/",
   ]);
   assert.doesNotMatch(sitemap, /index\.html/);
@@ -701,4 +704,86 @@ test("TC24 keeps platform controls and the download layout accessible and respon
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /@media\s*\([^)]*max-width:/);
   assert.match(css, /overflow-x:\s*(clip|hidden)/);
+});
+
+test("F77 TC1-TC2 emits complete English and Traditional Chinese homepage HTML", async () => {
+  const en = await text("en/index.html");
+  const zh = await text("zh-tw/index.html");
+
+  assert.match(en, /<html lang=["']en["']>/);
+  assert.match(en, /<title>VocabReader — An AI Tutor for the books you want to read<\/title>/);
+  assert.match(en, /<link rel=["']canonical["'] href=["']https:\/\/www\.vocabreader\.site\/en\/["']/);
+  assert.match(en, /<h1[^>]*>An AI Tutor for the books you actually want to read\.<\/h1>/);
+
+  assert.match(zh, /<html lang=["']zh-Hant["']>/);
+  assert.match(zh, /<title>VocabReader — AI Tutor 幫你讀懂真正想讀的原文<\/title>/);
+  assert.match(zh, /<link rel=["']canonical["'] href=["']https:\/\/www\.vocabreader\.site\/zh-tw\/["']/);
+  assert.match(zh, /<h1[^>]*>AI Tutor 幫你讀懂真正想讀的原文。<\/h1>/);
+
+  for (const localized of [en, zh]) {
+    assert.doesNotMatch(localized, /href=["']\.?\/en\/download\//);
+    assert.doesNotMatch(localized, /href=["']\.?\/zh-tw\/download\//);
+    assert.equal((localized.match(/href=["']\/download\/["']/g) ?? []).length, 2);
+    assert.match(localized, /href=["']\/download\/#install["']/);
+  }
+});
+
+test("F77 TC3 exposes consistent canonical, hreflang, and sitemap locale relationships", async () => {
+  const pages = [await text("index.html"), await text("en/index.html"), await text("zh-tw/index.html")];
+  const expectedAlternates = [
+    ["en", "https://www.vocabreader.site/en/"],
+    ["zh-Hant", "https://www.vocabreader.site/zh-tw/"],
+    ["x-default", "https://www.vocabreader.site/"],
+  ];
+
+  for (const page of pages) {
+    for (const [hreflang, href] of expectedAlternates) {
+      assert.match(
+        page,
+        new RegExp(`<link rel=["']alternate["'] hreflang=["']${hreflang}["'] href=["']${href.replaceAll(".", "\\.")}`),
+      );
+    }
+    assert.match(page, /<a\b[^>]*data-locale=["']zh-Hant["'][^>]*href=["']\/zh-tw\/["']/);
+    assert.match(page, /<a\b[^>]*data-locale=["']en["'][^>]*href=["']\/en\/["']/);
+  }
+
+  const sitemap = await text("public/sitemap.xml");
+  for (const url of [
+    "https://www.vocabreader.site/",
+    "https://www.vocabreader.site/en/",
+    "https://www.vocabreader.site/zh-tw/",
+    "https://www.vocabreader.site/download/",
+  ]) {
+    assert.match(sitemap, new RegExp(`<loc>${url.replaceAll(".", "\\.")}<\\/loc>`));
+  }
+  assert.match(sitemap, /xmlns:xhtml=["']http:\/\/www\.w3\.org\/1999\/xhtml["']/);
+  assert.match(sitemap, /hreflang=["']zh-Hant["']/);
+  assert.match(sitemap, /hreflang=["']x-default["']/);
+});
+
+test("F77 TC4 makes pathname locale authoritative and persists linked language choices", async () => {
+  const html = await text("index.html");
+  const source = await text("src/main.js");
+  const i18nSource = await text("src/i18n.js");
+  const moduleUrl = `data:text/javascript;base64,${Buffer.from(i18nSource).toString("base64")}`;
+  const { localeFromPath } = await import(moduleUrl);
+
+  assert.equal(localeFromPath("/en/"), "en");
+  assert.equal(localeFromPath("/zh-tw/"), "zh-Hant");
+  assert.equal(localeFromPath("/"), null);
+  assert.match(source, /localeFromPath\(window\.location\.pathname\)/);
+  assert.match(source, /addEventListener\(["']click["']/);
+  assert.doesNotMatch(source, /preventDefault\(\)/);
+  assert.match(html, /<a\b[^>]*data-locale=["']zh-Hant["'][^>]*href=["']\/zh-tw\/["']/);
+});
+
+test("F77 TC6 configures generated locale entries for the Vite multi-page build", async () => {
+  const packageJson = JSON.parse(await text("package.json"));
+  const config = await text("vite.config.js");
+
+  assert.match(packageJson.scripts.dev, /generate-localized-homepages/);
+  assert.match(packageJson.scripts.build, /generate-localized-homepages/);
+  assert.match(packageJson.scripts.test, /generate-localized-homepages/);
+  assert.match(config, /en[\\/]index\.html/);
+  assert.match(config, /zh-tw[\\/]index\.html/);
 });

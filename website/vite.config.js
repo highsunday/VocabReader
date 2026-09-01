@@ -10,6 +10,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(root, "index.html"),
+        en: resolve(root, "en/index.html"),
+        "zh-tw": resolve(root, "zh-tw/index.html"),
         download: resolve(root, "download/index.html"),
       },
     },

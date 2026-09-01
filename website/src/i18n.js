@@ -176,6 +176,16 @@ export function normalizeLocale(value) {
   return "en";
 }
 
+export function localeFromPath(pathname) {
+  const firstSegment = String(pathname || "")
+    .toLowerCase()
+    .split("/")
+    .filter(Boolean)[0];
+  if (firstSegment === "en") return "en";
+  if (firstSegment === "zh-tw") return "zh-Hant";
+  return null;
+}
+
 export function detectLocale({ stored, languages = [] }) {
   if (stored === "en" || stored === "zh-Hant") return stored;
   return languages.some((language) => normalizeLocale(language) === "zh-Hant")

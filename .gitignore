@@ -17,6 +17,8 @@ test-results/
 # Product website build output and local Vercel/design-review state.
 /website/.vercel/
 /website/.impeccable/review/
+/website/en/
+/website/zh-tw/
 
 # Local Codex and frontend-design tooling state.
 /.codex-tmp/

@@ -2,7 +2,7 @@
 title: 產品官網與下載安裝導覽模組
 module: product-website
 status: active
-last_updated: 2026-08-31
+last_updated: 2026-09-01
 related_implements:
   - F71-create-github-project-page
   - F72-publish-mit-installers
@@ -10,6 +10,7 @@ related_implements:
   - F74-add-safe-download-and-install-guide
   - F75-add-mp4-workflow-media
   - F76-deploy-product-website-to-vercel
+  - F77-indexable-localized-homepages
 ---
 
 # 產品官網與下載安裝導覽模組
@@ -25,13 +26,17 @@ Windows 或 macOS 安裝檔、理解未簽章警告、完成限定範圍的系�
 
 ## 2. Current Implementation Status
 
-狀態：**已實作並發布**
+狀態：**既有官網已發布；F77 locale routes 已實作並通過本機驗證，尚待部署**
 
 - 正式首頁：`https://www.vocabreader.site/`
+- 英文首頁（F77 待部署）：`https://www.vocabreader.site/en/`
+- 繁體中文首頁（F77 待部署）：`https://www.vocabreader.site/zh-tw/`
 - 下載與安裝頁：`https://www.vocabreader.site/download/`
 - `https://vocabreader.site/` 由 Vercel 以 308 轉向 `www` canonical origin。
 - 舊 GitHub Pages 網址保留為逐頁搬家入口，不再提供完整重複內容。
-- 首頁與下載頁皆提供完整繁體中文／英文內容，共用同一語言偏好。
+- 根首頁是 `x-default`，仍依偏好顯示英文或繁體中文；`/en/` 與 `/zh-tw/` 在 JavaScript
+  執行前就直接輸出完整的對應語言內容。
+- 下載頁仍以同一個 `/download/` URL 提供完整繁體中文／英文內容；首頁與下載頁共用語言偏好。
 - 首頁兩個主要下載 CTA 先進入站內安裝導覽，不直接把一般使用者送往 GitHub Releases。
 - 下載頁依瀏覽器資訊預選 Windows 或 macOS，並支援滑鼠及 Left／Right／Home／End 鍵盤切換。
 - Windows 提供 x64 installer；macOS 提供 Apple Silicon 與 Intel DMG。
@@ -50,6 +55,8 @@ Windows 或 macOS 安裝檔、理解未簽章警告、完成限定範圍的系�
 - 說明文字 AI 沿用本機 Codex／ChatGPT 登入，且需要具 Codex 存取權的 ChatGPT 方案。
 - 提供免費下載、GitHub repository、Star、Releases 與回饋入口。
 - 在主要下載行動附近誠實預告目前安裝檔未簽章，並導向完整安裝說明。
+- 以真實語言連結互相連接 `/en/` 與 `/zh-tw/`；canonical、hreflang 與 sitemap 讓搜尋引擎
+  能分別索引兩個語言版本。
 
 ### 3.2 Download and Installation Guide
 
@@ -69,9 +76,14 @@ Windows 或 macOS 安裝檔、理解未簽章警告、完成限定範圍的系�
 ## 4. Architecture and Build Boundary
 
 ```text
-website/index.html + website/download/index.html
+website/index.html + website/src/i18n.js
+  → scripts/generate-localized-homepages.mjs
+  → website/en/index.html + website/zh-tw/index.html (ignored generated entries)
+website/index.html + generated locale entries + website/download/index.html
   → Vite multi-page build
   → website/dist/index.html
+  → website/dist/en/index.html
+  → website/dist/zh-tw/index.html
   → website/dist/download/index.html
   → Vercel production deployment
   → https://www.vocabreader.site/
@@ -79,7 +91,7 @@ website/index.html + website/download/index.html
 
 - `website/` 由 repository `main` 分支追蹤，但仍是獨立的 vanilla JavaScript／Vite 專案，
   不屬於 root npm workspaces。
-- `vite.config.js` 設定兩個 HTML input 與 `/` base；站內頁面使用相對 URL，靜態資產由
+- `vite.config.js` 設定四個 HTML input 與 `/` base；首頁下載 CTA 使用 root-relative URL，靜態資產由
   Vite 改寫至 hostname 根目錄的 `/assets/`。
 - 網站沒有 server-side application、database、App IPC、service worker 或 Electron bridge。
 - `main.js` 處理首頁雙語內容；`download.js` 處理下載頁雙語、平台分頁與 Release 更新。
@@ -91,13 +103,17 @@ website/index.html + website/download/index.html
 ### 5.1 Locale
 
 ```text
-saved locale → browser languages → default English
+pathname `/en/` or `/zh-tw/` → URL locale wins
+root `/` → saved locale → browser languages → default English
   → normalize to zh-Hant or en
   → update html[lang], metadata, content, aria labels
   → persist manual choice as vocabreader-website-locale
 ```
 
 - 網站只支援繁體中文與英文介面。
+- `/en/` 與 `/zh-tw/` 由同一份首頁與翻譯字典在 dev／test／build 前產生完整靜態 HTML；產生檔
+  不納入版本控制，避免兩份手寫首頁發生結構漂移。
+- 首頁語言選擇使用可爬取的 `<a>` 連結；URL 指定的語言不得被 localStorage 或瀏覽器語言覆寫。
 - 語言切換唯一持久狀態是瀏覽器 `localStorage` 中的語言偏好；儲存失敗不阻止當次切換。
 - 首頁與下載頁使用不同 translation dictionary，但 key 在各自頁面內維持中英文對稱。
 
@@ -169,10 +185,11 @@ static v0.1.2 official asset URLs
 | `website/src/i18n.js` | 首頁翻譯、locale normalization 與 storage key |
 | `website/src/download-i18n.js` | 下載頁繁中／英文完整文案 |
 | `website/src/main.js` | 首頁語言套用與 header state |
+| `website/scripts/generate-localized-homepages.mjs` | 從 shared 首頁與翻譯字典產生 `/en/`、`/zh-tw/` 靜態 HTML entries |
 | `website/src/download.js` | 下載頁語言、平台 tabs、latest Release 更新 |
 | `website/src/download-helpers.js` | 可獨立測試的平台偵測與 Release asset resolver |
 | `website/src/styles.css` | 兩個頁面的視覺系統、responsive 與 accessibility states |
-| `website/vite.config.js` | Vercel root base 與 multi-page build inputs |
+| `website/vite.config.js` | Vercel root base 與 root／en／zh-tw／download multi-page build inputs |
 | `website/vercel.json` | Vercel build、output 與 trailing-slash 設定 |
 | `website/public/favicon.png` | Google 與瀏覽器可從 hostname 根目錄取得的 96×96 品牌 favicon |
 | `website/public/robots.txt` | crawler 規則與 production sitemap 位置 |
@@ -187,9 +204,10 @@ static v0.1.2 official asset URLs
 
 從 `website/` 執行：
 
-- `npm test`：40 項 contract tests，涵蓋首頁、雙語、真實資產、MP4 漸進增強、reduced motion、CTA、平台分頁、未簽章
+- `npm test`：44 項 contract tests，涵蓋首頁、可索引英文／繁中 URL、canonical／hreflang／sitemap、雙語、真實資產、MP4 漸進增強、reduced motion、CTA、平台分頁、未簽章
   指引、Windows SmartScreen 雙圖、macOS「強制打開」圖解、Codex 指令、信任說明、Vercel root base、favicon、自訂網域 canonical、sitemap、robots、`WebSite` structured data、舊站逐頁搬家與 responsive／accessibility contracts。
-- `npm run build`：必須同時產生 `dist/index.html` 與 `dist/download/index.html`，且資產 URL
+- `npm run build`：必須同時產生 `dist/index.html`、`dist/en/index.html`、
+  `dist/zh-tw/index.html` 與 `dist/download/index.html`，且資產 URL
   使用 hostname 根目錄的 `/assets/`。
 - repository root 的 `npm run test:media`：6 項媒體契約，驗證 GIF 色彩、MP4 codec／尺寸／
   duration／檔案大小，以及 README／官網資產同步。
@@ -203,6 +221,8 @@ static v0.1.2 official asset URLs
 
 - Google 搜尋結果中的 favicon 與網址更新仍由 Google 重新檢索決定；Vercel 上線不保證立即
   改變既有搜尋結果。可在 Search Console 為新 URL prefix 提交 sitemap 並要求重新建立索引。
+- 目前沒有獨立 SEO 主題文章；自然搜尋入口仍以英文與繁中產品首頁為主。下載頁也尚未拆成
+  語言 URL，後續有明確搜尋需求時再評估。
 - 舊 GitHub Pages 專案路徑無法提供跨 hostname 的 HTTP 301，目前以 Google 可辨識的 0 秒
   meta refresh 作為 client-side 永久搬家訊號；`gh-pages` 應至少保留一年並持續監測舊 URL。
 - Vercel Hobby 目前只用於免費開源 Early Preview；若產品改為商業用途，需重新確認 Vercel
@@ -227,6 +247,7 @@ static v0.1.2 official asset URLs
 - `documents/implements/F74-add-safe-download-and-install-guide.md`
 - `documents/implements/F75-add-mp4-workflow-media.md`
 - `documents/implements/F76-deploy-product-website-to-vercel.md`
+- `documents/implements/F77-indexable-localized-homepages.md`
 - `website/DESIGN.md`
 - `website/PRODUCT.md`
 

@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "generate-localized-homepages": "node scripts/generate-localized-homepages.mjs",
+    "dev": "npm run generate-localized-homepages && vite --host 127.0.0.1",
+    "build": "npm run generate-localized-homepages && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test tests/contracts.test.mjs"
+    "test": "npm run generate-localized-homepages && node --test tests/contracts.test.mjs"
   },
   "devDependencies": {
     "vite": "^8.1.5"
