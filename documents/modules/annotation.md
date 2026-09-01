@@ -36,7 +36,9 @@ Selection 擷取、offset 與標記共存的交界。
 
 標記的資料模型、保存與序列化仍以本文件為主；兩個 AI 預設 workflow 的細節分別記錄於 `annotation-explanation.md` 與 `reading-comprehension-quiz.md`，App skills 的打包、安裝與隔離記錄於 `skill-management.md`。
 
-AI 只取得 START／END 內的原文與標記交集。一般提問維持正常多輪問答；只有預設動作會要求 AI 自動判斷單字、片語或句子，並依該類型順序分組說明。
+AI 只取得 START／END 分隔線所包住的原文與標記交集；若文字 offset 落在視覺行中間，
+Renderer 會補齊起終邊界行，不改動或保存 marker offset。一般提問維持正常多輪問答；
+只有預設動作會要求 AI 自動判斷單字、片語或句子，並依該類型順序分組說明。
 
 ## 2. Current Implementation Status
 

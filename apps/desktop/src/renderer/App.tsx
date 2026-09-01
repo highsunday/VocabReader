@@ -91,6 +91,7 @@ import {
   annotatedReadingSegment,
   annotationRangeFromSelection,
   annotationRevision,
+  expandReadingRangeToVisualLines,
   extractReadingSegment,
   hasAnnotationOverlap,
   initialReadingRange,
@@ -1787,7 +1788,9 @@ export function App() {
     if (!article || !readingRange) return;
     const text = article.textContent ?? "";
     if (readingRange.end >= text.length) return;
-    persistReadingRange(advanceReadingRange(text, readingRange));
+    const nextStart = expandReadingRangeToVisualLines(article, readingRange).end;
+    if (nextStart >= text.length) return;
+    persistReadingRange(advanceReadingRange(text, readingRange, nextStart));
   }
 
   function scrollToReadingRangeMarker(marker: "start" | "end") {
@@ -1961,15 +1964,21 @@ export function App() {
       chatSnapshot.activeTurnId || chatSnapshot.managementBusy) return false;
 
     const chapterText = articleRef.current?.textContent ?? "";
-    const segment = mode === "reader" && readingRange && articleRef.current
-      ? annotatedReadingSegment(chapterText, readingRange, annotations)
+    const contextRange = mode === "reader" && readingRange && articleRef.current
+      ? expandReadingRangeToVisualLines(articleRef.current, readingRange)
+      : undefined;
+    const segment = contextRange
+      ? annotatedReadingSegment(chapterText, contextRange, annotations)
       : "";
-    const readingSegmentKey = segment && selectedBook && activeChapter && readingRange
+    const readingSegmentKey = segment && selectedBook && activeChapter && readingRange &&
+      contextRange
       ? JSON.stringify([
           selectedBook.id,
           activeChapter.id,
           readingRange.start,
           readingRange.end,
+          contextRange.start,
+          contextRange.end,
           annotationRevision(annotations),
           segment
         ])

@@ -4,6 +4,7 @@ import {
   annotatedReadingSegment,
   annotationRangeFromSelection,
   annotationRevision,
+  expandReadingRangeToVisualLines,
   extractReadingSegment,
   hasAnnotationOverlap,
   initialReadingRange,
@@ -42,6 +43,31 @@ describe("reading range", () => {
     );
   });
 
+  it("expands AI context to the complete visual lines containing START and END", () => {
+    const root = document.createElement("article");
+    root.textContent = "abcdefghijklmnopqrst";
+    document.body.append(root);
+    const originalCreateRange = document.createRange.bind(document);
+    vi.spyOn(document, "createRange").mockImplementation(() => {
+      const range = originalCreateRange();
+      Object.defineProperty(range, "getBoundingClientRect", {
+        configurable: true,
+        value: () => {
+          const top = Math.floor(range.startOffset / 5) * 20;
+          return new DOMRect(0, top, 50, 18);
+        }
+      });
+      return range;
+    });
+
+    expect(expandReadingRangeToVisualLines(root, { start: 7, end: 8 }))
+      .toEqual({ start: 5, end: 10 });
+    expect(expandReadingRangeToVisualLines(root, { start: 0, end: 20 }))
+      .toEqual({ start: 0, end: 20 });
+    expect(expandReadingRangeToVisualLines(root, { start: 7, end: 7 }))
+      .toEqual({ start: 7, end: 7 });
+  });
+
   it("advances to the next adjacent range with the same approximate word count", () => {
     const chapter = words(25);
     const current = { start: 0, end: words(10).length };
@@ -51,6 +77,16 @@ describe("reading range", () => {
     expect(extractReadingSegment(chapter, next)).toBe(
       Array.from({ length: 10 }, (_, index) => `word${index + 11}`).join(" ")
     );
+  });
+
+  it("advances from the next visual line while preserving the exact range word count", () => {
+    const chapter = "one two three four five six";
+    const current = { start: 0, end: 7 };
+
+    const next = advanceReadingRange(chapter, current, 14);
+
+    expect(next.start).toBe(14);
+    expect(extractReadingSegment(chapter, next)).toBe("four five");
   });
 
   it("stops at the chapter end when the remaining range is shorter", () => {

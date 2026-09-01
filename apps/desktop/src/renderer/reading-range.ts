@@ -117,11 +117,12 @@ export function annotationRevision(annotations: readonly AnnotationRange[]) {
 
 export function advanceReadingRange(
   text: string,
-  current: ReadingRange
+  current: ReadingRange,
+  nextStartOffset = current.end
 ): ReadingRange {
   const currentText = extractReadingSegment(text, current);
   const desiredWords = Math.max(1, wordCount(currentText));
-  const start = firstReadableOffset(text, current.end);
+  const start = firstReadableOffset(text, nextStartOffset);
   return {
     start,
     end: endAfterWords(text, start, desiredWords)
@@ -140,6 +141,68 @@ function textNodes(root: Node) {
     node = walker.nextNode();
   }
   return nodes;
+}
+
+function glyphRectangleAtTextOffset(
+  root: HTMLElement,
+  nodes: readonly Text[],
+  textOffset: number
+) {
+  let remaining = Math.max(0, Math.trunc(textOffset));
+  for (const node of nodes) {
+    if (node.data.length === 0) continue;
+    if (remaining < node.data.length) {
+      const range = root.ownerDocument.createRange();
+      range.setStart(node, remaining);
+      range.setEnd(node, remaining + 1);
+      if (typeof range.getBoundingClientRect !== "function") return null;
+      const rectangle = range.getBoundingClientRect();
+      return rectangle.height > 0 && Number.isFinite(rectangle.top) &&
+        Number.isFinite(rectangle.bottom)
+        ? rectangle
+        : null;
+    }
+    remaining -= node.data.length;
+  }
+  return null;
+}
+
+function rectanglesShareVisualLine(left: DOMRect, right: DOMRect) {
+  return Math.min(left.bottom, right.bottom) > Math.max(left.top, right.top) ||
+    Math.abs(left.top - right.top) < 1;
+}
+
+export function expandReadingRangeToVisualLines(
+  root: HTMLElement,
+  range: ReadingRange
+): ReadingRange {
+  const text = root.textContent ?? "";
+  const boundedStart = clampOffset(text, range.start);
+  const boundedEnd = Math.max(boundedStart, clampOffset(text, range.end));
+  if (boundedStart === boundedEnd) {
+    return { start: boundedStart, end: boundedEnd };
+  }
+  const nodes = textNodes(root);
+  const startRectangle = glyphRectangleAtTextOffset(root, nodes, boundedStart);
+  const endRectangle = glyphRectangleAtTextOffset(root, nodes, boundedEnd - 1);
+  if (!startRectangle || !endRectangle) {
+    return { start: boundedStart, end: boundedEnd };
+  }
+
+  let start = boundedStart;
+  while (start > 0) {
+    const previous = glyphRectangleAtTextOffset(root, nodes, start - 1);
+    if (!previous || !rectanglesShareVisualLine(startRectangle, previous)) break;
+    start -= 1;
+  }
+
+  let end = boundedEnd;
+  while (end < text.length) {
+    const next = glyphRectangleAtTextOffset(root, nodes, end);
+    if (!next || !rectanglesShareVisualLine(endRectangle, next)) break;
+    end += 1;
+  }
+  return { start, end };
 }
 
 export function textOffsetForDomPoint(

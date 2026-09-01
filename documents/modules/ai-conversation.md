@@ -50,7 +50,9 @@ related_implements:
 
 本模組以使用者本機既有的 Codex／ChatGPT 登入狀態提供 **Codex AI 執行層**，讓右側 **AI 對話面板**在目前學習語言工作區中建立、保存、切換及移除 **AI 對話**，選擇可用 AI 模型，並進行可停止的多輪串流互動；左側窄欄只顯示連線階段與五小時／每週帳戶共用額度，不呈現登入信箱。
 
-閱讀頁的 AI 上下文只包含產品層明確組裝的書籍名稱、章節名稱與目前 **閱讀區段**；本模組不讀取整章、整本 EPUB 或 Renderer 任意指定的檔案。
+閱讀頁的 AI 上下文只包含產品層明確組裝的書籍名稱、章節名稱與目前 **閱讀區段**；
+區段內容會補齊 START／END 分隔線所包住的完整邊界視覺行，但不跨章。本模組不讀取
+整章、整本 EPUB 或 Renderer 任意指定的檔案。
 
 本文件聚焦 AI 對話與 Codex transport 生命週期；App skills 的安裝與隔離、解釋標記、
 閱讀測驗、區段復述、獨立間隔複習與學習項目 AI 編修 workflow 分別由
@@ -83,7 +85,9 @@ related_implements:
 - 每個工作區的對話紀錄只保留 `updatedAt` 最近的 10 筆；建立第 11 筆時立即淘汰最久未更新的
   本機紀錄，載入及保存舊版超量資料時也套用相同上限，但不裁切保留對話內的訊息。
 - 延續過去對話時使用 `thread/resume` 恢復相同 thread；移除時使用 `thread/archive`，本機保存失敗會嘗試 `thread/unarchive` 回滾。
-- 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
+- 第一次針對非空閱讀區段提問時提供原文；書籍、章節、START／END 及排版對齊後的
+  視覺行邊界均未改變時，後續追問不重傳相同原文；來源或其中一個邊界改變後
+  才重新提供一次。
 - START／END 或持久標記變更後，下一則訊息提供含 `<reader-annotation>` 的最新區段；普通未變追問去重，預設「講解標記內容」、「閱讀測驗」與「復述練習」每次都附上當下區段。
 - 閱讀頁的提問快捷功能依學習流程與鍵盤瀏覽順序排列為「解釋標記」、「新增卡片」、「閱讀測驗」、「復述練習」；生詞庫頁只顯示「新增卡片」。
 - 預設解析意圖由 Main process 明確注入 App 內建並安裝到 user data 的 `explain-reader-annotations` skill；skill 提供選擇式教學小節、本文用法 CEFR 與複習表，一般輸入仍是正常多輪問答。
@@ -191,8 +195,9 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 ### Renderer
 
 - 訂閱並呈現 `ChatSnapshot`，不自行模擬已連線、帳戶或額度資料。
-- 從目前模式、選取書籍、章節與 `extractReadingSegment()` 組裝 `SendChatMessageInput`。
-- 以 `bookId + chapterId + start + end + annotation revision` 辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
+- 從目前模式、選取書籍、章節與視覺行對齊後的閱讀區段組裝 `SendChatMessageInput`。
+- 以 `bookId + chapterId + 原始 start/end + 對齊後 start/end + annotation revision + segment`
+  辨識目前 AI 對話最近成功提供的閱讀區段；bridge 拒絕送出時不更新此識別。
 - 將一般訊息與四種 typed intent 分開；`explainAnnotations`、`practiceReading`、
   `practiceRetelling`、`createLearningItems` 各自附固定 App skill。快捷操作、invitation 與既有澄清延續
   可直接提供 `createLearningItems`；普通自然語言訊息不由 Renderer 判斷或附加 intent。

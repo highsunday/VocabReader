@@ -1314,6 +1314,75 @@ describe("App", () => {
     }));
   });
 
+  it("sends complete boundary lines and advances START beyond the previous END line", async () => {
+    const chapterText = "abcdefghijklmnopqrst";
+    const rangedBook: LibraryBook = {
+      ...books[0],
+      chapterRanges: { "one-1": { start: 2, end: 7 } }
+    };
+    const snapshot = initialReadySnapshot();
+    const sendMessage = vi.fn().mockResolvedValue(snapshot);
+    const { getChapterContent, saveReadingRange } = installLibraryApi([rangedBook], {
+      getState: vi.fn().mockResolvedValue(snapshot),
+      connect: vi.fn().mockResolvedValue(snapshot),
+      sendMessage,
+      onStateChanged: vi.fn().mockReturnValue(() => undefined)
+    });
+    getChapterContent.mockResolvedValue({
+      bookId: "book-one",
+      chapterId: "one-1",
+      title: "Opening",
+      fragment: null,
+      contentHtml: `<p>${chapterText}</p>`
+    });
+    const originalCreateRange = document.createRange.bind(document);
+    const createRange = vi.spyOn(document, "createRange").mockImplementation(() => {
+      const range = originalCreateRange();
+      Object.defineProperty(range, "getBoundingClientRect", {
+        configurable: true,
+        value: () => {
+          const top = Math.floor(range.startOffset / 5) * 20;
+          return new DOMRect(0, top, 50, 18);
+        }
+      });
+      return range;
+    });
+
+    try {
+      render(<App />);
+      await screen.findByRole("heading", { name: "The First Book" });
+      fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
+      await screen.findByText(chapterText);
+      expect(await screen.findByRole("button", { name: "Reading segment start" }))
+        .toHaveAttribute("data-text-offset", "2");
+      expect(screen.getByRole("button", { name: "Reading segment end" }))
+        .toHaveAttribute("data-text-offset", "7");
+
+      fireEvent.change(screen.getByLabelText("Ask about current content"), {
+        target: { value: "Explain these lines" }
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledWith({
+        text: "Explain these lines",
+        explanationLanguage: "source",
+        context: {
+          bookTitle: "The First Book",
+          chapterTitle: "Opening",
+          readingSegment: "<reading-segment>abcdefghij</reading-segment>"
+        }
+      }));
+
+      fireEvent.click(screen.getByRole("button", { name: "Go to next reading segment" }));
+      await waitFor(() => expect(saveReadingRange).toHaveBeenCalledWith({
+        bookId: "book-one",
+        chapterId: "one-1",
+        range: { start: 10, end: 20 }
+      }));
+    } finally {
+      createRange.mockRestore();
+    }
+  });
+
   it("resends reading content only after the reading range changes", async () => {
     const rangedBook: LibraryBook = {
       ...books[0],
