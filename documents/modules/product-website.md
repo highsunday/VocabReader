@@ -11,6 +11,8 @@ related_implements:
   - F75-add-mp4-workflow-media
   - F76-deploy-product-website-to-vercel
   - F77-indexable-localized-homepages
+  - F39-rename-product-to-vocabreader
+  - B35-fix-public-gif-color-rendering
 ---
 
 # 產品官網與下載安裝導覽模組
@@ -204,7 +206,7 @@ static v0.1.2 official asset URLs
 
 從 `website/` 執行：
 
-- `npm test`：44 項 contract tests，涵蓋首頁、可索引英文／繁中 URL、canonical／hreflang／sitemap、雙語、真實資產、MP4 漸進增強、reduced motion、CTA、平台分頁、未簽章
+- `npm test`：46 項 contract tests，涵蓋首頁、可索引英文／繁中 URL、canonical／hreflang／sitemap、雙語、真實資產、MP4 漸進增強、reduced motion、CTA、平台分頁、未簽章
   指引、Windows SmartScreen 雙圖、macOS「強制打開」圖解、Codex 指令、信任說明、Vercel root base、favicon、自訂網域 canonical、sitemap、robots、`WebSite` structured data、舊站逐頁搬家與 responsive／accessibility contracts。
 - `npm run build`：必須同時產生 `dist/index.html`、`dist/en/index.html`、
   `dist/zh-tw/index.html` 與 `dist/download/index.html`，且資產 URL

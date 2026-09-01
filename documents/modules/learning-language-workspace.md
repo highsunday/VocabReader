@@ -2,7 +2,7 @@
 title: 學習語言工作區模組
 module: learning-language-workspace
 status: active
-last_updated: 2026-08-25
+last_updated: 2026-09-01
 related_implements:
   - F69-isolate-learning-language-workspaces
 ---
@@ -15,6 +15,8 @@ related_implements:
 書庫、生詞庫、複習與練習進度、目前練習狀態及 AI 對話，避免不同語言資料混用。
 講解語言則由每個工作區各自保存，只控制 AI 教學與批改說明。
 
+狀態：**已實作，可在本機使用**
+
 ## Boundaries and invariants
 
 - `LearningLanguageWorkspaceRegistry` 是 Main Process 的 active workspace 協調器；IPC 不接受
@@ -23,7 +25,9 @@ related_implements:
   `learning-language-workspaces/<language>/`，各自保存 library、learning-library、chat 與 progress。
 - 書籍在導入當下歸入目前工作區。學習項目建立與編修時，`language` 必須等於工作區語言。
 - 生詞庫不提供語言篩選；`language` 欄位只保留為資料不變量、顯示與升級遷移依據。
-- 切換成功後 Renderer 關閉舊書與暫態練習，重新載入新工作區書庫、學習數量及 AI 對話。
+- 切換成功後 Renderer 隱藏舊工作區書籍與練習畫面，重新載入新工作區書庫、學習數量、
+  目前練習 snapshot 及 AI 對話；同一次 App 開啟期間返回原工作區時，該工作區 Controller
+  尚未完成的複習與練習仍可繼續。
 - AI turn、對話管理、複習或資料備份進行中時，Renderer 停用學習語言選擇器。
 
 ## Explanation language
@@ -67,3 +71,21 @@ EPUB 與 SQLite 驗證的工作區備份、共享 `settings.json`，以及存在
 - `learning-language-data-backup-service.test.ts`：四工作區封裝、舊三工作區備份相容、分區預覽、設定與完整還原。
 - `settings-store.test.ts`、`settings-ipc.test.ts`：設定升級、白名單與持久化。
 - `App.test.tsx`：設定 UI、切換後講解語言與工作區 reload。
+
+## Known limitations
+
+- 目前固定支援 `en`、`ja`、`zh-TW`、`ko`，不提供任意語言工作區建立或重新命名。
+- 只有待分類舊學習項目可整批搬入指定工作區；一般書籍、學習項目與進度不提供跨工作區搬移。
+- 工作區資料只在本機保存並進入手動完整備份，不提供帳號同步或跨裝置合併。
+
+## Related documents
+
+- `CONTEXT.md`
+- `documents/implements/F69-isolate-learning-language-workspaces.md`
+- `documents/modules/book-library.md`
+- `documents/modules/learning-library.md`
+- `documents/modules/ai-conversation.md`
+- `documents/modules/spaced-review.md`
+- `documents/modules/sentence-practice.md`
+- `documents/modules/listen-and-repeat-practice.md`
+- `documents/modules/data-backup.md`

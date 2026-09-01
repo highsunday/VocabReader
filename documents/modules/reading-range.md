@@ -2,7 +2,7 @@
 title: 閱讀區段與 START／END 範圍標籤模組
 module: reading-range
 status: active
-last_updated: 2026-08-19
+last_updated: 2026-09-01
 related_implements:
   - F05-ai-reading-range-markers
   - F06-reading-range-boundary-lines
@@ -151,7 +151,7 @@ related_implements:
 ### Explicit automatic advance
 
 1. 只有按下「完成這段，前往下一段」才會推進；AI 訊息、說明或出題不會改變範圍。
-2. `advanceReadingRange()` 先計算目前裁切文字的約略英文單字數。
+2. `advanceReadingRange()` 先以 Unicode 字母／數字連續片段計算目前裁切文字的約略詞元數。
 3. 新 START 從舊 END 後第一個非空白字元開始，新 END 依相同約略字數向後計算。
 4. 剩餘內容不足時 END 停在章末；到達章末後按鈕停用，不自動切換下一章。
 5. 推進只更新與保存閱讀區段；閱讀容器 `scrollTop` 保持不變，不自動執行 START 導覽。
@@ -239,6 +239,8 @@ F07 的 AI 對話面板透過這個函式界定 Codex context；F13 的 `annotat
 - 非空新章節預設建立完整章節閱讀區段；只有空章節或使用者明確把兩個範圍標籤移到同一位置時，才會形成合法的 `start === end` 空閱讀區段。
 - 已存在但超出新章節文字長度的舊範圍只在畫面回退，不會立即覆寫持久化值。
 - E2E 尚未以真實 EPUB 自動操作 START／END 拖曳；主要互動覆蓋位於 renderer 行為測試。
+- 自動推進的約略長度目前以 Unicode 字母／數字連續片段估算；沒有空白分詞的語言可能把
+  一整段連續文字視為單一詞元，因此只能保證連續推進與不跨章，不保證各語言的語意長度完全相等。
 
 ## 14. Related Documents
 

@@ -10,6 +10,7 @@ import {
 import {
   BrainCircuit,
   Check,
+  CircleAlert,
   Image as ImageIcon,
   Link,
   LoaderCircle,
@@ -167,14 +168,45 @@ function MarkdownContent({
   );
 }
 
+export function splitMarkdownAfterMeaning(markdownContent: string) {
+  const normalized = markdownContent.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+  const meaningIndex = lines.findIndex((line) =>
+    /^#{1,6}\s+meaning\s*$/i.test(line.trim())
+  );
+  if (meaningIndex < 0) {
+    return { beforeCallouts: normalized.trim(), afterCallouts: "" };
+  }
+
+  const meaningHeading = lines[meaningIndex].trim().match(/^(#{1,6})\s+/);
+  const meaningLevel = meaningHeading?.[1].length ?? 6;
+  const nextSectionIndex = lines.findIndex((line, index) => {
+    if (index <= meaningIndex) return false;
+    const heading = line.trim().match(/^(#{1,6})\s+/);
+    return Boolean(heading && heading[1].length <= meaningLevel);
+  });
+  if (nextSectionIndex < 0) {
+    return { beforeCallouts: normalized.trim(), afterCallouts: "" };
+  }
+
+  return {
+    beforeCallouts: lines.slice(0, nextSectionIndex).join("\n").trim(),
+    afterCallouts: lines.slice(nextSectionIndex).join("\n").trim()
+  };
+}
+
 export function LearningMemoryTip({ children }: { children?: string }) {
   const content = children?.trim();
   if (!content) return null;
   return (
-    <aside className="learning-memory-tip" role="note" aria-label="Memory tip">
+    <aside
+      className="learning-callout learning-memory-tip"
+      role="note"
+      aria-label="Memory tip"
+    >
       <BrainCircuit aria-hidden="true" strokeWidth={1.8} />
       <div>
-        <strong className="learning-memory-tip-label">Memory tip</strong>
+        <strong className="learning-callout-label">Memory tip</strong>
         <div className="learning-memory-tip-copy">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -187,6 +219,59 @@ export function LearningMemoryTip({ children }: { children?: string }) {
         </div>
       </div>
     </aside>
+  );
+}
+
+function LearningCaution({
+  children,
+  label = "Learning caution"
+}: {
+  children?: string;
+  label?: string;
+}) {
+  const content = children?.trim();
+  if (!content) return null;
+  return (
+    <aside
+      className="learning-callout learning-caution"
+      role="note"
+      aria-label={label}
+    >
+      <CircleAlert aria-hidden="true" strokeWidth={1.8} />
+      <div>
+        <strong className="learning-callout-label">Note</strong>
+        <p>{content}</p>
+      </div>
+    </aside>
+  );
+}
+
+function LearningItemContent({
+  markdownContent,
+  cautionNote,
+  memoryTip,
+  cautionLabel,
+  label
+}: {
+  markdownContent: string;
+  cautionNote?: string;
+  memoryTip?: string;
+  cautionLabel?: string;
+  label?: string;
+}) {
+  const { beforeCallouts, afterCallouts } = splitMarkdownAfterMeaning(markdownContent);
+  const hasCallouts = Boolean(cautionNote?.trim() || memoryTip?.trim());
+  return (
+    <div className="learning-content-flow" aria-label={label}>
+      <MarkdownContent>{beforeCallouts}</MarkdownContent>
+      {hasCallouts ? (
+        <div className="learning-callout-group">
+          <LearningCaution label={cautionLabel}>{cautionNote}</LearningCaution>
+          <LearningMemoryTip>{memoryTip}</LearningMemoryTip>
+        </div>
+      ) : null}
+      {afterCallouts ? <MarkdownContent>{afterCallouts}</MarkdownContent> : null}
+    </div>
   );
 }
 
@@ -868,18 +953,13 @@ export function LearningItemDialog({
               </label>
               <section className="learning-markdown-preview">
                 <span>Preview</span>
-                {draft.cautionNote ? (
-                  <p
-                    className="learning-caution"
-                    aria-label="Learning caution preview"
-                  >
-                    <strong>Note:</strong> {draft.cautionNote}
-                  </p>
-                ) : null}
-                <LearningMemoryTip>{draft.memoryTip}</LearningMemoryTip>
-                <MarkdownContent label="Markdown preview">
-                  {draft.markdownContent}
-                </MarkdownContent>
+                <LearningItemContent
+                  markdownContent={draft.markdownContent}
+                  cautionNote={draft.cautionNote}
+                  memoryTip={draft.memoryTip}
+                  cautionLabel="Learning caution preview"
+                  label="Markdown preview"
+                />
               </section>
               </div>
             </div>
@@ -917,13 +997,11 @@ export function LearningItemDialog({
                     ) : null}
                   </section>
                 ) : null}
-                {shownCaution ? (
-                  <p className="learning-caution" aria-label="Learning caution">
-                    <strong>Note:</strong> {shownCaution}
-                  </p>
-                ) : null}
-                <LearningMemoryTip>{shownMemoryTip}</LearningMemoryTip>
-                <MarkdownContent>{shownMarkdown}</MarkdownContent>
+                <LearningItemContent
+                  markdownContent={shownMarkdown}
+                  cautionNote={shownCaution}
+                  memoryTip={shownMemoryTip}
+                />
               </div>
               {reviewApi ? (
                 <section className="learning-review-detail" aria-label="Review schedule">

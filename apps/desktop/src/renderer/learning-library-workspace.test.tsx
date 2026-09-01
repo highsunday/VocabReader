@@ -10,7 +10,8 @@ import type { ReviewDesktopApi } from "../shared/review-contracts";
 import {
   LearningItemDialog,
   LearningMemoryTip,
-  LearningLibraryWorkspace
+  LearningLibraryWorkspace,
+  splitMarkdownAfterMeaning
 } from "./LearningLibraryWorkspace";
 
 const activeItems: LearningItem[] = [
@@ -147,6 +148,23 @@ describe("LearningMemoryTip", () => {
     expect(note.querySelector("a, img, script")).not.toBeInTheDocument();
     expect(note).toHaveTextContent("reference");
     expect(note).not.toHaveTextContent("alert('unsafe')");
+  });
+
+  it("places callouts after Meaning and falls back to the end for legacy content", () => {
+    expect(splitMarkdownAfterMeaning([
+      "## Meaning",
+      "A financial institution.",
+      "",
+      "## Examples",
+      "1. The bank approved the loan."
+    ].join("\n"))).toEqual({
+      beforeCallouts: "## Meaning\nA financial institution.",
+      afterCallouts: "## Examples\n1. The bank approved the loan."
+    });
+    expect(splitMarkdownAfterMeaning("Legacy content without headings.")).toEqual({
+      beforeCallouts: "Legacy content without headings.",
+      afterCallouts: ""
+    });
   });
 });
 
@@ -331,6 +349,15 @@ describe("LearningLibraryWorkspace", () => {
     const memoryTip = within(dialog).getByRole("note", { name: "Memory tip" });
     expect(memoryTip).toHaveTextContent("河水被兩邊的岸夾在中間");
     expect(memoryTip.querySelector("svg")).toBeInTheDocument();
+    const meaning = within(dialog).getByRole("heading", { name: "Meaning" });
+    const caution = within(dialog).getByRole("note", { name: "Learning caution" });
+    const examples = within(dialog).getByRole("heading", { name: "Examples" });
+    expect(meaning.compareDocumentPosition(caution) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(caution.compareDocumentPosition(memoryTip) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(memoryTip.compareDocumentPosition(examples) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
     const schedule = within(dialog).getByRole("region", { name: "Review schedule" });
     const scrollRegion = dialog.querySelector(".learning-dialog-scroll");
     expect(scrollRegion).toContainElement(schedule);

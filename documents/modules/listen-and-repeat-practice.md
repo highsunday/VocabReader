@@ -2,7 +2,7 @@
 title: 逐句跟讀練習模組
 module: listen-and-repeat-practice
 status: active
-last_updated: 2026-08-20
+last_updated: 2026-09-01
 related_implements:
   - F58-listen-and-repeat-practice
   - F60-select-progressive-short-chunk-length
@@ -11,6 +11,9 @@ related_implements:
   - F66-daily-listen-repeat-goal-and-activity
   - B28-show-listen-repeat-remaining-count-in-sidebar
   - B29-align-listen-repeat-progress-dashboard
+  - B18-complete-listen-repeat-segmentation-in-one-result
+  - F67-unify-practice-settings
+  - F69-isolate-learning-language-workspaces
 ---
 
 # 逐句跟讀練習模組

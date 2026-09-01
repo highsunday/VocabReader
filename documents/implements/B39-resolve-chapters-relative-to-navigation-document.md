@@ -3,7 +3,7 @@ author: Codex
 date: 2026-07-27
 title: 依 EPUB navigation 文件位置解析章節路徑
 uuid: c3c92aa7-b42a-46a2-aabf-e2399cdf41ad
-version: 1.0.0
+version: 1.0.1
 status: implemented
 ---
 
@@ -88,10 +88,15 @@ document 所在目錄作為基準，導致索引保存不存在的 archive href�
 - `apps/desktop/src/main/library-service.ts`
 - `apps/desktop/src/main/library-service.test.ts`
 - `apps/desktop/src/shared/library-contracts.ts`
-- `documents/implements/B12-resolve-chapters-relative-to-navigation-document.md`
+- `documents/implements/B39-resolve-chapters-relative-to-navigation-document.md`
 - `documents/modules/book-library.md`
 
 ### Root Cause
 
 正確假說為：navigation／NCX 章節連結使用了錯誤的 package document 基準目錄。
 URL 編碼、大小寫差異、EPUB 缺檔及單純舊索引殘留均已由實際 EPUB 結構排除。
+
+### Document Identifier Note
+
+本文件原使用 `B12`，與次日建立的 Windows Codex App Server 修正重號。2026-09-01
+文件一致性稽核將本文件重新編為 `B39`；功能內容、實作日期與程式碼均未因此改變。

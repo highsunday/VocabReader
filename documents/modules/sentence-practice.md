@@ -2,13 +2,15 @@
 title: 整合造句練習模組
 module: sentence-practice
 status: active
-last_updated: 2026-08-25
+last_updated: 2026-09-01
 related_implements:
   - F46-integrated-sentence-practice
   - F47-generate-sentence-practice-examples
   - F63-daily-integrated-sentence-practice-goal
   - B24-count-only-flawless-sentence-practice
   - F64-show-sentence-practice-activity-statistics
+  - F67-unify-practice-settings
+  - F69-isolate-learning-language-workspaces
 ---
 
 # 整合造句練習模組
@@ -19,8 +21,8 @@ related_implements:
 
 ## 1. Purpose
 
-本模組提供獨立的**整合造句練習（Integrated Sentence Practice）**。系統從已完成至少
-一次確認複習的英文學習項目隨機抽取必要用詞，讓使用者以一篇多句故事或短文運用全部
+本模組提供獨立的**整合造句練習（Integrated Sentence Practice）**。系統從目前工作區中已完成至少
+一次確認複習、語言等於目前學習語言的學習項目隨機抽取必要用詞，讓使用者以一篇多句故事或短文運用全部
 項目；AI 先驗證每個項目與目標語義，再提供保留原意的**造句批改結果**。
 
 本模組不屬於單一章節，也不是間隔複習回合。它不產生評級、不更新 FSRS、不新增
@@ -42,11 +44,11 @@ related_implements:
   寫作中只保留精簡 `Today N / goal`，目標為 0 時只顯示今日數量。
 - 同一項目在不同隨機回合再次出現並合格時會再次計入；不顯示不重複項目、篇數、
   正確率、連續天數或最佳紀錄。
-- 顯示符合資格的 active、英文、`review_count > 0` 項目數。
+- 顯示符合資格的 active、語言等於目前學習語言且 `review_count > 0` 的項目數。
 - 每輪可設定 2 至 10 個項目，預設 5 個；可用數不足時向下限制，少於 2 個時不啟動。
 - Main process 以 SQLite `RANDOM()` 從可信任資格集合抽取不重複項目。
 - 從既有 Markdown `Meaning` heading 擷取第一段簡明解釋，沒有有效內容時 fallback 至
-  英文目標語義。
+  結構化英文目標語義識別 `sense`。
 - 一個多句短文輸入區，空白內容不可提交。
 - App-bundled AI skill 接受自然時態、單複數與其他合理詞形，並依 item `sense` 判定語義。
 - 遺漏、錯誤語義或不自然詞形以結構化 revision issues 回傳，原稿保留並可重送。
@@ -54,7 +56,8 @@ related_implements:
 - 練習頁可要求 AI 產生恰好三篇造句用法範例；每篇使用本輪全部必要用詞，並在具名
   對話卡片中顯示，不取代使用者草稿。
 - 必要用詞可開啟既有唯讀學習項目詳情與複習摘要。
-- 同一次 App 開啟期間跨工作區保留目前項目、草稿、問題與結果；明確確認新一輪後重抽。
+- 每個工作區的 Controller 在同一次 App 開啟期間各自保留目前項目、草稿、問題與結果；
+  切換工作區不共用內容，返回原工作區時可繼續，明確確認新一輪後才重抽。
 - 關閉 App 後不恢復，也不寫入生詞庫或複習歷史。
 
 ## 3. Module Boundary
@@ -63,7 +66,7 @@ related_implements:
 
 生詞庫只負責資格查詢與抽取：
 
-- `getSentencePracticeEligibleCount()` 只計算 active、`language = en` 且 schedule
+- `getSentencePracticeEligibleCount()` 只計算 active、`language = 目前工作區語言` 且 schedule
   `review_count > 0` 的項目。
 - `selectSentencePracticeItems(count)` 在 Main process 驗證 2–10 邊界，再從相同資格集合
   隨機抽取指定數量；實際可用數不足時拒絕建立不完整回合。
@@ -109,7 +112,7 @@ AI 輸出只能有一個 `sentence-practice-result` fenced JSON：
 Artifact parser 拒絕錯誤 session id、未知或重複 item id、標題不符、缺少 usage、未知 kind、
 空必要文字，以及 revision／completed 欄位混合的結果。
 
-範例產生使用獨立的 `sentence-practice-examples` fenced JSON，固定包含三篇不同英文短文；
+範例產生使用獨立的 `sentence-practice-examples` fenced JSON，固定包含三篇不同的目前學習語言短文；
 每篇 usage 必須恰好覆蓋本輪全部必要用詞。Parser 拒絕缺篇、重複本文、空文字、未知／
 重複 item、標題不符或 coverage 不完整的結果。
 
@@ -145,7 +148,7 @@ scope、SQL、language、review count 或 AI workflow 設定。
 
 ```text
 open page
-  → Main counts eligible reviewed English items and loads today / all-time / 30-day statistics
+  → Main counts eligible reviewed items for the active learning language and loads today / all-time / 30-day statistics
   → user chooses 2–10 and starts
   → Main randomly selects trusted items
   → writing (local draft)
@@ -169,7 +172,7 @@ local calendar day.
 | `SentencePracticeItem` | bounded id、title、type、CEFR、sense 與 simple meaning |
 | `SentencePracticeIssue` | 某必要用詞的 missing／wrong-sense／unnatural-form 修稿原因 |
 | `SentencePracticeFeedback` | revised text、changes、conversational suggestions 與 usages |
-| `SentencePracticeExample` | 一篇完整英文範例與本輪全部必要用詞 usages |
+| `SentencePracticeExample` | 一篇完整學習語言範例與本輪全部必要用詞 usages |
 | `SentencePracticeExampleGeneration` | idle／generating／ready／error、三篇範例與錯誤 |
 | `SentencePracticeSession` | session id、項目、draft、phase、issues、feedback 與 error |
 | `SentencePracticeStatistics` | 今日、所有日期累計、30 天合計與 30 筆每日活動 |
@@ -196,7 +199,7 @@ local calendar day.
 | `apps/desktop/src/main/sentence-practice-ipc.ts` | 四個 IPC 白名單與輸入驗證 |
 | `.agents/skills/practice-integrated-sentences/SKILL.md` | 三篇範例生成、必要用詞驗證與保留原意的批改規則 |
 | `apps/desktop/src/renderer/SentencePracticeWorkspace.tsx` | setup、今日／累計／30 天統計、writing、revision、feedback 與 detail UI |
-| `apps/desktop/src/renderer/App.tsx` | 側欄入口、目前目標注入與跨工作區 mounted lifecycle |
+| `apps/desktop/src/renderer/App.tsx` | 側欄入口、目前目標注入與各工作區 Controller 的 mounted lifecycle |
 | `apps/desktop/src/renderer/styles.css` | 練習頁 layout、cards、editor 與 feedback 樣式 |
 
 ## 8. Testing Notes
@@ -225,7 +228,7 @@ local calendar day.
 - 不保存歷史作文、AI 詳細回饋、回合明細、item ids、連續天數或學習成就；長期資料只有
   每個本地日期的造句運用次數。
 - 不提供主題、故事情境、手動 item selection、deck 或標籤篩選。
-- 必要用詞的自然詞形與目標語義由 AI 判斷，不提供本機英文形態分析器。
+- 必要用詞的自然詞形與目標語義由 AI 判斷，不提供任一支援語言的本機形態分析器。
 - Meaning 提示沿用項目已保存的語言；變更目前工作區的講解語言不會即時翻譯既有內容。
 
 ## 10. Related Documents
@@ -235,5 +238,7 @@ local calendar day.
 - `documents/implements/F63-daily-integrated-sentence-practice-goal.md`
 - `documents/implements/B24-count-only-flawless-sentence-practice.md`
 - `documents/implements/F64-show-sentence-practice-activity-statistics.md`
+- `documents/implements/F67-unify-practice-settings.md`
+- `documents/implements/F69-isolate-learning-language-workspaces.md`
 - `documents/modules/learning-library.md`
 - `documents/modules/spaced-review.md`

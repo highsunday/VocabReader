@@ -4,7 +4,7 @@ date: 2026-07-21
 title: 讓 AI 對話面板可拖曳調整寬度
 uuid: b8759f517143451386e5bc20178156a4
 version: 1.0.0
-status: approved
+status: implemented
 ---
 
 # Feature Specification - 讓 AI 對話面板可拖曳調整寬度

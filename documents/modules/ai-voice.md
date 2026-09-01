@@ -2,7 +2,7 @@
 title: AI 語音、選取朗讀與跟讀示範模組
 module: ai-voice
 status: active
-last_updated: 2026-08-11
+last_updated: 2026-09-01
 related_implements:
   - F56-speak-selected-reader-text
   - F57-ai-selection-speech
@@ -15,7 +15,7 @@ related_implements:
 ## 1. Purpose
 
 本模組讓使用者在章節閱讀頁選取單字、句子或連續段落後，以自己套用的 OpenAI AI Voice
-設定產生並播放英文語音。它負責 AI Voice 設定、API key 安全保存、OpenAI Speech API
+設定產生並播放原文語音。它負責 AI Voice 設定、API key 安全保存、OpenAI Speech API
 請求、長選取成本提醒、文字分段、PCM 串流播放、停止／取消與暫態音訊快取。
 
 本模組同時供章節原文的**選取朗讀（Selection Speech）**與 Listen & Repeat 的 **AI 示範
@@ -75,7 +75,7 @@ Selection 的擷取、章節內 offset 驗證及與標記模式共存仍屬於 A
 ### Learning-item Pronunciation
 
 `LearningLibraryWorkspace` 中的學習項目發音是另一個產品能力，固定沿用裝置
-`speechSynthesis`、英文 voice、`rate 0.85` 與 `pitch 1`。AI Voice key、tone、快取、錯誤或
+`speechSynthesis`、依 `LearningItem.language` 選取的相符 voice、`rate 0.85` 與 `pitch 1`。AI Voice key、tone、快取、錯誤或
 移除設定都不得改變它。
 
 ### Listen & Repeat AI Model Audio
@@ -243,7 +243,7 @@ alignment 進行中去重，所有 child 切片以一次 metadata transaction �
 | `apps/desktop/src/main/settings-store.test.ts` | voice／tone defaults、保存、損壞值回退 |
 | `apps/desktop/src/main/listen-repeat-voice-service.test.ts` | parent-only TTS、word timestamps、child slicing、dedupe、disk cache、invalidation 與取消 |
 | `apps/desktop/src/renderer/App.test.tsx` | 設定 UI、懸浮／右鍵入口、1,200 字元警告、確認／取消、PCM、停止、生命週期與錯誤 |
-| `apps/desktop/src/renderer/LearningLibraryWorkspace.test.tsx` | 學習項目 Web Speech 邊界回歸 |
+| `apps/desktop/src/renderer/learning-library-workspace.test.tsx` | 學習項目多語 Web Speech 邊界回歸 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | production preload、AI Voice 設定 UI 與 Selection Speech 基本樣式 |
 
 截至 2026-08-11，Desktop Vitest 為 52 files、497/497 passed，TypeScript typecheck、production

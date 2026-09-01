@@ -4,6 +4,7 @@ date: 2026-08-01
 title: 在整合造句練習中產生三篇用法範例
 uuid: 766cf328bf4d48aba6bd2068fc101f64
 version: 1.1.0
+status: implemented
 ---
 
 # Feature Specification - 在整合造句練習中產生三篇用法範例

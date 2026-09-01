@@ -4,6 +4,7 @@ date: 2026-07-21
 title: 精簡 AI 對話訊息並渲染 Markdown
 uuid: 8bf1a96f83c747339174fb32ca9fd046
 version: 1.0.0
+status: implemented
 ---
 
 # Feature Specification - 精簡 Markdown 對話訊息

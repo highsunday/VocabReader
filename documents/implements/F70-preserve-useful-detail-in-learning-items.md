@@ -4,7 +4,7 @@ date: 2026-08-25
 title: 在學習項目中保留 AI 判斷有價值的詳細說明
 uuid: 7c2912ed-99e0-4ab1-bc61-eb7f848ccb8c
 version: 1.0.0
-status: approved
+status: implemented
 ---
 
 # Feature Specification - 保留學習項目的詳細說明

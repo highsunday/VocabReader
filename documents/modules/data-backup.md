@@ -9,6 +9,7 @@ related_implements:
   - F64-show-sentence-practice-activity-statistics
   - F66-daily-listen-repeat-goal-and-activity
   - F69-isolate-learning-language-workspaces
+  - F39-rename-product-to-vocabreader
 ---
 
 # 資料備份與完整還原模組

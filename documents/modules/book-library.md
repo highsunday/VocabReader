@@ -2,7 +2,7 @@
 title: 書籍與本機書庫模組
 module: book-library
 status: active
-last_updated: 2026-08-11
+last_updated: 2026-09-01
 related_implements:
   - F01-epub-book-library
   - F02-chapter-reading-resume
@@ -19,6 +19,8 @@ related_implements:
   - F40-reader-jump-to-range-markers
   - B14-jump-to-reading-range-markers
   - B13-resolve-nested-epub-navigation-on-windows
+  - B39-resolve-chapters-relative-to-navigation-document
+  - F69-isolate-learning-language-workspaces
 ---
 
 # 書籍與本機書庫模組
@@ -348,7 +350,9 @@ START／END 的完整定位、互動、自動推進與 AI 裁切邊界另見 `do
 - documents/implements/B01-preserve-epub-chapter-hierarchy.md
 - documents/implements/B02-persist-range-marker-on-drag-release.md
 - documents/implements/B13-resolve-nested-epub-navigation-on-windows.md
+- documents/implements/B39-resolve-chapters-relative-to-navigation-document.md
 - documents/implements/F25-adjustable-reading-and-conversation-font-sizes.md
+- documents/implements/F69-isolate-learning-language-workspaces.md
 - documents/implements/F26-reading-layout-settings.md
 - documents/modules/reading-range.md
 - documents/modules/annotation.md

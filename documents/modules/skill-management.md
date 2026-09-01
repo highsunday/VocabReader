@@ -2,7 +2,7 @@
 title: App 內建 Skill 管理模組
 module: skill-management
 status: active
-last_updated: 2026-08-08
+last_updated: 2026-09-01
 related_implements:
   - F16-invoke-annotation-explanation-skill
   - F18-use-reading-comprehension-skill
@@ -14,6 +14,9 @@ related_implements:
   - F46-integrated-sentence-practice
   - F49-segment-retelling-practice
   - F51-ai-assisted-learning-item-editing
+  - F58-listen-and-repeat-practice
+  - B38-allow-ai-editing-memory-tips
+  - F39-rename-product-to-vocabreader
 ---
 
 # App 內建 Skill 管理模組
@@ -28,7 +31,7 @@ related_implements:
 
 狀態：**已實作，可在本機與 production build 使用**
 
-目前管理七份 App 內建 skills：
+目前管理八份 App 內建 skills：
 
 | Skill | 產品意圖 | Marker | 功能模組 |
 |---|---|---|---|
@@ -39,8 +42,9 @@ related_implements:
 | `practice-spaced-review` | 專用生成／批改 | `$practice-spaced-review` | [間隔複習模組](spaced-review.md) |
 | `practice-integrated-sentences` | 專用範例／批改 | `$practice-integrated-sentences` | [整合造句練習模組](sentence-practice.md) |
 | `edit-learning-item` | 專用單項多輪編修 | `$edit-learning-item` | [AI 輔助學習項目編修模組](learning-item-editing.md) |
+| `prepare-listen-and-repeat-practice` | 專用跟讀素材切分 | `$prepare-listen-and-repeat-practice` | [逐句跟讀練習模組](listen-and-repeat-practice.md) |
 
-七份 skill 的完整 `SKILL.md` 都由 App bundle 提供。一般 AI 問答不注入 skill item，也不
+八份 skill 的完整 `SKILL.md` 都由 App bundle 提供。一般 AI 問答不注入 skill item，也不
 套用任一預設 workflow；間隔複習、整合造句與學習項目編修使用專用 Controller，不進入
 一般對話 thread 或 store。
 
@@ -51,7 +55,7 @@ related_implements:
 - 維護受信任 App skill 名單及固定 runtime 路徑。
 - 在 build 時把 repo 內的 `SKILL.md` 以文字資產內嵌到 Electron Main bundle。
 - 啟動 App 時安裝、略過相同版本或原子替換舊版 runtime skill。
-- 驗證七份內嵌 skill 指令皆非空。
+- 驗證八份內嵌 skill 指令皆非空。
 - 把完整 skill 指令與 marker gate 組成 `developerInstructions`。
 - 在 `thread/start` 與 `thread/resume` 使用相同指令與隔離設定。
 - 依受限產品意圖，在 `turn/start.input` 加入正確的型別化 skill item。
@@ -67,7 +71,7 @@ related_implements:
 ## 4. Skill Source and Runtime Lifecycle
 
 1. Repo 以 `.agents/skills/<skill-name>/SKILL.md` 保存可版本管理的完整教學契約；`agents/openai.yaml` 保存 UI metadata，但目前不安裝到 App runtime。
-2. Desktop build 使用 esbuild Markdown text loader，把七份 `SKILL.md` 內嵌到 Electron Main bundle。
+2. Desktop build 使用 esbuild Markdown text loader，把八份 `SKILL.md` 內嵌到 Electron Main bundle。
 3. Electron Main 在 `app.whenReady()` 建立 `userData/codex-runtime`。
 4. `bundled-skill.ts` 把內容寫入 `.agents/skills/<skill-name>/SKILL.md`：
    - 目標不存在：`installed`
@@ -100,7 +104,7 @@ related_implements:
 
 `edit-learning-item` 也不加入一般對話 instructions。專用 Controller 為一個 active 項目
 建立不持久的多輪 thread，每輪只注入固定 edit skill、最新草稿與需求；使用者 Apply 或
-Discard 後關閉。它不使用全域對話模型／語言設定，也不開放其他 skills。
+Discard 後關閉。它不使用一般 AI 對話的模型選擇或講解語言設定，也不開放其他 skills。
 
 ### Turn 層
 
@@ -146,7 +150,8 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 | `.agents/skills/create-learning-items/SKILL.md` | 有限候選去重、澄清、草稿與提交 recheck workflow |
 | `.agents/skills/practice-spaced-review/SKILL.md` | 例句生成與四級語義批改 workflow |
 | `.agents/skills/practice-integrated-sentences/SKILL.md` | 整合造句範例與短文批改 workflow |
-| `.agents/skills/edit-learning-item/SKILL.md` | 單項內容、主要語言、注意事項與固定 artifact workflow |
+| `.agents/skills/edit-learning-item/SKILL.md` | 單項 Markdown、Memory tip、主要語言、注意事項與固定 artifact workflow |
+| `.agents/skills/prepare-listen-and-repeat-practice/SKILL.md` | 任意語言跟讀素材的自然長／短片段邊界 workflow |
 | `.agents/skills/*/agents/openai.yaml` | Repo 內 skill 顯示 metadata；目前不屬於 runtime 安裝內容 |
 | `apps/desktop/src/main/bundled-skill.ts` | 固定 skill 名單、runtime 路徑及原子安裝／更新 |
 | `apps/desktop/src/main/main.ts` | 內嵌 Markdown、啟動安裝並把路徑與指令交給 Controller |
@@ -154,6 +159,7 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 | `apps/desktop/src/main/spaced-review-controller.ts` | 專用暫態 thread、review skill 注入與隔離 |
 | `apps/desktop/src/main/sentence-practice-controller.ts` | 專用暫態 thread、整合造句 skill 注入與隔離 |
 | `apps/desktop/src/main/learning-item-edit-controller.ts` | 專用單項 thread、edit skill 注入與隔離 |
+| `apps/desktop/src/main/listen-repeat-controller.ts` | 專用暫態 thread、跟讀切分 skill 注入與隔離 |
 | `apps/desktop/src/shared/chat-contracts.ts` | 四種預設 intent 與 message attachments 的共享型別 |
 | `apps/desktop/src/main/chat-ipc.ts` | intent 與講解語言的 IPC 白名單驗證 |
 | `apps/desktop/package.json` | esbuild Markdown text loader 與 desktop build／test 命令 |
@@ -162,7 +168,7 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 
 | Test file | Coverage |
 |---|---|
-| `apps/desktop/src/main/bundled-skill.test.ts` | 七份 skills 的首次安裝、相同內容略過與舊版原子替換 |
+| `apps/desktop/src/main/bundled-skill.test.ts` | 七份非跟讀 skills 的首次安裝、相同內容略過與舊版原子替換；跟讀 installer 由專用測試覆蓋 |
 | `apps/desktop/src/main/chat-controller.test.ts` | 新建／恢復 thread instructions、隔離 config、typed fast path、多語 AI routing、自動 creation continuation 與 skills 互斥 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | intent 與語言 enum 白名單，拒絕任意輸入 |
 | `apps/desktop/tests/e2e/desktop.spec.ts` | production Electron 啟動後受信任 runtime `SKILL.md` 確實存在且內容正確 |
@@ -172,6 +178,8 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 | `apps/desktop/src/main/spaced-review-skill.test.ts` | review generation 的 Examples 避重、適度發散與自然度優先契約，以及 grading rubric |
 | `apps/desktop/src/main/learning-item-edit-skill.test.ts` | bounded、主要語言、注意事項保留與固定結果契約 |
 | `apps/desktop/src/main/learning-item-edit-controller.test.ts` | edit skill scope、暫態 Apply 與停止競態 |
+| `apps/desktop/src/main/listen-repeat-skill.test.ts` | 跟讀切分 skill 契約與 runtime 安裝 |
+| `apps/desktop/src/main/listen-repeat-controller.test.ts` | 跟讀切分的受信任 scope、隔離 thread 與停止競態 |
 
 ## 9. Known Limitations and Follow-up
 
@@ -188,6 +196,7 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 - `documents/modules/annotation-explanation.md`
 - `documents/modules/reading-comprehension-quiz.md`
 - `documents/modules/spaced-review.md`
+- `documents/modules/listen-and-repeat-practice.md`
 - `documents/implements/F16-invoke-annotation-explanation-skill.md`
 - `documents/implements/F18-use-reading-comprehension-skill.md`
 - `documents/implements/B03-load-only-bundled-annotation-skill.md`
@@ -196,5 +205,7 @@ Marker 與型別化 skill item 共同形成明確呼叫；marker gate 負責避�
 - `documents/implements/F49-segment-retelling-practice.md`
 - `documents/modules/learning-item-editing.md`
 - `documents/implements/F51-ai-assisted-learning-item-editing.md`
+- `documents/implements/F58-listen-and-repeat-practice.md`
+- `documents/implements/B38-allow-ai-editing-memory-tips.md`
 
 變更 App skill 名單、bundle 來源、runtime 路徑、marker、developer instructions、隔離設定或 turn routing 時，必須同步更新本文件與相關功能模組文件。

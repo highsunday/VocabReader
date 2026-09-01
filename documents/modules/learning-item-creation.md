@@ -18,6 +18,8 @@ related_implements:
   - F65-standardize-learning-item-example-support
   - F70-preserve-useful-detail-in-learning-items
   - F78-add-imaginative-memory-tips
+  - F68-calibrate-learning-item-frequency-levels
+  - F69-isolate-learning-language-workspaces
   - B36-require-retrieval-hooks-in-memory-tips
   - B37-render-memory-tip-inline-markdown
 ---
@@ -31,6 +33,8 @@ related_implements:
 **學習項目草稿批次**。本機程式先用完整標題查出有限候選，AI 只比較這些候選的語義，
 再產生可唯讀預覽、排除、恢復及明確提交的草稿。正式資料只有在使用者按下提交後，才以
 單一 SQLite 交易寫入生詞庫。
+
+狀態：**已實作，可在本機使用**
 
 ## 2. Product Flow
 
@@ -229,3 +233,18 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
 匯入／匯出、同步或跨裝置資料。間隔複習由獨立模組承接已提交項目，不改變本模組的
 草稿與交易規則。任意語言只適用於建立意圖與 targets 的語義辨識；草稿內容仍只使用
 現有 `source | zh-TW | en | ja | ko` 講解語言契約。
+
+## 10. Related Documents
+
+- `CONTEXT.md`
+- `documents/modules/learning-library.md`
+- `documents/modules/skill-management.md`
+- `documents/modules/ai-conversation.md`
+- `documents/modules/learning-language-workspace.md`
+- `documents/implements/F21-ai-assisted-learning-item-creation.md`
+- `documents/implements/F27-trigger-learning-card-creation-from-natural-language.md`
+- `documents/implements/F34-route-multilingual-learning-item-intent-with-ai.md`
+- `documents/implements/F68-calibrate-learning-item-frequency-levels.md`
+- `documents/implements/F69-isolate-learning-language-workspaces.md`
+- `documents/implements/F70-preserve-useful-detail-in-learning-items.md`
+- `documents/implements/F78-add-imaginative-memory-tips.md`

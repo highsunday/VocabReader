@@ -4,7 +4,7 @@ date: 2026-09-01
 title: 為新建學習項目加入具象記憶提示
 uuid: 275283f1-27d0-4815-9688-42ac83e74396
 version: 1.0.0
-status: approved
+status: implemented
 ---
 
 # Feature Specification - 具象記憶提示

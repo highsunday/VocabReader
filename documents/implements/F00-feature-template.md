@@ -4,6 +4,7 @@ date: <document date>
 title: <one-line description of the requirement>
 uuid: 5ecf551c11ba45fbb5608fde46804f2f
 version: <version>
+status: template
 ---
 
 # Feature Specification - XXX Feature

@@ -4,7 +4,7 @@ date: 2026-08-25
 title: 建立吸引使用者下載 VocabReader 的 GitHub 專案首頁
 uuid: 89ac9707-bc2d-4551-a033-1f7b82b33790
 version: 1.0.0
-status: approved
+status: implemented
 ---
 
 # Feature Specification - GitHub 專案首頁

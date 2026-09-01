@@ -4,7 +4,7 @@ date: 2026-08-27
 title: 為公開操作 GIF 補上 MP4 版本
 uuid: e5e76a44-40c8-49e9-baf0-c4fe1dd7c89d
 version: 1.0.1
-status: approved
+status: implemented
 ---
 
 # Feature Specification - 為公開操作 GIF 補上 MP4 版本

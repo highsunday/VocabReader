@@ -4,7 +4,7 @@ date: 2026-08-26
 title: 新增雙語安全下載與安裝導覽頁
 uuid: 2a417cd8-ec1e-4cdc-8e92-0a3fd1ad0276
 version: 1.4.0
-status: completed
+status: implemented
 ---
 
 # Feature Specification - VocabReader 下載與安裝導覽

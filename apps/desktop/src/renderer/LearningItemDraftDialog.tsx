@@ -15,7 +15,8 @@ import type {
 import type { ReviewDesktopApi } from "../shared/review-contracts";
 import {
   LearningItemDialog,
-  LearningMemoryTip
+  LearningMemoryTip,
+  splitMarkdownAfterMeaning
 } from "./LearningLibraryWorkspace";
 
 const languageLabels: Record<LearningItemLanguage, string> = {
@@ -71,6 +72,9 @@ function DraftPreview({
   disabled: boolean;
   readOnly?: boolean;
 }) {
+  const { beforeCallouts, afterCallouts } = splitMarkdownAfterMeaning(
+    draft.markdownContent
+  );
   return (
     <article className={`learning-item-draft ${draft.state}`}>
       <div className="learning-item-draft-heading">
@@ -101,10 +105,15 @@ function DraftPreview({
 
       <div className="learning-item-draft-preview">
         <span>Preview</span>
-        <LearningMemoryTip>{draft.memoryTip}</LearningMemoryTip>
         <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
-          {draft.markdownContent}
+          {beforeCallouts}
         </ReactMarkdown>
+        <LearningMemoryTip>{draft.memoryTip}</LearningMemoryTip>
+        {afterCallouts ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+            {afterCallouts}
+          </ReactMarkdown>
+        ) : null}
       </div>
     </article>
   );

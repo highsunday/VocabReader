@@ -4,7 +4,7 @@ date: 2026-08-21
 title: 以特定語義常見度校準學習項目難度
 uuid: f9326151-37bc-443a-9993-919136d8e136
 version: 1.0.0
-status: approved
+status: implemented
 ---
 
 # Feature Specification - 校準學習項目常見度級別

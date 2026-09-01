@@ -20,16 +20,21 @@ related_implements:
   - F55-edit-learning-items-from-graded-review
   - F59-add-learning-item-representative-image
   - F62-show-learning-library-study-status-counts
+  - F65-standardize-learning-item-example-support
+  - F68-calibrate-learning-item-frequency-levels
+  - F69-isolate-learning-language-workspaces
   - F78-add-imaginative-memory-tips
   - B36-require-retrieval-hooks-in-memory-tips
   - B37-render-memory-tip-inline-markdown
+  - B38-allow-ai-editing-memory-tips
+  - B17-confirm-review-after-learning-item-deletion
 ---
 
 # 本機生詞庫模組
 
 > F69 邊界：每個學習語言工作區各自擁有本模組的一份 SQLite；項目語言必須等於工作區
 > 語言，因此清單不再提供語言篩選。舊版 `other` 項目由待分類資料庫保留，指定工作區
-> 後連同排程與歷史交易式搬入。下文提到的全域生詞庫或 reviewed-English 規則均由此取代。
+> 後連同排程與歷史交易式搬入。
 
 ## 1. Purpose
 
@@ -50,7 +55,8 @@ related_implements:
 - 首次建立 SQLite 時執行 schema migration，並以 metadata 記錄一次性 seed 完成狀態。
 - 十筆穩定範例涵蓋單字、片語、A1–C2、三句英文例句，以及 `bank` 的兩個獨立語義。
 - 標題限定、大小寫不敏感的部分字串搜尋。
-- 語言、類型、CEFR 與學習進度複合篩選，以及最近新增、學習優先、下次複習與字母排序。
+- 類型、CEFR 與學習進度複合篩選，以及最近新增、學習優先、下次複習與字母排序；
+  語言由目前工作區固定，不提供清單語言篩選器。
 - 頁首以單列緊湊按鈕顯示 New、Studying、Familiar、Strong 四個互斥進度數量；
   按鈕同時作為篩選入口。Strong 直接共用 Review 的 Solid recall 項目集合與數量，
   Due／Scheduled 等時間狀態仍保留於卡片。
@@ -70,7 +76,7 @@ related_implements:
   複習試卷或排程已確認的複習完成頁開啟時保留人工編輯與 AI 編修，只有生詞庫與
   完成頁提供刪除；從 AI 輔助建立的已存在結果或整合造句練習開啟時則為唯讀。
 - active 生詞庫、已批改試卷及複習完成頁詳情可展開極簡 AI 編修 composer，以同一
-  畫面預覽多輪暫態草稿，並在使用者明確 Apply 後才保存 Markdown 與注意事項。
+  畫面預覽多輪暫態草稿，並在使用者明確 Apply 後才保存 Markdown、Memory tip 與注意事項。
 - 從詳情刪除前顯示置中確認視窗；確認後才移入垃圾桶。垃圾桶可個別還原，只有確認
   清空才永久刪除。
 - 側欄顯示即時使用中數量。
@@ -80,7 +86,7 @@ related_implements:
 - 提供大小寫不敏感、trim 後完整標題相等的 active／trashed 候選查詢。
 - 提供多筆先完整驗證、再以單一 SQLite 交易新增的 `createItemsAtomically()`。
 - 提供到期／新項目摘要、90% retention FSRS 計算及整回合原子確認。
-- 提供整合造句練習的 reviewed-English 資格計數、2–10 筆隨機唯讀抽取與 Meaning 提示，
+- 提供目前工作區整合造句練習的已複習項目資格計數、2–10 筆隨機唯讀抽取與 Meaning 提示，
   不修改 review events、FSRS card 或 due time。
 - 詳情懶載入目前排程、最後評級、下次到期、累計次數及含複習作答的精簡歷史；
   migration 前的舊事件與本次留白作答使用不同文案。
@@ -104,7 +110,7 @@ related_implements:
 - 更新學習內容、Memory tip 與時間戳。
 - 以 active guard 原子保存或移除處理後的代表圖片 BLOB；Trash／restore 保留圖片，永久
   清空項目 row 時才一併刪除。
-- 以 `applyAiEdit()` 只更新 Markdown、注意事項與時間戳，並以 active 狀態與原始
+- 以 `applyAiEdit()` 只更新 Markdown、Memory tip、注意事項與時間戳，並以 active 狀態與原始
   `updatedAt` 拒絕過期或垃圾桶工作階段覆寫。
 - 執行 `active → trashed → active` 狀態轉移。
 - 以交易永久清空全部垃圾桶項目。
@@ -112,7 +118,7 @@ related_implements:
 - 以 `createItemsAtomically()` 提供草稿批次的全有或全無新增。
 - 依 Main 裝置時間與可設定的 1–20 題試卷大小選出複習項目，已到期優先，新項目依
   CEFR 補入，並遵守新項目與到期複習的每日完成上限。
-- 以獨立 read-only query 計算並隨機抽取 active、英文且 `review_count > 0` 的整合造句
+- 以獨立 read-only query 計算並隨機抽取 active、語言等於目前工作區且 `review_count > 0` 的整合造句
   必要用詞，不沿用 due、daily limit 或 review paper size。
 - 驗證四級評級與複習作答、讀寫 FSRS card 狀態，並在單一交易追加事件與更新排程。
 - 確認複習試卷時略過建立試卷後已移入垃圾桶或永久刪除的項目，仍原子寫入其餘
@@ -144,7 +150,7 @@ Node API 或通用 IPC。
 AI 編修另收斂於 `window.readerDesktop.learning.aiEdit` 的 start、send、stop、apply 與
 discard。Renderer 只能提供 item／session id 與非空需求，不能提供正式項目內容、skill、
 prompt、Codex method 或權限。流程由獨立暫態 `LearningItemEditController` 擁有，不進入
-全域 AI 對話 store。
+目前工作區的 AI 對話 store。
 
 AI 建立批次的新增／還原由受限 `chat` IPC 呼叫 Main-owned Controller，再委派本
 repository；Renderer 仍拿不到一般 create API。
@@ -157,7 +163,7 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 `LearningLibraryWorkspace` 負責：
 
 - 使用中清單與垃圾桶視圖。
-- 搜尋、語言、類型、CEFR、進度狀態、排序及漸進結果集合；卡片時間狀態保持獨立。
+- 搜尋、類型、CEFR、進度狀態、排序及漸進結果集合；卡片仍顯示語言資料，時間狀態保持獨立。
 - 顯示 New／Studying／Familiar／Strong 的緊湊可切換按鈕；中等寬度時整列移至標題
   下方並維持四欄同時可見，不使用水平捲動或隱藏捲軸。
 - 固定工具區與獨立結果捲動區。
@@ -208,7 +214,8 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 
 ## 5. Persistence
 
-正式資料庫位於 Electron `userData/learning-library/learning-items.sqlite`，測試使用
+英文工作區的正式資料庫位於 Electron `userData/learning-library/learning-items.sqlite`；
+其他語言位於 `userData/learning-language-workspaces/<language>/learning-library/learning-items.sqlite`，測試使用
 系統暫存目錄下的獨立檔案。SQLite 包含：
 
 - `schema_migrations`：已套用 schema 版本。
@@ -248,7 +255,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 ## 7. UI and Accessibility
 
 - 中央工作區本身不捲動；上方工具區固定，結果區使用自己的 `overflow-y: auto`。
-- 工具區保留生詞庫標題、說明、垃圾桶入口、搜尋、語言、類型、CEFR 與排序。
+- 工具區保留生詞庫標題、說明、垃圾桶入口、搜尋、類型、CEFR 與排序；語言由工作區選擇器決定。
 - 頁首四個進度數量是可存取的 pressed-state 篩選按鈕；四欄在窄版壓縮並完整可見，
   不產生水平捲動。為抵銷 action 換列高度，中等寬度隱藏標題說明文字。
 - 結果區不顯示已載入／總符合筆數；接近底部時自動載入，失敗時保留既有卡片並提供
@@ -311,7 +318,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 最近驗證（2026-09-01）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：582/582 passed。
+- Desktop Vitest：584/584 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
 - Electron Playwright E2E：5/5 passed；Memory tip 的文字、標籤與圖示對淡藍紫背景
@@ -320,7 +327,7 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 ## 10. Known Limitations and Follow-up
 
 - AI 新增只支援單字與片語，不支援 sentence 或任意卡片類型。
-- AI 可編修既有 active 項目的 Markdown 與注意事項；仍不支援批次編修、其他結構欄位、
+- AI 可編修既有 active 項目的 Markdown、Memory tip 與注意事項；仍不支援批次編修、其他結構欄位、
   保存編修歷史或 AI 刪除。
 - 從標記解析可建立項目，但刻意不保存書籍、章節、標記、原句或來源追溯資料。
 - 已實作 AI 語意試卷、每日新項目／到期複習上限、可設定題數與四級 FSRS 複習；

@@ -10,6 +10,8 @@ related_implements:
   - B05-use-quiz-language-for-open-ended-answers
   - F23-interactive-reading-practice-paper
   - F49-segment-retelling-practice
+  - B08-balance-reading-quiz-option-lengths
+  - F69-isolate-learning-language-workspaces
 ---
 
 # 閱讀測驗與區段練習模組

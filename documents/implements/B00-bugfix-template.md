@@ -4,6 +4,7 @@ date: <document date>
 title: <short description of this bug fix, e.g. "Fix incorrect error message on login">
 uuid: 254b01ad373d4a19a7d0464e4a60a655
 version: <version>
+status: template
 ---
 # Bug Fix: XXX
 

@@ -1134,25 +1134,47 @@ test("shows a memorable cue below the stronger learning caution", async () => {
       if (!tip || !caution) throw new Error("learning cues are unavailable");
       const tipStyle = getComputedStyle(tip);
       const cautionStyle = getComputedStyle(caution);
+      const meaning = [...document.querySelectorAll<HTMLElement>(".learning-markdown h2")]
+        .find((heading) => heading.textContent?.trim() === "Meaning");
+      const nextSection = [...document.querySelectorAll<HTMLElement>(".learning-markdown h2")]
+        .find((heading) => heading.textContent?.trim() === "Common collocations");
       return {
         tipBackground: tipStyle.backgroundColor,
         tipColor: tipStyle.color,
         tipTextDecoration: tipStyle.textDecorationLine,
+        cautionBackground: cautionStyle.backgroundColor,
         cautionColor: cautionStyle.color,
         cautionTextDecoration: cautionStyle.textDecorationLine,
-        hasIcon: Boolean(tip.querySelector("svg")),
+        tipRadius: tipStyle.borderRadius,
+        cautionRadius: cautionStyle.borderRadius,
+        hasTipIcon: Boolean(tip.querySelector("svg")),
+        hasCautionIcon: Boolean(caution.querySelector("svg")),
+        compactPadding: tipStyle.padding,
+        calloutGap: getComputedStyle(tip.parentElement as HTMLElement).gap,
+        followsMeaning: Boolean(meaning && meaning.compareDocumentPosition(caution) &
+          Node.DOCUMENT_POSITION_FOLLOWING),
+        precedesNextSection: Boolean(nextSection && tip.compareDocumentPosition(nextSection) &
+          Node.DOCUMENT_POSITION_FOLLOWING),
         emphasisDisplay: getComputedStyle(
           tip.querySelectorAll("strong")[1] as HTMLElement
         ).display
       };
     });
     expect(learningCueHierarchy).toEqual({
-      tipBackground: "rgb(243, 240, 249)",
-      tipColor: "rgb(63, 57, 94)",
+      tipBackground: "rgb(244, 242, 247)",
+      tipColor: "rgb(76, 71, 91)",
       tipTextDecoration: "none",
-      cautionColor: "rgb(179, 38, 54)",
-      cautionTextDecoration: "underline",
-      hasIcon: true,
+      cautionBackground: "rgb(253, 240, 241)",
+      cautionColor: "rgb(118, 43, 52)",
+      cautionTextDecoration: "none",
+      tipRadius: "10px",
+      cautionRadius: "10px",
+      hasTipIcon: true,
+      hasCautionIcon: true,
+      compactPadding: "7px 10px",
+      calloutGap: "6px",
+      followsMeaning: true,
+      precedesNextSection: true,
       emphasisDisplay: "inline"
     });
   } finally {

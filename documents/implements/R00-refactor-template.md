@@ -4,6 +4,7 @@ date: <YYYY-MM-DD>
 title: <one-line description of the refactor goal>
 uuid: 5b1750c751a94b57b4b96f73847fefe1
 version: <version>
+status: template
 ---
 
 # Refactor Specification – Refactor XXX Task

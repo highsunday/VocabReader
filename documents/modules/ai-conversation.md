@@ -2,7 +2,7 @@
 title: Codex AI 對話與帳戶狀態模組
 module: ai-conversation
 status: active
-last_updated: 2026-08-25
+last_updated: 2026-09-01
 related_implements:
   - F05-ai-reading-range-markers
   - F07-codex-ai-conversation
@@ -36,6 +36,8 @@ related_implements:
   - F51-ai-assisted-learning-item-editing
   - B30-keep-one-final-ai-response-per-turn
   - B32-find-codex-from-packaged-macos-app
+  - F69-isolate-learning-language-workspaces
+  - F39-rename-product-to-vocabreader
 ---
 
 # Codex AI 對話與帳戶狀態模組
@@ -46,7 +48,7 @@ related_implements:
 
 ## 1. Purpose
 
-本模組以使用者本機既有的 Codex／ChatGPT 登入狀態提供 **Codex AI 執行層**，讓右側 **AI 對話面板**建立、保存、切換及移除全域 **AI 對話**，選擇可用 AI 模型，並進行可停止的多輪串流互動；左側窄欄只顯示連線階段與五小時／每週帳戶共用額度，不呈現登入信箱。
+本模組以使用者本機既有的 Codex／ChatGPT 登入狀態提供 **Codex AI 執行層**，讓右側 **AI 對話面板**在目前學習語言工作區中建立、保存、切換及移除 **AI 對話**，選擇可用 AI 模型，並進行可停止的多輪串流互動；左側窄欄只顯示連線階段與五小時／每週帳戶共用額度，不呈現登入信箱。
 
 閱讀頁的 AI 上下文只包含產品層明確組裝的書籍名稱、章節名稱與目前 **閱讀區段**；本模組不讀取整章、整本 EPUB 或 Renderer 任意指定的檔案。
 
@@ -76,9 +78,9 @@ related_implements:
 - 分頁讀取 `model/list` 的可見模型，以 server default 作為初始選擇；目錄失敗時仍可使用 Codex 預設模型對話。
 - 使用者可在 AI 未回覆時切換模型；新 thread 與後續 turn 都使用目前模型及該模型的預設推理強度。
 - 空白新對話送出第一個問題後才建立產品對話與 Codex thread；後續追問在相同 thread 建立新 turn。
-- 右側面板可開啟跨書籍共用的全域對話清單、建立新對話、切換過去對話及直接移除；移除時不顯示確認視窗。
+- 右側面板可開啟目前工作區內跨書籍共用的對話清單、建立新對話、切換過去對話及直接移除；移除時不顯示確認視窗。
 - 每筆對話保存產品對話 id、Codex thread id、標題、時間、來源摘要及顯示訊息；重啟恢復上次查看的對話。
-- 全域對話紀錄只保留 `updatedAt` 最近的 10 筆；建立第 11 筆時立即淘汰最久未更新的
+- 每個工作區的對話紀錄只保留 `updatedAt` 最近的 10 筆；建立第 11 筆時立即淘汰最久未更新的
   本機紀錄，載入及保存舊版超量資料時也套用相同上限，但不裁切保留對話內的訊息。
 - 延續過去對話時使用 `thread/resume` 恢復相同 thread；移除時使用 `thread/archive`，本機保存失敗會嘗試 `thread/unarchive` 回滾。
 - 第一次針對非空閱讀區段提問時提供原文；書籍、章節與 START／END 均未改變的後續追問不重傳相同原文，來源或範圍改變後才重新提供一次。
@@ -105,7 +107,7 @@ related_implements:
   影響中央閱讀內容的獨立捲動。
 - AI 對話面板左邊界可用滑鼠拖曳或方向鍵調整寬度；展開寬度限制於 280–640px 並保護中央閱讀區，摺疊後展開會恢復本次工作階段的調整寬度。
 - 「設定」提供講解語言、AI 對話文字大小與電子書內文字大小；模型選擇仍直接位於 AI 對話提問框，不提供推理強度設定。
-- 生詞庫工作區沿用同一套右側 AI 對話面板與全域對話生命週期，並與閱讀頁共同提供
+- 生詞庫頁沿用目前學習語言工作區的同一套右側 AI 對話面板與對話生命週期，並與閱讀頁共同提供
   typed `createLearningItems` 入口；AI 訊息可附 invitation、持久草稿批次與錯誤狀態。
 - 學習項目建立澄清狀態保存在 user message；重新啟動後的下一個直接回答仍會先查
   exact-title 候選，再延續固定 creation skill。
@@ -119,7 +121,7 @@ related_implements:
   重試直接沿用 targets，不重新判斷意圖。重啟時未完成的 preparing 狀態正規化為
   failed。pending 草稿可經二次確認成為唯讀的 abandoned terminal state。
 - 間隔複習沿用相同本機 Codex transport 與登入狀態，但使用獨立一次性 Controller；
-  試卷、答案及批改不加入全域對話清單或 `LocalChatConversationStore`。
+  試卷、答案及批改不加入工作區 AI 對話清單或 `LocalChatConversationStore`。
 
 ## 3. Module Boundary
 
@@ -139,7 +141,7 @@ related_implements:
 
 `ChatController` 負責：
 
-- 連線階段、帳戶、額度、模型目錄與選擇、全域對話集合、目前對話、thread、active turn 與訊息投影。
+- 連線階段、帳戶、額度、模型目錄與選擇、目前工作區的對話集合、目前對話、thread、active turn 與訊息投影。
 - Codex thread／turn 生命週期與串流 notification 投影。
 - `turn/interrupt` 停止流程，以及 starting 狀態等待真實 turn id 的同步。
 - 新對話、切換、恢復、封存與管理操作互斥。
@@ -156,7 +158,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 
 `LocalChatConversationStore` 負責：
 
-- 驗證並載入 VocabReader 自有的全域對話資料，不匯入其他 Codex／ChatGPT 對話。
+- 驗證並載入目前學習語言工作區的 VocabReader 對話資料，不匯入其他工作區或 Codex／ChatGPT 對話。
 - 以暫存檔加原子替換保存對話集合與上次選取狀態。
 - 讀取時把未完成的 streaming 訊息正規化為 failed。
 - 載入及保存時只保留最近更新的 10 筆 AI 對話；若上次選取項目被淘汰，選取狀態
@@ -166,7 +168,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 ### Learning-item edit controller
 
 `LearningItemEditController` 沿用相同 `SpawnedCodexAppServerClient` transport pattern，但不是
-`ChatController` 的模式或全域對話。它一次只擁有一個 active 學習項目、最新有效草稿與
+`ChatController` 的模式或工作區 AI 對話。它一次只擁有一個 active 學習項目、最新有效草稿與
 獨立 thread／turn，使用固定 `edit-learning-item` skill 與嚴格 artifact；Apply 或 Discard
 後立即關閉 client。它不讀寫 `LocalChatConversationStore`、不發布 `ChatSnapshot`，也不受
 全域模型選擇或 `explanationLanguage` 設定控制。
@@ -202,7 +204,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 - 以送出前的 user message 數量辨識真正新增的使用者訊息，只在新增後對 AI 對話
   訊息區執行一次自動捲動；Codex `starting` 狀態與後續 assistant delta 不消耗或
   重複這次捲動意圖。
-- 在右側面板的對話內容與全域清單之間切換，顯示對話標題、最近來源及更新時間。
+- 在右側面板的對話內容與目前工作區清單之間切換，顯示對話標題、最近來源及更新時間。
 - AI 回覆與範圍標籤狀態分離；送出或完成訊息不推進 START／END。
 - 只解析固定 `reading-practice-quiz`／`reading-practice-grade` 與 `reading-retelling-task`／`reading-retelling-grade` fenced JSON；不完整串流、錯誤 schema、識別碼、attempt、分數加總或題目覆蓋不符的結果不會改變練習完成狀態。artifact 原文仍隨 AI 訊息保存，但不在窄側欄重複顯示。
 
@@ -219,7 +221,7 @@ Controller 不解析 EPUB，也不決定閱讀區段邊界。
 | `threadId` | 目前 AI 對話對應的 Codex thread id；空白新對話時為 null |
 | `activeTurnId` | 目前回答識別碼；建立中使用內部 starting 狀態，閒置時為 null |
 | `messages` | 訊息狀態，以及可選 preparation／learning request／invitation／draft batch／artifact error；preparation 附著於原始 user message，保存 targets、語言與 preparing／failed／completed 狀態 |
-| `conversations` | 依最近更新排序、最多 10 筆的全域對話摘要，不包含完整訊息複本 |
+| `conversations` | 目前工作區內依最近更新排序、最多 10 筆的對話摘要，不包含完整訊息複本 |
 | `activeConversationId` | 目前選取的產品對話 id；空白新對話時為 null |
 | `managementBusy` | 封存等管理操作是否進行中 |
 | `conversationError` | 本機保存、恢復或移除對話的可顯示錯誤 |
@@ -293,8 +295,9 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
   直接執行 `codex app-server`。路徑與命令不接受 Renderer 或使用者輸入。
 - 一般對話 thread 使用 `approvalPolicy: never`、read-only sandbox，停用一般 skill
   instruction catalog、bundled skills、plugins、apps、memories 及 web search。Electron
-  Main 只把四份對話用 App skills 組入 developer instructions；不得探索其他 skill。
-  間隔複習與學習項目編修另以同等隔離的專用 thread，分別只注入對應固定 skill。
+  Main 只把四份一般對話用 App skills 組入 developer instructions；不得探索其他 skill。
+  間隔複習、整合造句、學習項目編修與逐句跟讀另以同等隔離的專用 thread，分別只注入
+  對應固定 skill。
 - working directory 固定為 Electron user data 下的 `codex-runtime`，Renderer 不能指定。
 - Desktop build 把 repo skill Markdown 內嵌到 Electron Main bundle；Main 啟動時安裝／更新到 runtime `.agents/skills`，再把這份 user data 絕對路徑作為 `ChatController` 必要設定。Renderer 不能提供 skill 內容或路徑，已安裝 App 也不依賴原始碼 repo。
 - account allowance 是帳戶共用狀態，不代表 token、金額、模型或單一 thread 額度。
@@ -322,10 +325,10 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `.agents/skills/practice-spaced-review/SKILL.md` | 暫態例句試卷與四級語意評級契約 |
 | `apps/desktop/src/main/spaced-review-controller.ts` | 不持久的一次性生成／批改 thread |
 | `.agents/skills/edit-learning-item/SKILL.md` | 單項內容／注意事項編修與固定 artifact 契約 |
-| `apps/desktop/src/main/learning-item-edit-controller.ts` | 不進入全域對話的暫態多輪 edit thread |
+| `apps/desktop/src/main/learning-item-edit-controller.ts` | 不進入工作區 AI 對話的暫態多輪 edit thread |
 | `apps/desktop/src/main/learning-item-edit-ipc.ts` | edit session 五個受限 IPC |
 | `apps/desktop/src/main/bundled-skill.ts` | 把 App bundle 內建 skill 安裝／原子更新到 user data runtime |
-| `apps/desktop/src/main/chat-conversation-store.ts` | 全域對話資料驗證、載入、原子保存與重啟正規化 |
+| `apps/desktop/src/main/chat-conversation-store.ts` | 單一工作區對話資料驗證、載入、原子保存與重啟正規化 |
 | `apps/desktop/src/main/chat-ipc.ts` | chat IPC 白名單與輸入驗證 |
 | `apps/desktop/src/main/main.ts` | 建立 Controller、發布 snapshot、管理 app 關閉清理 |
 | `apps/desktop/src/preload/preload.ts` | 暴露窄化的 `readerDesktop.chat` |
@@ -351,7 +354,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | `apps/desktop/src/main/learning-item-edit-controller.test.ts` | edit thread 最小 scope、暫態 Apply 與停止競態 |
 | `apps/desktop/src/main/learning-item-edit-ipc.test.ts` | edit bridge 的 id／需求白名單 |
 | `apps/desktop/src/main/chat-ipc.test.ts` | chat IPC 與預設意圖白名單、模型／對話 id、結構化 context 與惡意格式拒絕 |
-| `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、字體大小即時預覽與保存、bridge send、閱讀區段裁切／去重／區段練習與語言傳值、全域對話管理、安全 Markdown／GFM 與串流占位 |
+| `apps/desktop/src/renderer/App.test.tsx` | 狀態卡、模型與停止控制、IME 鍵盤行為、AI 面板拖曳／鍵盤調寬與邊界、字體大小即時預覽與保存、bridge send、閱讀區段裁切／去重／區段練習與語言傳值、工作區對話管理、安全 Markdown／GFM 與串流占位 |
 | `apps/desktop/src/renderer/ReadingPracticePaper.test.tsx` | 專用試卷作答、提交、鎖定、關閉與紅筆批改 |
 | `apps/desktop/src/renderer/reading-practice-artifact.test.ts` | 試卷／批改 artifact 驗證、串流容錯與提交格式 |
 | `apps/desktop/src/renderer/SegmentRetellingPractice.test.tsx` | 復述卡片、提交、回饋順序、草稿保留、再次作答與比較 |
