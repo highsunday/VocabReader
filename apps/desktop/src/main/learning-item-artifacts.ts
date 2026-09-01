@@ -246,8 +246,10 @@ export function parseLearningItemEditResult(
 
 export function parseLearningItemArtifacts(
   sourceText: string,
-  createId: () => string = randomUUID
+  createId: () => string = randomUUID,
+  options: { acceptIntent?: boolean } = {}
 ): ParsedLearningItemArtifacts {
+  const acceptIntent = options.acceptIntent ?? true;
   const resultBlock = extractSingleBlock(sourceText, "learning-item-result");
   const invitationBlock = extractSingleBlock(
     sourceText,
@@ -265,7 +267,7 @@ export function parseLearningItemArtifacts(
 
   try {
     if (resultBlock.count > 1 || invitationBlock.count > 1 ||
-      requestBlock.count > 1 || intentBlock.count > 1) {
+      requestBlock.count > 1 || (acceptIntent && intentBlock.count > 1)) {
       throw new Error("Invalid learning-item draft");
     }
     if (resultBlock.raw !== undefined) {
@@ -284,7 +286,7 @@ export function parseLearningItemArtifacts(
         JSON.parse(requestBlock.raw)
       );
     }
-    if (intentBlock.raw !== undefined) {
+    if (acceptIntent && intentBlock.raw !== undefined) {
       const value: unknown = JSON.parse(intentBlock.raw);
       if (!isObject(value) || value.intent !== "createLearningItems" ||
         Object.keys(value).some((key) =>
@@ -292,7 +294,12 @@ export function parseLearningItemArtifacts(
         throw new Error("Invalid learning-item creation intent");
       }
       try {
-        parsed.intent = learningItemInvitationFromUnknown(value);
+        parsed.intent = learningItemInvitationFromUnknown({
+          targets: Array.isArray(value.targets)
+            ? value.targets.map((target) =>
+                typeof target === "string" ? { title: target } : target)
+            : value.targets
+        });
       } catch {
         throw new Error("Invalid learning-item creation intent");
       }

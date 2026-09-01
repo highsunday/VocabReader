@@ -337,6 +337,81 @@ describe("parseLearningItemArtifacts", () => {
     expect(result.error).toBeUndefined();
   });
 
+  it("normalizes the real AI string-target intent shape", () => {
+    const result = parseLearningItemArtifacts([
+      "```learning-item-intent",
+      JSON.stringify({
+        intent: "createLearningItems",
+        targets: [
+          "dormitory",
+          "foul",
+          "slug",
+          "menacing",
+          "shrill",
+          "pipe up"
+        ]
+      }),
+      "```"
+    ].join("\n"));
+
+    expect(result.error).toBeUndefined();
+    expect(result.intent?.targets).toEqual([
+      { title: "dormitory" },
+      { title: "foul" },
+      { title: "slug" },
+      { title: "menacing" },
+      { title: "shrill" },
+      { title: "pipe up" }
+    ]);
+  });
+
+  it("still rejects empty or excessive string-target intents", () => {
+    const intent = (targets: string[]) => [
+      "```learning-item-intent",
+      JSON.stringify({ intent: "createLearningItems", targets }),
+      "```"
+    ].join("\n");
+
+    expect(parseLearningItemArtifacts(intent([""])).error)
+      .toMatch(/Invalid learning-item creation intent/);
+    expect(parseLearningItemArtifacts(intent(
+      Array.from({ length: 51 }, (_, index) => `word-${index}`)
+    )).error).toMatch(/Invalid learning-item creation intent/);
+  });
+
+  it("ignores routing-only intent when parsing a trusted creation turn", () => {
+    const result = parseLearningItemArtifacts([
+      "Draft ready.",
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "tentative",
+          requestedTitles: ["tentative"],
+          itemType: "word",
+          language: "en",
+          cefr: "B2",
+          sense: "not certain or fixed",
+          memoryTip: "A TENT is temporary; TENT-ative plans are temporary too.",
+          markdownContent: "## Meaning\nNot certain or fixed."
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```",
+      "```learning-item-intent",
+      JSON.stringify({ targets: [{ title: "tentative" }] }),
+      "```"
+    ].join("\n"), undefined, { acceptIntent: false });
+
+    expect(result.error).toBeUndefined();
+    expect(result.intent).toBeUndefined();
+    expect(result.batch?.drafts).toMatchObject([{
+      title: "tentative",
+      requestedTitles: ["tentative"]
+    }]);
+    expect(result.text).toBe("Draft ready.");
+  });
+
   it("accepts at most 50 AI-routed creation targets", () => {
     const buildIntent = (count: number) => [
       "```learning-item-intent",

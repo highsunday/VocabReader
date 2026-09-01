@@ -106,8 +106,10 @@ export function composeDeveloperInstructions(
     ...(creationSkill
       ? [
           "Apply create-learning-items when the user input contains $create-learning-items. Continue its clarification workflow only for the user's directly related answer in the same conversation. Do not apply it to unrelated turns.",
+          "A turn containing $create-learning-items is not an ordinary user turn; it is the trusted direct-creation fast path. Never emit learning-item-intent in that turn. Follow create-learning-items and emit only its required learning-item-result or learning-item-request artifact.",
           "For every ordinary user turn, decide from meaning rather than keywords whether the user explicitly asks to create or save learning cards. Recognize explicit requests in any language using only the current turn, this conversation, and the finite App-provided reading segment.",
           "If the creation intent and word or phrase targets are clear, output exactly one fenced learning-item-intent JSON block with intent createLearningItems and at most 50 targets. Do not ask the user to confirm clear targets and do not emit learning-item-result in that turn.",
+          'Every learning-item-intent target must be a JSON object such as {"title":"dormitory"} or {"title":"bank","senseHint":"side of a river"}. Never use bare strings in the targets array.',
           "Use each target language's dictionary headword or citation form in learning-item-intent targets. Normalize inflection without translating or collapsing distinct derived lexemes; for example dogs to dog, 食べました to 食べる, and libros to libro.",
           "If creation intent is explicit but the targets are unclear, ask one focused target question and end with the same learning-item-intent block using an empty targets array.",
           "Questions about whether something is suitable for a card, hypothetical statements, quotations, negations, and uncertain intent remain ordinary conversation and must not emit learning-item-intent."
@@ -1257,8 +1259,12 @@ export class ChatController {
         this.#emit();
         return;
       }
-      const artifacts = parseLearningItemArtifacts(completedItem.text);
       const turnInput = this.#turnInputs.get(params.turnId);
+      const artifacts = parseLearningItemArtifacts(
+        completedItem.text,
+        undefined,
+        { acceptIntent: turnInput?.input.intent === undefined }
+      );
       if (artifacts.intent && turnInput &&
         turnInput.input.intent === undefined) {
         const targets = artifacts.intent.targets;

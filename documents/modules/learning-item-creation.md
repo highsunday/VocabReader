@@ -22,6 +22,8 @@ related_implements:
   - F69-isolate-learning-language-workspaces
   - B36-require-retrieval-hooks-in-memory-tips
   - B37-render-memory-tip-inline-markdown
+  - B42-isolate-direct-card-creation-from-intent-routing
+  - B43-normalize-natural-language-card-intent-targets
 ---
 
 # AI 輔助學習項目建立模組
@@ -93,7 +95,8 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
 - 自然語言路由與 creation skill 是兩個受信任階段：前者只輸出
   `learning-item-intent` 與最多 50 個 targets，後者只在 App 查完候選後生成草稿。
 - 快捷「新增卡片」、非空 invitation 與既有 workflow 澄清回答維持 typed fast path，
-  不增加自然語言 routing turn。
+  不增加自然語言 routing turn。含 `$create-learning-items` 的 turn 不是
+  ordinary turn，生成契約禁止輸出 routing-only `learning-item-intent`。
 - structured targets 缺席或為空時，使用者直接回答的逗號／換行清單仍作為新標題；
   程式不從 AI 可見文字猜測 targets，也不把含空格的片語任意拆成多個單字。
 - `explain-reader-annotations` 在複習表後輸出 `learning-item-invitation`。
@@ -150,6 +153,12 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
 - Renderer 的普通訊息不判斷建立意圖；只有產品快捷可傳 typed intent 與最多 50 個
   title／senseHint，且不能指定 SQL、資料庫路徑、skill 路徑、Codex method 或任意查詢。
 - AI 路由最多回傳 50 個 targets；第一階段不得輸出可提交 batch、查詢資料或寫入生詞庫。
+- routing contract 要求每個 target 使用 `{title}` 或 `{title,senseHint}` object；Main
+  也會將模型已知會產生的非空 string target 正規化為 `{title}`，再套用相同的欄位、
+  title 與 50-target 驗證，避免可恢復的 shape drift 成為使用者可見錯誤。
+- trusted creation turn 只接受 result／request artifact，會移除並忽略多餘的
+  routing-only intent。有效 result 仍必須通過 requested target 與 candidate scope
+  驗證，不因忽略多餘 intent 而放寬 batch。
 - 初次 AI 回傳的每個 draft／match 都必須以 `requestedTitles` 對應 requested targets；
   canonical title 可因跨語言詞形還原而不同。existing／trashed id、標題、語義與狀態
   仍必須逐一等於程式提供的候選。
@@ -207,7 +216,8 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
 
 - `learning-library-service.test.ts`：exact normalized query 與交易新增。
 - `learning-item-artifacts.test.ts`：intent、result、invitation、request 與 recheck
-  fenced artifact 的嚴格驗證、必填語言、非空 Memory tip 及 50-target 邊界。
+  fenced artifact 的嚴格驗證、必填語言、非空 Memory tip、50-target 邊界，
+  以及 trusted creation turn 忽略 routing-only intent 的 context 邊界。
 - `learning-item-duplicate-classifier.test.ts`：單次有限候選 AI recheck。
 - `chat-controller.test.ts`：skill routing、候選範圍、持久澄清、草稿生命週期、重查、
   還原、不可重複提交、多語 AI route、自動 continuation、原 target 重試、放棄，

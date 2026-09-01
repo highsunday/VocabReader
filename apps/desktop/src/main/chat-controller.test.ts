@@ -513,6 +513,15 @@ describe("ChatController", () => {
     expect(loadedInstructions).toContain(
       "continue using its assessment workflow"
     );
+    expect(loadedInstructions).toContain(
+      "A turn containing $create-learning-items is not an ordinary user turn"
+    );
+    expect(loadedInstructions).toContain(
+      "Never emit learning-item-intent in that turn"
+    );
+    expect(loadedInstructions).toContain(
+      'Every learning-item-intent target must be a JSON object such as {"title":"dormitory"}'
+    );
     expect(loadedInstructions.match(/<app-provided-skill /g)).toHaveLength(4);
     expect(loadedInstructions).not.toContain("Available skills:");
     expect(threadStart?.params?.config).toMatchObject({
@@ -1213,6 +1222,111 @@ describe("ChatController", () => {
       }
     }]);
     expect(controller.getSnapshot().messages).toHaveLength(2);
+    controller.close();
+  });
+
+  it("routes a real AI string-target intent into trusted draft preparation", async () => {
+    const candidateQueries: string[][] = [];
+    const answer = (prompt: string) => prompt.includes("$create-learning-items")
+      ? [
+          "Draft ready.",
+          "```learning-item-result",
+          JSON.stringify({
+            drafts: [{
+              title: "dormitory",
+              requestedTitles: ["dormitory"],
+              itemType: "word",
+              language: "en" as const,
+              cefr: "B1",
+              sense: "a shared sleeping room",
+              memoryTip: "A DORM is a sleeping room; DORM-itory names that room.",
+              markdownContent: "## Meaning\nA shared sleeping room."
+            }],
+            existing: [],
+            trashed: []
+          }),
+          "```"
+        ].join("\n")
+      : [
+          "```learning-item-intent",
+          JSON.stringify({
+            intent: "createLearningItems",
+            targets: ["dormitory"]
+          }),
+          "```"
+        ].join("\n");
+    const { fake, controller } = managedFixture(
+      new MemoryChatConversationStore(),
+      { answer },
+      {
+        findLearningItemCandidates: async (titles) => {
+          candidateQueries.push(titles);
+          return [];
+        }
+      }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({ text: "add dormitory" });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    expect(candidateQueries).toEqual([["dormitory"]]);
+    expect(fake.requests.filter((request) => request.method === "turn/start"))
+      .toHaveLength(2);
+    expect(controller.getSnapshot().messages.findLast(
+      (message) => message.role === "assistant"
+    )?.learningItemBatch?.drafts).toMatchObject([{
+      title: "dormitory",
+      requestedTitles: ["dormitory"]
+    }]);
+    controller.close();
+  });
+
+  it("keeps a trusted fast-path draft when the AI also emits a malformed routing intent", async () => {
+    const answer = [
+      "Drafts ready.",
+      "```learning-item-result",
+      JSON.stringify({
+        drafts: [{
+          title: "tentative",
+          requestedTitles: ["tentative"],
+          itemType: "word",
+          language: "en" as const,
+          cefr: "B2",
+          sense: "not certain or fixed",
+          memoryTip: "A TENT is temporary; TENT-ative plans are temporary too.",
+          markdownContent: "## Meaning\nNot certain or fixed."
+        }],
+        existing: [],
+        trashed: []
+      }),
+      "```",
+      "```learning-item-intent",
+      JSON.stringify({ targets: [{ title: "tentative" }] }),
+      "```"
+    ].join("\n");
+    const { controller } = managedFixture(
+      new MemoryChatConversationStore(),
+      { answer },
+      { findLearningItemCandidates: async () => [] }
+    );
+    await controller.connect();
+
+    await controller.sendMessage({
+      text: "Add cards: tentative",
+      intent: "createLearningItems",
+      learningItemTargets: [{ title: "tentative" }]
+    });
+    await waitUntil(() => controller.getSnapshot().activeTurnId === null);
+
+    const assistant = controller.getSnapshot().messages.findLast(
+      (message) => message.role === "assistant"
+    );
+    expect(assistant?.artifactError).toBeUndefined();
+    expect(assistant?.learningItemBatch?.drafts).toMatchObject([{
+      title: "tentative",
+      requestedTitles: ["tentative"]
+    }]);
     controller.close();
   });
 

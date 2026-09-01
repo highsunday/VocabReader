@@ -1344,3 +1344,45 @@ DDD standalone TDD completion notification for allowing AI edits to update Memor
 **Follow-up**
 - Local implementation, full desktop unit tests, typecheck, production build, and Electron E2E are
   complete. Versioning, commit, GitHub push, and release remain deferred until requested.
+
+#### L069 — 2026-09-01 19:42 CST — B42 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification for isolating direct card creation from natural-language
+intent routing.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD TDD Completed] B42 隔離右側欄直接新增與自然語言意圖路由`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a05cc7256b1fda8`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- Local implementation, targeted regressions, full Vitest, typecheck, and production build are
+  complete. Versioning, commit, GitHub push, and release remain deferred until requested.
+
+#### L070 — 2026-09-01 20:00 CST — B43 — orchestrator -> user — notification
+
+**Message**
+DDD standalone TDD completion notification for normalizing natural-language card-intent targets.
+
+**Context**
+- From: `highsunday0630@gmail.com`
+- To: `highsunday.project@gmail.com`
+- Subject: `[DDD] B43 completed — 正規化自然語言新增卡片的 intent targets`
+
+**Artifacts**
+- Delivery status: sent
+- Tool: Gmail
+- Message ID: `1a05cd7eccc61d3f`
+- Authenticated sender verified as `highsunday0630@gmail.com`
+
+**Follow-up**
+- Local implementation, targeted and full regressions, typecheck, production build, and real
+  Electron two-stage field validation are complete. Commit requested; GitHub push and release remain
+  deferred.
