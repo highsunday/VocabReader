@@ -170,6 +170,7 @@ describe("LocalChatConversationStore", () => {
       language: "en" as const,
         cefr: "B2",
         sense: "unwilling",
+        memoryTip: "想像門已打開，但你的腳還黏在地上。",
         markdownContent: "## Meaning\n不情願。",
         state: "excluded"
       }],

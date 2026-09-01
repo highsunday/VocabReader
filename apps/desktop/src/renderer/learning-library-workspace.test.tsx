@@ -31,6 +31,7 @@ const activeItems: LearningItem[] = [
       "1. We sat on the bank."
     ].join("\n"),
     cautionNote: "注意：bank 在這裡是河岸，不是金融機構。",
+    memoryTip: "想像河水被兩邊的岸夾在中間；那條貼著水邊的土地就是 bank。",
     status: "active",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -303,6 +304,9 @@ describe("LearningLibraryWorkspace", () => {
     expect(within(dialog).getByLabelText("Learning caution")).toHaveTextContent(
       "bank 在這裡是河岸"
     );
+    const memoryTip = within(dialog).getByRole("note", { name: "Memory tip" });
+    expect(memoryTip).toHaveTextContent("河水被兩邊的岸夾在中間");
+    expect(memoryTip.querySelector("svg")).toBeInTheDocument();
     const schedule = within(dialog).getByRole("region", { name: "Review schedule" });
     const scrollRegion = dialog.querySelector(".learning-dialog-scroll");
     expect(scrollRegion).toContainElement(schedule);
@@ -943,6 +947,9 @@ describe("LearningLibraryWorkspace", () => {
     fireEvent.change(screen.getByLabelText("Learning caution"), {
       target: { value: "不要與金融機構的 bank 混淆。" }
     });
+    fireEvent.change(screen.getByRole("textbox", { name: "Memory tip" }), {
+      target: { value: "想像河水被左右兩道岸穩穩夾住。" }
+    });
     expect(screen.getByLabelText("Markdown preview")).toHaveTextContent("河岸地帶");
     expect(screen.getByLabelText("Learning caution preview")).toHaveTextContent(
       "不要與金融機構"
@@ -966,7 +973,8 @@ describe("LearningLibraryWorkspace", () => {
         itemId: "item-bank",
         title: "river bank",
         language: "ja",
-        cautionNote: "注意：bank 在這裡是河岸，不是金融機構。"
+        cautionNote: "注意：bank 在這裡是河岸，不是金融機構。",
+        memoryTip: "想像河水被兩邊的岸夾在中間；那條貼著水邊的土地就是 bank。"
       })
     ));
     await waitFor(() => expect(scrollRegion.scrollTop).toBe(420));

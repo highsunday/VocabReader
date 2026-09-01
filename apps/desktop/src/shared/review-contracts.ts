@@ -2,7 +2,10 @@ import type { LearningItem } from "./learning-contracts";
 
 export type ReviewRating = "forgotten" | "hard" | "good" | "easy";
 
-export interface ReviewQueueItem extends LearningItem {
+export interface ReviewQueueItem extends Omit<
+  LearningItem,
+  "memoryTip" | "representativeImageDataUrl"
+> {
   reviewKind: "due" | "new";
   dueAt: string | null;
 }

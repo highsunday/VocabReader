@@ -622,6 +622,7 @@ export class ChatController {
       drafts: [{
         ...input,
         id: current.id,
+        memoryTip: input.memoryTip ?? current.memoryTip,
         ...(current.requestedTitles
           ? { requestedTitles: current.requestedTitles }
           : {}),
@@ -826,6 +827,7 @@ export class ChatController {
               language: draft.language,
               cefr: draft.cefr,
               sense: draft.sense,
+              memoryTip: draft.memoryTip,
               markdownContent: draft.markdownContent
             }))
           )

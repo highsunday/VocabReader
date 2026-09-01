@@ -873,6 +873,7 @@ describe("ChatController", () => {
       language: "en" as const,
           cefr: "B2",
           sense: "unwilling or hesitant",
+          memoryTip: "想像門已打開，但你的腳還黏在地上。",
           markdownContent: "## Meaning\n不情願。\n\n## Examples\n1. She was reluctant."
         }],
         existing: [],
@@ -920,6 +921,7 @@ describe("ChatController", () => {
       language: "en" as const,
           cefr: "A1",
           sense: "domesticated canine animal",
+          memoryTip: "Picture a dog waiting by the door with its tail wagging for its family.",
           markdownContent: "## Meaning\nA domesticated canine."
         }],
         existing: [],
@@ -1002,6 +1004,7 @@ describe("ChatController", () => {
       language: "en" as const,
           cefr: "A1",
           sense: "domesticated canine animal",
+          memoryTip: "Picture a dog waiting by the door with its tail wagging for its family.",
           markdownContent: "## Meaning\nA domesticated canine."
         }],
         existing: [],
@@ -1158,6 +1161,7 @@ describe("ChatController", () => {
       language: "en" as const,
               cefr: "B1",
               sense: "before a future event",
+              memoryTip: "想像時鐘的指針還沒走到活動時間，你已經先把事情完成了。",
               markdownContent: "## Meaning\n預先、提前。"
             }],
             existing: [],
@@ -1226,6 +1230,7 @@ describe("ChatController", () => {
       language: "en" as const,
               cefr: "B1",
               sense: "before a future event",
+              memoryTip: "Picture yourself arriving before the clock reaches the marked event time.",
               markdownContent: "## Meaning\nAhead of time."
             }],
             existing: [],
@@ -1377,6 +1382,7 @@ describe("ChatController", () => {
       language: "en" as const,
               cefr: "A1",
               sense: "a round fruit",
+              memoryTip: "Picture a red apple rolling in a circle across the table.",
               markdownContent: "## Meaning\nA round fruit."
             }, {
               title: "banana",
@@ -1384,6 +1390,7 @@ describe("ChatController", () => {
       language: "en" as const,
               cefr: "A1",
               sense: "a long curved fruit",
+              memoryTip: "Picture a yellow banana curved like a small moon.",
               markdownContent: "## Meaning\nA long curved fruit."
             }],
             existing: [],
@@ -1485,6 +1492,7 @@ describe("ChatController", () => {
       language: "en" as const,
               cefr: "A1",
               sense: "a round fruit",
+              memoryTip: "Picture a red apple rolling in a circle across the table.",
               markdownContent: "## Meaning\nA round fruit."
             }, {
               title: "banana",
@@ -1492,6 +1500,7 @@ describe("ChatController", () => {
       language: "en" as const,
               cefr: "A1",
               sense: "a long curved fruit",
+              memoryTip: "Picture a yellow banana curved like a small moon.",
               markdownContent: "## Meaning\nA long curved fruit."
             }],
             existing: [],
@@ -1600,6 +1609,7 @@ describe("ChatController", () => {
       language: "en" as const,
               cefr: "A2",
               sense: "an organization that keeps and lends money",
+              memoryTip: "想像錢包住進一棟會替你保管並借錢的建築。",
               markdownContent: "## Meaning\n銀行",
               state: "included"
             }, {
@@ -1609,6 +1619,7 @@ describe("ChatController", () => {
       language: "en" as const,
               cefr: "B2",
               sense: "unwilling or hesitant",
+              memoryTip: "想像門已打開，但你的腳還黏在地上。",
               markdownContent: "## Meaning\n不情願。",
               state: "included"
             }],
@@ -1652,6 +1663,7 @@ describe("ChatController", () => {
       language: "en" as const,
       cefr: "C1",
       sense: "unwilling or hesitant",
+      memoryTip: "想像門已打開，但你仍緊抓門框不想踏出去。",
       markdownContent: "## Meaning\n不願意。"
     });
     controller.setLearningItemDraftState(
@@ -1677,7 +1689,8 @@ describe("ChatController", () => {
     );
     expect(submittedInputs).toEqual([expect.objectContaining({
       title: "reluctant",
-      cefr: "C1"
+      cefr: "C1",
+      memoryTip: "想像門已打開，但你仍緊抓門框不想踏出去。"
     })]);
     expect(submitted.messages[0]?.learningItemBatch).toMatchObject({
       status: "submitted",
@@ -1722,6 +1735,7 @@ describe("ChatController", () => {
       language: "en" as const,
               cefr: "B1",
               sense: "before a future event",
+              memoryTip: "想像行程尚未開始，行李已先放到門口。",
               markdownContent: "## Meaning\n預先。",
               state: "included"
             }],

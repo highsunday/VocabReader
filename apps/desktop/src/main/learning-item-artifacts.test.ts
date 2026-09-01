@@ -52,6 +52,7 @@ describe("parseLearningItemArtifacts", () => {
       language: "en" as const,
           cefr: "B2",
           sense: "unwilling or hesitant",
+          memoryTip: "想像門已打開，但你的腳還黏在地上，很不情願踏出去。",
           markdownContent: "## Meaning\n不情願。\n\n## Examples\n1. She was reluctant."
         }],
         existing: [{
@@ -80,6 +81,7 @@ describe("parseLearningItemArtifacts", () => {
         id: "generated-2",
         title: "reluctant",
         requestedTitles: ["reluctant"],
+        memoryTip: "想像門已打開，但你的腳還黏在地上，很不情願踏出去。",
         state: "included"
       }],
       existing: [{
@@ -89,6 +91,32 @@ describe("parseLearningItemArtifacts", () => {
       }],
       trashed: [{ itemId: "item-happy", status: "trashed" }]
     });
+  });
+
+  it("rejects every new draft that omits a non-empty memory tip", () => {
+    for (const memoryTip of [undefined, "", "   ", 42]) {
+      const result = parseLearningItemArtifacts([
+        "```learning-item-result",
+        JSON.stringify({
+          drafts: [{
+            title: "reluctant",
+            requestedTitles: ["reluctant"],
+            itemType: "word",
+            language: "en",
+            cefr: "B2",
+            sense: "unwilling or hesitant",
+            ...(memoryTip === undefined ? {} : { memoryTip }),
+            markdownContent: "## Meaning\n不情願。"
+          }],
+          existing: [],
+          trashed: []
+        }),
+        "```"
+      ].join("\n"));
+
+      expect(result.batch).toBeUndefined();
+      expect(result.error).toMatch(/learning-item draft/);
+    }
   });
 
   it("requires and preserves the AI-classified language for every draft", () => {
@@ -103,6 +131,7 @@ describe("parseLearningItemArtifacts", () => {
           language: "ja",
           cefr: "A1",
           sense: "to eat",
+          memoryTip: "食事を口に運んで、お腹を満たす場面を思い浮かべる。",
           markdownContent: "## Meaning\n食べ物を口にする。"
         }],
         existing: [],
@@ -128,6 +157,7 @@ describe("parseLearningItemArtifacts", () => {
           language: "ko",
           cefr: "B1",
           sense: "in theory",
+          memoryTip: "머릿속 칠판에서는 완벽하지만, 아직 현실 바닥에는 내려오지 않은 그림을 떠올리세요.",
           markdownContent: "## Meaning\n이론적으로 따져 보면."
         }],
         existing: [],

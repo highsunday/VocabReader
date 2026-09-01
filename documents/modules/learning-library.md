@@ -2,7 +2,7 @@
 title: 本機生詞庫模組
 module: learning-library
 status: active
-last_updated: 2026-08-25
+last_updated: 2026-09-01
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
@@ -20,6 +20,7 @@ related_implements:
   - F55-edit-learning-items-from-graded-review
   - F59-add-learning-item-representative-image
   - F62-show-learning-library-study-status-counts
+  - F78-add-imaginative-memory-tips
 ---
 
 # 本機生詞庫模組
@@ -56,6 +57,9 @@ related_implements:
 - 同標題不同語義以不同不可變 id 保存，不合併內容。
 - 每個項目提供可留空的學習注意事項；完整詳情以 `Note`、紅字與紅底線顯示，清單摘要
   與未作答複習題面不載入或顯示。
+- 每個新 AI 草稿提供一個具象 Memory tip；正式項目可人工修改或清空。非空提示在完整
+  詳情以 Brain 圖示、標籤、左側線與淡藍紫面板顯示，醒目程度高於正文但低於紅色 Note；
+  清單摘要與未作答複習題不載入或顯示。
 - 每個正式項目可保存一張可留空的代表圖片；Main 將 JPEG／PNG／WebP 來源自動中心裁切、
   白底合成並輸出為 256×256 JPEG 品質 85。圖片只在完整詳情顯示，清單、未作答複習題
   與複習 AI scope 都不包含圖片。
@@ -94,7 +98,7 @@ related_implements:
 - 以 Main-owned 完整資料取得 active／trash 與四個進度數量；New 對齊 Review 的
   `newCount`，Studying 對齊兩類 learning count，Strong 復用 Solid recall 判定，
   Familiar 是已開始且不屬於 Studying／Strong 的其餘 active 項目。
-- 更新學習內容與時間戳。
+- 更新學習內容、Memory tip 與時間戳。
 - 以 active guard 原子保存或移除處理後的代表圖片 BLOB；Trash／restore 保留圖片，永久
   清空項目 row 時才一併刪除。
 - 以 `applyAiEdit()` 只更新 Markdown、注意事項與時間戳，並以 active 狀態與原始
@@ -160,6 +164,8 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 - 詳情 modal、焦點回復、Escape／遮罩關閉。
 - Markdown 查看、編輯、預覽與錯誤狀態。
 - 學習注意事項的人工編輯、即時預覽與醒目完整詳情呈現。
+- Memory tip 的人工編輯、空值隱藏，以及位於注意事項之後、Markdown 之前的藍紫色
+  具象提示面板。
 - 代表圖片的完整詳情顯示，以及 editable 入口中的立即 Add／Replace 與確認後 Remove；
   read-only 入口只顯示、不渲染 mutation。
 - 以現有詳情作為唯一草稿預覽的 AI composer、多輪狀態、停止、明確 Apply 與未套用
@@ -181,14 +187,14 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 | `CefrLevel` | `A1 | A2 | B1 | B2 | C1 | C2` |
 | `LearningItemStatus` | `active | trashed` |
 | `LearningItemSort` | `recent | alphabetical | study-status | next-due` |
-| `LearningItem` | id、標題、類型、語言、CEFR、語義、Markdown、注意事項、nullable 代表圖片、狀態與時間戳 |
-| `LearningItemSummary` | 清單所需結構化欄位、study status 與 due；不含 Markdown、注意事項或代表圖片 |
+| `LearningItem` | id、標題、類型、語言、CEFR、語義、Markdown、Memory tip、注意事項、nullable 代表圖片、狀態與時間戳 |
+| `LearningItemSummary` | 清單所需結構化欄位、study status 與 due；不含 Markdown、Memory tip、注意事項或代表圖片 |
 | `LearningItemListInput` | 狀態、可選搜尋／語言／類型／CEFR／progress status／study status、排序與 opaque cursor |
 | `LearningItemPage` | 最多 50 筆摘要及 nullable `nextCursor` |
 | `LearningItemCounts` | active／trash 與 New／Studying／Familiar／Strong 完整數量 |
-| `UpdateLearningItemInput` | item id 與可編輯的結構化／Markdown／注意事項欄位；不攜帶代表圖片 |
+| `UpdateLearningItemInput` | item id 與可編輯的結構化／Markdown／Memory tip／注意事項欄位；不攜帶代表圖片 |
 | `LearningItemEditSnapshot` | 單項暫態 AI 編修的最新草稿、phase、變更與簡短狀態 |
-| `LearningItemDraft` | 尚未提交的 word／phrase 結構、Markdown 與 included／excluded |
+| `LearningItemDraft` | 尚未提交的 word／phrase 結構、Markdown、必填 Memory tip 與 included／excluded |
 | `LearningItemDraftBatch` | drafts、active／trash matches 與提交結果 |
 | `ReviewSummary` | 可用總數、本回合 due/new queue 與下一到期時間 |
 | `LearningItemReviewDetail` | 狀態、最後評級、due、次數、精簡事件與複習作答 |
@@ -205,7 +211,8 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 - `learning_metadata`：一次性 seed 等 repository metadata。
 - `learning_items`：學習項目內容、語言、注意事項、狀態與時間戳；schema 5 把既有 row
   backfill 為英文並保存四類語言，schema 6 新增 non-null `caution_note` 並以空字串
-  backfill 舊項目，schema 7 新增 nullable `representative_image` JPEG BLOB。
+  backfill 舊項目，schema 7 新增 nullable `representative_image` JPEG BLOB，schema 8
+  新增 non-null `memory_tip` 並以空字串 backfill 舊項目。
 - `learning_review_schedules`：每個項目的目前 FSRS card、due、次數與最後評級。
 - `learning_review_events`：複習作答、AI／最終評級、FSRS 前後狀態、間隔及 due 的
   精簡事件；schema 4 的 nullable `answer` 讓舊事件可無損保留。
@@ -215,8 +222,9 @@ FSRS card、資料庫欄位或 AI workflow 設定。
 
 完整資料備份保存整份 SQLite，因此同時包含 active、trashed、FSRS schedules、精簡
 events 與已確認的複習作答；未確認試卷及其作答、詳細 AI 回饋與設定不在資料庫內，
-也不會進入備份。已 Apply 的注意事項與 active／trashed 項目的處理後代表圖片都屬於正式
-SQLite 內容，會隨完整備份往返；AI 編修 session、需求與未套用草稿不會進入備份。
+也不會進入備份。已保存的 Memory tip、已 Apply 的注意事項與 active／trashed 項目的
+處理後代表圖片都屬於正式 SQLite 內容，會隨完整備份往返；AI 編修 session、需求與
+未套用草稿不會進入備份。
 
 ## 6. Query and Mutation Flow
 
@@ -252,6 +260,8 @@ Markdown、語義、例句與搭配詞不參與搜尋。
   垃圾桶與造句 read-only 詳情不渲染入口。AI 草稿有變更時，Close、Escape 與遮罩
   離開共用放棄確認。
 - 非空注意事項顯示在 Markdown 前，以文字標示、紅色與底線共同傳達重點；空值不留區塊。
+- 非空 Memory tip 固定在注意事項之後、Markdown 之前，使用 Brain 圖示、文字標籤、
+  一條較深左側線與低彩度藍紫色；不使用綠色、紅色、底線、警示圖示或重陰影。
 - 代表圖片顯示在標題／sense 下方與注意事項／Markdown 上方，使用描述目前標題與 sense
   的替代文字；Remove 使用具名 `alertdialog`，取消或 Escape 保留圖片。
 - 詳情中的「刪除」先開啟具名 `alertdialog`；取消或 Escape 只關閉最上層確認視窗，
@@ -281,25 +291,25 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 
 | Test file | Coverage |
 |---|---|
-| `learning-library-service.test.ts` | schema 7 migration／語言、注意事項與圖片 backfill、seed、搜尋／語言／進度篩選、page、cursor、四進度 count／Strong 與 Solid recall 一致性、候選、atomic create、guarded AI apply、圖片 lifecycle／scope、垃圾桶、sentence-practice eligibility、backup／close |
+| `learning-library-service.test.ts` | schema 8 migration／語言、Memory tip、注意事項與圖片 backfill、摘要與複習防洩漏、seed、搜尋／語言／進度篩選、page、cursor、四進度 count／Strong 與 Solid recall 一致性、候選、atomic create、guarded AI apply、圖片 lifecycle／scope、垃圾桶、sentence-practice eligibility、backup／close |
 | `learning-item-representative-image.test.ts` | JPEG／PNG／WebP、10 MiB、拒絕格式、中心裁切、透明白底、256px JPEG 與 Main-owned dialog |
-| `data-backup-service.test.ts` | active／trash／語言／代表圖片／排程／歷史 snapshot、完整取代與 rollback |
+| `data-backup-service.test.ts` | active／trash／語言／Memory tip／代表圖片／排程／歷史 snapshot、完整取代與 rollback |
 | `spaced-review-artifacts.test.ts`、`spaced-review-controller.test.ts` | 有限 AI scope、artifact 與暫態生命週期 |
 | `learning-library-ipc.test.ts`、`learning-item-edit-ipc.test.ts` | 一般與 AI edit IPC 白名單、惡意／錯誤 payload 拒絕 |
 | `learning-item-artifacts.test.ts`、`learning-item-edit-controller.test.ts` | 嚴格 edit artifact、最小 scope、暫態草稿、Apply 與停止競態 |
-| `learning-library-workspace.test.tsx` | 查詢、四進度指標與切換篩選、卡片時間狀態、分批、Trash、retry、視窗化、共用 modal、安全 Markdown、注意事項、AI 草稿／停止／放棄／Apply 與唯讀邊界 |
+| `learning-library-workspace.test.tsx` | 查詢、四進度指標與切換篩選、卡片時間狀態、分批、Trash、retry、視窗化、共用 modal、安全 Markdown、Memory tip、注意事項、AI 草稿／停止／放棄／Apply 與唯讀邊界 |
 | `App.test.tsx` | 入口、啟動數量、AI 新增入口、invitation 與草稿 modal |
-| `learning-item-draft-dialog.test.tsx` | 已存在項目唯讀詳情、雙層 Escape 與載入失敗重試 |
-| `desktop.spec.ts` | 真實 Electron bridge、十筆資料、詳情、窄版四進度無水平 overflow，以及捲到底後工具區位置不變 |
+| `learning-item-draft-dialog.test.tsx` | Memory tip 草稿預覽、已存在項目唯讀詳情、雙層 Escape 與載入失敗重試 |
+| `desktop.spec.ts` | 真實 Electron bridge、Memory tip 與 Note 視覺層級、十筆資料、詳情、窄版四進度無水平 overflow，以及捲到底後工具區位置不變 |
 
-最近驗證（2026-08-14）：
+最近驗證（2026-09-01）：
 
 - Server Vitest：3/3 passed。
-- Desktop Vitest：515/515 passed。
+- Desktop Vitest：580/580 passed。
 - Desktop TypeScript typecheck：passed。
 - Desktop production build：passed。
-- Electron Playwright E2E：3/3 passed，包含 Library 窄版四進度完整可見且無水平
-  overflow、runtime edit skill、代表圖片 bridge 與 `learning.aiEdit` 白名單。
+- Electron Playwright E2E：5/5 passed；Memory tip 的文字、標籤與圖示對淡藍紫背景
+  的對比分別為 9.52:1、7.32:1 與 5.27:1。
 
 ## 10. Known Limitations and Follow-up
 
@@ -338,4 +348,5 @@ Markdown、語義、例句與搭配詞不參與搜尋。
 - `documents/implements/F55-edit-learning-items-from-graded-review.md`
 - `documents/implements/F59-add-learning-item-representative-image.md`
 - `documents/implements/F62-show-learning-library-study-status-counts.md`
+- `documents/implements/F78-add-imaginative-memory-tips.md`
 - `documents/modules/learning-item-editing.md`

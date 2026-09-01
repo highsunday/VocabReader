@@ -2,7 +2,7 @@
 title: AI 輔助學習項目建立模組
 module: learning-item-creation
 status: active
-last_updated: 2026-08-25
+last_updated: 2026-09-01
 related_implements:
   - F21-ai-assisted-learning-item-creation
   - F22-read-only-learning-item-draft-preview
@@ -17,6 +17,7 @@ related_implements:
   - F53-open-existing-learning-item-from-card-review
   - F65-standardize-learning-item-example-support
   - F70-preserve-useful-detail-in-learning-items
+  - F78-add-imaginative-memory-tips
 ---
 
 # AI 輔助學習項目建立模組
@@ -45,11 +46,13 @@ related_implements:
 5. `create-learning-items` 只收到請求目標、有限閱讀區段及候選的
    id／title／sense／status／Markdown，先重新驗證每個 target 是可獨立學習的單字或
    可重複使用片語，再負責原型化、語義去重、必要澄清及草稿內容。
-6. Main 驗證 fenced `learning-item-result`；每個結果的 `requestedTitles` 必須落在該
-   turn 的受信任目標，並具有 `en | ja | zh-TW | ko | other` 其中一個學習項目語言；match id
-   仍必須來自 App 提供的候選。
-7. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要與安全
-   渲染的 Markdown 預覽；使用者可把草稿排除／恢復，但不可編輯草稿內容。active
+6. Main 驗證 fenced `learning-item-result`；每筆新草稿必須具有非空 `memoryTip`，每個
+   結果的 `requestedTitles` 必須落在該 turn 的受信任目標，並具有
+   `en | ja | zh-TW | ko | other` 其中一個學習項目語言；match id 仍必須來自 App
+   提供的候選。
+7. AI 訊息下方顯示批次按鈕。中央 modal 的清單區可捲動，只顯示結構化摘要、具象
+   Memory tip 與安全渲染的 Markdown 預覽；使用者可把草稿排除／恢復，但不可編輯
+   草稿內容。active
    已存在項目可以點擊開啟共用唯讀詳情，關閉詳情後保留原草稿清單。
 8. 提交時重新以原型草稿標題查候選。若有候選，以一次隔離 Codex turn 執行
    `learning-item-recheck` 語義分類；不逐卡啟動 AI，也不提供完整生詞庫。
@@ -125,6 +128,9 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
   `Common mistakes` 或 `Pronunciation notes` 等補充小節。詳細程度不設固定字數上限，
   但不得機械加入所有小節、填充簡單項目或重複核心內容。
 - 結構化 `sense` 維持簡短英文語義識別，確保既有候選查詢與語義去重契約不變。
+- 結構化 `memoryTip` 使用同一講解語言，優先以具體物件、動作、方向或反差形成一個
+  可在腦中重播的微型場景，並明確連回該筆目標語義；只有確實有幫助時才使用可驗證
+  的字形、發音或詞源聯結，不捏造詞源或勉強製造讀音雙關。
 
 ## 5. Trust Boundaries
 
@@ -139,6 +145,8 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
 - 對話 store、IPC、Controller 與 repository 都重新驗證 enum、必要文字及批次 id。
 - 缺少或偽造學習項目語言的 AI result 不會產生可提交草稿；提交時語言隨其他欄位在
   同一交易寫入。
+- 缺少、空白或非字串的 `memoryTip` 會使整份 creation artifact 失效；正式提交時
+  Memory tip 隨其他草稿欄位在同一交易寫入。
 - 一般問答、假設、引用與否定句不會啟用 creation skill；任何語言的自然語言請求由
   AI 依語義決定，不依 Renderer 關鍵字或動詞清單。
   隔離 turn 禁用工具、網路、plugins、apps、memories 與 skill discovery。
@@ -155,10 +163,11 @@ AI 也逐筆依 `學習項目語言 + canonical title + 目標語義`判定**使
 
 version 1 對話可讀取並在下次保存時遷移。準備狀態保存 targets、講解語言與錯誤；
 重啟時殘留 `preparing` 會正規化為可重試的 `failed`，不自動啟動 AI。草稿內容、
-included／excluded、候選 match、submitted／abandoned 時間及 created item ids 都附著
+Memory tip、included／excluded、候選 match、submitted／abandoned 時間及 created item ids 都附著
 於對話訊息。移除整筆對話會移除草稿，但不影響已提交的正式項目。
 
-中央 `LearningItemDraftDialog` 固定 header／footer，只有卡片區垂直捲動；Markdown 使用
+中央 `LearningItemDraftDialog` 固定 header／footer，只有卡片區垂直捲動；Memory tip
+固定在 Markdown 前，以 Brain 圖示、標籤與低彩度藍紫面板呈現；Markdown 使用
 `react-markdown`、GFM 與 `skipHtml`。確認浮層沒有標題、語言、類型、CEFR、語義或原始
 Markdown 的編輯控制；沒有 included 草稿時提交停用。Escape、遮罩及明確關閉按鈕只
 關閉 modal，不改變草稿狀態。pending 批次另提供「放棄這批草稿」與二次確認；
@@ -169,7 +178,7 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
 
 | File | Responsibility |
 |---|---|
-| `.agents/skills/create-learning-items/SKILL.md` | 澄清、語義去重、草稿與提交 recheck 契約 |
+| `.agents/skills/create-learning-items/SKILL.md` | 澄清、語義去重、具象 Memory tip、草稿與提交 recheck 契約 |
 | `.agents/skills/explain-reader-annotations/SKILL.md` | word／phrase invitation 契約 |
 | `apps/desktop/src/main/learning-library-service.ts` | exact-title 候選查詢、atomic create、restore |
 | `apps/desktop/src/main/learning-item-artifacts.ts` | intent、result、invitation、recheck JSON 驗證 |
@@ -184,7 +193,7 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
 
 - `learning-library-service.test.ts`：exact normalized query 與交易新增。
 - `learning-item-artifacts.test.ts`：intent、result、invitation、request 與 recheck
-  fenced artifact 的嚴格驗證、必填語言及 50-target 邊界。
+  fenced artifact 的嚴格驗證、必填語言、非空 Memory tip 及 50-target 邊界。
 - `learning-item-duplicate-classifier.test.ts`：單次有限候選 AI recheck。
 - `chat-controller.test.ts`：skill routing、候選範圍、持久澄清、草稿生命週期、重查、
   還原、不可重複提交、多語 AI route、自動 continuation、原 target 重試、放棄，
@@ -193,8 +202,9 @@ abandoned 批次只顯示唯讀摘要。已存在列以可對焦按鈕呼叫現�
   銜接與無關內容排除契約。
 - `chat-conversation-store.test.ts`：version 1→2、批次與 interrupted preparation 持久化。
 - `chat-ipc.test.ts`：intent、targets、retry、abandon 與 mutation 邊界。
-- `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI、快捷／邀請入口、已存在項目
-  唯讀詳情與錯誤重試，以及普通訊息不做 Renderer 文字配對、重試 UI 與明確放棄流程。
+- `learning-item-draft-dialog.test.tsx`、`App.test.tsx`：批次 UI、Memory tip 預覽、
+  快捷／邀請入口、已存在項目唯讀詳情與錯誤重試，以及普通訊息不做 Renderer 文字配對、
+  重試 UI 與明確放棄流程。
 - `desktop.spec.ts`：production skill 安裝與 preload bridge 白名單。
 
 `chat-controller.test.ts` 另驗證日文完整命題、連接子句與真正可重複使用片語的

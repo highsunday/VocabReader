@@ -132,6 +132,7 @@ For every new word or phrase, provide:
 - `language`: the App-provided active workspace code (`en`, `ja`, `zh-TW`, or `ko`)
 - `cefr`: `A1`, `A2`, `B1`, `B2`, `C1`, or `C2`
 - `sense`: a short English semantic identifier
+- `memoryTip`: a concise, concrete memory cue in the requested explanation language
 - `markdownContent`
 
 Verify every canonical title against the App-provided learning-language
@@ -220,6 +221,22 @@ collocations, or Examples.
 Do not add optional sections mechanically or pad a simple item. If no additional
 detail has lasting learning value, return only the required core structure.
 
+## Memory Tip Contract
+
+Every new word or phrase draft must include a non-empty `memoryTip`. Write it in
+the requested explanation language while preserving any target-language term
+needed for the association.
+
+- Prefer a miniature mental scene the learner can picture and replay. Give it a
+  concrete object plus an action, direction, size, texture, or contrast, then
+  connect that image directly to the intended sense.
+- Keep the cue concise and self-contained. It should help recall, not repeat the
+  dictionary meaning or become another example section.
+- Use spelling shape, sound association, or etymology only when that connection
+  is genuinely useful. Never invent etymology or force an unrelated pun.
+- Do not rely on another difficult word to explain the target, and do not reuse
+  one generic scene across unrelated drafts.
+
 ## Example Support Contract
 
 Use this exact core Markdown structure for new learning content. Insert any
@@ -274,6 +291,7 @@ End a successful preparation or recheck response with exactly one fenced `learni
       "language": "en",
       "cefr": "B2",
       "sense": "unwilling or hesitant",
+      "memoryTip": "Picture an open door while your feet stay glued to the floor: you hesitate to step through.",
       "markdownContent": "## Meaning\n..."
     }
   ],

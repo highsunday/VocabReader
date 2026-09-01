@@ -33,6 +33,7 @@ describe("classifyLearningItemDuplicatesWithCodex", () => {
       language: "en" as const,
         cefr: "A2",
         sense: "an organization that keeps and lends money",
+        memoryTip: "想像硬幣穿過銀行大門，流進安全的金庫。",
         markdownContent: "## Meaning\n銀行",
         state: "included"
       }],

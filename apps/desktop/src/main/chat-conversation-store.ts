@@ -142,7 +142,9 @@ function parseMessage(value: unknown): ChatMessage {
   };
   if (value.learningItemBatch !== undefined) {
     message.learningItemBatch = learningItemBatchFromUnknown(
-      value.learningItemBatch
+      value.learningItemBatch,
+      undefined,
+      { allowMissingMemoryTip: true }
     );
   }
   if (value.learningItemInvitation !== undefined) {

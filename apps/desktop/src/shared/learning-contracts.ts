@@ -17,6 +17,7 @@ export interface LearningItem {
   cefr: CefrLevel;
   sense: string;
   markdownContent: string;
+  memoryTip?: string;
   cautionNote?: string;
   representativeImageDataUrl?: string | null;
   status: LearningItemStatus;
@@ -75,15 +76,18 @@ export interface CreateLearningItemInput {
   cefr: CefrLevel;
   sense: string;
   markdownContent: string;
+  memoryTip?: string;
 }
 
 export interface UpdateLearningItemInput extends CreateLearningItemInput {
   itemId: string;
+  memoryTip: string;
   cautionNote: string;
 }
 
 export interface LearningItemDraft extends CreateLearningItemInput {
   id: string;
+  memoryTip: string;
   state: "included" | "excluded";
   requestedTitles?: string[];
 }

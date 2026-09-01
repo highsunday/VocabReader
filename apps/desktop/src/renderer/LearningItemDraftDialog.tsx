@@ -13,7 +13,10 @@ import type {
   LearningItem
 } from "../shared/learning-contracts";
 import type { ReviewDesktopApi } from "../shared/review-contracts";
-import { LearningItemDialog } from "./LearningLibraryWorkspace";
+import {
+  LearningItemDialog,
+  LearningMemoryTip
+} from "./LearningLibraryWorkspace";
 
 const languageLabels: Record<LearningItemLanguage, string> = {
   en: "English",
@@ -98,6 +101,7 @@ function DraftPreview({
 
       <div className="learning-item-draft-preview">
         <span>Preview</span>
+        <LearningMemoryTip>{draft.memoryTip}</LearningMemoryTip>
         <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
           {draft.markdownContent}
         </ReactMarkdown>

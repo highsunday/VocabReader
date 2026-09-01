@@ -58,7 +58,8 @@ function requestedTitlesFromUnknown(value: unknown): string[] | undefined {
 
 function draftFromUnknown(
   value: unknown,
-  createId: () => string
+  createId: () => string,
+  allowMissingMemoryTip = false
 ): LearningItemDraft {
   if (!isObject(value) || !itemTypes.has(value.itemType as LearningItemType) ||
     !languages.has(value.language as LearningItemLanguage) ||
@@ -66,6 +67,10 @@ function draftFromUnknown(
     throw new Error("Invalid learning-item draft");
   }
   const requestedTitles = requestedTitlesFromUnknown(value.requestedTitles);
+  const memoryTip = allowMissingMemoryTip &&
+    (value.memoryTip === undefined || value.memoryTip === "")
+    ? ""
+    : requiredString(value.memoryTip);
   return {
     id: typeof value.id === "string" && value.id ? value.id : createId(),
     title: requiredString(value.title),
@@ -73,6 +78,7 @@ function draftFromUnknown(
     language: value.language as LearningItemLanguage,
     cefr: value.cefr as CefrLevel,
     sense: requiredString(value.sense),
+    memoryTip,
     markdownContent: requiredString(value.markdownContent),
     ...(requestedTitles ? { requestedTitles } : {}),
     state: value.state === undefined
@@ -104,7 +110,8 @@ function matchFromUnknown(
 
 export function learningItemBatchFromUnknown(
   value: unknown,
-  createId: () => string = randomUUID
+  createId: () => string = randomUUID,
+  options: { allowMissingMemoryTip?: boolean } = {}
 ): LearningItemDraftBatch {
   if (!isObject(value) || !Array.isArray(value.drafts) ||
     !Array.isArray(value.existing) || !Array.isArray(value.trashed)) {
@@ -121,7 +128,11 @@ export function learningItemBatchFromUnknown(
   const batch: LearningItemDraftBatch = {
     id: typeof value.id === "string" && value.id ? value.id : createId(),
     status,
-    drafts: value.drafts.map((draft) => draftFromUnknown(draft, createId)),
+    drafts: value.drafts.map((draft) => draftFromUnknown(
+      draft,
+      createId,
+      options.allowMissingMemoryTip
+    )),
     existing: value.existing.map((match) => matchFromUnknown(match, "active")),
     trashed: value.trashed.map((match) => matchFromUnknown(match, "trashed"))
   };

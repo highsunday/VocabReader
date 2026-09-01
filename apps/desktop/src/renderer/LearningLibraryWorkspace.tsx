@@ -8,6 +8,7 @@ import {
   useState
 } from "react";
 import {
+  BrainCircuit,
   Check,
   Image as ImageIcon,
   Link,
@@ -166,6 +167,20 @@ function MarkdownContent({
   );
 }
 
+export function LearningMemoryTip({ children }: { children?: string }) {
+  const content = children?.trim();
+  if (!content) return null;
+  return (
+    <aside className="learning-memory-tip" role="note" aria-label="Memory tip">
+      <BrainCircuit aria-hidden="true" strokeWidth={1.8} />
+      <div>
+        <strong>Memory tip</strong>
+        <p>{content}</p>
+      </div>
+    </aside>
+  );
+}
+
 function fieldsFor(item: LearningItem): UpdateLearningItemInput {
   return {
     itemId: item.id,
@@ -175,6 +190,7 @@ function fieldsFor(item: LearningItem): UpdateLearningItemInput {
     cefr: item.cefr,
     sense: item.sense,
     markdownContent: item.markdownContent,
+    memoryTip: item.memoryTip ?? "",
     cautionNote: item.cautionNote ?? ""
   };
 }
@@ -665,6 +681,14 @@ export function LearningItemDialog({
                   placeholder="Optional reminder about an easy mistake or confusing distinction"
                 />
               </label>
+              <label className="learning-memory-tip-editor">
+                Memory tip
+                <textarea
+                  value={draft.memoryTip}
+                  onChange={(event) => updateDraft({ memoryTip: event.target.value })}
+                  placeholder="A concrete scene or association that makes this meaning easier to recall"
+                />
+              </label>
                 </div>
                 <section
                   className="learning-image-editor"
@@ -842,6 +866,7 @@ export function LearningItemDialog({
                     <strong>Note:</strong> {draft.cautionNote}
                   </p>
                 ) : null}
+                <LearningMemoryTip>{draft.memoryTip}</LearningMemoryTip>
                 <MarkdownContent label="Markdown preview">
                   {draft.markdownContent}
                 </MarkdownContent>
@@ -887,6 +912,7 @@ export function LearningItemDialog({
                     <strong>Note:</strong> {shownCaution}
                   </p>
                 ) : null}
+                <LearningMemoryTip>{item.memoryTip}</LearningMemoryTip>
                 <MarkdownContent>{shownMarkdown}</MarkdownContent>
               </div>
               {reviewApi ? (

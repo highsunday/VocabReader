@@ -1977,6 +1977,7 @@ describe("App", () => {
       language: "en" as const,
         cefr: "B1",
         sense: "investigate",
+        memoryTip: "想像拿著放大鏡探進盒子裡，把事情查清楚。",
         markdownContent: "## Meaning\n調查",
         state: "included"
       }],

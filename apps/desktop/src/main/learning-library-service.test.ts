@@ -29,6 +29,47 @@ afterEach(async () => {
 });
 
 describe("LocalLearningLibrary", () => {
+  it("persists a memory tip and migrates legacy items to an empty tip", async () => {
+    const path = await databasePath();
+    const library = new LocalLearningLibrary(path, { seedMockItems: false });
+    const created = await library.createItem({
+      title: "reluctant",
+      itemType: "word",
+      language: "en",
+      cefr: "B2",
+      sense: "unwilling or hesitant",
+      memoryTip: "想像門已打開，但你的腳還黏在地上，不情願踏出去。",
+      markdownContent: "## Meaning\n不情願。"
+    });
+
+    expect(created.memoryTip).toBe(
+      "想像門已打開，但你的腳還黏在地上，不情願踏出去。"
+    );
+    expect(MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION).toBe(8);
+
+    library.close();
+    const database = new DatabaseSync(path);
+    const row = database.prepare(
+      "SELECT memory_tip FROM learning_items WHERE id = ?"
+    ).get(created.id) as { memory_tip: string };
+    const migration = database.prepare(
+      "SELECT MAX(version) AS version FROM schema_migrations"
+    ).get() as { version: number };
+    database.close();
+
+    expect(row.memory_tip).toBe(created.memoryTip);
+    expect(migration.version).toBe(8);
+
+    const reopened = new LocalLearningLibrary(path, { seedMockItems: false });
+    const page = await reopened.listItemPage({ status: "active", sort: "recent" });
+    expect(page.items.find(({ id }) => id === created.id))
+      .not.toHaveProperty("memoryTip");
+    const review = await reopened.getReviewSummary("2026-09-01T08:00:00.000Z");
+    expect(review.selectedItems.find(({ id }) => id === created.id))
+      .not.toHaveProperty("memoryTip");
+    reopened.close();
+  });
+
   it("persists one representative image without adding it to list summaries", async () => {
     const library = new LocalLearningLibrary(await databasePath(), {
       getReviewPreferences: async () => ({
@@ -74,6 +115,7 @@ describe("LocalLearningLibrary", () => {
       cefr: created.cefr,
       sense: "a sure-footed wild mountain goat",
       markdownContent: created.markdownContent,
+      memoryTip: created.memoryTip ?? "",
       cautionNote: ""
     });
     expect((await library.getItem(created.id)).representativeImageDataUrl)
@@ -97,7 +139,7 @@ describe("LocalLearningLibrary", () => {
 
     const withoutImage = await imageLibrary.removeRepresentativeImage(created.id);
     expect(withoutImage.representativeImageDataUrl).toBeNull();
-    expect(MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION).toBe(7);
+    expect(MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION).toBe(8);
 
     await imageLibrary.setRepresentativeImage(created.id, imageBytes);
     await library.trashItem(created.id);
@@ -322,7 +364,7 @@ describe("LocalLearningLibrary", () => {
       .toMatchObject({ name: "representative_image", notnull: 0 });
     expect(languages).toEqual([{ language: "en" }]);
     expect(cautions).toEqual([{ caution_note: "" }]);
-    expect(migration.version).toBe(7);
+    expect(migration.version).toBe(8);
   });
 
   it("never reseeds after every example is permanently removed", async () => {
@@ -681,6 +723,7 @@ describe("LocalLearningLibrary", () => {
       cefr: "C1",
       sense: "unwilling to act",
       markdownContent: "## Meaning\n不情願。\n\n## Examples\n1. She was reluctant to leave.",
+      memoryTip: "想像門已打開，但你仍緊抓門框不想離開。",
       cautionNote: "注意不要與 relevant 混淆。"
     });
 
@@ -696,6 +739,7 @@ describe("LocalLearningLibrary", () => {
       cefr: "C1",
       sense: "unwilling",
       markdownContent: "content",
+      memoryTip: "",
       cautionNote: ""
     })).rejects.toThrow(/title/);
   });

@@ -46,8 +46,8 @@ import {
   type SentencePracticeItem
 } from "../shared/sentence-practice-contracts";
 
-// Schema 7 adds one optional processed representative image to every learning item.
-export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 7;
+// Schema 8 adds one learner-facing memory tip to every learning item.
+export const MAXIMUM_COMPATIBLE_LEARNING_LIBRARY_SCHEMA_VERSION = 8;
 
 interface LearningItemRow {
   id: string;
@@ -57,6 +57,7 @@ interface LearningItemRow {
   cefr: CefrLevel;
   sense: string;
   markdown_content: string;
+  memory_tip: string;
   caution_note: string;
   representative_image: Uint8Array | null;
   status: LearningItemStatus;
@@ -484,7 +485,14 @@ export function sentencePracticeMeaning(
   return paragraph.join(" ").trim() || fallbackSense.trim();
 }
 
-function validateCreate(input: CreateLearningItemInput): CreateLearningItemInput {
+type NormalizedCreateLearningItemInput = Omit<
+  CreateLearningItemInput,
+  "memoryTip"
+> & { memoryTip: string };
+
+function validateCreate(
+  input: CreateLearningItemInput
+): NormalizedCreateLearningItemInput {
   if (!input || typeof input !== "object") throw new Error("Invalid learning item");
   if (!itemTypes.has(input.itemType)) throw new Error("Invalid learning-item type");
   if (!languages.has(input.language)) throw new Error("Invalid learning-item language");
@@ -495,6 +503,7 @@ function validateCreate(input: CreateLearningItemInput): CreateLearningItemInput
     language: input.language,
     cefr: input.cefr,
     sense: requiredText(input.sense, "sense"),
+    memoryTip: typeof input.memoryTip === "string" ? input.memoryTip.trim() : "",
     markdownContent: requiredText(input.markdownContent, "Markdown content")
   };
 }
@@ -508,6 +517,7 @@ function itemFromRow(row: LearningItemRow): LearningItem {
     cefr: row.cefr,
     sense: row.sense,
     markdownContent: row.markdown_content,
+    memoryTip: row.memory_tip,
     cautionNote: row.caution_note,
     representativeImageDataUrl: row.representative_image
       ? `data:image/jpeg;base64,${Buffer.from(row.representative_image).toString("base64")}`
@@ -879,6 +889,7 @@ export class LocalLearningLibrary {
           cefr TEXT NOT NULL CHECK (cefr IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
           sense TEXT NOT NULL,
           markdown_content TEXT NOT NULL,
+          memory_tip TEXT NOT NULL DEFAULT '',
           caution_note TEXT NOT NULL DEFAULT '',
           representative_image BLOB,
           status TEXT NOT NULL CHECK (status IN ('active', 'trashed')),
@@ -971,6 +982,18 @@ export class LocalLearningLibrary {
       database.prepare(`
         INSERT OR IGNORE INTO schema_migrations (version, applied_at)
         VALUES (7, CURRENT_TIMESTAMP)
+      `).run();
+      const memoryTipColumns = database.prepare(
+        "PRAGMA table_info(learning_items)"
+      ).all() as unknown as Array<{ name: string }>;
+      if (!memoryTipColumns.some(({ name }) => name === "memory_tip")) {
+        database.exec(`
+          ALTER TABLE learning_items ADD COLUMN memory_tip TEXT NOT NULL DEFAULT ''
+        `);
+      }
+      database.prepare(`
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+        VALUES (8, CURRENT_TIMESTAMP)
       `).run();
       database.exec(`
         CREATE INDEX IF NOT EXISTS learning_items_status_language_created_idx
@@ -1461,6 +1484,7 @@ export class LocalLearningLibrary {
       const learningKind = progress.states.get(row.id)?.learningKind;
       const reviewKind = learningKind ?? (row.due_at ? "due" : "new");
       const {
+        memoryTip: _memoryTip,
         representativeImageDataUrl: _representativeImageDataUrl,
         ...item
       } = itemFromRow(row);
@@ -1693,9 +1717,10 @@ export class LocalLearningLibrary {
     const now = new Date().toISOString();
     this.#open().prepare(`
       INSERT INTO learning_items (
-        id, title, item_type, language, cefr, sense, markdown_content, status,
+        id, title, item_type, language, cefr, sense, markdown_content, memory_tip,
+        status,
         created_at, updated_at, trashed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
     `).run(
       id,
       item.title,
@@ -1704,6 +1729,7 @@ export class LocalLearningLibrary {
       item.cefr,
       item.sense,
       item.markdownContent,
+      item.memoryTip,
       now,
       now
     );
@@ -1725,9 +1751,10 @@ export class LocalLearningLibrary {
     const database = this.#open();
     const insert = database.prepare(`
       INSERT INTO learning_items (
-        id, title, item_type, language, cefr, sense, markdown_content, status,
+        id, title, item_type, language, cefr, sense, markdown_content, memory_tip,
+        status,
         created_at, updated_at, trashed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NULL)
     `);
     const created: Array<{ id: string; item: CreateLearningItemInput }> = [];
     database.exec("BEGIN IMMEDIATE");
@@ -1743,6 +1770,7 @@ export class LocalLearningLibrary {
           item.cefr,
           item.sense,
           item.markdownContent,
+          item.memoryTip,
           now,
           now
         );
@@ -1767,7 +1795,7 @@ export class LocalLearningLibrary {
     const result = this.#open().prepare(`
       UPDATE learning_items SET
         title = ?, item_type = ?, language = ?, cefr = ?, sense = ?, markdown_content = ?,
-        caution_note = ?,
+        memory_tip = ?, caution_note = ?,
         updated_at = ?
       WHERE id = ?
     `).run(
@@ -1777,6 +1805,7 @@ export class LocalLearningLibrary {
       item.cefr,
       item.sense,
       item.markdownContent,
+      typeof input.memoryTip === "string" ? input.memoryTip.trim() : "",
       typeof input.cautionNote === "string" ? input.cautionNote.trim() : "",
       new Date().toISOString(),
       id

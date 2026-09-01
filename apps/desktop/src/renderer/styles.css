@@ -5985,7 +5985,48 @@ button {
   text-decoration: none;
 }
 
-.learning-caution-editor {
+.learning-memory-tip {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid #cbc5df;
+  border-left-color: #746aa5;
+  border-radius: 12px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  color: #3f395e;
+  background: #f3f0f9;
+}
+
+.learning-memory-tip > svg {
+  width: 19px;
+  height: 19px;
+  margin-top: 1px;
+  color: #665c96;
+}
+
+.learning-memory-tip > div {
+  min-width: 0;
+}
+
+.learning-memory-tip strong {
+  display: block;
+  color: #514878;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+}
+
+.learning-memory-tip p {
+  margin: 3px 0 0;
+  color: #3f395e;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.learning-caution-editor,
+.learning-memory-tip-editor {
   display: grid;
   gap: 8px;
   min-height: 0;
@@ -5997,7 +6038,8 @@ button {
   letter-spacing: 0.02em;
 }
 
-.learning-caution-editor textarea {
+.learning-caution-editor textarea,
+.learning-memory-tip-editor textarea {
   width: 100%;
   min-height: 84px;
   height: 100%;
@@ -6012,9 +6054,15 @@ button {
   resize: none;
 }
 
-.learning-caution-editor textarea:focus {
+.learning-caution-editor textarea:focus,
+.learning-memory-tip-editor textarea:focus {
   border-color: #6e8b75;
   outline: 3px solid rgb(83 119 91 / 13%);
+}
+
+.learning-memory-tip-editor textarea:focus {
+  border-color: #756ba4;
+  outline-color: rgb(117 107 164 / 16%);
 }
 
 .learning-ai-editor {
@@ -6361,13 +6409,14 @@ button {
   padding: 0;
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(130px, 0.75fr);
-  grid-template-rows: repeat(3, auto) minmax(105px, 1fr);
+  grid-template-rows: repeat(3, auto) repeat(2, minmax(96px, 1fr));
   align-content: stretch;
   gap: 12px;
 }
 
 .learning-edit-fields > .learning-sense-editor,
-.learning-edit-fields > .learning-caution-editor {
+.learning-edit-fields > .learning-caution-editor,
+.learning-edit-fields > .learning-memory-tip-editor {
   grid-column: 1 / -1;
 }
 
@@ -6896,7 +6945,8 @@ button {
   }
 
   .learning-edit-fields > .learning-sense-editor,
-  .learning-edit-fields > .learning-caution-editor {
+  .learning-edit-fields > .learning-caution-editor,
+  .learning-edit-fields > .learning-memory-tip-editor {
     grid-column: auto;
   }
 
@@ -9141,6 +9191,11 @@ h1 {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.learning-item-draft-preview > .learning-memory-tip {
+  margin: 10px 0 12px;
+  background: #f1eef8;
 }
 
 .learning-item-draft-preview > :last-child {

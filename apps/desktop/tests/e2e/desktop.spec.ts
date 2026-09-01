@@ -896,7 +896,8 @@ test("launches the secure Electron reading shell", async () => {
       "Same as learning language (default)",
       "Traditional Chinese",
       "English",
-      "Japanese"
+      "Japanese",
+      "Korean"
     ]);
     await language.selectOption("ja");
     await expect(language).toHaveValue("ja");
@@ -1042,6 +1043,7 @@ test("launches the secure Electron reading shell", async () => {
       explanationLanguages: {
         en: "ja",
         ja: "source",
+        ko: "source",
         "zh-TW": "source"
       },
       aiConversationFontSize: 18,
@@ -1069,6 +1071,81 @@ test("launches the secure Electron reading shell", async () => {
     });
 
     expect(dataImageLoads).toBe(true);
+  } finally {
+    await electronApp.close();
+  }
+});
+
+test("shows a memorable cue below the stronger learning caution", async () => {
+  const electronApp = await electron.launch({
+    args: [desktopApp],
+    env: {
+      ...process.env,
+      NODE_ENV: "test"
+    }
+  });
+
+  try {
+    const page = await electronApp.firstWindow();
+    await page.getByRole("button", { name: /^Library \d+/ }).click();
+    await expect(page.getByRole("heading", { name: "Learning Library" }))
+      .toBeVisible();
+    await page.evaluate(async () => {
+      const learning = window.readerDesktop?.learning;
+      if (!learning) throw new Error("learning library API is unavailable");
+      const listed = await learning.listItems({
+        status: "active",
+        search: "bank",
+        sort: "alphabetical"
+      });
+      const summary = listed.items.find(({ title, sense }) =>
+        title === "bank" && sense === "financial institution"
+      );
+      if (!summary) throw new Error("bank learning item is unavailable");
+      const item = await learning.getItem(summary.id);
+      await learning.updateItem({
+        itemId: item.id,
+        title: item.title,
+        itemType: item.itemType,
+        language: item.language,
+        cefr: item.cefr,
+        sense: item.sense,
+        markdownContent: item.markdownContent,
+        memoryTip: "Picture coins streaming through a bank door into a secure vault.",
+        cautionNote: "Do not confuse this meaning with the bank of a river."
+      });
+    });
+    await page.getByRole("button", {
+      name: /bank, New, word, English, A2, financial institution/
+    }).click();
+
+    const memoryTip = page.getByRole("note", { name: "Memory tip" });
+    await expect(memoryTip).toContainText(
+      "Picture coins streaming through a bank door into a secure vault."
+    );
+    const learningCueHierarchy = await page.evaluate(() => {
+      const tip = document.querySelector<HTMLElement>(".learning-memory-tip");
+      const caution = document.querySelector<HTMLElement>(".learning-caution");
+      if (!tip || !caution) throw new Error("learning cues are unavailable");
+      const tipStyle = getComputedStyle(tip);
+      const cautionStyle = getComputedStyle(caution);
+      return {
+        tipBackground: tipStyle.backgroundColor,
+        tipColor: tipStyle.color,
+        tipTextDecoration: tipStyle.textDecorationLine,
+        cautionColor: cautionStyle.color,
+        cautionTextDecoration: cautionStyle.textDecorationLine,
+        hasIcon: Boolean(tip.querySelector("svg"))
+      };
+    });
+    expect(learningCueHierarchy).toEqual({
+      tipBackground: "rgb(243, 240, 249)",
+      tipColor: "rgb(63, 57, 94)",
+      tipTextDecoration: "none",
+      cautionColor: "rgb(179, 38, 54)",
+      cautionTextDecoration: "underline",
+      hasIcon: true
+    });
   } finally {
     await electronApp.close();
   }

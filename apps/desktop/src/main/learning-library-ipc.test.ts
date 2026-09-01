@@ -67,6 +67,7 @@ describe("learning library IPC", () => {
       cefr: item.cefr,
       sense: item.sense,
       markdownContent: item.markdownContent,
+      memoryTip: item.memoryTip ?? "",
       cautionNote: ""
     };
 

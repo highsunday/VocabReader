@@ -21,6 +21,7 @@ const batch: LearningItemDraftBatch = {
       language: "en" as const,
     cefr: "B2",
     sense: "unwilling",
+    memoryTip: "想像門已打開，但你的腳還黏在地上，不情願踏出去。",
     markdownContent: "## Meaning\n不情願。",
     state: "included"
   }, {
@@ -30,6 +31,7 @@ const batch: LearningItemDraftBatch = {
       language: "en" as const,
     cefr: "B2",
     sense: "fail to appreciate",
+    memoryTip: "想像一份禮物天天放在桌上，久了你竟忘了它值得珍惜。",
     markdownContent: "## Meaning\n視為理所當然。",
     state: "excluded"
   }],
@@ -125,6 +127,9 @@ describe("LearningItemDraftDialog", () => {
     expect(screen.getByText("In Trash")).toBeInTheDocument();
     expect(screen.getByText("不情願。")).toBeInTheDocument();
     expect(screen.getByText("視為理所當然。")).toBeInTheDocument();
+    expect(screen.getAllByRole("note", { name: "Memory tip" }))
+      .toHaveLength(2);
+    expect(screen.getByText(/門已打開/)).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByText("Markdown 內容")).not.toBeInTheDocument();

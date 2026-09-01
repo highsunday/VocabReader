@@ -96,6 +96,7 @@ function validUpdate(value: unknown): value is UpdateLearningItemInput {
     validCefr(input.cefr) &&
     nonEmptyString(input.sense) &&
     nonEmptyString(input.markdownContent) &&
+    typeof input.memoryTip === "string" &&
     typeof input.cautionNote === "string";
 }
 
