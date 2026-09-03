@@ -227,11 +227,11 @@ export function splitSelectionSpeechText(
 
 function safeError(code: SelectionSpeechErrorCode): SelectionSpeechServiceError {
   return new SelectionSpeechServiceError(code, {
-    auth: "OpenAI rejected the API key. Update it in AI Voice Settings.",
+    auth: "OpenAI rejected the API key. Update it in Voice & Speech Settings.",
     quota: "OpenAI rate or credit limit reached. Check your API account and retry.",
     network: "Unable to reach OpenAI. Check your connection and retry.",
     service: "OpenAI could not generate this voice. Please retry.",
-    "not-configured": "Set up AI Voice in Settings before playing selected text.",
+    "not-configured": "Set up Voice & Speech in Settings before playing selected text.",
     "secure-storage": "Secure credential storage is unavailable on this device."
   }[code]);
 }

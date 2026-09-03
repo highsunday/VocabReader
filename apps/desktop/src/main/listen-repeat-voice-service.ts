@@ -72,11 +72,11 @@ function safeError(
   code: "auth" | "quota" | "network" | "service" | "not-configured"
 ) {
   return new SelectionSpeechServiceError(code, {
-    auth: "OpenAI rejected the API key. Update it in AI Voice Settings.",
+    auth: "OpenAI rejected the API key. Update it in Voice & Speech Settings.",
     quota: "OpenAI rate or credit limit reached. Check your API account and retry.",
     network: "Unable to reach OpenAI. Check your connection and retry.",
     service: "OpenAI could not generate this practice voice. Please retry.",
-    "not-configured": "Set up AI Voice in Settings before playing practice audio."
+    "not-configured": "Set up Voice & Speech in Settings before playing practice audio."
   }[code]);
 }
 

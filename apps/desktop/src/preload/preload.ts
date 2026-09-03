@@ -58,6 +58,11 @@ import type {
   SelectionSpeechSettingsSnapshot,
   SelectionSpeechStreamEvent
 } from "../shared/selection-speech-contracts";
+import type {
+  VoiceTranscriptionDesktopApi,
+  VoiceTranscriptionInput,
+  VoiceTranscriptionResult
+} from "../shared/voice-transcription-contracts";
 
 const desktopApi = Object.freeze({
   platform: process.platform,
@@ -207,6 +212,14 @@ const desktopApi = Object.freeze({
       return () => ipcRenderer.off("selection-speech:event", wrapped);
     }
   } satisfies SelectionSpeechDesktopApi),
+  voiceTranscription: Object.freeze({
+    transcribe: (
+      input: VoiceTranscriptionInput
+    ): Promise<VoiceTranscriptionResult> =>
+      ipcRenderer.invoke("voice-transcription:transcribe", input),
+    cancel: (): Promise<void> =>
+      ipcRenderer.invoke("voice-transcription:cancel")
+  } satisfies VoiceTranscriptionDesktopApi),
   dataBackup: Object.freeze({
     exportBackup: (): Promise<ExportDataBackupResult> =>
       ipcRenderer.invoke("data-backup:export"),

@@ -2,7 +2,7 @@
 title: AI 批改與 FSRS 間隔複習模組
 module: spaced-review
 status: active
-last_updated: 2026-09-01
+last_updated: 2026-09-04
 related_implements:
   - F28-ai-graded-spaced-review-paper
   - F29-stream-spaced-review-generation-and-scroll-paper
@@ -29,6 +29,7 @@ related_implements:
   - B11-base-expression-feedback-on-wording-not-answer-length
   - B15-do-not-reserve-completion-capacity-for-learning-items
   - B17-confirm-review-after-learning-item-deletion
+  - F79-add-spaced-review-voice-answers
 ---
 
 # AI 批改與 FSRS 間隔複習模組
@@ -40,7 +41,7 @@ related_implements:
 
 本模組把生詞庫中的單字與片語轉成可持續的主動回想練習。每回合由本機程式依使用者
 設定選出 1 至 20 個到期或新項目，使用者明確要求後，AI 才生成以特定語義為準的例句試卷。使用者
-輸入劃線詞在該句中的意思，AI 提供逐題意思回饋與四級評級建議；答案實際使用學習
+以鍵盤輸入或短錄音逐字稿回答劃線詞在該句中的意思，AI 提供逐題意思回饋與四級評級建議；答案實際使用學習
 項目的語言時，AI 另提供不影響評級的表達建議。使用者確認或覆寫評級後，本機 FSRS
 才更新排程。
 
@@ -78,6 +79,8 @@ related_implements:
   `gpt-5.6-terra` low；兩者不可用時沿用 Codex 預設模型，不影響一般 AI 對話選擇。
 - 整卷作答與批改；空白答案可提交，提示會被判為「忘記」，批改後直接顯示目前
   語境的簡短建議回答。
+- 自由文字欄可明確啟動短錄音；本機偵測人聲與停頓，停止後才送 OpenAI transcription，
+  成功只回填可編輯逐字稿，不自動提交或批改。鍵盤輸入永遠可用。
 - AI 只依語義正確度與完整度建議忘記／困難／順利／簡單，不使用作答速度。
 - AI 同一次批改會判斷答案是否實際使用學習項目的語言；適用時另提供自然度肯定，
   或一個學習項目語言改寫及講解語言原因。答案長度不是表達品質，也不得成為要求
@@ -234,6 +237,10 @@ not-applicable 不帶內容。舊回覆或不可靠結構可省略欄位並在 M
 `ReviewGradeResult.recommendedAnswer` 是非阻斷的簡短建議回答；skill 要求每題產生，
 Main 只接受非空字串，舊 artifact 缺少時仍保留核心批改結果。
 
+語音回答使用獨立 `VoiceTranscriptionDesktopApi`，不擴張 `ReviewDesktopApi`。preload 只允許
+提交受限音檔與取消目前請求；Main 固定 endpoint、model 與 prompt，
+Renderer 不能把題目、答案 scope 或任意指令送入 transcription。
+
 ## 7. Renderer States
 
 `SpacedReviewWorkspace` 具有 loading、ready、generating、answering、grading、reviewing、
@@ -249,6 +256,10 @@ status 及取消操作，並以 attempt token 忽略取消後的晚到結果。�
 `data-rating` 與顏色，並保留具名評級狀態、AI 建議文字及 radio，顏色不是唯一訊號。
 工作區另外持有只控制顯示的 paused view；它不改變 review phase，也不清除任何
 回合作答狀態。
+answering 狀態的文字欄右上提供具名麥克風按鈕；錄音中顯示停頓自動停止提示，轉錄中顯示
+明確 loading，成功顯示 OpenAI 來源與提交前可編輯提示。沒有 key 時顯示可關閉的設定說明，
+清楚指出生成／批改仍使用 Codex。8 秒無語音不送 API、每段 15 秒硬上限；離開試卷畫面或
+工作區時 media tracks、AudioContext 與進行中的 transcription 全部停止。
 工作區在 ready 與 completed 顯示一張主要成果卡、一張次要複習活動卡及今日完成
 狀態列。成果卡只有穩定掌握大型主數字、正在鞏固、30 天回想成功率與單一 90 天
 SVG 折線；活動卡以 30 天方格顯示完成次數與活動日，不重複成果指標，也不提供時間
@@ -291,12 +302,14 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 |---|---|
 | `.agents/skills/practice-spaced-review/SKILL.md` | 例句生成、語義批改、表達建議、四級 rubric 與 artifact 契約 |
 | `apps/desktop/src/shared/review-contracts.ts` | Main／Preload／Renderer 共用 review 型別 |
+| `apps/desktop/src/shared/voice-transcription-contracts.ts` | 語音回答音檔、結果、錯誤與單次上限 |
 | `apps/desktop/src/main/learning-library-service.ts` | queue、共用學習進度／Solid recall 分類、SQLite migration、FSRS 與原子確認 |
 | `apps/desktop/src/main/spaced-review-artifacts.ts` | paper／grade artifact 嚴格驗證 |
 | `apps/desktop/src/main/spaced-review-controller.ts` | 暫態 scope、隔離 AI turn 與確認信任邊界 |
 | `apps/desktop/src/main/spaced-review-ipc.ts` | review IPC 白名單及 payload 驗證 |
 | `apps/desktop/src/preload/preload.ts` | `window.readerDesktop.review` typed bridge |
 | `apps/desktop/src/renderer/SpacedReviewWorkspace.tsx` | 摘要、作答、批改、先離開／繼續、放棄確認、覆寫、確認與連續回合 UI |
+| `apps/desktop/src/renderer/ReviewVoiceAnswer.tsx` | 語音回答入口、狀態、逐字稿回填與設定提示 |
 | `apps/desktop/src/renderer/LearningLibraryWorkspace.tsx` | 學習項目複習摘要與精簡歷史 |
 | `apps/desktop/src/renderer/App.tsx` | 獨立工作區入口、可用數量及生成／可繼續狀態同步 |
 
@@ -309,7 +322,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 | `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、表達建議正規化、缺題、未知／重複 id 與錯 scope 拒絕 |
 | `spaced-review-controller.test.ts` | 暫態 paper／expression feedback、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |
 | `spaced-review-ipc.test.ts` | 六個操作、安全 typed generation count payload 與惡意 payload 拒絕 |
-| `SpacedReviewWorkspace.test.tsx` | 穩定掌握成果卡、90 天可存取折線、30 天活動卡、零資料、完成後刷新、整合式狀態卡、等待到期文案與自動刷新、完成數與確定進度、意思／表達分區、四級結果色彩、批改後代表圖片延遲載入／無圖／失敗隔離／mutation 同步、批改後人工／AI 編修但禁止移入垃圾桶、完成頁編修與垃圾桶及 counts 刷新、焦點回復、短答案與不適用建議、先離開／繼續、放棄二次確認、取消／晚到結果、空白提醒、覆寫、確認與真正卸載清除 |
+| `SpacedReviewWorkspace.test.tsx` | 穩定掌握成果卡、90 天可存取折線、30 天活動卡、零資料、完成後刷新、整合式狀態卡、等待到期文案與自動刷新、完成數與確定進度、意思／表達分區、語音回答可選入口與文字 fallback、四級結果色彩、批改後代表圖片延遲載入／無圖／失敗隔離／mutation 同步、批改後人工／AI 編修但禁止移入垃圾桶、完成頁編修與垃圾桶及 counts 刷新、焦點回復、短答案與不適用建議、先離開／繼續、放棄二次確認、取消／晚到結果、空白提醒、覆寫、確認與真正卸載清除 |
 | `learning-library-workspace.test.tsx` | 詳情摘要、可展開精簡歷史、作答文字與新舊留白狀態 |
 | `App.test.tsx` | 側欄數量與狀態 icon、獨立工作區、進入時不呼叫生成，以及各工作區生成／作答／批改狀態的切換保留 |
 | `bundled-skill.test.ts` | `practice-spaced-review` 內建 skill 安裝／更新 |

@@ -538,6 +538,10 @@ test("launches the secure Electron reading shell", async () => {
               get: unknown;
               save: unknown;
             };
+            voiceTranscription: {
+              transcribe: unknown;
+              cancel: unknown;
+            };
             dataBackup: {
               exportBackup: unknown;
               selectBackup: unknown;
@@ -599,6 +603,13 @@ test("launches the secure Electron reading shell", async () => {
         hasSettingsGet: typeof desktop?.settings.get,
         hasSettingsSave: typeof desktop?.settings.save,
         settingsKeys: Object.keys(desktop?.settings ?? {}).sort(),
+        voiceTranscriptionKeys: Object.keys(
+          desktop?.voiceTranscription ?? {}
+        ).sort(),
+        hasVoiceTranscriptionStart:
+          typeof desktop?.voiceTranscription.transcribe,
+        hasVoiceTranscriptionCancel:
+          typeof desktop?.voiceTranscription.cancel,
         hasDataBackupExport: typeof desktop?.dataBackup.exportBackup,
         hasDataBackupSelect: typeof desktop?.dataBackup.selectBackup,
         hasDataBackupCancel: typeof desktop?.dataBackup.cancelRestore,
@@ -688,6 +699,12 @@ test("launches the secure Electron reading shell", async () => {
       "get",
       "getUnclassifiedLearningItemCount",
       "save"
+    ]);
+    expect(security.hasVoiceTranscriptionStart).toBe("function");
+    expect(security.hasVoiceTranscriptionCancel).toBe("function");
+    expect(security.voiceTranscriptionKeys).toEqual([
+      "cancel",
+      "transcribe"
     ]);
     expect(security.hasDataBackupExport).toBe("function");
     expect(security.hasDataBackupSelect).toBe("function");
@@ -884,8 +901,33 @@ test("launches the secure Electron reading shell", async () => {
       .toBeVisible();
     await expect(page.getByRole("button", { name: "Import backup" }))
       .toBeVisible();
-    await page.getByRole("tab", { name: "AI Voice" }).click();
-    await expect(page.getByLabel("OpenAI API key")).toBeVisible();
+    await page.getByRole("tab", { name: "Voice & Speech" }).click();
+    const voiceApiKey = page.getByLabel("OpenAI API key");
+    await expect(voiceApiKey).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: "Save & enable voice features"
+    })).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: "Save & enable voice features"
+    })).toBeDisabled();
+    await voiceApiKey.fill("sk-not-saved-e2e");
+    await expect(page.getByText("Not saved", { exact: true })).toBeVisible();
+    const saveVoiceKey = page.getByRole("button", {
+      name: "Save & enable voice features"
+    });
+    await expect(saveVoiceKey).toBeEnabled();
+    expect(await saveVoiceKey.evaluate((button) =>
+      Boolean(button.closest(".ai-voice-key-card"))
+    )).toBe(true);
+    await expect(page.getByRole("button", { name: "Save voice & preview" }))
+      .not.toBeAttached();
+    await expect(page.getByText(/separate from your Codex sign-in and plan/i))
+      .toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI-generated speech" }))
+      .toBeVisible();
+    await expect(page.getByRole("heading", { name: "Speech recognition" }))
+      .toBeVisible();
+    await expect(page.getByText(/transcription usage/i)).not.toBeAttached();
     await expect(page.getByRole("radio", { name: /Cedar voice/ }))
       .toHaveAttribute("aria-checked", "true");
     await expect(page.getByRole("radio", { name: /Learning tone/ }))

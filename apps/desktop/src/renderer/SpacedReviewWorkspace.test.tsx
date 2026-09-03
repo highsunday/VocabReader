@@ -153,6 +153,39 @@ async function completeCurrentReview() {
 }
 
 describe("SpacedReviewWorkspace", () => {
+  it("offers voice answers without making them required for review", async () => {
+    const api = reviewApi();
+    const onOpenVoiceSettings = vi.fn();
+    render(
+      <SpacedReviewWorkspace
+        api={api}
+        explanationLanguage="zh-TW"
+        voiceApi={{
+          transcribe: vi.fn(),
+          cancel: vi.fn(async () => undefined)
+        }}
+        hasVoiceApiKey={false}
+        onOpenVoiceSettings={onOpenVoiceSettings}
+      />
+    );
+    fireEvent.click(await screen.findByRole("button", {
+      name: /Start a \d+-question review/
+    }));
+
+    const answer = await screen.findByLabelText("Meaning of this word in the sentence");
+    fireEvent.change(answer, { target: { value: "typed fallback" } });
+    fireEvent.click(screen.getByRole("button", { name: "Answer by voice" }));
+
+    expect(answer).toHaveValue("typed fallback");
+    expect(screen.getByRole("dialog", { name: "Set up voice answers" }))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {
+      name: "Open Voice & Speech settings"
+    }));
+    expect(onOpenVoiceSettings).toHaveBeenCalledOnce();
+    expect(api.gradePaper).not.toHaveBeenCalled();
+  });
+
   it("shows completed cards against the configured daily limits", async () => {
     const api = reviewApi();
     api.getSummary = vi.fn(async () => ({

@@ -25,6 +25,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   MessageCircle,
+  Mic,
   MoonStar,
   PenLine,
   Settings as SettingsIcon,
@@ -69,6 +70,7 @@ import type {
   SelectionSpeechSettingsSnapshot,
   SelectionSpeechStreamEvent
 } from "../shared/selection-speech-contracts";
+import type { VoiceTranscriptionDesktopApi } from "../shared/voice-transcription-contracts";
 import {
   AI_CONVERSATION_FONT_SIZE,
   DAILY_DUE_REVIEW_COMPLETION_LIMIT,
@@ -217,6 +219,7 @@ function desktopBridge(): {
   listenRepeat?: ListenRepeatDesktopApi;
   settings?: SettingsDesktopApi;
   selectionSpeech?: SelectionSpeechDesktopApi;
+  voiceTranscription?: VoiceTranscriptionDesktopApi;
   dataBackup?: DataBackupDesktopApi;
   chat?: ChatDesktopApi;
 } | undefined {
@@ -231,6 +234,7 @@ function desktopBridge(): {
         listenRepeat?: ListenRepeatDesktopApi;
         settings?: SettingsDesktopApi;
         selectionSpeech?: SelectionSpeechDesktopApi;
+        voiceTranscription?: VoiceTranscriptionDesktopApi;
         dataBackup?: DataBackupDesktopApi;
         chat?: ChatDesktopApi;
       };
@@ -272,6 +276,10 @@ function desktopSettings(): SettingsDesktopApi | undefined {
 
 function desktopSelectionSpeech(): SelectionSpeechDesktopApi | undefined {
   return desktopBridge()?.selectionSpeech;
+}
+
+function desktopVoiceTranscription(): VoiceTranscriptionDesktopApi | undefined {
+  return desktopBridge()?.voiceTranscription;
 }
 
 function desktopDataBackup(): DataBackupDesktopApi | undefined {
@@ -449,6 +457,8 @@ export function App() {
   const [isAiVoiceApplying, setIsAiVoiceApplying] = useState(false);
   const [aiVoiceMessage, setAiVoiceMessage] = useState("");
   const [aiVoiceError, setAiVoiceError] = useState("");
+  const [aiVoiceFeedbackArea, setAiVoiceFeedbackArea] =
+    useState<"key" | "preferences">("key");
   const [dataBackupOperation, setDataBackupOperation] = useState<
     "exporting" | "selecting" | "cancelling" | "restoring" | null
   >(null);
@@ -708,7 +718,7 @@ export function App() {
         setIsReplacingAiVoiceKey(false);
       })
       .catch(() => {
-        if (active) setAiVoiceError("Unable to load AI Voice settings.");
+        if (active) setAiVoiceError("Unable to load Voice & Speech settings.");
       });
     return () => {
       active = false;
@@ -1321,7 +1331,7 @@ export function App() {
     const api = desktopSelectionSpeech();
     if (!aiVoiceSettings.hasApiKey || !api) {
       setSelectionSpeechError(
-        "Set up AI Voice in Settings before playing selected text."
+        "Set up Voice & Speech in Settings before playing selected text."
       );
       setSelectionSpeechErrorCode("not-configured");
       setActiveSettingsSection("voice");
@@ -1395,18 +1405,25 @@ export function App() {
     });
   }
 
-  async function applyAiVoiceSettings() {
+  async function applyAiVoiceSettings(includeApiKey: boolean) {
     const api = desktopSelectionSpeech();
     if (!api) {
-      setAiVoiceError("AI Voice is not available in this build.");
+      setAiVoiceError("Voice & Speech is not available in this build.");
+      return;
+    }
+    const apiKey = aiVoiceApiKey.trim();
+    if (includeApiKey && !apiKey) {
+      setAiVoiceFeedbackArea("key");
+      setAiVoiceError("Paste an OpenAI API key before saving.");
       return;
     }
     setIsAiVoiceApplying(true);
+    setAiVoiceFeedbackArea(includeApiKey ? "key" : "preferences");
     setAiVoiceError("");
     setAiVoiceMessage("");
     try {
       const result = await api.applySettings({
-        ...(aiVoiceApiKey.trim() ? { apiKey: aiVoiceApiKey } : {}),
+        ...(includeApiKey ? { apiKey } : {}),
         voice: aiVoiceDraft.voice,
         tone: aiVoiceDraft.tone
       });
@@ -1423,11 +1440,13 @@ export function App() {
       setAiVoiceApiKey("");
       setIsAiVoiceKeyVisible(false);
       setIsReplacingAiVoiceKey(false);
-      setAiVoiceMessage("AI Voice settings applied. Previewing the selected voice.");
+      setAiVoiceMessage(includeApiKey
+        ? "Voice features are enabled. Previewing the selected voice."
+        : "Speech playback settings saved. Previewing the selected voice.");
       playAiVoicePreview(result.previewAudio);
     } catch (error) {
       setAiVoiceError(
-        error instanceof Error ? error.message : "Unable to apply AI Voice settings."
+        error instanceof Error ? error.message : "Unable to apply Voice & Speech settings."
       );
     } finally {
       setIsAiVoiceApplying(false);
@@ -1438,6 +1457,7 @@ export function App() {
     const api = desktopSelectionSpeech();
     if (!api) return;
     setIsAiVoiceApplying(true);
+    setAiVoiceFeedbackArea("preferences");
     setAiVoiceError("");
     setAiVoiceMessage("");
     try {
@@ -2204,6 +2224,22 @@ export function App() {
     }
   }
 
+  const hasAiVoiceKeyDraft = Boolean(aiVoiceApiKey.trim());
+  const isAiVoiceKeySaving = isAiVoiceApplying && aiVoiceFeedbackArea === "key";
+  const aiVoiceKeyStatus = isAiVoiceKeySaving
+    ? "Saving…"
+    : isReplacingAiVoiceKey && hasAiVoiceKeyDraft
+      ? "Replacement not saved"
+      : isReplacingAiVoiceKey
+        ? "Current key active"
+        : !aiVoiceSettings.hasApiKey && hasAiVoiceKeyDraft
+          ? "Not saved"
+          : aiVoiceSettings.hasApiKey
+            ? "Configured"
+            : "Not configured";
+  const isAiVoiceKeyStatusConfigured = aiVoiceSettings.hasApiKey &&
+    !(isReplacingAiVoiceKey && hasAiVoiceKeyDraft);
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -2660,6 +2696,8 @@ export function App() {
             <SpacedReviewWorkspace
               api={desktopReview()!}
               learningApi={desktopLearning()}
+              voiceApi={desktopVoiceTranscription()}
+              hasVoiceApiKey={aiVoiceSettings.hasApiKey}
               explanationLanguage={settings.explanationLanguage}
               settingsRevision={reviewSettingsRevision}
               active={mode === "spaced-review"}
@@ -2676,6 +2714,10 @@ export function App() {
                   });
               }}
               onStatusChange={setReviewWorkspaceStatus}
+              onOpenVoiceSettings={() => {
+                setActiveSettingsSection("voice");
+                setIsSettingsOpen(true);
+              }}
             />
           ) : null}
 
@@ -3073,7 +3115,7 @@ export function App() {
                                   setIsSettingsOpen(true);
                                 }}
                               >
-                                Open AI Voice Settings
+                                Open Voice &amp; Speech Settings
                               </button>
                             ) : null}
                           </div>
@@ -3734,7 +3776,7 @@ export function App() {
                 aria-controls="settings-panel-voice"
                 onClick={() => setActiveSettingsSection("voice")}
               >
-                AI Voice
+                Voice &amp; Speech
               </button>
               <button
                 type="button"
@@ -3777,7 +3819,17 @@ export function App() {
                       {chatSnapshot.account?.email ?? "Email unavailable"}
                     </strong>
                   </div>
-                  <p>Your account is managed by Codex and shown here for reference.</p>
+                  <p>
+                    Codex powers text AI such as review generation and grading.
+                    Voice features use a separate OpenAI API key.
+                  </p>
+                  <button
+                    className="settings-inline-link"
+                    type="button"
+                    onClick={() => setActiveSettingsSection("voice")}
+                  >
+                    Manage Voice &amp; Speech
+                  </button>
                 </div>
               </section>
             ) : null}
@@ -4106,7 +4158,11 @@ export function App() {
                 aria-labelledby="settings-tab-voice"
               >
                 <div className="settings-section-intro ai-voice-intro">
-                  <h3>Build your reading voice</h3>
+                  <h3>Voice &amp; Speech</h3>
+                  <p>
+                    Add spoken playback and voice answers with your own OpenAI API
+                    account. This key is separate from your Codex sign-in and plan.
+                  </p>
                 </div>
                 <section className="ai-voice-key-card">
                   <div className="ai-voice-key-heading">
@@ -4123,14 +4179,19 @@ export function App() {
                         >
                           OpenAI API key
                         </label>
-                        <span>Used only to generate your selected-text audio.</span>
+                        <span>
+                          Used for selected-text audio, Listen &amp; Repeat model audio,
+                          and Spaced Review voice answers.
+                        </span>
                       </div>
                     </div>
                     <strong className={`ai-voice-status ${
-                      aiVoiceSettings.hasApiKey ? "is-configured" : ""
+                      isAiVoiceKeyStatusConfigured ? "is-configured" : ""
                     }`}>
-                      {aiVoiceSettings.hasApiKey ? <Check aria-hidden="true" /> : null}
-                      {aiVoiceSettings.hasApiKey ? "Configured" : "Required"}
+                      {isAiVoiceKeyStatusConfigured
+                        ? <Check aria-hidden="true" />
+                        : null}
+                      {aiVoiceKeyStatus}
                     </strong>
                   </div>
                   {aiVoiceSettings.hasApiKey && !isReplacingAiVoiceKey ? (
@@ -4159,6 +4220,7 @@ export function App() {
                       <input
                         id="ai-voice-api-key"
                         aria-label="OpenAI API key"
+                        aria-describedby="ai-voice-key-state ai-voice-security-note"
                         type={isAiVoiceKeyVisible ? "text" : "password"}
                         autoComplete="off"
                         spellCheck="false"
@@ -4167,7 +4229,18 @@ export function App() {
                           ? "Paste a new key to replace the saved key"
                           : "Paste your OpenAI API key"}
                         disabled={isAiVoiceApplying}
-                        onChange={(event) => setAiVoiceApiKey(event.target.value)}
+                        onChange={(event) => {
+                          setAiVoiceApiKey(event.target.value);
+                          setAiVoiceFeedbackArea("key");
+                          setAiVoiceMessage("");
+                          setAiVoiceError("");
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" || event.nativeEvent.isComposing ||
+                            !event.currentTarget.value.trim()) return;
+                          event.preventDefault();
+                          void applyAiVoiceSettings(true);
+                        }}
                       />
                       <button
                         type="button"
@@ -4181,12 +4254,92 @@ export function App() {
                       </button>
                     </div>
                   )}
-                  <p className="ai-voice-security-note">
+                  {aiVoiceSettings.hasApiKey && !isReplacingAiVoiceKey ? null : (
+                    <div className="ai-voice-key-activation">
+                      <p id="ai-voice-key-state">
+                        {isReplacingAiVoiceKey
+                          ? hasAiVoiceKeyDraft
+                            ? "Your current key remains active until this replacement is saved."
+                            : "Enter a replacement, or keep using your current key."
+                          : hasAiVoiceKeyDraft
+                            ? "Not active yet. Save this key to enable voice features."
+                            : "Paste a key, then save it to enable all voice features."}
+                      </p>
+                      <div>
+                        {isReplacingAiVoiceKey ? (
+                          <button
+                            type="button"
+                            className="ai-voice-key-cancel"
+                            disabled={isAiVoiceApplying}
+                            onClick={() => {
+                              setIsReplacingAiVoiceKey(false);
+                              setAiVoiceApiKey("");
+                              setIsAiVoiceKeyVisible(false);
+                              setAiVoiceMessage("");
+                              setAiVoiceError("");
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="ai-voice-key-save"
+                          disabled={isAiVoiceApplying || !hasAiVoiceKeyDraft}
+                          onClick={() => void applyAiVoiceSettings(true)}
+                        >
+                          {isAiVoiceKeySaving ? (
+                            <><LoaderCircle aria-hidden="true" /> Saving…</>
+                          ) : isReplacingAiVoiceKey ? (
+                            "Save replacement"
+                          ) : (
+                            "Save & enable voice features"
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {aiVoiceFeedbackArea === "key" && aiVoiceMessage ? (
+                    <output className="data-backup-message">{aiVoiceMessage}</output>
+                  ) : null}
+                  {aiVoiceFeedbackArea === "key" && aiVoiceError ? (
+                    <small className="data-backup-error" role="alert">
+                      {aiVoiceError}
+                    </small>
+                  ) : null}
+                  <p className="ai-voice-security-note" id="ai-voice-security-note">
                     <LockKeyhole aria-hidden="true" />
                     Encrypted on this device. The original value is never shown or
                     included in backups.
                   </p>
                 </section>
+
+                <section
+                  className="voice-recognition-setting"
+                  aria-labelledby="voice-recognition-title"
+                >
+                  <div>
+                    <span className="ai-voice-heading-icon" aria-hidden="true">
+                      <Mic />
+                    </span>
+                    <div>
+                      <h3 id="voice-recognition-title">Speech recognition</h3>
+                      <p>
+                        Choose the microphone to record one short Spaced Review answer.
+                        Recording stops after silence or 15 seconds, then turns your
+                        speech into editable text. Nothing is uploaded before it stops.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <div className="settings-section-intro ai-voice-subsection">
+                  <h3>AI-generated speech</h3>
+                  <p>
+                    Choose the playback voice and delivery used for reading aloud.
+                    These choices do not change speech recognition.
+                  </p>
+                </div>
 
                 <fieldset className="ai-voice-choice-section">
                   <legend>Choose a voice</legend>
@@ -4368,8 +4521,8 @@ export function App() {
                       <small>AI-generated · uses your OpenAI credits</small>
                     </span>
                   </div>
-                  <div className="ai-voice-actions">
-                    {aiVoiceSettings.hasApiKey ? (
+                  {aiVoiceSettings.hasApiKey && !isReplacingAiVoiceKey ? (
+                    <div className="ai-voice-actions">
                       <button
                         className="ai-voice-remove-key"
                         type="button"
@@ -4378,26 +4531,31 @@ export function App() {
                       >
                         Remove key
                       </button>
-                    ) : null}
-                    <button
-                      className="ai-voice-apply"
-                      type="button"
-                      onClick={() => void applyAiVoiceSettings()}
-                      disabled={isAiVoiceApplying ||
-                        (!aiVoiceSettings.hasApiKey && !aiVoiceApiKey.trim())}
-                    >
-                      {isAiVoiceApplying ? (
-                        <><LoaderCircle aria-hidden="true" /> Applying…</>
-                      ) : (
-                        <><Volume2 aria-hidden="true" /> Apply and preview</>
-                      )}
-                    </button>
-                  </div>
+                      <button
+                        className="ai-voice-apply"
+                        type="button"
+                        onClick={() => void applyAiVoiceSettings(false)}
+                        disabled={isAiVoiceApplying}
+                      >
+                        {isAiVoiceApplying ? (
+                          <><LoaderCircle aria-hidden="true" /> Saving…</>
+                        ) : (
+                          <><Volume2 aria-hidden="true" /> Save voice &amp; preview</>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <small className="ai-voice-setup-reminder">
+                      {isReplacingAiVoiceKey
+                        ? "Save or cancel the replacement above before changing playback."
+                        : "Save your API key above to enable playback and voice answers."}
+                    </small>
+                  )}
                 </div>
-                {aiVoiceMessage ? (
+                {aiVoiceFeedbackArea === "preferences" && aiVoiceMessage ? (
                   <output className="data-backup-message">{aiVoiceMessage}</output>
                 ) : null}
-                {aiVoiceError ? (
+                {aiVoiceFeedbackArea === "preferences" && aiVoiceError ? (
                   <small className="data-backup-error" role="alert">
                     {aiVoiceError}
                   </small>

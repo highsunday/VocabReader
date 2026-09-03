@@ -166,6 +166,10 @@ function installLibraryApi(
       selectionSpeechListener?.(event);
     }
   };
+  const voiceTranscription = {
+    transcribe: vi.fn(),
+    cancel: vi.fn(async () => undefined)
+  };
   const dataBackup = {
     exportBackup: vi.fn().mockResolvedValue({
       status: "exported",
@@ -289,6 +293,7 @@ function installLibraryApi(
       listenRepeat,
       settings: { get: getSettings, save: saveSettings },
       selectionSpeech,
+      voiceTranscription,
       dataBackup,
       ...(chat ? { chat } : {})
     }
@@ -303,6 +308,7 @@ function installLibraryApi(
     getSettings,
     saveSettings,
     selectionSpeech,
+    voiceTranscription,
     dataBackup,
     learning,
     review,
@@ -555,25 +561,56 @@ describe("App", () => {
       .toBeInTheDocument();
   });
 
-  it("offers a dedicated AI Voice settings tab", async () => {
+  it("offers a dedicated Voice & Speech settings tab", async () => {
     installLibraryApi();
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
 
-    expect(screen.getByRole("tab", { name: "AI Voice" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Voice & Speech" }));
+    expect(screen.getByRole("heading", { name: "AI-generated speech" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Speech recognition" }))
+      .toBeInTheDocument();
+    expect(screen.getByText(/separate from your Codex sign-in and plan/i))
+      .toBeInTheDocument();
+    expect(screen.queryByText(/transcription usage/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", {
+      name: /voice transcription usage/i
+    })).not.toBeInTheDocument();
+    expect(screen.getByText("Not configured")).toBeInTheDocument();
   });
 
-  it("applies an API key, voice, and tone from AI Voice settings", async () => {
+  it("explains the Codex and OpenAI voice boundary from Account settings", async () => {
+    installLibraryApi();
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
+
+    expect(screen.getByText(/Codex powers text AI.*separate OpenAI API key/s))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Manage Voice & Speech" }));
+    expect(screen.getByRole("tab", { name: "Voice & Speech" }))
+      .toHaveAttribute("aria-selected", "true");
+  });
+
+  it("applies an API key, voice, and tone from Voice & Speech settings", async () => {
     const { selectionSpeech } = installLibraryApi();
     render(<App />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("tab", { name: "AI Voice" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Voice & Speech" }));
     const apiKey = await screen.findByLabelText("OpenAI API key");
     fireEvent.change(apiKey, {
       target: { value: "sk-test-secret" }
     });
+    expect(screen.getByText("Not saved")).toBeInTheDocument();
+    const saveAndEnable = screen.getByRole("button", {
+      name: "Save & enable voice features"
+    });
+    expect(saveAndEnable.closest(".ai-voice-key-card"))
+      .toContainElement(apiKey);
     expect(apiKey).toHaveAttribute("type", "password");
     fireEvent.click(screen.getByRole("button", { name: "Show API key" }));
     expect(apiKey).toHaveAttribute("type", "text");
@@ -587,7 +624,7 @@ describe("App", () => {
       .toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("radio", { name: /Calm tone/ }))
       .toHaveAttribute("aria-checked", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Apply and preview" }));
+    fireEvent.click(saveAndEnable);
 
     await waitFor(() => expect(selectionSpeech.applySettings).toHaveBeenCalledWith({
       apiKey: "sk-test-secret",
@@ -595,12 +632,15 @@ describe("App", () => {
       tone: "calm"
     }));
     expect(await screen.findByText("Configured")).toBeInTheDocument();
+    expect(screen.getByText(
+      "Voice features are enabled. Previewing the selected voice."
+    )).toBeInTheDocument();
     expect(screen.getByLabelText("Saved API key"))
       .toHaveTextContent("•••• •••• •••• ••••Saved securely");
     expect(screen.queryByRole("textbox", { name: "OpenAI API key" }))
       .not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Apply and preview" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save voice & preview" }));
     await waitFor(() => expect(selectionSpeech.applySettings)
       .toHaveBeenLastCalledWith({ voice: "marin", tone: "calm" }));
 
@@ -608,6 +648,20 @@ describe("App", () => {
     expect(screen.getByLabelText("OpenAI API key")).toHaveValue("");
     expect(screen.getByLabelText("OpenAI API key"))
       .toHaveAttribute("type", "password");
+    expect(screen.getByText("Current key active")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save voice & preview" }))
+      .not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("OpenAI API key"), {
+      target: { value: "sk-replacement" }
+    });
+    expect(screen.getByText("Replacement not saved")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save replacement" }))
+      .toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText("Configured")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save voice & preview" }))
+      .toBeInTheDocument();
   });
 
   it("exports a data backup and reports the selected ZIP filename", async () => {
@@ -3587,7 +3641,7 @@ describe("App", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("opens AI Voice settings without using device speech when selection speech is not configured", async () => {
+  it("opens Voice & Speech settings without using device speech when selection speech is not configured", async () => {
     const speech = installSpeechSynthesis();
     const { getChapterContent, selectionSpeech } = installLibraryApi();
     getChapterContent.mockResolvedValue({
@@ -3614,9 +3668,9 @@ describe("App", () => {
     }));
 
     expect(await screen.findByRole("dialog", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "AI Voice" }))
+    expect(screen.getByRole("tab", { name: "Voice & Speech" }))
       .toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("Set up AI Voice in Settings before playing selected text."))
+    expect(screen.getByText("Set up Voice & Speech in Settings before playing selected text."))
       .toBeInTheDocument();
     expect(selectionSpeech.start).not.toHaveBeenCalled();
     expect(speech.speak).not.toHaveBeenCalled();
@@ -3847,7 +3901,7 @@ describe("App", () => {
     expect(speech.speak).not.toHaveBeenCalled();
   });
 
-  it("offers retry and AI Voice settings after an auth failure without device fallback", async () => {
+  it("offers retry and Voice & Speech settings after an auth failure without device fallback", async () => {
     const speech = installSpeechSynthesis();
     const { getChapterContent, selectionSpeech } = installLibraryApi();
     selectionSpeech.getSettings.mockResolvedValue({
@@ -3880,11 +3934,11 @@ describe("App", () => {
       type: "error",
       requestId: "selection-speech-1",
       code: "auth",
-      message: "OpenAI rejected the API key. Update it in AI Voice settings."
+      message: "OpenAI rejected the API key. Update it in Voice & Speech settings."
     }));
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "OpenAI rejected the API key. Update it in AI Voice settings."
+      "OpenAI rejected the API key. Update it in Voice & Speech settings."
     );
     expect(screen.getByRole("button", {
       name: "Turn on annotation mode; 0 annotations in this chapter"
@@ -3899,14 +3953,14 @@ describe("App", () => {
       type: "error",
       requestId: "selection-speech-2",
       code: "auth",
-      message: "OpenAI rejected the API key. Update it in AI Voice settings."
+      message: "OpenAI rejected the API key. Update it in Voice & Speech settings."
     }));
     fireEvent.click(screen.getByRole("button", {
-      name: "Open AI Voice Settings"
+      name: "Open Voice & Speech Settings"
     }));
     expect(await screen.findByRole("dialog", { name: "Settings" }))
       .toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "AI Voice" }))
+    expect(screen.getByRole("tab", { name: "Voice & Speech" }))
       .toHaveAttribute("aria-selected", "true");
   });
 

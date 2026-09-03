@@ -8,6 +8,7 @@ import type { ListenRepeatDesktopApi } from "../shared/listen-repeat-contracts";
 import type { SettingsDesktopApi } from "../shared/settings-contracts";
 import type { SentencePracticeDesktopApi } from "../shared/sentence-practice-contracts";
 import type { SelectionSpeechDesktopApi } from "../shared/selection-speech-contracts";
+import type { VoiceTranscriptionDesktopApi } from "../shared/voice-transcription-contracts";
 
 declare global {
 interface ReaderDesktopApi {
@@ -59,6 +60,7 @@ interface ReaderDesktopApi {
   listenRepeat: ListenRepeatDesktopApi;
   settings: SettingsDesktopApi;
   selectionSpeech: SelectionSpeechDesktopApi;
+  voiceTranscription: VoiceTranscriptionDesktopApi;
   dataBackup: DataBackupDesktopApi;
   chat: ChatDesktopApi;
 }

@@ -23,7 +23,9 @@ import type {
   ReviewSummary
 } from "../shared/review-contracts";
 import type { ExplanationLanguage } from "../shared/settings-contracts";
+import type { VoiceTranscriptionDesktopApi } from "../shared/voice-transcription-contracts";
 import { LearningItemDialog } from "./LearningLibraryWorkspace";
+import { ReviewVoiceAnswer } from "./ReviewVoiceAnswer";
 
 const ratingOptions: Array<{ value: ReviewRating; label: string }> = [
   { value: "forgotten", label: "Forgotten" },
@@ -213,16 +215,21 @@ function ReviewActivityCard({
 export function SpacedReviewWorkspace({
   api,
   learningApi,
+  voiceApi,
+  hasVoiceApiKey = false,
   explanationLanguage,
   settingsRevision = 0,
   active = true,
   onAvailableCountChange,
   onNewCountChange,
   onLearningCountsChange,
-  onStatusChange
+  onStatusChange,
+  onOpenVoiceSettings
 }: {
   api: ReviewDesktopApi;
   learningApi?: LearningDesktopApi;
+  voiceApi?: VoiceTranscriptionDesktopApi;
+  hasVoiceApiKey?: boolean;
   explanationLanguage: ExplanationLanguage;
   settingsRevision?: number;
   active?: boolean;
@@ -230,6 +237,7 @@ export function SpacedReviewWorkspace({
   onNewCountChange?(count: number): void;
   onLearningCountsChange?(counts: LearningItemCounts): void;
   onStatusChange?(status: ReviewWorkspaceStatus): void;
+  onOpenVoiceSettings?(): void;
 }) {
   const [summary, setSummary] = useState<ReviewSummary>();
   const [paper, setPaper] = useState<ReviewPaper>();
@@ -259,6 +267,7 @@ export function SpacedReviewWorkspace({
   const [reviewItemsById, setReviewItemsById] = useState<
     Record<string, LearningItem>
   >({});
+  const [voiceBusyQuestionId, setVoiceBusyQuestionId] = useState<string>();
   const generationAttemptRef = useRef(0);
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const settingsRevisionRef = useRef(settingsRevision);
@@ -275,6 +284,7 @@ export function SpacedReviewWorkspace({
     setIsAbandonConfirmationOpen(false);
     setSelectedItem(undefined);
     setReviewItemsById({});
+    setVoiceBusyQuestionId(undefined);
     try {
       const next = await api.getSummary();
       setSummary(next);
@@ -846,6 +856,26 @@ export function SpacedReviewWorkspace({
                       }))}
                       placeholder="You may leave this blank; unanswered items are rated Forgotten"
                     />
+                    {voiceApi && onOpenVoiceSettings ? (
+                      <ReviewVoiceAnswer
+                        api={voiceApi}
+                        hasApiKey={hasVoiceApiKey}
+                        disabled={phase !== "answering"}
+                        busy={Boolean(voiceBusyQuestionId)}
+                        onBusyChange={(busy) => setVoiceBusyQuestionId((current) =>
+                          busy
+                            ? question.questionId
+                            : current === question.questionId
+                              ? undefined
+                              : current
+                        )}
+                        onTranscribed={(text) => setAnswers((current) => ({
+                          ...current,
+                          [question.questionId]: text
+                        }))}
+                        onOpenSettings={onOpenVoiceSettings}
+                      />
+                    ) : null}
                     {result?.expressionFeedback?.status === "improvable" ? (
                       <div className="review-answer-correction">
                         <span>Expression feedback →</span>

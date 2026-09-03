@@ -69,6 +69,8 @@ import {
   EncryptedSelectionSpeechApiKeyStore,
   SelectionSpeechService
 } from "./selection-speech-service";
+import { registerVoiceTranscriptionIpc } from "./voice-transcription-ipc";
+import { VoiceTranscriptionService } from "./voice-transcription-service";
 import { SpacedReviewController } from "./spaced-review-controller";
 import { registerSpacedReviewIpc } from "./spaced-review-ipc";
 import { configureDevelopmentUserDataPath } from "./user-data-path";
@@ -227,7 +229,13 @@ app.whenReady().then(async () => {
     settingsStore,
     apiKeyStore: selectionSpeechApiKeyStore
   });
-  app.once("before-quit", () => selectionSpeechService.dispose());
+  const voiceTranscriptionService = new VoiceTranscriptionService({
+    apiKeyStore: selectionSpeechApiKeyStore
+  });
+  app.once("before-quit", () => {
+    selectionSpeechService.dispose();
+    voiceTranscriptionService.dispose();
+  });
   const learningItemRepresentativeImages = new LearningItemRepresentativeImageService(
     dialog,
     learningLibrary
@@ -324,6 +332,7 @@ app.whenReady().then(async () => {
     defaultDataBackupFileName()
   );
   registerSelectionSpeechIpc(ipcMain, selectionSpeechService);
+  registerVoiceTranscriptionIpc(ipcMain, voiceTranscriptionService);
   const runtimePath = join(app.getPath("userData"), "codex-runtime");
   mkdirSync(runtimePath, { recursive: true });
   const annotationExplanationSkill = installBundledAnnotationSkill(

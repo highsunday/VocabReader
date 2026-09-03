@@ -1518,8 +1518,8 @@ button {
   color: #757c75;
   font-size: 11px;
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .ai-voice-status {
@@ -1663,6 +1663,91 @@ button {
   background: #e1eee2;
 }
 
+.ai-voice-key-activation {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ai-voice-key-activation p {
+  margin: 0;
+  color: #687269;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.ai-voice-key-activation > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.ai-voice-key-activation button {
+  min-height: 38px;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ai-voice-key-activation button:focus-visible {
+  outline: 3px solid rgb(75 116 88 / 18%);
+  outline-offset: 2px;
+}
+
+.ai-voice-key-activation button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.ai-voice-key-cancel {
+  padding: 8px 10px;
+  border: 0;
+  color: #5d685f;
+  background: transparent;
+}
+
+.ai-voice-key-cancel:hover:not(:disabled) {
+  color: #35483b;
+  background: #eaf0e9;
+}
+
+.ai-voice-key-save {
+  padding: 8px 12px;
+  border: 1px solid #41664c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  background: #42694f;
+  box-shadow: 0 2px 6px rgb(54 88 65 / 16%);
+}
+
+.ai-voice-key-save:hover:not(:disabled) {
+  border-color: #34563f;
+  background: #365d43;
+}
+
+.ai-voice-key-save:disabled {
+  border-color: #a8afa9;
+  background: #a8afa9;
+  box-shadow: none;
+}
+
+.ai-voice-key-save svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ai-voice-key-save .lucide-loader-circle {
+  animation: loader-spin 900ms linear infinite;
+}
+
 .ai-voice-security-note {
   margin: 9px 1px 0;
   display: flex;
@@ -1678,6 +1763,16 @@ button {
   height: 13px;
   flex: 0 0 auto;
   color: #56715e;
+}
+
+.ai-voice-subsection {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #e6e1d8;
+}
+
+.ai-voice-subsection h3 {
+  font-size: 16px;
 }
 
 .ai-voice-choice-section {
@@ -1936,8 +2031,67 @@ button {
   height: 14px;
 }
 
+.ai-voice-setup-reminder {
+  max-width: 230px;
+  color: #69736b;
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: right;
+}
+
 .ai-voice-apply .lucide-loader-circle {
   animation: loader-spin 900ms linear infinite;
+}
+
+.voice-recognition-setting {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #e6e1d8;
+}
+
+.voice-recognition-setting > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.voice-recognition-setting h3 {
+  margin: 1px 0 4px;
+  color: #303a32;
+  font-size: 16px;
+}
+
+.voice-recognition-setting p {
+  max-width: 70ch;
+  margin: 0;
+  color: #6b746d;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.settings-inline-link {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  color: #315f43;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.settings-inline-link:hover {
+  color: #244b34;
+}
+
+.settings-inline-link:focus-visible {
+  outline: 3px solid rgb(75 116 88 / 20%);
+  outline-offset: 4px;
+  border-radius: 3px;
 }
 
 .data-restore-backdrop {
@@ -2009,6 +2163,21 @@ button {
   .ai-voice-actions {
     justify-content: flex-end;
   }
+
+  .ai-voice-key-activation {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-voice-key-activation > div {
+    justify-content: flex-end;
+  }
+
+  .ai-voice-setup-reminder {
+    max-width: none;
+    text-align: left;
+  }
+
 }
 
 .chapter-list {
@@ -4698,7 +4867,174 @@ button {
 }
 
 .review-answer-field {
+  position: relative;
   display: grid;
+}
+
+.review-answer-field textarea {
+  padding-right: 54px;
+}
+
+.review-voice-answer {
+  display: contents;
+}
+
+.review-voice-trigger {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #b8c7ba;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: #315b40;
+  background: #f2f7f1;
+  box-shadow: 0 2px 5px rgb(47 75 56 / 10%);
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease,
+    transform 140ms ease, box-shadow 140ms ease;
+}
+
+.review-voice-trigger:hover:not(:disabled) {
+  border-color: #78927e;
+  background: #e8f1e7;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 7px rgb(47 75 56 / 14%);
+}
+
+.review-voice-trigger:focus-visible {
+  outline: 3px solid rgb(75 116 88 / 22%);
+  outline-offset: 2px;
+}
+
+.review-voice-trigger:disabled {
+  cursor: default;
+  opacity: 0.48;
+  box-shadow: none;
+}
+
+.review-voice-trigger[data-phase="recording"] {
+  border-color: #b86a5f;
+  color: #8f3f34;
+  background: #faeae6;
+  box-shadow: 0 2px 7px rgb(143 63 52 / 16%);
+}
+
+.review-voice-trigger svg {
+  width: 17px;
+  height: 17px;
+}
+
+.review-voice-trigger .lucide-loader-circle {
+  animation: loader-spin 900ms linear infinite;
+}
+
+.review-voice-status {
+  min-width: 0;
+  margin-top: 6px;
+  color: #607067;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.review-voice-status:empty {
+  display: none;
+}
+
+.review-voice-status span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.review-voice-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.review-voice-status .is-listening {
+  color: #8f4035;
+}
+
+.review-voice-status .is-listening svg {
+  animation: voice-answer-pulse 900ms ease-in-out infinite alternate;
+}
+
+.review-voice-status .is-error {
+  color: #983f32;
+}
+
+.review-voice-status .is-success {
+  color: #396348;
+}
+
+.review-voice-setup {
+  margin-top: 8px;
+  padding: 13px 14px;
+  border: 1px solid #cad5c8;
+  border-radius: 12px;
+  color: #34463a;
+  background: #f3f7f1;
+}
+
+.review-voice-setup > strong {
+  display: block;
+  font-size: 13px;
+}
+
+.review-voice-setup p {
+  max-width: 68ch;
+  margin: 5px 0 11px;
+  color: #5f6d63;
+  font-size: 11px;
+  font-weight: 550;
+  line-height: 1.5;
+}
+
+.review-voice-setup > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.review-voice-setup button {
+  min-height: 34px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.review-voice-keep-typing {
+  border: 1px solid #c9d0c7;
+  color: #506057;
+  background: #fff;
+}
+
+.review-voice-open-settings {
+  border: 1px solid #40674c;
+  color: #fff;
+  background: #42694f;
+}
+
+@keyframes voice-answer-pulse {
+  from { opacity: 0.48; transform: scaleX(0.86); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-voice-trigger,
+  .review-voice-status .is-listening svg {
+    transition: none;
+    animation: none;
+  }
 }
 
 .review-answer-field.has-correction textarea {

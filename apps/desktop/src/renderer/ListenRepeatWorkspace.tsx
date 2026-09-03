@@ -370,7 +370,7 @@ export function ListenRepeatWorkspace({
     const current = snapshotRef.current;
     if (!current.hasAiVoice) {
       onOpenAiVoice();
-      throw new Error("Set up AI Voice in Settings.");
+      throw new Error("Set up Voice & Speech in Settings.");
     }
     if (!current.practice) throw new Error("Practice is unavailable.");
     const longId = chunk.kind === "long" ? chunk.id : chunk.parentId;
@@ -1057,7 +1057,7 @@ export function ListenRepeatWorkspace({
               </button>
             ) : null}
             {/AI Voice|OpenAI rejected/u.test(error) ? (
-              <button type="button" onClick={onOpenAiVoice}>Open AI Voice settings</button>
+              <button type="button" onClick={onOpenAiVoice}>Open Voice &amp; Speech settings</button>
             ) : null}
           </div>
         </div>
