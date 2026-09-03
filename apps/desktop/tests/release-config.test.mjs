@@ -24,7 +24,7 @@ test("publishes VocabReader under the 2026 highsunday MIT license", () => {
 test("defines native installer scripts and deterministic artifact names", () => {
   const packageJson = JSON.parse(readRepositoryFile("apps/desktop/package.json"));
 
-  assert.equal(packageJson.version, "0.1.6");
+  assert.equal(packageJson.version, "0.1.7");
   assert.equal(packageJson.devDependencies["electron-builder"], "^26.15.3");
   assert.match(packageJson.scripts.postinstall, /electron-builder install-app-deps/);
   assert.match(packageJson.scripts["dist:mac:arm64"], /--mac dmg --arm64 --publish never/);
