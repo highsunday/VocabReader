@@ -102,7 +102,7 @@ export const downloadTranslations = {
     "finish.home": "Return to product overview",
     "finish.help": "Report an installation problem",
     "footer.note": "Free and open source under the MIT License.",
-    "footer.release": "Releases",
+    "footer.feedback": "Feedback",
   },
   "zh-Hant": {
     "meta.title": "下載與安裝 VocabReader",
@@ -207,6 +207,6 @@ export const downloadTranslations = {
     "finish.home": "回到軟體介紹",
     "finish.help": "回報安裝問題",
     "footer.note": "免費且以 MIT License 開放原始碼。",
-    "footer.release": "發行版本",
+    "footer.feedback": "提供意見",
   },
 };

@@ -365,6 +365,14 @@ test("P2 serves the compact favicon for every visible product mark", async () =>
   }
 });
 
+test("the homepage and download guide share one footer", async () => {
+  const homepage = await text("index.html");
+  const download = await text("download/index.html");
+  const footerPattern = /<footer class="site-footer">[\s\S]*?<\/footer>/;
+
+  assert.equal(download.match(footerPattern)?.[0], homepage.match(footerPattern)?.[0]);
+});
+
 test("P2 serves responsive WebP screenshots without discarding the PNG sources", async () => {
   const html = await text("index.html");
 
