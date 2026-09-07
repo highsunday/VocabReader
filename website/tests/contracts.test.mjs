@@ -259,7 +259,8 @@ test("TC31 keeps the closing CTA focused and touch targets usable", async () => 
   assert.doesNotMatch(html, /<section\b[^>]*id=["']get-started["'][^>]*>[\s\S]*?<img\b/);
   assert.match(css, /\.language-switch (?:button|a)\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
   assert.match(css, /\.nav-star\s*{[^}]*min-height:\s*44px;/s);
-  assert.match(css, /@media \(max-width:\s*620px\)[\s\S]*?\.nav-star\s*{[^}]*display:\s*none;/s);
+  assert.doesNotMatch(css, /\.nav-star\s*{[^}]*display:\s*none;/s);
+  assert.match(html, /class="nav-star-short"[^>]*>GitHub<\/span>/);
   assert.match(css, /:lang\(zh-Hant\)[\s\S]*?letter-spacing:\s*0;/s);
   assert.match(css, /\.get-started\s*{[^}]*padding-block:\s*clamp\(84px,\s*8vw,\s*112px\)/s);
 });

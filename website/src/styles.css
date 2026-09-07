@@ -273,6 +273,10 @@ p {
   transition: border-color 160ms ease, background 160ms ease;
 }
 
+.nav-star-short {
+  display: none;
+}
+
 .nav-star:hover {
   border-color: #8e9d90;
   background: var(--forest-soft);
@@ -817,7 +821,13 @@ p {
 
   .navbar {
     min-height: 68px;
-    gap: 14px;
+    gap: 4px 14px;
+    flex-wrap: wrap;
+    padding-block: 8px;
+  }
+
+  .nav-links {
+    display: none;
   }
 
   .brand {
@@ -832,6 +842,7 @@ p {
 
   .nav-actions {
     gap: 8px;
+    margin-left: auto;
   }
 
   .language-switch {
@@ -840,7 +851,15 @@ p {
   }
 
   .nav-star {
+    flex-shrink: 0;
+  }
+
+  .nav-star [data-i18n="cta.star"] {
     display: none;
+  }
+
+  .nav-star-short {
+    display: inline;
   }
 
   .hero {
