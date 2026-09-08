@@ -1190,21 +1190,29 @@ export function ListenRepeatWorkspace({
                         : "Saving your recording"}</span>
               </div>
             </div>
-            {currentParent && currentContinuousChunk.kind === "short" ? (
-              <div className="listen-repeat-parent-context">
-                <span>Full sentence context</span>
-                <p>{(() => {
-                  const start = currentParent.text.indexOf(currentContinuousChunk.text);
-                  if (start < 0) return currentParent.text;
-                  return <>
-                    {currentParent.text.slice(0, start)}
-                    <mark>{currentContinuousChunk.text}</mark>
-                    {currentParent.text.slice(start + currentContinuousChunk.text.length)}
-                  </>;
-                })()}</p>
-              </div>
-            ) : null}
-            <p className="listen-repeat-focus-text">{currentContinuousChunk.text}</p>
+            <div
+              key={currentContinuousChunk.id}
+              className="listen-repeat-focus-content"
+              role="region"
+              aria-label="Practice text"
+              tabIndex={0}
+            >
+              {currentParent && currentContinuousChunk.kind === "short" ? (
+                <div className="listen-repeat-parent-context">
+                  <span>Full sentence context</span>
+                  <p>{(() => {
+                    const start = currentParent.text.indexOf(currentContinuousChunk.text);
+                    if (start < 0) return currentParent.text;
+                    return <>
+                      {currentParent.text.slice(0, start)}
+                      <mark>{currentContinuousChunk.text}</mark>
+                      {currentParent.text.slice(start + currentContinuousChunk.text.length)}
+                    </>;
+                  })()}</p>
+                </div>
+              ) : null}
+              <p className="listen-repeat-focus-text">{currentContinuousChunk.text}</p>
+            </div>
             <div className="listen-repeat-focus-meter-row">
               <div
                 className="listen-repeat-mic-level"

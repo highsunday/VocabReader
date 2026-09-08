@@ -12488,6 +12488,11 @@ h1 {
 
 .listen-repeat-focus-card {
   width: min(820px, 100%);
+  max-height: calc(100dvh - 2 * clamp(14px, 3vw, 32px));
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  overflow: hidden;
   padding: clamp(24px, 4vw, 44px);
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 28px;
@@ -12585,8 +12590,23 @@ h1 {
   font-size: 10px;
 }
 
+.listen-repeat-focus-content {
+  min-height: 0;
+  min-width: 0;
+  margin: 20px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-color: #9eb9a6 transparent;
+}
+
+.listen-repeat-focus-content:focus-visible {
+  outline: 2px solid #5d8d6c;
+  outline-offset: -2px;
+}
+
 .listen-repeat-parent-context {
-  margin-top: 20px;
+  margin-top: 0;
   padding: 13px 15px;
   border: 1px solid #e0e4de;
   border-radius: 13px;
@@ -12619,6 +12639,7 @@ h1 {
 }
 
 .listen-repeat-focus-meter-row {
+  width: 100%;
   max-width: 520px;
   margin: 0 auto 26px;
   display: flex;
@@ -12908,9 +12929,7 @@ h1 {
   }
 
   .listen-repeat-focus-card {
-    max-height: calc(100vh - 28px);
     padding: 22px 18px;
-    overflow-y: auto;
     border-radius: 20px;
   }
 
