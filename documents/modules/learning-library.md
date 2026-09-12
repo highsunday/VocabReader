@@ -2,7 +2,7 @@
 title: 本機生詞庫模組
 module: learning-library
 status: active
-last_updated: 2026-09-01
+last_updated: 2026-09-12
 related_implements:
   - F19-local-learning-library-page
   - F20-confirm-learning-item-trash
@@ -28,6 +28,7 @@ related_implements:
   - B37-render-memory-tip-inline-markdown
   - B38-allow-ai-editing-memory-tips
   - B17-confirm-review-after-learning-item-deletion
+  - B45-count-new-items-when-learning-starts
 ---
 
 # 本機生詞庫模組
@@ -117,7 +118,8 @@ related_implements:
 - 以 `findDuplicateCandidates()` 提供 deterministic exact-title 候選，不做語義判斷。
 - 以 `createItemsAtomically()` 提供草稿批次的全有或全無新增。
 - 依 Main 裝置時間與可設定的 1–20 題試卷大小選出複習項目，已到期優先，新項目依
-  CEFR 補入，並遵守新項目與到期複習的每日完成上限。
+  CEFR 補入；新項目額度以當日首次確認數計算，到期複習額度以當日完成數計算。
+  既有初學卡再次到期後不受新項目設定影響，設為零也不暫停其學習路徑（B45）。
 - 以獨立 read-only query 計算並隨機抽取 active、語言等於目前工作區且 `review_count > 0` 的整合造句
   必要用詞，不沿用 due、daily limit 或 review paper size。
 - 驗證四級評級與複習作答、讀寫 FSRS card 狀態，並在單一交易追加事件與更新排程。

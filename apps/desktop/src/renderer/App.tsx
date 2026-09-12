@@ -4021,9 +4021,9 @@ export function App() {
                   <div className="settings-number-control">
                     <div>
                       <label htmlFor="daily-new-item-completion-limit">
-                        Daily new-item completion limit
+                        Daily new-item limit
                       </label>
-                      <p>Counts as complete when scheduled for tomorrow or later; 0 pauses new items.</p>
+                      <p>Counts each card when you first confirm its review. Set to 0 to pause new cards; cards already in learning continue.</p>
                     </div>
                     <input
                       id="daily-new-item-completion-limit"

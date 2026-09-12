@@ -895,7 +895,7 @@ describe("App", () => {
     expect(screen.getByRole("tab", { name: "General" }))
       .toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("spinbutton", {
-      name: "Daily new-item completion limit"
+      name: "Daily new-item limit"
     })).not.toBeInTheDocument();
     const conversationSize = screen.getByRole("slider", {
       name: "AI conversation text size"
@@ -934,7 +934,7 @@ describe("App", () => {
     }));
   });
 
-  it("saves daily completion limits and the review paper size from settings", async () => {
+  it("saves the daily new-item limit, due completion limit and review paper size", async () => {
     const { review, saveSettings } = installLibraryApi();
     render(<App />);
 
@@ -956,7 +956,7 @@ describe("App", () => {
       "Listen & Repeat"
     ]);
     const newLimit = screen.getByRole("spinbutton", {
-      name: "Daily new-item completion limit"
+      name: "Daily new-item limit"
     });
     const dueLimit = screen.getByRole("spinbutton", {
       name: "Daily due-review completion limit"
@@ -1873,7 +1873,7 @@ describe("App", () => {
     );
     expect(screen.getByRole("region", {
       name: "Complete 1 questions to keep your memory moving"
-    })).toHaveTextContent("1 new items • 0 due reviews");
+    })).toHaveTextContent("0 learning • 0 due reviews • 1 new items");
     expect(review.generatePaper).not.toHaveBeenCalled();
     expect(screen.getByLabelText("AI Tutor")).toBeInTheDocument();
   });

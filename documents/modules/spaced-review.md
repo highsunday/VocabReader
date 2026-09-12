@@ -2,7 +2,7 @@
 title: AI 批改與 FSRS 間隔複習模組
 module: spaced-review
 status: active
-last_updated: 2026-09-04
+last_updated: 2026-09-12
 related_implements:
   - F28-ai-graded-spaced-review-paper
   - F29-stream-spaced-review-generation-and-scroll-paper
@@ -28,6 +28,7 @@ related_implements:
   - F69-isolate-learning-language-workspaces
   - B11-base-expression-feedback-on-wording-not-answer-length
   - B15-do-not-reserve-completion-capacity-for-learning-items
+  - B45-count-new-items-when-learning-starts
   - B17-confirm-review-after-learning-item-deletion
   - F79-add-spaced-review-voice-answers
 ---
@@ -56,15 +57,17 @@ related_implements:
 目前支援：
 
 - 側欄獨立「間隔複習」入口及今日仍可排入後續試卷的即時數量。
-- 設定提供每日新項目完成上限（預設 10）、每日到期複習完成上限（預設 50）與每份
+- 設定提供每日新項目上限（預設 10）、每日到期複習完成上限（預設 50）與每份
   試卷題數（預設 10）；兩類上限為 0–999 且彼此獨立，題數為 1–20。
-- 間隔複習頁固定顯示兩類今日完成數／上限、學習中數、完整 backlog 與可再引入名額；
-  確認試卷或保存設定後會重新查詢摘要並立即更新。
+- 間隔複習頁顯示今日首次開始的新項目數／上限與今日到期複習完成數／上限；
+  下一份試卷分別呈現學習中、到期複習與未開始新項目。確認試卷或保存設定後
+  重新查詢摘要並立即更新。
 - 間隔複習首頁以獨立成果卡顯示目前穩定掌握、正在鞏固、30 天淨成長、30 天回想
   成功率及 90 天穩定掌握折線；既有 30 天複習活動方格另外保留為較低權重的投入
   資訊，不把完成次數稱為記憶成果。
-- 每類可再引入名額只扣除今日已完成數；學習中項目不預先占用完成名額，抵達精確
-  到期時間後仍維持原類別並優先繼續學習。
+- 新項目第一次確認即消耗當日新項目名額，後續重練不再次計數；到期複習仍只在
+  完成後消耗當日到期名額。初學路徑抵達精確到期時間後優先繼續，不受新項目
+  上限影響，設為零也一樣。
 - 尚未完成且再次到期的學習中項目優先，其次是其他既有到期項目，最後由新項目依
   CEFR A1→C2、同級建立時間補到設定題數；額度不足時允許較少題。
 - 進入頁面只顯示摘要，不自動使用 AI；明確按下按鈕後才生成試卷。
@@ -117,14 +120,16 @@ related_implements:
 
 1. 依每個項目的確認事件順序推導穩定的「新項目學習路徑」或「到期複習路徑」。
    `next_due_at` 的本地日期仍是確認當天時維持學習中；跨日也保留原始路徑。
-2. 只有 `next_due_at` 的本地日期進入隔天或更晚才算完成，並依事件所屬路徑增加今日
-   新項目或到期複習完成數。
-3. 每類剩餘完成額度為設定上限減去今日已完成數；目前學習中數保留作為狀態資訊與
-   排序依據，但不預先占用完成名額。今日已完成數達到獨立上限後不再引入同類其他
-   項目，已進入學習路徑的項目再次到期後仍可繼續。上限為 0 時暫停該類別，但不
-   改動已生成試卷。
+2. 每個項目的首次確認事件若在本地今日，立即增加 `reviewedNewTodayCount`；
+   同卡後續事件不重複增加。到期複習仍只有 `next_due_at` 的本地日期進入隔天或
+   更晚才增加 `reviewedDueTodayCount`。此計數可直接從舊事件重建，無需資料遷移。
+3. 新項目剩餘額度為設定上限減去今日首次開始數；到期剩餘額度為到期完成上限
+   減去今日到期完成數。初學路徑再次到期後不受新項目額度限制，即使新卡設為 0
+   仍可繼續；新卡額度只控制尚未建立排程的卡片。到期重新學習仍不預占完成
+   名額，且沿用到期設定為 0 時暫停的規則。設定變更不改動已生成試卷。
 4. 先選已再次到期的學習中項目，再依精確逾期時間選其他既有到期項目，最後以沒有
-   schedule 的 active 新項目依 CEFR 與建立時間補足。
+   schedule 的 active 新項目依 CEFR 與建立時間補足。queue 的 `reviewKind` 分別為
+   `learning`、`due`、`new`，與統計用的內部初學／到期路徑分類分開。
 5. `selectedItems` 最多為 `reviewPaperSize`；`totalAvailable` 是目前受額度限制後可排入
    後續試卷的數量，`backlogTotal` 另保留完整待處理量。queue item 明確移除代表圖片，
    避免在作答前的 Renderer payload 或 AI scope 洩漏目標語義。
@@ -146,7 +151,7 @@ related_implements:
   維護近似門檻或第二套熟悉度規則。
 - `reviewActivity` 是投入：沿用「下一次到期日期進入隔天或更晚才算完成」規則，
   彙整最近 30 個本地日期的新項目與到期複習完成次數。它只驅動活動方格，不影響
-  穩定掌握判定。
+  穩定掌握判定，也不同於每日新卡首次開始計數。
 - 30 天回想成功率排除每個項目的首次複習，只以後續事件的 Good／Easy 為成功；
   沒有後續樣本時回傳 null，Renderer 顯示破折號而不是 0%。
 - 垃圾桶項目由摘要查詢排除；還原後沿用既有事件重新進入成果與活動統計。
@@ -317,7 +322,7 @@ element 自己 `overflow-y: auto`；不再沿用生詞庫刻意鎖住外層捲�
 
 | Test file | Coverage |
 |---|---|
-| `learning-library-service.test.ts` | 學習路徑、完成判定、學習中項目不預占完成額度、跨日分類、Library Strong 與 Solid recall 一致性、四進度篩選、穩定掌握／衰退、90 天成果、30 天活動與回想率、獨立額度、零值暫停、可設定題數、三層排序、圖片不進 queue、精確到期、FSRS、覆寫歷史、試卷確認期間刪除、垃圾桶與重複確認 |
+| `learning-library-service.test.ts` | 新卡首次確認計數、20 張停止引入、26 張初學在 0/1/20 設定下仍可用、同日／跨日去重與重啟、到期重新學習不預占完成額度、Library Strong 與 Solid recall 一致性、四進度篩選、穩定掌握／衰退、90 天成果、30 天活動與回想率、獨立額度、可設定題數、三層排序、圖片不進 queue、精確到期、FSRS、覆寫歷史、試卷確認期間刪除、垃圾桶與重複確認 |
 | `spaced-review-skill.test.ts` | 新語境與 Examples 避重規則、自然度優先、評級獨立、表達建議三態、長度獨立、留白答案、語言分工及改寫契約 |
 | `spaced-review-artifacts.test.ts` | 合法 artifact、安全片段、表達建議正規化、缺題、未知／重複 id 與錯 scope 拒絕 |
 | `spaced-review-controller.test.ts` | 暫態 paper／expression feedback、完整題目串流計數、字串括號邊界、Luna／Terra／default 模型選擇、分頁、隔離 turn、受信任確認及 discard |

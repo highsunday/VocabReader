@@ -6,7 +6,7 @@ export interface ReviewQueueItem extends Omit<
   LearningItem,
   "memoryTip" | "representativeImageDataUrl"
 > {
-  reviewKind: "due" | "new";
+  reviewKind: "learning" | "due" | "new";
   dueAt: string | null;
 }
 
@@ -40,10 +40,12 @@ export interface ReviewActivity {
 export interface ReviewSummary {
   dueReviewedCount: number;
   newCount: number;
+  /** Items whose first confirmed review falls on the current local date. */
   reviewedNewTodayCount: number;
   reviewedDueTodayCount: number;
   newLearningCount: number;
   dueLearningCount: number;
+  /** Daily new-item introduction limit; existing storage/API name is retained. */
   newCompletionLimit: number;
   dueReviewCompletionLimit: number;
   reviewPaperSize: number;

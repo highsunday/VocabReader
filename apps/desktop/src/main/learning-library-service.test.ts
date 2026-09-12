@@ -1182,7 +1182,7 @@ describe("LocalLearningLibrary", () => {
     )).toBe(true);
   });
 
-  it("does not reserve new-item completion capacity for same-day learning items", async () => {
+  it("stops introducing new items once twenty have started, including six still learning", async () => {
     const library = new LocalLearningLibrary(await databasePath(), {
       getReviewPreferences: async () => ({
         dailyNewItemCompletionLimit: 20,
@@ -1230,17 +1230,158 @@ describe("LocalLearningLibrary", () => {
     );
 
     expect(summary).toMatchObject({
-      reviewedNewTodayCount: 14,
+      reviewedNewTodayCount: 20,
       newLearningCount: 6,
       newCompletionLimit: 20,
-      newRemainingCapacity: 6,
-      availableNewCount: 6,
-      totalAvailable: 6
+      newRemainingCapacity: 0,
+      availableNewCount: 0,
+      totalAvailable: 0
     });
-    expect(summary.selectedItems).toHaveLength(6);
-    expect(summary.selectedItems.every(({ reviewKind }) =>
-      reviewKind === "new"
-    )).toBe(true);
+    expect(summary.selectedItems).toEqual([]);
+    expect(summary.reviewActivity?.daily.at(-1)?.newCompletedCount).toBe(14);
+  });
+
+  it.each(["forgotten", "hard", "good", "easy"] as const)(
+    "counts a new item immediately after its first %s confirmation and after reopening",
+    async (rating) => {
+      const path = await databasePath();
+      const library = new LocalLearningLibrary(path);
+      const now = new Date(2026, 8, 12, 9, 0);
+      const before = await library.getReviewSummary(now);
+      const item = before.selectedItems[0];
+      expect((await library.getReviewSummary(now)).reviewedNewTodayCount).toBe(0);
+
+      await library.confirmReviewSession({
+        sessionId: `first-${rating}`,
+        reviewedAt: now.toISOString(),
+        ratings: [{ itemId: item.id, aiRating: rating, finalRating: rating }]
+      });
+      const after = await library.getReviewSummary(now);
+      expect(after).toMatchObject({
+        reviewedNewTodayCount: 1,
+        newRemainingCapacity: before.newRemainingCapacity - 1,
+        newCount: before.newCount - 1
+      });
+      library.close();
+      const reopened = new LocalLearningLibrary(path);
+      expect(await reopened.getReviewSummary(now)).toEqual(after);
+      reopened.close();
+    }
+  );
+
+  it("keeps twenty-six learning items available when the new-item limit changes to zero or one", async () => {
+    let newLimit = 20;
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: newLimit,
+        dailyDueReviewCompletionLimit: 50,
+        reviewPaperSize: 20
+      })
+    });
+    for (let index = 0; index < 20; index += 1) {
+      await library.createItem({
+        title: `learning-limit-${index}`,
+        itemType: "word",
+        language: "en",
+        cefr: "A1",
+        sense: `learning limit test ${index}`,
+        markdownContent: "A learning limit test."
+      });
+    }
+    const items = await library.listItems({ status: "active", sort: "recent" });
+    const now = new Date(2026, 8, 12, 9, 0);
+    await library.confirmReviewSession({
+      sessionId: "three-mature-items",
+      reviewedAt: new Date(2026, 7, 1, 9, 0).toISOString(),
+      ratings: items.slice(26, 29).map(({ id }) => ({
+        itemId: id, aiRating: "easy" as const, finalRating: "easy" as const
+      }))
+    });
+    for (const [index, batch] of [items.slice(0, 20), items.slice(20, 26)].entries()) {
+      await library.confirmReviewSession({
+        sessionId: `existing-learning-${index}`,
+        reviewedAt: now.toISOString(),
+        ratings: batch.map(({ id }) => ({
+          itemId: id,
+          aiRating: "forgotten" as const,
+          finalRating: "forgotten" as const
+        }))
+      });
+    }
+    const dueAt = (await library.getItemReviewDetail(items[0].id)).nextDueAt!;
+    const baseline = await library.getReviewSummary(dueAt);
+    const counts = await library.countItems(dueAt);
+    expect(counts.progress).toMatchObject({ new: 1, studying: 26 });
+    for (const limit of [0, 1, 20]) {
+      newLimit = limit;
+      const summary = await library.getReviewSummary(dueAt);
+      expect(summary).toMatchObject({
+        newLearningCount: 26,
+        availableLearningCount: 26,
+        availableDueCount: 3,
+        availableNewCount: 0,
+        totalAvailable: 29
+      });
+      expect(summary.selectedItems).toEqual(baseline.selectedItems);
+      expect(summary.selectedItems.every(({ reviewKind }) => reviewKind === "learning"))
+        .toBe(true);
+      expect(await library.countItems(dueAt)).toEqual(counts);
+    }
+    library.close();
+  });
+
+  it("does not charge today's new-item capacity for a learning path started yesterday", async () => {
+    let newLimit = 0;
+    const library = new LocalLearningLibrary(await databasePath(), {
+      getReviewPreferences: async () => ({
+        dailyNewItemCompletionLimit: newLimit,
+        dailyDueReviewCompletionLimit: 50,
+        reviewPaperSize: 10
+      })
+    });
+    const [item, newItem] = await library.listItems({ status: "active", sort: "recent" });
+    const first = await library.confirmReviewSession({
+      sessionId: "started-yesterday",
+      reviewedAt: new Date(2026, 8, 11, 9, 0).toISOString(),
+      ratings: [{ itemId: item.id, aiRating: "forgotten", finalRating: "forgotten" }]
+    });
+    expect(await library.getReviewSummary(first.reviewedAt)).toMatchObject({
+      reviewedNewTodayCount: 1,
+      availableLearningCount: 0,
+      nextDueAt: first.entries[0].nextDueAt
+    });
+    const today = new Date(2026, 8, 12, 9, 0);
+    const paused = await library.getReviewSummary(today);
+    expect(paused).toMatchObject({
+      reviewedNewTodayCount: 0,
+      availableLearningCount: 1,
+      availableNewCount: 0
+    });
+    expect(paused.selectedItems).toEqual([
+      expect.objectContaining({ id: item.id, reviewKind: "learning" })
+    ]);
+    newLimit = 1;
+    await library.confirmReviewSession({
+      sessionId: "complete-yesterdays-learning",
+      reviewedAt: today.toISOString(),
+      ratings: [{ itemId: item.id, aiRating: "easy", finalRating: "easy" }]
+    });
+    expect(await library.getReviewSummary(today)).toMatchObject({
+      reviewedNewTodayCount: 0,
+      newRemainingCapacity: 1,
+      availableNewCount: 1
+    });
+    await library.confirmReviewSession({
+      sessionId: "start-todays-new-item",
+      reviewedAt: today.toISOString(),
+      ratings: [{ itemId: newItem.id, aiRating: "forgotten", finalRating: "forgotten" }]
+    });
+    expect(await library.getReviewSummary(today)).toMatchObject({
+      reviewedNewTodayCount: 1,
+      newRemainingCapacity: 0,
+      availableNewCount: 0
+    });
+    library.close();
   });
 
   it("does not reserve due-review completion capacity for same-day relearning items", async () => {
@@ -1334,14 +1475,14 @@ describe("LocalLearningLibrary", () => {
     const summary = await library.getReviewSummary(learningDueAt);
 
     expect(summary).toMatchObject({
-      reviewedNewTodayCount: 1,
+      reviewedNewTodayCount: 2,
       newLearningCount: 1,
       newRemainingCapacity: 0,
       availableLearningCount: 1
     });
     expect(summary.selectedItems[0]).toMatchObject({
       id: learningItem.id,
-      reviewKind: "new"
+      reviewKind: "learning"
     });
   });
 
@@ -1372,15 +1513,15 @@ describe("LocalLearningLibrary", () => {
 
     const learning = await library.getReviewSummary(firstDue);
     expect(learning).toMatchObject({
-      reviewedNewTodayCount: 0,
+      reviewedNewTodayCount: 1,
       reviewedDueTodayCount: 0,
       newLearningCount: 1,
       dueLearningCount: 0,
-      newRemainingCapacity: 1
+      newRemainingCapacity: 0
     });
     expect(learning.selectedItems[0]).toMatchObject({
       id: item.id,
-      reviewKind: "new"
+      reviewKind: "learning"
     });
 
     const nextDay = new Date(firstDue);
@@ -1392,7 +1533,7 @@ describe("LocalLearningLibrary", () => {
     });
     expect(crossDay.selectedItems[0]).toMatchObject({
       id: item.id,
-      reviewKind: "new"
+      reviewKind: "learning"
     });
 
     const second = await library.confirmReviewSession({
@@ -1461,7 +1602,7 @@ describe("LocalLearningLibrary", () => {
     expect(summary.selectedItems).toHaveLength(3);
     expect(summary.selectedItems[0]).toMatchObject({
       id: learningItem.id,
-      reviewKind: "new"
+      reviewKind: "learning"
     });
     expect(summary.selectedItems[1]).toMatchObject({
       id: matureItem.id,
@@ -1789,7 +1930,7 @@ describe("LocalLearningLibrary", () => {
       .toBe(false);
     expect(atDue.selectedItems[0]).toMatchObject({
       id: fastidious.id,
-      reviewKind: "new",
+      reviewKind: "learning",
       dueAt: first.entries[0].nextDueAt
     });
   });

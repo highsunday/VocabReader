@@ -201,7 +201,7 @@ function reviewProgress(
   now: Date
 ): {
   states: Map<string, ReviewProgressState>;
-  completedNewToday: number;
+  startedNewToday: number;
   completedDueToday: number;
   newLearningCount: number;
   dueLearningCount: number;
@@ -233,10 +233,16 @@ function reviewProgress(
     activityDaily.map((day) => [day.date, day])
   );
   let completedReviewCount = 0;
-  let completedNewToday = 0;
+  let startedNewToday = 0;
   let completedDueToday = 0;
   const eventsByItem = new Map<string, ReviewProgressRow[]>();
   for (const row of rows) {
+    // A card consumes new-item capacity on its first confirmed review,
+    // regardless of its rating or how long its initial learning takes.
+    if (!states.has(row.learning_item_id) &&
+      row.reviewed_at >= todayStartIso && row.reviewed_at < tomorrowStartIso) {
+      startedNewToday += 1;
+    }
     const itemEvents = eventsByItem.get(row.learning_item_id) ?? [];
     itemEvents.push(row);
     eventsByItem.set(row.learning_item_id, itemEvents);
@@ -256,8 +262,7 @@ function reviewProgress(
         completedReviewCount += 1;
       }
       if (row.reviewed_at >= todayStartIso && row.reviewed_at < tomorrowStartIso) {
-        if (kind === "new") completedNewToday += 1;
-        else completedDueToday += 1;
+        if (kind === "due") completedDueToday += 1;
       }
     } else {
       state.learningKind = kind;
@@ -345,7 +350,7 @@ function reviewProgress(
 
   return {
     states,
-    completedNewToday,
+    startedNewToday,
     completedDueToday,
     newLearningCount,
     dueLearningCount,
@@ -1460,7 +1465,7 @@ export class LocalLearningLibrary {
     const newRemainingCapacity = Math.max(
       0,
       preferences.dailyNewItemCompletionLimit -
-        progress.completedNewToday
+        progress.startedNewToday
     );
     const dueRemainingCapacity = Math.max(
       0,
@@ -1469,8 +1474,9 @@ export class LocalLearningLibrary {
     );
     const eligibleLearningRows = learningDueRows.filter((row) => {
       const kind = progress.states.get(row.id)?.learningKind;
+      // Pausing new introductions must not pause an existing learning path.
       return kind === "new"
-        ? preferences.dailyNewItemCompletionLimit > 0
+        ? true
         : preferences.dailyDueReviewCompletionLimit > 0;
     });
     const eligibleDueRows = otherDueRows.slice(0, dueRemainingCapacity);
@@ -1482,7 +1488,7 @@ export class LocalLearningLibrary {
     ].slice(0, preferences.reviewPaperSize);
     const selectedItems: ReviewQueueItem[] = selectedRows.map((row) => {
       const learningKind = progress.states.get(row.id)?.learningKind;
-      const reviewKind = learningKind ?? (row.due_at ? "due" : "new");
+      const reviewKind = learningKind ? "learning" : (row.due_at ? "due" : "new");
       const {
         memoryTip: _memoryTip,
         representativeImageDataUrl: _representativeImageDataUrl,
@@ -1507,7 +1513,7 @@ export class LocalLearningLibrary {
     return {
       dueReviewedCount,
       newCount,
-      reviewedNewTodayCount: progress.completedNewToday,
+      reviewedNewTodayCount: progress.startedNewToday,
       reviewedDueTodayCount: progress.completedDueToday,
       newLearningCount: progress.newLearningCount,
       dueLearningCount: progress.dueLearningCount,

@@ -186,7 +186,7 @@ describe("SpacedReviewWorkspace", () => {
     expect(api.gradePaper).not.toHaveBeenCalled();
   });
 
-  it("shows completed cards against the configured daily limits", async () => {
+  it("shows started new items and completed due reviews against their daily limits", async () => {
     const api = reviewApi();
     api.getSummary = vi.fn(async () => ({
       dueReviewedCount: 0,
@@ -198,8 +198,8 @@ describe("SpacedReviewWorkspace", () => {
       newCompletionLimit: 10,
       dueReviewCompletionLimit: 50,
       reviewPaperSize: 10,
-      newRemainingCapacity: 7,
-      dueRemainingCapacity: 43,
+      newRemainingCapacity: 8,
+      dueRemainingCapacity: 46,
       backlogTotal: 0,
       totalAvailable: 0,
       selectedItems: [],
@@ -216,12 +216,30 @@ describe("SpacedReviewWorkspace", () => {
       name: "Today's review status"
     });
     expect(status).toHaveTextContent(
-      "Today's progressCompleted / daily limitNew items2/10Due reviews4/50"
+      "Today's progressCount / daily limitNew items started2/10Due reviews completed4/50"
     );
     expect(screen.queryByText("今日安排")).not.toBeInTheDocument();
     expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\/ 50/)).not.toBeInTheDocument();
     expect(screen.queryByText(/名額/)).not.toBeInTheDocument();
+  });
+
+  it("describes learning cards separately from new items in the next paper", async () => {
+    const api = reviewApi();
+    const base = await api.getSummary();
+    api.getSummary = vi.fn(async () => ({
+      ...base,
+      totalAvailable: 3,
+      selectedItems: [
+        { ...base.selectedItems[0], id: "learning", reviewKind: "learning" as const },
+        { ...base.selectedItems[0], id: "due", reviewKind: "due" as const },
+        { ...base.selectedItems[0], id: "new", reviewKind: "new" as const }
+      ]
+    }));
+    render(<SpacedReviewWorkspace api={api} explanationLanguage="zh-TW" />);
+    expect(await screen.findByText(
+      "1 learning • 1 due reviews • 1 new items, already arranged for you."
+    )).toBeInTheDocument();
   });
 
   it("shows the next due time instead of claiming a waiting backlog is completed", async () => {
@@ -328,7 +346,7 @@ describe("SpacedReviewWorkspace", () => {
       name: "Today's review status"
     });
     expect(status).toHaveTextContent(
-      "New items3/12Due reviews5/30"
+      "New items started3/12Due reviews completed5/30"
     );
     const primaryAction = screen.getByRole("region", {
       name: "Complete 1 questions to keep your memory moving"
@@ -553,7 +571,7 @@ describe("SpacedReviewWorkspace", () => {
     expect(screen.getByRole("region", {
       name: "Today's review status"
     })).toHaveTextContent(
-      "New items1/10Due reviews0/50"
+      "New items started1/10Due reviews completed0/50"
     );
     expect(screen.getByRole("region", {
       name: "Learning growth"

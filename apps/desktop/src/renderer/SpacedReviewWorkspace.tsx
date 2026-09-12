@@ -590,18 +590,18 @@ export function SpacedReviewWorkspace({
         <section className="review-status-strip" aria-label="Today's review status">
           <div className="review-status-heading">
             <strong>Today&apos;s progress</strong>
-            <small>Completed / daily limit</small>
+            <small>Count / daily limit</small>
           </div>
           <dl>
             <div>
-              <dt>New items</dt>
+              <dt>New items started</dt>
               <dd>
                 <strong>{summary.reviewedNewTodayCount}</strong>
                 <span>/{summary.newCompletionLimit}</span>
               </dd>
             </div>
             <div>
-              <dt>Due reviews</dt>
+              <dt>Due reviews completed</dt>
               <dd>
                 <strong>{summary.reviewedDueTodayCount}</strong>
                 <span>/{summary.dueReviewCompletionLimit}</span>
@@ -630,11 +630,14 @@ export function SpacedReviewWorkspace({
               </h2>
               <p>
                 {summary.selectedItems.filter(({ reviewKind }) =>
-                  reviewKind === "new"
-                ).length} new items •
+                  reviewKind === "learning"
+                ).length} learning •
                 {" "}{summary.selectedItems.filter(({ reviewKind }) =>
                   reviewKind === "due"
-                ).length} due reviews, already arranged for you.
+                ).length} due reviews •
+                {" "}{summary.selectedItems.filter(({ reviewKind }) =>
+                  reviewKind === "new"
+                ).length} new items, already arranged for you.
               </p>
             </div>
             <div className="review-focus-action">
