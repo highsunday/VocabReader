@@ -100,12 +100,70 @@ describe("spawnCodexAppServer", () => {
     expect(spawnCommand).toHaveBeenCalledWith(
       "/Applications/ChatGPT.app/Contents/Resources/codex",
       ["app-server"],
-      { stdio: ["pipe", "pipe", "pipe"] }
+      expect.objectContaining({ stdio: ["pipe", "pipe", "pipe"] })
+    );
+  });
+
+  it("adds common CLI directories to the macOS child PATH", () => {
+    const child = childProcessFixture();
+    const spawnCommand = vi.fn(() => child) as unknown as typeof spawn;
+
+    spawnCodexAppServer({
+      platform: "darwin",
+      macExecutable: "/opt/homebrew/bin/codex",
+      environment: { HOME: "/Users/reader", PATH: "/usr/bin:/bin" },
+      spawnCommand
+    });
+
+    expect(spawnCommand).toHaveBeenCalledWith(
+      "/opt/homebrew/bin/codex",
+      ["app-server"],
+      {
+        stdio: ["pipe", "pipe", "pipe"],
+        env: {
+          HOME: "/Users/reader",
+          PATH: "/opt/homebrew/bin:/usr/local/bin:/Users/reader/.local/bin:/usr/bin:/bin"
+        }
+      }
     );
   });
 });
 
 describe("findMacOSCodexExecutable", () => {
+  it("finds the current ChatGPT native CLI before a Homebrew shim", () => {
+    const root = mkdtempSync(join(tmpdir(), "vocabreader-macos-codex-"));
+    const applicationsDirectory = join(root, "Applications");
+    const homeDirectory = join(root, "home");
+    const executable = join(
+      applicationsDirectory,
+      "ChatGPT.app",
+      "Contents",
+      "Resources",
+      "codex-cli",
+      "CodexCLI.app",
+      "Contents",
+      "MacOS",
+      "codex"
+    );
+    const homebrewShim = join(root, "homebrew", "bin", "codex");
+    try {
+      mkdirSync(join(executable, ".."), { recursive: true });
+      mkdirSync(join(homebrewShim, ".."), { recursive: true });
+      writeFileSync(executable, "");
+      writeFileSync(homebrewShim, "");
+      chmodSync(executable, 0o755);
+      chmodSync(homebrewShim, 0o755);
+
+      expect(findMacOSCodexExecutable({
+        applicationsDirectory,
+        homeDirectory,
+        fallbackBinDirectories: [join(root, "homebrew", "bin")]
+      })).toBe(executable);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("finds the executable bundled with the system ChatGPT app", () => {
     const root = mkdtempSync(join(tmpdir(), "vocabreader-macos-codex-"));
     const applicationsDirectory = join(root, "Applications");

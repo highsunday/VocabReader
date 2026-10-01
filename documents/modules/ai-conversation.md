@@ -68,8 +68,9 @@ related_implements:
 - Electron Main 啟動 `codex app-server`，完成 initialize／initialized／account/read
   握手；Windows 優先使用 Codex Desktop 最新 native CLI，未安裝時透過系統命令
   處理器解析 npm 的 `codex.cmd` shim。macOS 優先探測系統或使用者 Applications 內
-  ChatGPT／Codex Desktop 的內建 native CLI，再探測 Homebrew、`/usr/local` 與
-  `~/.local/bin`；Linux 直接啟動 PATH 中的 `codex`。
+  ChatGPT／Codex Desktop 的內建 native CLI（包含新版 `codex-cli/CodexCLI.app`），
+  再探測 Homebrew、`/usr/local` 與 `~/.local/bin`；macOS 子程序 PATH 加入這些
+  常見 CLI 目錄，讓從 Finder 啟動時的 npm shim 能找到 Node；Linux 直接啟動 PATH 中的 `codex`。
 - 自動沿用本機 Codex／ChatGPT 登入狀態，不讀取 OpenAI API key。
 - 顯示 disconnected、connecting、ready、auth-required 與 error 連線階段。
 - 依 300 與 10,080 分鐘視窗辨識五小時與每週額度；缺值、載入中與確實 0% 保持不同語意。
@@ -352,7 +353,7 @@ Controller 在帳戶成功、額度仍讀取的短暫時間明確發布 loading�
 | Test file | Coverage |
 |---|---|
 | `apps/desktop/src/main/chat-conversation-store.test.ts` | 原子保存、最近 10 筆上限、完整訊息保留、重啟 streaming 正規化與損壞資料隔離 |
-| `apps/desktop/src/main/codex-app-server-client.test.ts` | Windows Desktop native CLI discovery、npm shim fallback 與非 Windows 啟動 |
+| `apps/desktop/src/main/codex-app-server-client.test.ts` | Windows Desktop native CLI discovery、npm shim fallback、macOS 新舊版 ChatGPT CLI 路徑與 GUI PATH 啟動 |
 | `apps/desktop/src/main/chat-controller.test.ts` | 既有 transport／對話流程、同 turn 多 final 收斂、commentary 產物隔離、phase 缺省相容、最近 10 筆上限、每分鐘額度刷新與停止清理、四個對話 skills、creation 候選範圍、持久澄清與批次生命週期 |
 | `apps/desktop/src/main/reading-comprehension-skill.test.ts` | 閱讀 skill 的 CEFR、8–12／1–3 題、混合題型、批改、語言與 final review 契約 |
 | `apps/desktop/src/main/bundled-skill.test.ts` | App skills 的乾淨安裝、相同內容略過與舊版原子更新 |

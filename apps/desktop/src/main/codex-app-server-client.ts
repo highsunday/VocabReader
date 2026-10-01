@@ -134,9 +134,13 @@ export function findMacOSCodexExecutable(
     ...(homeDirectory ? [join(homeDirectory, "Applications")] : [])
   ];
   const desktopCandidates = applicationDirectories.flatMap((directory) =>
-    ["ChatGPT.app", "Codex.app"].map((appName) =>
-      join(directory, appName, "Contents", "Resources", "codex")
-    )
+    ["ChatGPT.app", "Codex.app"].flatMap((appName) => {
+      const resources = join(directory, appName, "Contents", "Resources");
+      return [
+        join(resources, "codex-cli", "CodexCLI.app", "Contents", "MacOS", "codex"),
+        join(resources, "codex")
+      ];
+    })
   );
   const fallbackBinDirectories = options.fallbackBinDirectories ?? [
     "/opt/homebrew/bin",
@@ -175,11 +179,19 @@ export function spawnCodexAppServer(
     );
   }
   if (platform === "darwin") {
+    const homeDirectory = environment.HOME ?? homedir();
     const macExecutable = options.macExecutable === undefined
-      ? findMacOSCodexExecutable({ homeDirectory: environment.HOME })
+      ? findMacOSCodexExecutable({ homeDirectory })
       : options.macExecutable;
+    const path = [
+      "/opt/homebrew/bin",
+      "/usr/local/bin",
+      join(homeDirectory, ".local", "bin"),
+      ...(environment.PATH ? [environment.PATH] : [])
+    ].join(":");
     return spawnCommand(macExecutable ?? "codex", ["app-server"], {
-      stdio: ["pipe", "pipe", "pipe"]
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...environment, PATH: path }
     });
   }
   return spawnCommand("codex", ["app-server"], {
